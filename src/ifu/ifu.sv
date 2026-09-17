@@ -75,8 +75,9 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Faults
   input  logic                 IllegalBaseInstrD,                        // Illegal non-compressed instruction
   input  logic                 IllegalFPUInstrD,                         // Illegal FP instruction
+  input  logic                 IllegalVPUInstrD,                         // Illegal vector instruction
   output logic                 InstrPageFaultF,                          // Instruction page fault
-  output logic                 IllegalIEUFPUInstrD,                      // Illegal instruction including compressed & FP
+  output logic                 IllegalIEUFPUVPUInstrD,                   // Illegal instruction including compressed, FP & vector
   output logic                 InstrMisalignedFaultM,                    // Branch target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
   // mmu management
   input  logic [1:0]           PrivilegeModeW,                           // Privilege mode in Writeback stage
@@ -390,7 +391,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign InstrD = InstrRawD;
     assign IllegalIEUInstrD = IllegalBaseInstrD;
   end
-  assign IllegalIEUFPUInstrD = IllegalIEUInstrD & (IllegalFPUInstrD | !P.F_SUPPORTED);
+  assign IllegalIEUFPUVPUInstrD = IllegalIEUInstrD & (IllegalFPUInstrD | !P.F_SUPPORTED) & (IllegalVPUInstrD | !P.V_SUPPORTED);
 
   // Misaligned PC logic
   // Instruction address misalignment only from br/jal(r) instructions.

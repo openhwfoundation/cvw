@@ -60,6 +60,8 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic              StallM, FlushM,          // Stall, flush Memory stage
   input  logic              FWriteIntM, FCvtIntW,    // FPU writes integer register file, FPU converts float to int
   input  logic [P.XLEN-1:0] FIntResM,                // FPU integer result
+  input  logic              VWriteIntM,              // VPU writes integer register file
+  input  logic [P.XLEN-1:0] VIntResM,                // VPU integer result
   output logic [P.XLEN-1:0] SrcAM,                   // ALU's Source A in Memory stage to privilege unit for CSR writes
   output logic [P.XLEN-1:0] WriteDataM,              // Write data in Memory stage
   // Writeback stage signals
@@ -88,10 +90,11 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // Memory stage signals
   logic [P.XLEN-1:0] IEUResultM;                     // Result from execution stage
   logic [P.XLEN-1:0] IFResultM;                      // Result from either IEU or single-cycle FPU op writing an integer register
+  logic [P.XLEN-1:0] IFVResultM;                     // Result from IEU, single-cycle FPU op, or VPU writing an integer register
   // Writeback stage signals
   logic [P.XLEN-1:0] SCResultW;                      // Store Conditional result
   logic [P.XLEN-1:0] ResultW;                        // Result to write to register file
-  logic [P.XLEN-1:0] IFResultW;                      // Result from either IEU or single-cycle FPU op writing an integer register
+  logic [P.XLEN-1:0] IFVResultW;                     // Result from IEU, single-cycle FPU op, or VPU writing an integer register
   logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, signle-cycle FPU op, or 2-cycle FCVT float to int
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
@@ -104,8 +107,8 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   flopenrc #(P.XLEN) RD2EReg(clk, reset, FlushE, ~StallE, R2D, R2E);
   flopenrc #(P.XLEN) ImmExtEReg(clk, reset, FlushE, ~StallE, ImmExtD, ImmExtE);
 
-  mux3  #(P.XLEN)  faemux(R1E, ResultW, IFResultM, ForwardAE, ForwardedSrcAE);
-  mux3  #(P.XLEN)  fbemux(R2E, ResultW, IFResultM, ForwardBE, ForwardedSrcBE);
+  mux3  #(P.XLEN)  faemux(R1E, ResultW, IFVResultM, ForwardAE, ForwardedSrcAE);
+  mux3  #(P.XLEN)  fbemux(R2E, ResultW, IFVResultM, ForwardBE, ForwardedSrcBE);
   comparator #(P.XLEN) comp(ForwardedSrcAE, ForwardedSrcBE, BranchSignedE, FlagsE);
   mux2  #(P.XLEN)  srcamux(ForwardedSrcAE, PCE, ALUSrcAE, SrcAE);
   mux2  #(P.XLEN)  srcbmux(ForwardedSrcBE, ImmExtE, ALUSrcBE, SrcBE);
@@ -119,12 +122,12 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   flopenrc #(P.XLEN) WriteDataMReg(clk, reset, FlushM, ~StallM, ForwardedSrcBE, WriteDataM);
 
   // Writeback stage pipeline register and logic
-  flopenrc #(P.XLEN) IFResultWReg(clk, reset, FlushW, ~StallW, IFResultM, IFResultW);
+  flopenrc #(P.XLEN) IFVResultWReg(clk, reset, FlushW, ~StallW, IFVResultM, IFVResultW);
 
   // floating point inputs: FIntResM comes from fclass, fcmp, fmv; FCvtIntResW comes from fcvt
   if (P.F_SUPPORTED) begin : fpmux
     mux2  #(P.XLEN)  resultmuxM(IEUResultM, FIntResM, FWriteIntM, IFResultM);
-    mux2  #(P.XLEN)  cvtresultmuxW(IFResultW, FCvtIntResW, FCvtIntW, IFCvtResultW);
+    mux2  #(P.XLEN)  cvtresultmuxW(IFVResultW, FCvtIntResW, FCvtIntW, IFCvtResultW);
     if (P.IDIV_ON_FPU & P.F_SUPPORTED) begin
       mux2  #(P.XLEN)  divresultmuxW(MDUResultW, FIntDivResultW, IntDivW, MulDivResultW);
     end else begin
@@ -132,8 +135,16 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
     end
   end else begin : fpmux
     assign IFResultM = IEUResultM;
-    assign IFCvtResultW = IFResultW;
+    assign IFCvtResultW = IFVResultW;
     assign MulDivResultW = MDUResultW;
+  end
+
+  // vector inputs: VIntResM comes from vset
+  // TODO: add vmv.x.s, vfirst, etc. results from VPU
+  if (P.V_SUPPORTED) begin : vmux
+    mux2  #(P.XLEN)  vresultmuxM(IFResultM, VIntResM, VWriteIntM, IFVResultM);
+  end else begin : vmux
+    assign IFVResultM = IFResultM;
   end
   mux5  #(P.XLEN) resultmuxW(IFCvtResultW, ReadDataW, CSRReadValW, MulDivResultW, SCResultW, ResultSrcW, ResultW);
 
