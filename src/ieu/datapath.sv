@@ -141,7 +141,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
 
   // vector inputs: VIntResM comes from vset
   // TODO: add vmv.x.s, vfirst, etc. results from VPU
-  if (P.V_SUPPORTED) begin : vmux
+  if (P.ZVE32X_SUPPORTED) begin : vmux
     mux2  #(P.XLEN)  vresultmuxM(IFResultM, VIntResM, VWriteIntM, IFVResultM);
   end else begin : vmux
     assign IFVResultM = IFResultM;
