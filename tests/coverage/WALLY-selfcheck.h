@@ -3,10 +3,11 @@
 //
 // Written: david_harris@hmc.edu 15 September 2026
 //
-// Purpose: Self-check helpers for directed tests built with WALLY-init-lib.h.  A test that includes this file
-//          records its outcome in selfcheck_record, which the testbench reports (see CheckSelfCheck in
-//          testbench/testbench.sv): 0 = did not finish, 1 = passed, 2 = value mismatch (fields: index,
-//          address, expected, actual).  Include after WALLY-init-lib.h.  The macros clobber t0 and t1.
+// Purpose: Self-check helpers for directed tests built with WALLY-init-lib.h.  A failing check records the
+//          details in selfcheck_record for debugging (status 2 = value mismatch; fields: index, address,
+//          expected, actual) and reports the failure to the testbench by storing (2 << 1) | 1 = 5 to tohost.
+//          A test that reaches done without failing reports 1 (pass) to tohost.
+//          Include after WALLY-init-lib.h.  The macros clobber t0 and t1.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwgroup/cvw
@@ -15,6 +16,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SC_REPORT_FAIL: store the failure code to tohost.  The testbench ends the test at the first tohost store,
+// so this takes precedence over the pass code that done would otherwise write.
+.macro SC_REPORT_FAIL
+    la t0, tohost
+    li t1, (2 << 1) | 1
+    sd t1, 0(t0)
+.endm
 
 // SC_CHECK_EQ actual, expected, index: fail the test (status 2) if the registers differ.
 .macro SC_CHECK_EQ actual, expected, index
@@ -27,6 +36,7 @@
     sd zero, 16(t0)
     sd \expected, 24(t0)
     sd \actual, 32(t0)
+    SC_REPORT_FAIL
     j done
 9:
 .endm
@@ -42,6 +52,7 @@
     sd \adr, 16(t0)
     sd \expected, 24(t0)
     sd \actual, 32(t0)
+    SC_REPORT_FAIL
     j done
 9:
 .endm
@@ -53,10 +64,11 @@
     sd t1, 0(t0)
     li t1, \index
     sd t1, 8(t0)
+    SC_REPORT_FAIL
     j done
 .endm
 
-// SC_PASS: record success.  Call right before `j done`.
+// SC_PASS: record success.  Call right before `j done`, which reports the pass through tohost.
 .macro SC_PASS
     la t0, selfcheck_record
     li t1, 1
@@ -95,6 +107,7 @@ sc_trap_handler:
     sd zero, 24(t0)
     csrr t1, mcause
     sd t1, 32(t0)
+    SC_REPORT_FAIL
     j done
 sc_trap_ecall:
     ld t1, -16(t0)

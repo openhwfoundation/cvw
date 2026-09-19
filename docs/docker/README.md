@@ -98,7 +98,7 @@ podman volume create cvw_temp
 
 # run regression on the OpenHW/cvw
 podman run \
-    -e CLEAN_CVW=1 -e BUILD_RISCOF=1 -e RUN_QUESTA=1 \
+    -e CLEAN_CVW=1 -e BUILD_ACT=1 -e RUN_QUESTA=1 \
     -v cvw_temp:/home/cad/cvw \
     -v /cad/mentor/questa_sim-2023.4:/cad/mentor/questa_sim-xxxx.x_x \
     --privileged --network=host \
@@ -106,7 +106,7 @@ podman run \
 
 # run regression on the Karl-Han/cvw
 podman run \
-    -e CLEAN_CVW=1 -e BUILD_RISCOF=1 -e RUN_QUESTA=1 \
+    -e CLEAN_CVW=1 -e BUILD_ACT=1 -e RUN_QUESTA=1 \
     -e CVW_GIT=https://github.com/Karl-Han/cvw \
     -v cvw_temp:/home/cad/cvw \
     -v /cad/mentor/questa_sim-2023.4:/cad/mentor/questa_sim-xxxx.x_x \
@@ -237,14 +237,14 @@ There are two parts for regression:
 There are three main knobs:
 
 1. CLEAN_CVW: remove the `/home/${USERNAME}/cvw` inside the container (it can be a volume) and clone the `${CVW_GIT}`.
-2. BUILD_RISCOF: build RISCOF in the `/home/${USERNAME}/cvw`, sometimes you don't want to rebuild if there is no change in the test suite.
+2. BUILD_ACT: build the riscv-arch-test (ACT) tests and TestFloat vectors in `/home/${USERNAME}/cvw`; skip it when the test suite has not changed.
 3. RUN_QUESTA: enable the QuestaSIM in regression
 
 Options:
 
 - CVW_GIT: git clone address
 - CLEAN_CVW: clone CVW_GIT if enabled with `-e CLEAN_CVW=1`
-- BUILD_RISCOF: rebuild RISCOF if enabled with `-e BUILD_RISCOF=1`
+- BUILD_ACT: rebuild the ACT tests if enabled with `-e BUILD_ACT=1`
 - RUN_QUESTA: run vsim to check if enabled with `-e RUN_QUESTA=1`
     - QUESTA: home folder for mounted QuestaSIM `/cad/mentor/questa_sim-xxxx.x_x` if enabled
     - for example, if your vsim is in `/cad/mentor/questa_sim-2023.4/questasim/bin/vsim` then your local QuestaSIM folder is `/cad/mentor/questa_sim-2023.4`, so you have to add `-v /cad/mentor/questa_sim-2023.4:/cad/mentor/questa_sim-xxxx.x_x -e RUN_QUESTA=1`
@@ -293,7 +293,7 @@ There are stages in the old Dockerfile:
 Description: permission problem in `/home/$USERNAME/cvw`.
 
 ```text
-$ podman run -v cvw_temp:/home/cad/cvw -e CLEAN_CVW=1 -e BUILD_RISCOF=1 -e RUN_QUESTA=1 -v /cad/mentor/questa_sim-2023.4:/cad/mentor/questa_sim-xxxx.x_x --rm wallysoc/regression_wally  
+$ podman run -v cvw_temp:/home/cad/cvw -e CLEAN_CVW=1 -e BUILD_ACT=1 -e RUN_QUESTA=1 -v /cad/mentor/questa_sim-2023.4:/cad/mentor/questa_sim-xxxx.x_x --rm wallysoc/regression_wally  
 No CVW_GIT is provided  
 rm: cannot remove '/home/cad/cvw': Device or resource busy  
 Cloning into '/home/cad/cvw'...  

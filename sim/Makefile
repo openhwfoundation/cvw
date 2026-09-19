@@ -5,19 +5,9 @@
 SIM = ${WALLY}/sim
 TESTS = ${WALLY}/tests
 
-.PHONY: all riscoftests wallyriscoftests coveragetests deriv clean wally-riscv-arch-test benchmarks
+.PHONY: all coveragetests deriv clean benchmarks
 
-all: riscoftests coveragetests deriv
-
-wally-riscv-arch-test: wallyriscoftests
-
-riscoftests:
-# 	Builds riscv-arch-test 64 and 32-bit versions and builds wally-riscv-arch-test 64 and 32-bit versions
-	$(MAKE) -C ${TESTS}/riscof
-
-wallyriscoftests:
-# 	Builds wally-riscv-arch-test 64 and 32-bit versions
-	$(MAKE) -C ${TESTS}/riscof wally-riscv-arch-test
+all: coveragetests deriv
 
 coveragetests:
 	$(MAKE) -C ${TESTS}/coverage
@@ -27,7 +17,16 @@ deriv:
 
 
 
-.PHONY: QuestaCodeCoverage collect_functcov combine_functcov remove_functcov_artifacts riscvdv riscvdv_functcov
+.PHONY: QuestaFunctCoverage QuestaCodeCoverage collect_functcov combine_functcov remove_functcov_artifacts riscvdv riscvdv_functcov
+
+# Merge the per-test functional coverage databases written by wsim --fcov and report the total.
+QuestaFunctCoverage:
+	mkdir -p questa/fcov
+	vcover merge -out questa/fcov_ucdb/fcov.ucdb questa/fcov_ucdb/rv64gc*.ucdb -suppress 6854 -64
+	vcover report questa/fcov_ucdb/fcov.ucdb -details -cvg > questa/fcov/fcov.log
+	vcover report questa/fcov_ucdb/fcov.ucdb -cvg > questa/fcov/fcov.summary.log
+	vcover report questa/fcov_ucdb/fcov.ucdb -details -cvg -below 100 > questa/fcov/fcov.uncovered.log
+	grep -E "TOTAL COVERGROUP COVERAGE" questa/fcov/fcov.summary.log
 
 QuestaCodeCoverage:
 	vcover merge -out questa/ucdb/cov.ucdb questa/ucdb/rv64gc*.ucdb -logfile questa/cov/log
@@ -120,5 +119,3 @@ benchmarks:
 	$(MAKE) -C ${WALLY}/benchmarks/coremark
 
 clean:
-	$(MAKE) clean -C ${TESTS}/riscof
-#   $(MAKE) clean -C ${TESTS}/wally-riscv-arch-test
