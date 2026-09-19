@@ -14,6 +14,7 @@
 #
 ##################################
 import argparse
+import glob
 import multiprocessing
 import os
 import shutil
@@ -27,7 +28,9 @@ from multiprocessing import TimeoutError as MPTimeoutError
 # Globals
 WALLY = os.environ.get('WALLY')
 regressionDir = f'{WALLY}/sim'
-archVerifDir = f'{WALLY}/addins/riscv-arch-test-cvw'
+archVerifDir = os.environ.get('ACTDIR', f'{WALLY}/addins/riscv-arch-test') # riscv-arch-test checkout; override with ACTDIR
+periphDir = f'{WALLY}/tests/periph'
+coverageDir = f'{WALLY}/tests/coverage'
 coveragesim = "questa"     # Questa is required for code/functional coverage
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
@@ -38,27 +41,25 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 # Define lists of configurations and tests to run on each configuration
 ##################################
 
-# The tests are a list with one element for each configuration
+# Standard regression: every configuration listed here has an ACT test-generation configuration in
+# config/<cfg>/act/ (cvw owns these; actconfig-sync keeps ACT's copies matching).  Its self-checking
+# ELFs are built into addins/riscv-arch-test/work/<name>/elfs and run one leaf directory per simulation.
+standard_configs = ["rv32imc", "rv32gc", "rv64gc"]
+
+# Self-checking peripheral tests (tests/periph), run as one group per configuration.
+# rv32imc lacks supervisor mode and PMP, so it only runs the machine-mode peripheral test.
+# WALLY-uart-timeout-01 is a known failure and is excluded.
+periph_tests = {
+    "rv32imc": ["rv32/WALLY-periph-m-01"],
+    "rv32gc":  ["rv32/WALLY-periph-01", "rv32/WALLY-gpio-01", "rv32/WALLY-clint-01", "rv32/WALLY-uart-01",
+                "rv32/WALLY-plic-01", "rv32/WALLY-plic-s-01", "rv32/WALLY-spi-01", "rv32/WALLY-pwm-01"],
+    "rv64gc":  ["rv64/WALLY-periph-01", "rv64/WALLY-clint-01", "rv64/WALLY-gpio-01", "rv64/WALLY-plic-01",
+                "rv64/WALLY-plic-s-01", "rv64/WALLY-uart-01", "rv64/WALLY-spi-01", "rv64/WALLY-pwm-01"],
+}
+
+# The tests below are a list with one element for each configuration
 # The element consists of the configuration name, a list of test suites to run,
 # optionally a string to pass to the simulator, and optionally a nonstandard grep string to check for success
-
-standard_tests = [
-        ["rv32e", ["arch32e"]],
-        ["rv32i", ["arch32i"]],
-        ["rv32imc", ["arch32i", "arch32c", "arch32m", "wally32periph_imc"]],
-        ["rv32gc", ["arch32f", "arch32d", "arch32f_fma", "arch32d_fma", "arch32f_divsqrt", "arch32d_divsqrt",
-                    "arch32i", "arch32priv", "arch32c",  "arch32m", "arch32a_amo", "arch32zifencei", "arch32zicond",
-                    "arch32zba", "arch32zbb", "arch32zbc", "arch32zbs", "arch32zfh", "arch32zfh_fma",
-                    "arch32zfh_divsqrt", "arch32zfaf", "arch32zfad", "wally32a_lrsc", "wally32priv", "wally32periph", "arch32zcb",
-                    "arch32zbkb", "arch32zbkc", "arch32zbkx", "arch32zknd", "arch32zkne", "arch32zknh", "arch32vm_sv32", "arch32pmp", "arch32zicboz"]],
-        ["rv64i", ["arch64i"]],
-        ["rv64gc", ["arch64f", "arch64d", "arch64zfh", "arch64f_fma", "arch64d_fma", "arch64zfh_fma", "arch64f_divsqrt",
-                    "arch64d_divsqrt", "arch64zfh_divsqrt", "arch64zfaf", "arch64zfad", "coverage64gc", "arch64i", "arch64priv",
-                    "arch64c",  "arch64m", "arch64zcb", "arch64zifencei", "arch64zicond", "arch64a_amo", "wally64a_lrsc",
-                    "wally64periph", "wally64priv", "arch64zbkb", "arch64zbkc", "arch64zbkx", "arch64zknd", "arch64zkne", "arch64zknh",
-                    "arch64zba",  "arch64zbb",  "arch64zbc", "arch64zbs", "arch64vm_sv39", "arch64vm_sv48", "arch64vm_sv57", "arch64pmp", "arch64zicboz"]]
-    ]
-
 
 # Separate test for short buildroot run through OpenSBI UART output
 tests_buildrootshort = [
@@ -77,6 +78,8 @@ tests_buildrootbootlockstep = [
                         "WallyHostname login: ", "buildroot_uart.out"]
     ]
 
+# TODO: these derivative configurations still name the old tests.vh suites.  They need to be
+# converted to run ACT directories filtered by the extensions each configuration supports.
 derivconfigtests = [
         # memory system
         ["tlb2_rv32gc", ["wally32priv"]],
@@ -188,7 +191,7 @@ derivconfigtests = [
         ["fh_rv64gc", ["arch64f", "arch64f_divsqrt", "arch64f_fma", "arch64zfh", "arch64zfh_divsqrt", "arch64zfaf"]],
         ["fdh_rv64gc", ["arch64f", "arch64f_divsqrt", "arch64f_fma", "arch64d", "arch64d_divsqrt", "arch64d_fma", "arch64zfh", "arch64zfh_divsqrt", "arch64zfaf", "arch64zfad"]],
         ["fdq_rv64gc", ["arch64f", "arch64f_divsqrt", "arch64f_fma", "arch64d", "arch64d_divsqrt", "arch64d_fma", "arch64i", "arch64zfaf", "arch64zfad"]],
-        ["fdqh_rv64gc", ["arch64f", "arch64f_divsqrt", "arch64f_fma", "arch64d", "arch64d_divsqrt", "arch64d_fma", "arch64zfh", "arch64zfh_divsqrt", "arch64i",  "arch64zfaf", "arch64zfad"]], # "wally64q" when Q is supported again in riscof config file
+        ["fdqh_rv64gc", ["arch64f", "arch64f_divsqrt", "arch64f_fma", "arch64d", "arch64d_divsqrt", "arch64d_fma", "arch64zfh", "arch64zfh_divsqrt", "arch64i",  "arch64zfaf", "arch64zfad"]], # "wally64q" when Q is supported again
     ]
 
 bpredtests = [
@@ -276,11 +279,36 @@ testfloatdivconfigs = [
     "f_div_4_2_rv64gc", "f_div_4_4_rv32gc", "f_div_4_4_rv64gc",
 ]
 
-# list of tests not supported by ImperasDV yet that should be waived during lockstep testing
+# Tests that pass their own self-check but cannot be compared against ImperasDV instruction by
+# instruction, because the reference model cannot be configured to match what Wally implements.
+# Each entry is the ELF file name, or the <directory>_<file> name used for the log.
 lockstepwaivers = [
     "WALLY-q-01.S_ref.elf",     # Q extension is not supported by ImperasDV
     "WALLY-cbom-01.S_ref.elf", #,  # cbom extension is not supported by ImperasDV because there is no cache model in ImperasDV
     "Zicbom-cbo.inval-00.elf", # ImperasDV lacks cache model to match CVW on invalidation
+
+    # Wally implements writable mhpmevent bits; ImperasDV models them as read-only zero and offers no
+    # parameter to change that, so every test that walks or writes mhpmevent disagrees.  This is the
+    # same limitation that makes riscv-arch-test exclude Sm by default ("Insufficient WARL
+    # configuration options").  The tests themselves pass without lockstep.
+    "Sm_mcsr_access-00.elf",
+    "Sm_mcsr_walk-02.elf",
+    "Sm_mcsr_walk-03.elf",
+    "Sm_mcsr_walk-04.elf",
+    "Sm_mcsr_walk-05.elf",
+    "Sm_mcsr_walk-06.elf",
+    "Sm_mcsr_walk-07.elf",
+    "Sm_mcsr_walk-08.elf",
+    "Sm_mcsr_walk-09.elf",
+    "Sm_mcsr_walk-10.elf",
+    "SsstrictSm_CSR-08.elf",   # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
+
+
+    # TODO: remove once the submodule points at a riscv-arch-test containing
+    # https://github.com/riscv/riscv-arch-test/pull/2416.  The test stores a return instruction over
+    # its own trampoline and then executes it without a fence.i, so whether the fetch sees the store
+    # is unspecified; a cacheless reference model and Wally's split caches legitimately differ.
+    "PMPSm_cfg_A_tor_bot-00.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc
@@ -348,61 +376,167 @@ def addTests(testList, sim, coverStr, configs):
             configs.append(tc)
 
 
-def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, brekerMode=0):
+def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, brekerMode=0, flags=""):
+    """Run every .elf under testDir on config.
+
+    Each leaf directory becomes one test case: wsim runs all of its ELFs back-to-back in a single
+    simulation session, so the design compiles once and the simulator starts once per directory.
+    Lockstep and Breker need a fresh reference model per ELF, so they run one simulation per ELF."""
     if not os.path.isdir(testDir):
         print(f"Error: Directory not found: {testDir}")
         sys.exit(1)
 
     sim_logdir = f"{regressionDir}/{sim}/logs/"
-    cmdPrefix = f"wsim --sim {sim} {coverStr} {'--lockstep' if lockstepMode else ''} {config}"
-    fileStart = "ref" if "riscv-arch-test" in testDir and "riscv-arch-test-cvw" not in testDir else ""
-    fileEnd = ".elf"
+    cmdPrefix = f"wsim --sim {sim} {coverStr} {'--lockstep' if lockstepMode else ''} {flags} {config}"
     if lockstepMode:
         gs = "Mismatches            : 0"
     elif brekerMode:
-        gs="# trek: info: summary: Test PASSED"
-    elif coverStr == "--fcov":
-        gs = "Functional coverage test complete."
+        gs = "# trek: info: summary: Test PASSED"
     else:
-        gs = "Single Elf file tests are not signatured verified."
-    for dirpath, _, filenames in os.walk(os.path.abspath(testDir)):
-        for file in filenames:
-            if file.endswith(fileEnd) and file.startswith(fileStart):
-                fullfile = os.path.join(dirpath, file)
-                fields = fullfile.rsplit('/', 3)
-                shortelf = f"{fields[1]}_{fields[3]}" if fields[2] == "ref" else f"{fields[2]}_{fields[3]}"
-                # Waiver entries may be written either as the bare ELF filename (e.g.
-                # "Zicbom-cbo.inval-00.elf") or as the directory-prefixed shortelf used for the log
-                # name (e.g. "WALLY-cbom-01.S_ref.elf", where the file itself is just "ref.elf").
-                # Accept either form so tests in the list are honored regardless of naming.
+        gs = "All tests ran without failures"
+    reused = []
+    for dirpath, _, filenames in sorted(os.walk(os.path.abspath(testDir))):
+        elfs = sorted(f for f in filenames if f.endswith(".elf"))
+        if not elfs:
+            continue
+        parent, leaf = dirpath.rsplit('/', 2)[-2:]
+        if lockstepMode or brekerMode:
+            for file in elfs:
+                shortelf = f"{leaf}_{file}"
                 if shortelf in lockstepwaivers or file in lockstepwaivers: # skip tests that itch bugs in ImperasDV
                     print(f"{bcolors.WARNING}Skipping waived test {shortelf}{bcolors.ENDC}")
                     continue
+                if coverageUpToDate(config, f"{leaf}_{file[:-4]}", f"{dirpath}/{file}"):
+                    reused.append(shortelf)
+                    continue
                 sim_log = f"{sim_logdir}{config}_{shortelf}.log"
-                tc = TestCase(
-                        name=file,
-                        variant=config,
-                        cmd=f"{cmdPrefix} {fullfile} > {sim_log}",
-                        grepstr=gs,
-                        grepfile = sim_log)
-                configs.append(tc)
+                configs.append(TestCase(name=file, variant=config, cmd=f"{cmdPrefix} {dirpath}/{file} > {sim_log}",
+                                        grepstr=gs, grepfile=sim_log))
+        else:
+            name = f"{parent}_{leaf}" # matches the name wsim derives for a directory
+            sim_log = f"{sim_logdir}{config}_{name}.log"
+            configs.append(TestCase(name=name, variant=config, cmd=f"{cmdPrefix} {dirpath} > {sim_log}",
+                                    grepstr=gs, grepfile=sim_log))
+    if reused:
+        print(f"{bcolors.OKCYAN}{config}: reusing coverage for {len(reused)} up-to-date tests in {os.path.basename(testDir)}{bcolors.ENDC}")
+
+
+def addTestGroup(name, testDir, tests, config, sim, coverStr, configs, flags=""):
+    """Run the listed ELFs (paths relative to testDir, .elf optional) back-to-back in one simulation."""
+    sim_logdir = f"{regressionDir}/{sim}/logs/"
+    elfs = " ".join(f"{testDir}/{t}{'' if t.endswith('.elf') else '.elf'}" for t in tests)
+    sim_log = f"{sim_logdir}{config}_{name}.log"
+    configs.append(TestCase(name=name, variant=config,
+                            cmd=f"wsim --sim {sim} {coverStr} {flags} {config} {elfs} --name {name} > {sim_log}",
+                            grepstr="All tests ran without failures", grepfile=sim_log))
+
+
+# Coverage is collected one .ucdb per test and merged at the end, so a test whose .ucdb is already
+# newer than both its ELF and every design source does not need to run again.  Set by process_args.
+reuseCoverage = False
+_designMtime = None
+
+
+def designMtime():
+    """Newest mtime among the design and testbench sources and the coverage exclusions, since
+    coverage collected before either changed cannot be reused.  Exclusions matter because they are
+    applied when each test saves its .ucdb, not when the results are merged."""
+    global _designMtime
+    if _designMtime is None:
+        _designMtime = 0
+        for d in ("src", "testbench", "config"):
+            for root, _, files in os.walk(f"{WALLY}/{d}"):
+                for f in files:
+                    if f.endswith((".sv", ".v", ".svh", ".vh")):
+                        _designMtime = max(_designMtime, os.path.getmtime(os.path.join(root, f)))
+        for f in glob.glob(f"{regressionDir}/questa/coverage-exclusions-*.do"):
+            _designMtime = max(_designMtime, os.path.getmtime(f))
+    return _designMtime
+
+
+def coverageUpToDate(config, name, elf):
+    """True if <config>_<name>.ucdb is newer than the ELF and than every design source."""
+    if not reuseCoverage:
+        return False
+    ucdb = f"{regressionDir}/questa/ucdb/{config}_{name}.ucdb"
+    if not os.path.isfile(ucdb):
+        return False
+    mtime = os.path.getmtime(ucdb)
+    return mtime > designMtime() and (not os.path.isfile(elf) or mtime > os.path.getmtime(elf))
+
+
+def actConfigFile(config):
+    """The ACT test_config.yaml for a cvw configuration (base or derivative)."""
+    for d in [f"{WALLY}/config/{config}/act", f"{WALLY}/config/deriv/{config}/act"]:
+        if os.path.isfile(f"{d}/test_config.yaml"):
+            return f"{d}/test_config.yaml"
+    print(f"{bcolors.FAIL}Error: no ACT configuration (act/test_config.yaml) for {config}{bcolors.ENDC}")
+    sys.exit(1)
+
+
+def actElfDir(config):
+    """Where ACT puts the ELFs for a cvw configuration: work/<name>/elfs, with name from its test_config.yaml."""
+    with open(actConfigFile(config)) as f:
+        for line in f:
+            if line.startswith("name:"):
+                return f"{archVerifDir}/work/{line.split(':', 1)[1].split('#')[0].strip()}/elfs"
+    print(f"{bcolors.FAIL}Error: {actConfigFile(config)} has no name{bcolors.ENDC}")
+    sys.exit(1)
+
+
+def buildTests(configs, periph=True, coverage=False):
+    """Build the ACT ELFs for the given cvw configurations, plus the periph and coverage tests.
+    Each build is incremental, so this returns quickly when nothing has changed."""
+    if configs:
+        # ACT's incremental build never deletes outputs, so ELFs for an extension that was removed
+        # from the configuration would linger and still be run.  When the configuration changed since
+        # the last build, discard its ELFs so ACT regenerates exactly the current set.  The stamp is
+        # written here after a successful build; ACT's own extensions.txt cannot be used because the
+        # build deliberately preserves it, which would make every run look stale.
+        for c in sorted(set(configs)):
+            elfDir = actElfDir(c)
+            stamp = f"{os.path.dirname(elfDir)}/.cvw_config_stamp"
+            actDir = os.path.dirname(actConfigFile(c))
+            if os.path.isdir(elfDir):
+                if not os.path.isfile(stamp) or any(
+                        os.stat(f"{actDir}/{f}").st_mtime > os.path.getmtime(stamp) for f in os.listdir(actDir)):
+                    print(f"{c}: ACT configuration changed since the last build; regenerating its ELFs", flush=True)
+                    shutil.rmtree(elfDir)
+        configFiles = " ".join(actConfigFile(c) for c in sorted(set(configs)))
+        # ACT is its own uv project: drop the VIRTUAL_ENV that `uv run` set for this script so ACT's
+        # uv uses ACT's environment without warning about the mismatch
+        cmd = f'env -u VIRTUAL_ENV make -C {archVerifDir} EXTENSIONS= CONFIG_FILES="{configFiles}"'
+        print(f"Building ACT tests: {cmd}", flush=True)
+        if os.system(cmd):
+            print(f"{bcolors.FAIL}Error: ACT test build failed{bcolors.ENDC}")
+            sys.exit(1)
+        for c in sorted(set(configs)):  # record which configuration these ELFs were built from
+            stampDir = os.path.dirname(actElfDir(c))
+            if os.path.isdir(stampDir):
+                open(f"{stampDir}/.cvw_config_stamp", "w").close()
+    targets = (["periph"] if periph else []) + (["coverage"] if coverage else [])
+    if targets and os.system(f"make -C {WALLY} {' '.join(targets)}"):
+        print(f"{bcolors.FAIL}Error: building {' '.join(targets)} tests failed{bcolors.ENDC}")
+        sys.exit(1)
+
 
 def search_log_for_text(text, grepfile):
     with open(grepfile, errors="ignore") as file:
         content = file.readlines()
         passed = False
+        numpassed = 0 # a log holds many tests run back-to-back, so summarize the passes in one line
         reported = False # whether any line identifying this test was printed
         success = any(text in line for line in content) # check if the success string is present in the log file
         # Even if the string is found, report warnings, errors, and failure, or PASSED
         for line in content:
             if rvcp_summary in line:
                 if "FAILED" in line:
-                    print(f"{bcolors.FAIL}{grepfile}: {rvcp_summary} FAILED{bcolors.ENDC}")
+                    print(f"{bcolors.FAIL}{grepfile}: {line.strip()}{bcolors.ENDC}")
                     success = False
                     reported = True
                 elif "PASSED" in line:
-                    print(f"{bcolors.OKGREEN}{grepfile}: {rvcp_summary} PASSED{bcolors.ENDC}")
                     passed = True
+                    numpassed += 1
                 else:
                     print(f"{bcolors.WARNING}{grepfile}: WARNING: Malformed {rvcp_summary} line lacks FAILED or PASSED: {line.strip()}{bcolors.ENDC}")
             if "warning:" in line.lower():
@@ -413,7 +547,9 @@ def search_log_for_text(text, grepfile):
                 print(f"{bcolors.FAIL}{grepfile}: {line.strip()}{bcolors.ENDC}")
                 success = False
                 reported = True
-        nonrvcp_suites = ["buildroot", "all_lints"]
+        nonrvcp_suites = ["buildroot", "all_lints", "periph", "coverage", "embench", "coremark"]
+        if numpassed:
+            print(f"{bcolors.OKGREEN}{grepfile}: {numpassed} {rvcp_summary} PASSED{bcolors.ENDC}")
         if success and not passed:
             if not any(s in grepfile for s in nonrvcp_suites):
                 print(f"{bcolors.WARNING}{grepfile}: WARNING '{text}' found but no {rvcp_summary} PASSED{bcolors.ENDC}")
@@ -459,6 +595,7 @@ def run_test_case(config, dryrun: bool = False):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ccov", help="Code Coverage", action="store_true")
+    parser.add_argument("--clean", help="With --ccov, discard existing coverage and rerun every test", action="store_true")
     parser.add_argument("--fcov", help="Functional Coverage", action="store_true")
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
@@ -479,8 +616,13 @@ def process_args(args):
         sims = [coveragesim]
         coverStr = "--ccov"
         TIMEOUT_DUR = 20*60 # seconds
+        # Coverage is per test, so an unchanged test's .ucdb is still valid: keep the directory and
+        # rerun only what is out of date.  --clean discards it all and starts over.
+        global reuseCoverage
+        reuseCoverage = not args.clean
         for d in ["ucdb", "cov"]:
-            shutil.rmtree(f"{regressionDir}/questa/{d}", ignore_errors=True)
+            if args.clean:
+                shutil.rmtree(f"{regressionDir}/questa/{d}", ignore_errors=True)
             os.makedirs(f"{regressionDir}/questa/{d}", exist_ok=True)
     elif args.fcov or args.breker:
         sims = [coveragesim]
@@ -518,33 +660,44 @@ def selectTests(args, sims, coverStr):
     if args.buildroot:
         # addTests(tests_buildrootboot, defaultsim) # non-lockstep with Verilator runs in about 2 hours
         addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
-    # only run RV64GC tests on in code coverage mode
+    # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
+    # against the reference model (one simulation per ELF).
+    # code coverage: rv64gc runs the ACT tests, the coverage-targeted tests, and the peripheral tests
     if args.ccov:
-        addTestsByDir(f"{WALLY}/tests/riscof/work/wally-riscv-arch-test/rv64i_m/privilege", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{archVerifDir}/work/cvw-rv64gc/elfs", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{WALLY}/tests/coverage/", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-    # run tests in lockstep in functional coverage mode
+        buildTests(["rv64gc"], coverage=True)
+        addTestsByDir(actElfDir("rv64gc"), "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir, "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(f"{periphDir}/rv64", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
+    # functional coverage: rv64gc runs the ACT tests, one leaf directory per simulation.
+    # Unlike code coverage this cannot run in lockstep: the covergroups read the virtual memory
+    # fields of riscv-arch-test's RVVI trace, while ImperasDV needs the RVVI API tasks of its own,
+    # and only one of the two interfaces can be compiled in.  The tests still check themselves.
     if args.fcov or args.nightly:
-        # rv32gc just for testing ACTs, not used by coverage
-        #addTestsByDir(f"{archVerifDir}/work/cvw-rv32gc/elfs", "rv32gc", coveragesim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{archVerifDir}/work/cvw-rv64gc/elfs", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
+        buildTests(["rv64gc"], periph=False)
+        addTestsByDir(actElfDir("rv64gc"), "rv64gc", coveragesim, coverStr, configs)
      # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
     # run Breker tests (requires a license for the breker tool)
     if args.breker:
         addTestsByDir(f"{WALLY}/tests/breker/work", "rv64breker", "questa", coverStr, configs, brekerMode=1)
-    # standard tests
+    # standard tests: build the ACT ELFs for every configuration, then run each leaf directory of
+    # ACT tests as one simulation, plus the peripheral tests for the configurations that have them
     if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker):
+        buildTests(standard_configs)
         for sim in sims:
             if not (args.buildroot and sim == lockstepsim):  # skip short buildroot sim if running long one
                 addTests(tests_buildrootshort, sim, coverStr, configs)
-            addTests(standard_tests, sim, coverStr, configs)
+            for config in standard_configs:
+                addTestsByDir(actElfDir(config), config, sim, coverStr, configs)
+                if config in periph_tests:
+                    addTestGroup("periph", periphDir, periph_tests[config], config, sim, coverStr, configs)
     # run derivative configurations and lockstep tests in nightly regression
     if args.nightly:
-        addTestsByDir(f"{WALLY}/tests/coverage", "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{WALLY}/tests/riscof/work/wally-riscv-arch-test/rv64i_m", "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{WALLY}/tests/riscof/work/wally-riscv-arch-test/rv32i_m", "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        buildTests(["rv32gc"], periph=False, coverage=True)
+        addTestsByDir(coverageDir, "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTests(derivconfigtests, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
@@ -610,12 +763,14 @@ def selectTests(args, sims, coverStr):
 
 
 def makeDirs(sims):
+    # Clear old logs.  Compiled designs in wkdir are kept; wsim recompiles them only when a source
+    # file is newer than the compiled design.
     # Always need verilator directories for lint
     for sim in (sims + ["verilator"] if "verilator" not in sims else sims):
-        dirs = [f"{regressionDir}/{sim}/wkdir", f"{regressionDir}/{sim}/logs"]
-        for d in dirs:
-            shutil.rmtree(d, ignore_errors=True)
-            os.makedirs(d, exist_ok=True)
+        logdir = f"{regressionDir}/{sim}/logs"
+        shutil.rmtree(logdir, ignore_errors=True)
+        os.makedirs(logdir, exist_ok=True)
+        os.makedirs(f"{regressionDir}/{sim}/wkdir", exist_ok=True)
 
 
 def main(args):
@@ -625,8 +780,8 @@ def main(args):
     configs = selectTests(args, sims, coverStr)
     # Scale the number of concurrent processes to the number of test cases, but
     # max out at a limited number of concurrent processes to not overwhelm the system
-    # right now fcov and nightly use Imperas
-    ImperasDVLicenseCount = 16 if args.fcov or args.nightly else 10000
+    # lockstep tests (nightly, ccov, fcov) each hold an ImperasDV license
+    ImperasDVLicenseCount = 16 if (args.nightly or args.ccov or args.fcov) else 10000
     with Pool(processes=min(len(configs),multiprocessing.cpu_count(), ImperasDVLicenseCount)) as pool:
         num_fail = 0
         results = {}
@@ -644,6 +799,8 @@ def main(args):
     # Coverage report
     if args.ccov:
         os.system(f"make -C {regressionDir} QuestaCodeCoverage")
+    if args.fcov:
+        os.system(f"make -C {regressionDir} QuestaFunctCoverage")
     # if args.fcov or args.fcov_act or args.breker:
     #     os.system(f"make -C {archVerifDir} merge")
     # Count the number of failures

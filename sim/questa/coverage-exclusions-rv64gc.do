@@ -275,6 +275,22 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "exclusion-tag: unused-cacheable"]
 coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker -linerange $line-$line -item e 1 -fecexprrow 2
 coverage exclude -scope /dut/core/ifu/immu/immu/pmachecker -linerange $line-$line -item e 1 -fecexprrow 2
 
+# The instruction side drives the MMU with ReadAccessM and WriteAccessM tied low (see the mmu
+# instantiation in ifu.sv), so AccessRW is constant zero there and any region decoder qualified by
+# AccessRW can never select.  pwmdec is one of those, alongside the peripherals excluded below.
+coverage exclude -scope /dut/core/ifu/immu/immu/pmachecker/adrdecs/pwmdec
+
+# rv64gc has no DTIM, no IROM and no external memory, so SelRegions 1, 2 and 3 are tied low and the
+# rows that need them asserted cannot be reached.
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign IdempotentRegion"]
+coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker -linerange $line-$line -item e 1 -fecexprrow 2,4,6
+coverage exclude -scope /dut/core/ifu/immu/immu/pmachecker -linerange $line-$line -item e 1 -fecexprrow 2,4,6
+
+# The instruction side ties AtomicAccessM low, so every row that needs an atomic access is
+# unreachable in the instruction MMU.
+set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedCausesAccessFaultM"]
+coverage exclude -scope /dut/core/ifu/immu/immu -linerange $line-$line -item e 1 -fecexprrow 4,5,6
+
 # Excluding so far un-used instruction sources for the ifu
 coverage exclude -scope /dut/core/ifu/immu/immu/pmachecker/adrdecs/bootromdec
 coverage exclude -scope /dut/core/ifu/immu/immu/pmachecker/adrdecs/uncoreramdec
@@ -287,6 +303,7 @@ coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker/adrdecs/gpiodec -line
 coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker/adrdecs/uartdec -linerange $line-$line -item e 1 -fecexprrow 3
 coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker/adrdecs/plicdec -linerange $line-$line -item e 1 -fecexprrow 3
 coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker/adrdecs/spidec -linerange $line-$line -item e 1 -fecexprrow 3
+coverage exclude -scope /dut/core/lsu/dmmu/dmmu/pmachecker/adrdecs/pwmdec -linerange $line-$line -item e 1 -fecexprrow 3
 
 #Excluding signals in lsu: clintdec and uncoreram accept all sizes so 'SizeValid' will never be 0
 set line [GetLineNum ${SRC}/mmu/adrdec.sv "& SizeValid"]
@@ -346,8 +363,6 @@ set line [GetLineNum ${SRC}/mmu/mmu.sv "ExecuteAccessF \\| ReadAccessM"]
 coverage exclude -scope /dut/core/ifu/immu/immu -linerange $line-$line -item e 1 -fecexprrow 1,3,4
 set line [GetLineNum ${SRC}/mmu/mmu.sv "ReadAccessM & ~WriteAccessM"]
 coverage exclude -scope /dut/core/ifu/immu/immu -linerange $line-$line -item e 1 -fecexprrow 2-4
-set line [GetLineNum ${SRC}/mmu/mmu.sv "assign AtomicMisalignedCausesAccessFaultM"]
-coverage exclude -scope /dut/core/ifu/immu/immu -linerange $line-$line -item e 1
 set line [GetLineNum ${SRC}/mmu/mmu.sv "DataMisalignedM & WriteAccessM"]
 coverage exclude -scope /dut/core/ifu/immu/immu -linerange $line-$line -item e 1 -fecexprrow 1,2,4
 set line [GetLineNum ${SRC}/mmu/mmu.sv "TLBPageFault & ExecuteAccessF"]
@@ -556,8 +571,40 @@ coverage exclude -scope /dut/core/priv/priv/csr/csru/csru -linerange [GetLineNum
 coverage exclude -scope /dut/core/priv/priv/csr/csru/csru -linerange [GetLineNum ${SRC}/privileged/csru.sv "assign WriteFFLAGSM"] -item e 1 -fecexprrow 3
 
 # Attempted writes to the nonextistant MTIME register trap, so WriteHPMCOUNTERM cannot be set for that address (0xb01)
-coverage exclude -scope /dut/core/priv/priv/csr/counters/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MTIME traps"] -item e 1 -fecexprrow 2 4
-coverage exclude -scope /dut/core/priv/priv/csr/counters/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "assign NextHPMCOUNTERM"] -item b 1
+# The scope is the generate block inside the csrc instance named counters; an earlier version of
+# these two lines named counters twice, so vsim reported the scope as not found and excluded nothing.
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MTIME traps"] -item e 1 -fecexprrow 2 4
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "assign NextHPMCOUNTERM"] -item b 1
+
+# CounterEvent[0] is tied high because MCYCLE always increments, so the FEC row that needs it low
+# cannot be reached.
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[0] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MCYCLE, CYCLE, and MINSTRET are always incremented"] -item e 1 -fecexprrow 1
+
+# Counter 1 does not exist, so CounterEvent[1] is tied low and CounterInc[1] can never assert.
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MCYCLE, CYCLE, and MINSTRET are always incremented"] -item e 1
+
+# CounterEvent[31:25] is tied low until those event sources are implemented, so counters 25 through
+# 31 can never increment no matter what their event selector or inhibit bit hold.
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[25] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[26] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[27] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[28] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[29] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[30] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters/cntr[31] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "user-defined counters are incremented only if the event is enabled"] -item e 1
+
+# rv64gc implements all 32 counters, which makes three range checks in the counter read logic
+# degenerate.  They exist for configurations with fewer counters.
+#   MHPMEVENTBASE + COUNTERS - 3 = 0x340 is above MHPMEVENTLAST = 0x33F, so the guarded comparison
+#   is always true and the read-only-zero branch for absent event selectors never runs.
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MHPMEVENTBASE\\+P.COUNTERS-3"] -item c 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "MHPMEVENTBASE\\+P.COUNTERS-3"] -item b 1
+#   CSRAdrM >= MHPMCOUNTERBASE+COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32 is 0xB20 <= x < 0xB20, empty.
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "CSRAdrM >= MHPMCOUNTERBASE\\+P.COUNTERS"] -item c 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "CSRAdrM >= MHPMCOUNTERBASE\\+P.COUNTERS"] -item b 1
+#   CSRAdrM >= HPMCOUNTERBASE+COUNTERS & CSRAdrM < HPMCOUNTERBASE+32 is 0xC20 <= x < 0xC20, empty.
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "CSRAdrM >= HPMCOUNTERBASE\\+P.COUNTERS"] -item c 1
+coverage exclude -scope /dut/core/priv/priv/csr/counters -linerange [GetLineNum ${SRC}/privileged/csrc.sv "CSRAdrM >= HPMCOUNTERBASE\\+P.COUNTERS"] -item b 1
 
 # attempting to write stimecmp with STCE=0 traps, causing CSRSWriteM to go low
 coverage exclude -scope /dut/core/priv/priv/csr/csrs/csrs -linerange [GetLineNum ${SRC}/privileged/csrs.sv "assign WriteSTIMECMPM"] -item e 1 -fecexprrow 5

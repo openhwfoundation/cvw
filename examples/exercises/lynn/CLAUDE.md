@@ -106,7 +106,7 @@ Wraps the processor with clean I/O ports (no memory instantiation) for Design Co
 ### Test Flows
 
 1. **Bringup** (`tests/bringup/`) — Minimal assembly tests for individual instructions (add, sub, and, or)
-2. **Act4** (`tests/act4/`) — RISC-V Architecture Tests populated from `$WALLY/addins/riscv-arch-test-cvw`. Tests RV32I + Zicntr + Zihpm + Zicsr + Zmmul extensions.
+2. **Act4** (`tests/act4/`) — RISC-V Architecture Tests populated from `$WALLY/addins/riscv-arch-test`. Tests RV32I + Zicntr + Zihpm + Zicsr + Zmmul extensions.
 3. **C tests** (`tests/C/`) — C programs compiled with RISC-V toolchain (e.g., HelloWorld)
 4. **CoreMark** (`coremark/`) — Industry benchmark; results feed into the scoring formula
 

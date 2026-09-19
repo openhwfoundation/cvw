@@ -2,11 +2,14 @@
 #
 # wsim
 # David_Harris@hmc.edu 5 April 2024
-# Invoke a Wally simulation for a desired configuration and test suite or ELF on the specified simulator
-# usage: wsim CONFIG TESTSUITE [-s/--sim SIMULATOR] [-g/--gui]
-# example: wsim rv64gc arch64i
-# example: wsim rv64gc tests/riscof/work/riscv-arch-test/rv64i_m/I/src/ref/ref.elf
-# example: wsim rv32i arch32i -s verilator
+# Invoke a Wally simulation for a desired configuration and set of ELF files on the specified simulator
+# usage: wsim CONFIG [ELF|DIRECTORY]... [-s/--sim SIMULATOR] [-g/--gui]
+# Every ELF named, and every *.elf found under every directory named, runs back-to-back in a single
+# simulation session.  Tests check themselves, so the simulation reports a single pass/fail summary.
+# example: wsim rv64gc test.elf
+# example: wsim rv64gc addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
+# example: wsim rv32gc a.elf b.elf c.elf -s verilator
+# example: wsim rv64gc buildroot
 # example: wsim fdqh_ieee_rv64gc add -t testbench_fp        # run TestFloat
 #
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
@@ -15,18 +18,39 @@ import argparse
 import fcntl
 import hashlib
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
-# Global variable
+# Global variables
 WALLY = Path(os.environ.get("WALLY", Path(__file__).resolve().parent.parent))
+
+# Tests that load their own memory image rather than a list of ELF files
+SPECIAL_TESTS = ("buildroot", "fpga")
+
+# Tests that run from ELF files but need special handling in the testbench (--test MODE)
+SPECIAL_MODES = SPECIAL_TESTS + ("coremark", "embench")
+
+# Directories holding design and testbench sources; used to decide whether to recompile
+DESIGN_DIRS = ("src", "testbench", "config", "addins/verilog-ethernet")
+# The riscv-arch-test covergroups are compiled into the design only with --fcov
+FCOV_DIRS = ("addins/riscv-arch-test/coverpoints", "addins/riscv-arch-test/framework/src/act/fcov")
+
+# Symbols the testbench needs from each ELF: where the test reports its result, and (embench) its signature
+ELF_SYMBOLS = ("tohost", "begin_signature")
 
 
 def parseArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", help="Configuration file")
-    parser.add_argument("testsuite", nargs="?", help="Test suite or path to .elf file")
+    parser.add_argument("tests", nargs="*", default=[],
+                        help="ELF files and/or directories of ELF files to run back-to-back in one simulation "
+                             f"(directories are searched recursively for *.elf), or one of {', '.join(SPECIAL_TESTS)}. "
+                             "With --tb testbench_fp, the name of the TestFloat test instead.")
     parser.add_argument("--elf", "-e", help="ELF File name; use if name does not end in .elf", default="")
+    parser.add_argument("--test", "-T", help="Special test mode", choices=SPECIAL_MODES, default="")
+    parser.add_argument("--name", "-n", help="Name used for log and coverage database files", default="")
     parser.add_argument("--sim", "-s", help="Simulator", choices=["questa", "verilator", "vcs"], default="questa")
     parser.add_argument("--tb", "-t", help="Testbench", choices=["testbench", "testbench_fp"], default="testbench")
     parser.add_argument("--gui", "-g", help="Simulate with GUI", action="store_true")
@@ -43,13 +67,10 @@ def parseArgs():
 
 
 def validateArgs(args):
-    if not args.testsuite and not args.elf:
-        print("Error: Missing test suite or ELF file")
+    if not args.tests and not args.elf and not args.test:
+        print("Error: Missing ELF file, directory of ELF files, or test name")
         sys.exit(1)
-    if (args.lockstep or args.lockstepverbose) and not ((args.testsuite and args.testsuite.endswith(".elf")) or args.elf) and args.testsuite != "buildroot":
-        print(f"Invalid Options. Cannot run a testsuite, {args.testsuite} with lockstep. Must run a single elf or buildroot.")
-        sys.exit(1)
-    elif args.gui and args.sim != "questa":
+    if args.gui and args.sim != "questa":
         print("GUI only supported by Questa")
         sys.exit(1)
     elif (args.ccov or args.fcov) and args.sim != "questa":
@@ -63,36 +84,83 @@ def validateArgs(args):
         sys.exit(1)
 
 
-def elfFileCheck(args):
-    ElfFile = ""
-    if os.path.isfile(args.elf):
-        ElfFile = os.path.abspath(args.elf)
-        args.testsuite = args.elf  # Use the ELF file as the test suite name
-    elif args.elf:
-        print(f"ELF file not found: {args.elf}")
-        sys.exit(1)
-    elif args.testsuite.endswith(".elf"):  # No --elf argument; check if testsuite has a .elf extension and use that instead
-        if os.path.isfile(args.testsuite):
-            ElfFile = os.path.abspath(args.testsuite)
+def collectTests(args):
+    """Expand the positional arguments and --elf into the list of ELF files to run.
+
+    Each argument is an ELF file, a directory searched recursively for *.elf, or the name of a
+    special test (buildroot, fpga) that loads its own memory image.  Returns the ELF list and a
+    short name for each argument, used to name log and coverage files."""
+    elfs = []
+    names = []
+    for item in list(args.tests) + ([args.elf] if args.elf else []):
+        path = Path(item)
+        if path.is_dir():
+            found = sorted(path.resolve().rglob("*.elf"))
+            if not found:
+                print(f"Error: No .elf files found in {item}")
+                sys.exit(1)
+            elfs += [str(f) for f in found]
+            names.append(f"{path.resolve().parent.name}_{path.resolve().name}")
+        elif path.is_file():
+            elfs.append(str(path.resolve()))
+            names.append(f"{path.resolve().parent.name}_{path.stem}")
+        elif item in SPECIAL_TESTS:
+            args.test = item
         else:
-            print(f"ELF file not found: {args.testsuite}")
+            print(f"Test not found: {item}")
             sys.exit(1)
-    # Extract the elf name from the path to be the test suite
-    fields = args.testsuite.rsplit("/", 3)
-    # If the name is just ref.elf in a deep path (riscv-arch-test/wally-riscv-arch-test), then use the directory name as the test suite to make it unique; otherwise work directory will have duplicates.
-    if "breker" in args.testsuite:
-        args.testsuite = fields[-1]
-    elif len(fields) > 3:
-        if fields[2] == "ref":
-            args.testsuite = f"{fields[1]}_{fields[3]}"
-        else:
-            args.testsuite = f"{fields[2]}_{fields[3]}"
-    elif "/" in args.testsuite:
-        args.testsuite = args.testsuite.rsplit("/", 1)[1]  # strip off path if present
-    return ElfFile
+    if (args.lockstep or args.lockstepverbose) and len(elfs) != 1 and args.test != "buildroot":
+        print(f"Invalid Options. Lockstep runs one ELF at a time, but {len(elfs)} were given.")
+        sys.exit(1)
+    return elfs, names
 
 
-def prepSim(args, ElfFile):
+def runName(args, elfs, names):
+    """Pick the name used for log files and coverage databases."""
+    if args.name:
+        return args.name
+    if args.test and not names:
+        return args.test
+    if len(names) == 1:
+        return names[0]
+    return f"{names[0]}_plus{len(elfs) - 1}"
+
+
+def elfSymbols(elfs):
+    """Look up the address of each ELF_SYMBOLS entry in every ELF with nm (0 if absent).
+    One nm call covers all the ELFs; with several files nm prefixes each file's symbols with a "<path>:" line."""
+    symbols = {elf: dict.fromkeys(ELF_SYMBOLS, 0) for elf in elfs}
+    nm = shutil.which("riscv64-unknown-elf-nm")
+    if nm is None:
+        print("Warning: riscv64-unknown-elf-nm not found; tests cannot report results through tohost")
+        return symbols
+    current = elfs[0]
+    for line in subprocess.run([nm, *elfs], capture_output=True, text=True).stdout.splitlines():
+        if line.endswith(":") and line[:-1] in symbols:
+            current = line[:-1]
+            continue
+        fields = line.split()
+        if len(fields) == 3 and fields[2] in ELF_SYMBOLS:
+            symbols[current][fields[2]] = int(fields[0], 16)
+    return symbols
+
+
+def prepareElfs(args, elfs):
+    """Generate the .memfile for every ELF (in parallel, only if out of date) and write the ELF list.
+    Each line of the list holds the ELF path followed by the hex addresses of ELF_SYMBOLS."""
+    memfiles = " ".join(f"{elf}.memfile" for elf in elfs)
+    if os.system(f"make -s -j -f {WALLY}/testbench/Makefile WALLY={WALLY} {memfiles}"):
+        print("Error: could not generate memfiles")
+        sys.exit(1)
+    symbols = elfSymbols(elfs)
+    listdir = WALLY / "sim" / args.sim / "testlists"
+    listdir.mkdir(parents=True, exist_ok=True)
+    listfile = listdir / f"{args.config}_{args.tb}_{args.testsuite}.txt"
+    listfile.write_text("".join(f"{elf} " + " ".join(f"{symbols[elf][name]:x}" for name in ELF_SYMBOLS) + "\n" for elf in elfs))
+    return listfile
+
+
+def prepSim(args, elfs):
     prefix = ""
     paramsList = []
     argsList = []
@@ -106,15 +174,15 @@ def prepSim(args, ElfFile):
         paramsList.append("RVVI_SYNTH_SUPPORTED=1")
     if args.tb == "testbench_fp":
         paramsList.append(f'TEST="{args.testsuite}"')
-    if ElfFile:
-        argsList.append(f"+ElfFile={ElfFile}")
+    if elfs:
+        argsList.append(f"+ElfList={prepareElfs(args, elfs)}")
     if args.gui and args.tb == "testbench":
         paramsList.append("DEBUG=1")
     if args.ccov:
         flagsList.append("--ccov")
-    # if args.fcov:
-    #     flagsList.append("--fcov")
-    #     defineList.append("+define+FCOV")
+    if args.fcov:
+        flagsList.append("--fcov")
+        defineList.append("+define+FCOV")
     if args.gui:
         flagsList.append("--gui")
     if args.lockstep or args.lockstepverbose:
@@ -122,7 +190,7 @@ def prepSim(args, ElfFile):
         prefix += lockstepSetup(args)
         defineList.append("+define+USE_IMPERAS_DV")
     if "breker" in args.config and args.sim != "verilator":  # Requires a license for the breker tool. See tests/breker/README.md for details
-        ElfFileNoExtension = os.path.splitext(ElfFile)[0]
+        ElfFileNoExtension = os.path.splitext(elfs[0])[0]
         flagsList.append("--breker")
         defineList.append("+define+USE_TREK_DV")
         argsList.append(f"+TREK_TBX_FILE={ElfFileNoExtension}.tbx")
@@ -179,16 +247,17 @@ def compileLock(sim_dir, lockname):
     return _Lock()
 
 
-def isDesignUpToDate(target):
+def isDesignUpToDate(target, extra_dirs=()):
     """Check if a compiled design target is newer than all source/config files.
     Returns True if the target exists and is newer than all dependencies."""
     if not target.exists():
         return False
     target_mtime = target.stat().st_mtime
-    for ext in ("*.sv", "*.v", "*.svh", "*.vh"):
-        for dep in WALLY.rglob(ext):
-            if dep.stat().st_mtime > target_mtime:
-                return False
+    for d in DESIGN_DIRS + tuple(extra_dirs):
+        for ext in ("*.sv", "*.v", "*.svh", "*.vh"):
+            for dep in (WALLY / d).rglob(ext):
+                if dep.stat().st_mtime > target_mtime:
+                    return False
     return True
 
 
@@ -226,7 +295,7 @@ def runQuesta(args, flags, prefix):
     wkdir_path = WALLY / "sim" / "questa" / wkdir
     target = wkdir_path / "testbenchopt"
     target_mtime = targetMtime(target)
-    needs_compile = target_mtime is None or not isDesignUpToDate(target)
+    needs_compile = target_mtime is None or not isDesignUpToDate(target, FCOV_DIRS if args.fcov else ())
     with compileLock("questa", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(target)
         if needs_compile and current_mtime == target_mtime:
@@ -313,9 +382,15 @@ def runVCS(args, flags, prefix):
 
 def main(args):
     validateArgs(args)
-    print(f"Config={args.config} tests={args.testsuite} sim={args.sim} gui={args.gui} args='{args.args}' params='{args.params}' define='{args.define}'")
-    ElfFile = elfFileCheck(args)
-    flags, prefix = prepSim(args, ElfFile)
+    if args.tb == "testbench_fp":  # TestFloat names its test rather than running ELFs
+        elfs = []
+        args.testsuite = args.tests[0] if args.tests else args.name
+    else:
+        elfs, names = collectTests(args)
+        # The testbench receives this as +TEST; it is the special mode when one is set, else the run name
+        args.testsuite = args.test if args.test else runName(args, elfs, names)
+    print(f"Config={args.config} test={args.testsuite} elfs={len(elfs)} sim={args.sim} gui={args.gui} args='{args.args}' params='{args.params}' define='{args.define}'")
+    flags, prefix = prepSim(args, elfs)
     createDirs(args.sim)
     sys.exit(runSim(args, flags, prefix))
 

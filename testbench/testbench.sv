@@ -27,7 +27,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "config.vh"
-`include "tests.vh"
 `include "BranchPredictorType.vh"
 
 `ifdef USE_IMPERAS_DV
@@ -86,7 +85,7 @@ module testbench;
   logic        ResetMem;
 
   // Variables that can be overwritten with $value$plusargs at start of simulation
-  string       TEST, ElfFile, sim_log_prefix;
+  string       TEST, ElfFile, ElfList, sim_log_prefix;
   integer      INSTR_LIMIT;
   string       UART_LOG_FILE;
   integer      UART_LOG;
@@ -120,20 +119,28 @@ module testbench;
   logic        HSELEXT;
 
 
-  string  ProgramAddrMapFile, ProgramLabelMapFile;
-  integer ProgramAddrLabelArray [string];
+  string  ProgramAddrMapFile, ProgramLabelMapFile; // label maps used by functionName for debug tracing
 
   int test, i, errors, totalerrors;
 
   string outputfile;
   integer outputFilePointer;
 
-  string tests[];
+  string  elfPaths[];    // ELF files run back-to-back in this simulation
+  longint elfTohost[];   // address of each ELF's tohost, where the test stores its result (0 if none)
+  longint elfBeginSig[]; // address of each ELF's begin_signature (0 if none); used by embench
+  string  elfQueue[$];
+  longint tohostQueue[$], sigQueue[$];
+  string  elfPathLine;
+  longint tohostLine, sigLine;
+  integer elfListFD;
+  int     NumTests;
   logic DCacheFlushDone, DCacheFlushStart;
-  logic riscofTest;
   logic Validate;
   logic SelectTest;
   logic TestComplete;
+  logic TohostWrite;             // the test is storing its result to tohost
+  logic [31:0] TohostValue;      // value stored to tohost: 1 = pass, (code << 1) | 1 = fail, 0 = never written
   logic PrevPCZero;
   logic RVVIStall;
 
@@ -159,135 +166,67 @@ module testbench;
       UART_LOG_FILE = {"logs/", TEST, "_uart.out"};
     //$display("TEST = %s ElfFile = %s", TEST, ElfFile);
 
-    if (ElfFile != "none") begin // If Elf File passed in, check its bit width
-      elfFD = $fopen(ElfFile, "rb");
-      readBytes = $fread(header, elfFD);
-      $fclose(elfFD);
+    if (!$value$plusargs("ElfList=%s", ElfList))
+      ElfList = "none";
 
-      // If DUT and elf bit width misaligned, exit and return error message
-      if (header[4] == 1 & integer'(P.XLEN) == 64) begin
-        $display("Error: You can not run a 32 bit elf on a 64 bit DUT");
-        $finish;
-      end else if (header[4] == 2 & integer'(P.XLEN) == 32) begin
-        $display("Error: You can not run a 64 bit elf on a 32 bit DUT");
+    // Build the list of ELF files to run back-to-back in this simulation.  wsim writes one line per
+    // ELF into the ElfList file: the absolute path, then the hex addresses of tohost and
+    // begin_signature (0 if the ELF lacks the symbol).  A single ELF may also be named with +ElfFile,
+    // in which case no result can be read back.  buildroot and fpga instead load prebuilt memory
+    // images, so they have no ELF list.
+    if (TEST == "buildroot" | TEST == "fpga") begin
+      NumTests = 1;
+    end else begin
+      if (ElfList != "none") begin
+        elfListFD = $fopen(ElfList, "r");
+        if (elfListFD == 0) begin
+          $display("Error: Could not open ELF list file %s", ElfList);
+          $finish;
+        end
+        while ($fscanf(elfListFD, "%s %h %h", elfPathLine, tohostLine, sigLine) == 3) begin
+          elfQueue.push_back(elfPathLine);
+          tohostQueue.push_back(tohostLine);
+          sigQueue.push_back(sigLine);
+        end
+        $fclose(elfListFD);
+      end else if (ElfFile != "none") begin
+        elfQueue.push_back(ElfFile);
+        tohostQueue.push_back(0);
+        sigQueue.push_back(0);
+      end
+      elfPaths = new[elfQueue.size()];
+      elfTohost = new[elfQueue.size()];
+      elfBeginSig = new[elfQueue.size()];
+      foreach (elfQueue[elfIdx]) begin
+        elfPaths[elfIdx] = elfQueue[elfIdx];
+        elfTohost[elfIdx] = tohostQueue[elfIdx];
+        elfBeginSig[elfIdx] = sigQueue[elfIdx];
+      end
+      NumTests = elfPaths.size();
+      if (NumTests == 0) begin
+        $display("Error: No ELF files to run.  Pass +ElfList=<listfile> or +ElfFile=<elf>.");
         $finish;
       end
-    end
+      ElfFile = elfPaths[0];  // lockstep reference models load the ELF at time 0; only one is allowed
+      $display("Running %0d test%s", NumTests, NumTests == 1 ? "" : "s");
 
-    // pick tests based on modes supported
-    //tests = '{};
-    if (P.XLEN == 64) begin // RV64
-      case (TEST)
-        "arch64i":                                tests = arch64i;
-        "arch64priv":                             tests = arch64priv;
-        "arch64c":      if (P.ZCA_SUPPORTED)
-                          if (P.ZICSR_SUPPORTED)
-                            if (P.ZCD_SUPPORTED)  tests = {arch64c, arch64cpriv, arch64zcd};
-                            else                  tests = {arch64c, arch64cpriv};
-                          else                    tests = {arch64c};
-        "arch64m":      if (P.M_SUPPORTED)        tests = arch64m;
-        "arch64a_amo":      if (P.ZAAMO_SUPPORTED)        tests = arch64a_amo;
-        "arch64f":      if (P.F_SUPPORTED)        tests = arch64f;
-        "arch64d":      if (P.D_SUPPORTED)        tests = arch64d;
-        "arch64f_fma":  if (P.F_SUPPORTED)        tests = arch64f_fma;
-        "arch64d_fma":  if (P.D_SUPPORTED)        tests = arch64d_fma;
-        "arch64f_divsqrt":  if (P.F_SUPPORTED)        tests = arch64f_divsqrt;
-        "arch64d_divsqrt":  if (P.D_SUPPORTED)        tests = arch64d_divsqrt;
-        "arch64zifencei":  if (P.ZIFENCEI_SUPPORTED) tests = arch64zifencei;
-        "arch64zicond":  if (P.ZICOND_SUPPORTED)  tests = arch64zicond;
-        "wally64q":     if (P.Q_SUPPORTED)        tests = wally64q;
-        "wally64a_lrsc":     if (P.ZALRSC_SUPPORTED)        tests = wally64a_lrsc;
-        "custom":                                 tests = custom;
-        "wally64priv":                            tests = wally64priv;
-        "wally64periph":                          tests = wally64periph;
-        "coremark":                               tests = coremark;
-        "fpga":                                   tests = fpga;
-        "ahb64" :                                 tests = ahb64;
-        "coverage64gc" :                          tests = coverage64gc;
-        "arch64zba":     if (P.ZBA_SUPPORTED)     tests = arch64zba;
-        "arch64zbb":     if (P.ZBB_SUPPORTED)     tests = arch64zbb;
-        "arch64zbc":     if (P.ZBC_SUPPORTED)     tests = arch64zbc;
-        "arch64zbs":     if (P.ZBS_SUPPORTED)     tests = arch64zbs;
-        "arch64zicboz":  if (P.ZICBOZ_SUPPORTED)  tests = arch64zicboz;
-        "arch64zcb":     if (P.ZCB_SUPPORTED)     tests = arch64zcb;
-        "arch64zfh":     if (P.ZFH_SUPPORTED)
-                           if (P.D_SUPPORTED)     tests = {arch64zfh, arch64zfh_d};
-                           else                   tests = arch64zfh;
-        "arch64zfh_fma": if (P.ZFH_SUPPORTED)     tests = arch64zfh_fma;
-        "arch64zfh_divsqrt":     if (P.ZFH_SUPPORTED)     tests = arch64zfh_divsqrt;
-        "arch64zfaf":    if (P.ZFA_SUPPORTED)     tests = arch64zfaf;
-        "arch64zfad":    if (P.ZFA_SUPPORTED & P.D_SUPPORTED)  tests = arch64zfad;
-        "buildroot":                              tests = buildroot;
-        "arch64zbkb":    if (P.ZBKB_SUPPORTED)    tests = arch64zbkb;
-        "arch64zbkc":    if (P.ZBKC_SUPPORTED)    tests = arch64zbkc;
-        "arch64zbkx":    if (P.ZBKX_SUPPORTED)    tests = arch64zbkx;
-        "arch64zknd":    if (P.ZKND_SUPPORTED)    tests = arch64zknd;
-        "arch64zkne":    if (P.ZKNE_SUPPORTED)    tests = arch64zkne;
-        "arch64zknh":    if (P.ZKNH_SUPPORTED)    tests = arch64zknh;
-        "arch64pmp":     if (P.PMP_ENTRIES > 0)   tests = arch64pmp;
-        "arch64vm_sv39": if (P.SV39_SUPPORTED)    tests = arch64vm_sv39;
-        "arch64vm_sv48": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48;
-        "arch64vm_sv48_a": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_a;
-        "arch64vm_sv48_b": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_b;
-        "arch64vm_sv39_isolate":     if (P.SV39_SUPPORTED) tests = arch64vm_sv39_isolate;
-        "arch64vm_sv48_mxr_isolate": if (P.SV48_SUPPORTED) tests = arch64vm_sv48_mxr_isolate;
-        "arch64vm_sv57": if (P.SV57_SUPPORTED)    tests = arch64vm_sv57;
-      endcase
-    end else begin // RV32
-      case (TEST)
-        "arch32e":                                tests = arch32e;
-        "arch32i":                                tests = arch32i;
-        "arch32priv":                             tests = arch32priv;
-        "arch32c":      if (P.C_SUPPORTED)
-                          if (P.ZICSR_SUPPORTED)
-                            if (P.ZCF_SUPPORTED)
-                              if (P.ZCD_SUPPORTED)  tests = {arch32c, arch32cpriv, arch32zcf, arch32zcd};
-                              else                tests = {arch32c, arch32cpriv, arch32zcf};
-                            else                  tests = {arch32c, arch32cpriv};
-                          else                    tests = {arch32c};
-        "arch32m":      if (P.M_SUPPORTED)        tests = arch32m;
-        "arch32a_amo":      if (P.ZAAMO_SUPPORTED)  tests = arch32a_amo;
-        "arch32f":      if (P.F_SUPPORTED)        tests = arch32f;
-        "arch32d":      if (P.D_SUPPORTED)        tests = arch32d;
-        "arch32f_fma":  if (P.F_SUPPORTED)        tests = arch32f_fma;
-        "arch32d_fma":  if (P.D_SUPPORTED)        tests = arch32d_fma;
-        "arch32f_divsqrt":  if (P.F_SUPPORTED)        tests = arch32f_divsqrt;
-        "arch32d_divsqrt":  if (P.D_SUPPORTED)        tests = arch32d_divsqrt;
-        "arch32zifencei":     if (P.ZIFENCEI_SUPPORTED) tests = arch32zifencei;
-        "arch32zicond":  if (P.ZICOND_SUPPORTED)  tests = arch32zicond;
-        "wally32a_lrsc":     if (P.ZALRSC_SUPPORTED)        tests = wally32a_lrsc;
-        "wally32priv":                            tests = wally32priv;
-        "wally32periph":                          tests = wally32periph;
-        "wally32periph_imc":                      tests = wally32periph_imc;
-        "ahb32" :                                 tests = ahb32;
-        "embench":                                tests = embench;
-        "coremark":                               tests = coremark;
-        "arch32zba":     if (P.ZBA_SUPPORTED)     tests = arch32zba;
-        "arch32zbb":     if (P.ZBB_SUPPORTED)     tests = arch32zbb;
-        "arch32zbc":     if (P.ZBC_SUPPORTED)     tests = arch32zbc;
-        "arch32zbs":     if (P.ZBS_SUPPORTED)     tests = arch32zbs;
-        "arch32zicboz":  if (P.ZICBOZ_SUPPORTED)  tests = arch32zicboz;
-        "arch32zcb":     if (P.ZCB_SUPPORTED)     tests = arch32zcb;
-        "arch32zfh":     if (P.ZFH_SUPPORTED)
-                           if (P.D_SUPPORTED)     tests = {arch32zfh, arch32zfh_d};
-                           else                   tests = arch32zfh;
-        "arch32zfh_fma": if (P.ZFH_SUPPORTED)     tests = arch32zfh_fma;
-        "arch32zfh_divsqrt":     if (P.ZFH_SUPPORTED)     tests = arch32zfh_divsqrt;
-        "arch32zfaf":    if (P.ZFA_SUPPORTED)     tests = arch32zfaf;
-        "arch32zfad":    if (P.ZFA_SUPPORTED & P.D_SUPPORTED)  tests = arch32zfad;
-        "arch32zbkb":    if (P.ZBKB_SUPPORTED)    tests = arch32zbkb;
-        "arch32zbkc":    if (P.ZBKC_SUPPORTED)    tests = arch32zbkc;
-        "arch32zbkx":    if (P.ZBKX_SUPPORTED)    tests = arch32zbkx;
-        "arch32zknd":    if (P.ZKND_SUPPORTED)    tests = arch32zknd;
-        "arch32zkne":    if (P.ZKNE_SUPPORTED)    tests = arch32zkne;
-        "arch32zknh":    if (P.ZKNH_SUPPORTED)    tests = arch32zknh;
-        "arch32pmp":     if (P.PMP_ENTRIES > 0)   tests = arch32pmp;
-        "arch32vm_sv32": if (P.SV32_SUPPORTED)    tests = arch32vm_sv32;
-      endcase
-    end
-    if (tests.size() == 0 & ElfFile == "none") begin
-      $display("TEST %s not supported in this configuration", TEST);
-      $finish;
+      // Check that every ELF matches the DUT's XLEN before running anything
+      foreach (elfPaths[elfIdx]) begin
+        elfFD = $fopen(elfPaths[elfIdx], "rb");
+        if (elfFD == 0) begin
+          $display("Error: Could not open ELF file %s", elfPaths[elfIdx]);
+          $finish;
+        end
+        readBytes = $fread(header, elfFD);
+        $fclose(elfFD);
+        if (header[4] == 1 & integer'(P.XLEN) == 64) begin
+          $display("Error: You can not run a 32 bit elf (%s) on a 64 bit DUT", elfPaths[elfIdx]);
+          $finish;
+        end else if (header[4] == 2 & integer'(P.XLEN) == 32) begin
+          $display("Error: You can not run a 64 bit elf (%s) on a 32 bit DUT", elfPaths[elfIdx]);
+          $finish;
+        end
+      end
     end
     if (MAKE_VCD) begin
       $dumpfile("testbench.vcd");
@@ -321,8 +260,8 @@ module testbench;
   logic        ResetCntRst;
   logic        CopyRAM;
 
-  string  signame, elffilename, memfilename, bootmemfilename, uartoutfilename, pathname;
-  integer begin_signature_addr, end_signature_addr, signature_size, selfcheck_record_addr;
+  string  elffilename, memfilename, bootmemfilename, uartoutfilename;
+  logic [P.XLEN-1:0] tohost_addr, begin_signature_addr; // for the test being run; 0 if it lacks the symbol
   integer uartoutfile;
 
 
@@ -340,11 +279,6 @@ module testbench;
 
   // fsm next state logic
   always_comb begin
-    // riscof tests have a different signature, tests[0] == "0" refers to RiscvArchTests
-    // and tests[0] == "1" refers to WallyRiscvArchTests
-    riscofTest = tests[0] == "0" | tests[0] == "1";
-    pathname = tvpaths[tests[0].atoi()];
-
     case(CurrState)
       STATE_TESTBENCH_RESET:                      NextState = STATE_INIT_TEST;
       STATE_INIT_TEST:                            NextState = STATE_RESET_MEMORIES;
@@ -387,15 +321,6 @@ module testbench;
   ////////////////////////////////////////////////////////////////////////////////
   logic [P.XLEN-1:0] testadr;
 
-  //VCS ignores the dynamic types while processing the implicit sensitivity lists of always @*, always_comb, and always_latch
-  //procedural blocks. VCS supports the dynamic types in the implicit sensitivity list of always @* block as specified in the Section 9.2 of the IEEE Standard SystemVerilog Specification 1800-2012.
-  //To support memory load and dump task verbosity: flag : -diag sys_task_mem
-  always @(*) begin
-    begin_signature_addr = ProgramAddrLabelArray["begin_signature"];
-    end_signature_addr = ProgramAddrLabelArray["sig_end_canary"];
-    signature_size = end_signature_addr - begin_signature_addr;
-    selfcheck_record_addr = ProgramAddrLabelArray["selfcheck_record"]; // nonzero for self-checking tests
-  end
   logic EcallFaultM;
   if (P.ZICSR_SUPPORTED)
     assign EcallFaultM = dut.core.priv.priv.EcallFaultM;
@@ -406,19 +331,14 @@ module testbench;
     ////////////////////////////////////////////////////////////////////////////////
     // Verify the test ran correctly by checking the memory against a known signature.
     ////////////////////////////////////////////////////////////////////////////////
-    if(TestBenchReset) test = 1;
+    if(TestBenchReset) test = 0;
     if (P.ZICSR_SUPPORTED & TEST == "coremark")
       if (EcallFaultM) begin
         $display("Benchmark: coremark is done.");
         $stop;
       end
     if(SelectTest) begin
-      if (riscofTest) begin
-        memfilename = {pathname, tests[test], "/ref/ref.elf.memfile"};
-        elffilename = {pathname, tests[test], "ref/ref.elf"};
-        ProgramAddrMapFile = {pathname, tests[test], "/ref/ref.elf.objdump.addr"};
-        ProgramLabelMapFile = {pathname, tests[test], "/ref/ref.elf.objdump.lab"};
-      end else if(TEST == "buildroot") begin
+      if(TEST == "buildroot") begin
         memfilename = {RISCV_DIR, "/linux-testvectors/ram.bin"};
         elffilename = "buildroot";
         bootmemfilename = {RISCV_DIR, "/linux-testvectors/bootmem.bin"};
@@ -429,21 +349,19 @@ module testbench;
         memfilename = {WALLY_DIR, "/fpga/src/data.mem"};
         ProgramAddrMapFile = {WALLY_DIR, "/fpga/zsbl/bin/boot.objdump.addr"};
         ProgramLabelMapFile = {WALLY_DIR, "/fpga/zsbl/bin/boot.objdump.lab"};
-      end else if(ElfFile != "none") begin
-        elffilename = ElfFile;
-        memfilename = {ElfFile, ".memfile"};
-        ProgramAddrMapFile = {ElfFile, ".objdump.addr"};
-        ProgramLabelMapFile = {ElfFile, ".objdump.lab"};
       end else begin
-        elffilename = {pathname, tests[test], ".elf"};
-        memfilename = {pathname, tests[test], ".elf.memfile"};
-        ProgramAddrMapFile = {pathname, tests[test], ".elf.objdump.addr"};
-        ProgramLabelMapFile = {pathname, tests[test], ".elf.objdump.lab"};
+        elffilename = elfPaths[test];
+        memfilename = {elffilename, ".memfile"};
+        ProgramAddrMapFile = {elffilename, ".objdump.addr"};
+        ProgramLabelMapFile = {elffilename, ".objdump.lab"};
       end
-      // declare memory labels that interest us, the updateProgramAddrLabelArray task will find
-      // the addr of each label and fill the array. To expand, add more elements to this array
-      // and initialize them to zero (also initialize them to zero at the start of the next test)
-      updateProgramAddrLabelArray(ProgramAddrMapFile, ProgramLabelMapFile, memfilename, WALLY_DIR, ProgramAddrLabelArray);
+      if (TEST == "buildroot" | TEST == "fpga") begin
+        tohost_addr = 0;
+        begin_signature_addr = 0;
+      end else begin
+        tohost_addr = elfTohost[test];
+        begin_signature_addr = elfBeginSig[test];
+      end
       // Open UART log file if enabled (buildroot defaults to on, override with +UART_LOG=1)
       if (UART_LOG) begin
         uartoutfilename = UART_LOG_FILE;
@@ -461,9 +379,8 @@ module testbench;
         // python speed script to calculate embench speed score.
         // also, begin_signature contains the results of the self checking mechanism,
         // which will be read by the python script for error checking
-        $display("Embench Benchmark: %s is done.", tests[test]);
-        if (riscofTest) outputfile = {pathname, tests[test], "/ref/ref.sim.output"};
-        else outputfile = {pathname, tests[test], ".sim.output"};
+        $display("Embench Benchmark: %s is done.", elffilename);
+        outputfile = {stripElfSuffix(elffilename), ".sim.output"};
         outputFilePointer = $fopen(outputfile, "w");
         i = 0;
         testadr = ($unsigned(begin_signature_addr))/(P.XLEN/8);
@@ -473,35 +390,25 @@ module testbench;
         end
         $fclose(outputFilePointer);
         $display("Embench Benchmark: created output file: %s", outputfile);
-      end else if (TEST == "coverage64gc") begin
-        $display("%s ran. Coverage tests don't get checked", tests[test]);
-      end else if (ElfFile != "none") begin
+      end else if (TEST == "buildroot" | TEST == "fpga" | TEST == "coremark") begin
+        $display("%s is done.", TEST);
+      end else begin
+        // Every test checks itself and reports the result by storing to tohost: 1 = pass,
+        // (exit code << 1) | 1 = fail.  A test that halts without storing to tohost is a failure.
         `ifdef USE_TREK_DV
           $display("Breker test is done.");
-        `elsif FCOV
-          $display("Functional coverage test complete.");
         `else
-          if (selfcheck_record_addr != 0) CheckSelfCheck(ElfFile, selfcheck_record_addr, errors);
-          else $display("Single Elf file tests are not signatured verified.");
+          if (TohostValue == 1) $display("%s succeeded.  Brilliant!!!", elffilename);
+          else begin
+            if (TohostValue == 0) $display("  Error on test %s: halted without reporting a result to tohost", elffilename);
+            else $display("  Error on test %s: tohost = %0d (test exit code %0d)", elffilename, TohostValue, TohostValue >> 1);
+            $display("%s failed. :(", elffilename);
+            totalerrors = totalerrors + 1;
+          end
         `endif
-`ifdef QUESTA
-        $stop;  // if this is changed to $finish for Questa, wally-batch.do does not go to the next step to run coverage, and wally.do terminates without allowing GUI debug
-`else
-        $finish;
-`endif
-      end else begin
-        // self-checking tests record their own result; for other tests, read .signature.output file and compare to check for errors
-        // clear signature to prevent contamination from previous tests
-        if (!begin_signature_addr)
-          $display("begin_signature addr not found in %s", ProgramLabelMapFile);
-        else if (TEST != "embench") begin
-          if (selfcheck_record_addr != 0) CheckSelfCheck(tests[test], selfcheck_record_addr, errors);
-          else CheckSignature(pathname, tests[test], riscofTest, begin_signature_addr, errors);
-          if(errors > 0) totalerrors = totalerrors + 1;
-        end
       end
       test = test + 1;
-      if (test == tests.size()) begin
+      if (test == NumTests) begin
         if (totalerrors == 0) $display("SUCCESS! All tests ran without failures.");
         else $display("FAIL: %d test programs had errors", totalerrors);
 `ifdef QUESTA
@@ -600,20 +507,15 @@ module testbench;
         if (TEST == "embench") $display("Read memfile %s", memfilename);
       end
       if (CopyRAM) begin
+        // copy the signature region (read back by the embench flow) into the shadow RAM
         LogXLEN = (1 + P.XLEN/32); // 2 for rv32 and 3 for rv64
         StartIndex = begin_signature_addr >> LogXLEN;
-        EndIndex = (end_signature_addr >> LogXLEN) + 8;
+        EndIndex = StartIndex + 15;
         BaseIndex = P.UNCORE_RAM_BASE >> LogXLEN;
-        for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
-          testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.uncoregen.uncore.ram.ram.memory.ram.RAM[ShadowIndex - BaseIndex];
-        end
-        if (selfcheck_record_addr != 0) begin // also copy the result record of a self-checking test
-          StartIndex = selfcheck_record_addr >> LogXLEN;
-          EndIndex = StartIndex + 7;
+        if (begin_signature_addr != 0)
           for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
             testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.uncoregen.uncore.ram.ram.memory.ram.RAM[ShadowIndex - BaseIndex];
           end
-        end
       end
     end
   end
@@ -623,20 +525,15 @@ module testbench;
         $readmemh(memfilename, dut.core.lsu.dtim.dtim.ram.ram.RAM);
       end
       if (CopyRAM) begin
+        // copy the signature region (read back by the embench flow) into the shadow RAM
         LogXLEN = (1 + P.XLEN/32); // 2 for rv32 and 3 for rv64
         StartIndex = begin_signature_addr >> LogXLEN;
-        EndIndex = (end_signature_addr >> LogXLEN) + 8;
+        EndIndex = StartIndex + 15;
         BaseIndex = P.UNCORE_RAM_BASE >> LogXLEN;
-        for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
-          testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.core.lsu.dtim.dtim.ram.ram.RAM[ShadowIndex - BaseIndex];
-        end
-        if (selfcheck_record_addr != 0) begin // also copy the result record of a self-checking test
-          StartIndex = selfcheck_record_addr >> LogXLEN;
-          EndIndex = StartIndex + 7;
+        if (begin_signature_addr != 0)
           for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
             testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.core.lsu.dtim.dtim.ram.ram.RAM[ShadowIndex - BaseIndex];
           end
-        end
       end
     end
   end
@@ -753,6 +650,10 @@ module testbench;
 
   // track the current function or global label
   if (DEBUG > 0 | ((PrintHPMCounters | BPRED_LOGGER) & P.ZICNTR_SUPPORTED)) begin : functionName
+    // build the .objdump.addr/.lab label maps from the ELF if they are missing or stale
+    always @(posedge clk)
+      if (SelectTest & TEST != "buildroot" & TEST != "fpga")
+        void'($system({"make -s -f ", WALLY_DIR, "/testbench/Makefile WALLY=", WALLY_DIR, " ", ProgramAddrMapFile}));
     functionName #(P) functionName(.reset(reset_ext | TestBenchReset),
             .clk(clk), .ProgramAddrMapFile(ProgramAddrMapFile), .ProgramLabelMapFile(ProgramLabelMapFile));
   end
@@ -779,9 +680,12 @@ module testbench;
   logic [P.XLEN-1:0] PCM;
   // PCM is not valid for configurations without ZICSR or branch predictor
   flopenr #(P.XLEN) PCMReg(clk, reset, ~dut.core.StallM, dut.core.PCE, PCM);
+  assign TohostWrite = (dut.core.lsu.IEUAdrM == tohost_addr & tohost_addr != 0) & (InstrMName == "SW" | InstrMName == "SD");
   always @(posedge clk) begin
-    TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
-       ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
+    TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) | TohostWrite; // |
+    // Capture the result as it is stored, so the check does not depend on the store reaching memory
+    if (SelectTest) TohostValue <= 0;
+    else if (TohostWrite) TohostValue <= dut.core.WriteDataM[31:0];
     //   (functionName.PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero));
     if (reset) PrevPCZero <= 0;
     else if (dut.core.InstrValidM) PrevPCZero <= (PCM == 0 & dut.core.ifu.InstrM == 0);
@@ -794,7 +698,8 @@ module testbench;
   DCacheFlushFSM #(P) DCacheFlushFSM(.clk, .start(DCacheFlushStart), .done(DCacheFlushDone));
 
   logic [P.XLEN-1:0] Minstret;
-  assign Minstret = testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
+  if (P.ZICSR_SUPPORTED) assign Minstret = testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
+  else                   assign Minstret = '0; // no CSRs, so no counters: INSTR_LIMIT is unavailable
   always @(negedge clk) begin
     if (INSTR_LIMIT > 0) begin
       if((Minstret != 0) & (Minstret % 'd100000 == 0)) $display("Reached %d instructions", Minstret);
@@ -808,9 +713,14 @@ module testbench;
   wallyTracer #(P) wallyTracer(rvvi);
 `endif
 
-// Functional coverage
+// Functional coverage.  riscv_arch_test comes from riscv-arch-test and samples the generated
+// covergroups off the RVVI trace; wally-compile.do supplies it and its include paths with --fcov.
 `ifdef FCOV
-  cvw_arch_verif cvw_arch_verif(rvvi);
+  // wallyTracer drives every RVVI signal the covergroups read except these, which belong to
+  // extensions rv64gc does not implement, so tie them off rather than sampling X.
+  assign rvvi.mode_virt[0][0]  = 1'b0; // no hypervisor
+  assign rvvi.debug_mode[0][0] = 1'b0; // no debug module
+  riscv_arch_test riscv_arch_test(rvvi);
 `endif
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -968,6 +878,9 @@ module testbench;
     if (P.SPI_SUPPORTED) begin
       void'(rvviRefMemorySetVolatile(P.SPI_BASE, (P.SPI_BASE + P.SPI_RANGE)));
     end
+    if (P.PWM_SUPPORTED) begin
+      void'(rvviRefMemorySetVolatile(P.PWM_BASE, (P.PWM_BASE + P.PWM_RANGE)));
+    end
   end
 
   if (P.ZICSR_SUPPORTED) begin
@@ -993,125 +906,13 @@ module testbench;
   // END of ImperasDV Co-simulator hooks
   ////////////////////////////////////////////////////////////////////////////////
 
-  task automatic CheckSignature;
-    // This task must be declared inside this module as it needs access to parameter P.  There is
-    // no way to pass P to the task unless we convert it to a module.
-
-    input string  pathname;
-    input string  TestName;
-    input logic   riscofTest;
-    input integer begin_signature_addr;
-    output integer errors;
-    int fd, code;
-    string line;
-    int siglines, sigentries;
-
-    localparam SIGNATURESIZE = 5000000;
-    integer        i;
-    logic [31:0]   sig32[0:SIGNATURESIZE];
-    logic [31:0]   parsed;
-    logic [P.XLEN-1:0] signature[0:SIGNATURESIZE];
-    string            signame;
-    logic [P.XLEN-1:0] testadr, testadrNoBase;
-
-    //$display("Invoking CheckSignature %s %s %0t", pathname, TestName, $time);
-
-    // read .signature.output file and compare to check for errors
-    if (riscofTest) signame = {pathname, TestName, "/ref/Reference-sail_c_simulator.signature"};
-    else signame = {pathname, TestName, ".signature.output"};
-
-    // read signature file from memory and count lines.  Can't use readmemh because we need the line count
-    // $readmemh(signame, sig32);
-    fd = $fopen(signame, "r");
-    siglines = 0;
-    if (fd == 0) $display("Unable to read %s", signame);
-    else begin
-      while (!$feof(fd)) begin
-        code = $fgets(line, fd);
-        if (code != 0) begin
-          int errno;
-          string errstr;
-          errno = $ferror(fd, errstr);
-          if (errno != 0) $display("Error %d (code %d) reading line %d of %s: %s", errno, code, siglines, signame, errstr);
-          if (line.len() > 1) begin // skip blank lines
-            if ($sscanf(line, "%x", parsed) != 0) begin
-              sig32[siglines] = parsed;
-              siglines = siglines + 1; // increment if line is not blank
-            end
-          end
-        end
-      end
-      $fclose(fd);
-    end
-
-    // Check valid number of lines were read
-    if (siglines == 0) begin
-      errors = 1;
-      $display("Error: empty test file %s", signame);
-    end else if (P.XLEN == 64 & (siglines % 2)) begin
-      errors = 1;
-      $display("Error: RV64 signature has odd number of lines %s", signame);
-    end else errors = 0;
-
-    // copy lines into signature, converting to XLEN if necessary
-    sigentries = (P.XLEN == 32) ? siglines : siglines/2; // number of signature entries
-    for (i=0; i<sigentries; i++) begin
-      signature[i] = (P.XLEN == 32) ? sig32[i] : {sig32[i*2+1], sig32[i*2]};
-      //$display("XLEN = %d signature[%d] = %x", P.XLEN, i, signature[i]);
-    end
-
-    // Check errors
-    testadr = ($unsigned(begin_signature_addr))/(P.XLEN/8);
-    testadrNoBase = (begin_signature_addr - P.UNCORE_RAM_BASE)/(P.XLEN/8);
-    for (i=0; i<sigentries; i++) begin
-      if (signature[i] !== testbench.DCacheFlushFSM.ShadowRAM[testadr+i]) begin
-        errors = errors+1;
-        $display("  Error on test %s result %d: adr = %h sim (D$) %h signature = %h",
-          TestName, i, (testadr+i)*(P.XLEN/8), testbench.DCacheFlushFSM.ShadowRAM[testadr+i], signature[i]);
-        $stop; // if this is changed to $finish, wally-batch.do does not get to the next step to run coverage
-      end
-    end
-    if (errors) $display("%s failed with %d errors. :(", TestName, errors);
-    else $display("%s succeeded.  Brilliant!!!", TestName);
-  endtask
-
-  // Report the result of a self-checking test.  Such a test embeds its expected signature, compares
-  // each entry as it is written, and leaves the outcome in selfcheck_record (XLEN-sized entries):
-  //   0: status (0 = did not finish, 1 = passed, 2 = entry mismatch, 3 = wrong number of entries)
-  //   1: entry index    2: entry address    3: expected value    4: actual value
-  task automatic CheckSelfCheck;
-    input string  TestName;
-    input integer selfcheck_record_addr;
-    output integer errors;
-    logic [P.XLEN-1:0] status, index, adr, expected, actual;
-    integer recadr;
-    recadr = $unsigned(selfcheck_record_addr) / (P.XLEN/8); // $unsigned because integer is signed and RAM addresses have bit 31 set
-    status   = testbench.DCacheFlushFSM.ShadowRAM[recadr];
-    index    = testbench.DCacheFlushFSM.ShadowRAM[recadr+1];
-    adr      = testbench.DCacheFlushFSM.ShadowRAM[recadr+2];
-    expected = testbench.DCacheFlushFSM.ShadowRAM[recadr+3];
-    actual   = testbench.DCacheFlushFSM.ShadowRAM[recadr+4];
-    errors = 0;
-    case (status)
-      1: $display("%s succeeded.  Brilliant!!!", TestName);
-      2: begin
-        errors = 1;
-        $display("  Error on test %s result %0d: adr = %h sim (D$) %h signature = %h", TestName, index, adr, actual, expected);
-      end
-      3: begin
-        errors = 1;
-        $display("  Error on test %s: wrote %0d signature entries but expected %0d (next adr = %h)", TestName, actual, expected, adr);
-      end
-      default: begin
-        errors = 1;
-        $display("  Error on test %s: halted without completing its self-check (status = %h)", TestName, status);
-      end
-    endcase
-    if (errors) begin
-      $display("%s failed with %d errors. :(", TestName, errors);
-      $stop; // if this is changed to $finish, wally-batch.do does not get to the next step to run coverage
-    end
-  endtask
+  // Strip a trailing ".elf" from a file name, if present
+  function automatic string stripElfSuffix(input string name);
+    if (name.len() > 4 && name.substr(name.len()-4, name.len()-1) == ".elf")
+      return name.substr(0, name.len()-5);
+    else
+      return name;
+  endfunction
 
 `ifdef PMP_COVERAGE
 test_pmp_coverage #(P) pmp_inst(clk);
@@ -1123,42 +924,3 @@ endmodule
 
 /* verilator lint_on STMTDLY */
 /* verilator lint_on WIDTH */
-
-task automatic updateProgramAddrLabelArray;
-  /* verilator lint_off WIDTHTRUNC */
-  /* verilator lint_off WIDTHEXPAND */
-  input string ProgramAddrMapFile, ProgramLabelMapFile, memfilename, WALLY_DIR;
-  inout  integer ProgramAddrLabelArray [string];
-  // Gets the memory location of begin_signature
-  integer ProgramLabelMapFP, ProgramAddrMapFP;
-  string cmd;
-
-  // if memfile, label, or addr files are out of date or don't exist, generate them
-  cmd = {"make -s -f ", WALLY_DIR, "/testbench/Makefile ", memfilename, " ", ProgramAddrMapFile};
-  $system(cmd);
-
-  ProgramLabelMapFP = $fopen(ProgramLabelMapFile, "r");
-  ProgramAddrMapFP = $fopen(ProgramAddrMapFile, "r");
-
-  if (ProgramLabelMapFP & ProgramAddrMapFP) begin // check we found both files
-    ProgramAddrLabelArray["begin_signature"] = 0;
-    ProgramAddrLabelArray["tohost"] = 0;
-    ProgramAddrLabelArray["sig_end_canary"] = 0;
-    ProgramAddrLabelArray["selfcheck_record"] = 0;
-    while (!$feof(ProgramLabelMapFP)) begin
-      string label, adrstr;
-      integer returncode;
-      returncode = $fscanf(ProgramLabelMapFP, "%s\n", label);
-      returncode = $fscanf(ProgramAddrMapFP, "%s\n", adrstr);
-      if (ProgramAddrLabelArray.exists(label)) ProgramAddrLabelArray[label] = adrstr.atohex();
-    end
-  end
-
-//  if(ProgramAddrLabelArray["begin_signature"] == 0) $display("Couldn't find begin_signature in %s", ProgramLabelMapFile);
-//  if(ProgramAddrLabelArray["sig_end_canary"] == 0) $display("Couldn't find sig_end_canary in %s", ProgramLabelMapFile);
-
-  $fclose(ProgramLabelMapFP);
-  $fclose(ProgramAddrMapFP);
-  /* verilator lint_on WIDTHTRUNC */
-  /* verilator lint_on WIDTHEXPAND */
-endtask
