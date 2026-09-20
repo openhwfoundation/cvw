@@ -17,6 +17,8 @@ Please contribute by making a pull request to modify this document on GitHub.  S
 | 133 | 3.7 | The ACT suite has been completely redesigned and no longer uses RISCOF.  |See the [riscv-arch-test](https://github.com/riscv-non-isa/riscv-arch-test) repository for updated information.|David Harris, Claremont, CA | 1/4/26 |
 | 226 | 5.9.2 | cvw-arch-verif has been deprecated and no longer is in use | Replace with riscv-arch-test | David Harris, Claremont, CA | 1/4/26 |
 | 227 | 5.11 | The ACT suite has been completely redesigned and no longer uses RISCOF.  *** Other big changes pending in this section. | n/a | David Harris, Claremont, CA | 1/4/26 |
+| 310 | Equation 7.10 | $G_{i:j} = G_{i:k} + P_{i:k}P_{k-1:0}$ | $G_{i:j} = G_{i:k} + P_{i:k}G_{k-1:j}$ | Mohammad Alavi | 9/11/26 |
+| 310 | Equation 7.13 | $eq = (\text{Sum} == 0) = P_{N-1:0}$ | $eq = (\text{Sum} == 2^N-1) = P_{N-1:0}$ | Mohammad Alavi | 9/11/26 |
 | 367 | 8.4.1 | "Uses the CSRs (xtvect)" | Replace "xtvect" with "xtvec". | Sotaro Fujimoto, Japan | 6/19/26 |
 | 388 | Fig. 9.6 | The top-left controller label is shown as "Controller1". | Replace with "Controller 1". | Sotaro Fujimoto, Japan | 7/14/26 |
 | 394 | sidebar | "Fig. 20.3 shows a full-featured GPIO peripheral with an APB interface." | Replace "Fig. 20.3" with "Fig. 20.4". | Sotaro Fujimoto, Japan | 7/19/26 |
