@@ -27,7 +27,7 @@
 --override lr_sc_grain=8   # Za64rs requires <=64; we use native word size
 
 # Virtual memory
---override iss/cpu0/Sv_modes=768 # SV39 and SV48 supported
+--override cpu/Sv_modes=1792 # SV39 and SV48 and SV57 supported
 --override iss/cpu0/Svadu=T # Enable SVADU hardware update of A/D bits when menvcfg.ADUE=1
 --override iss/cpu0/Svinval=T
 --override iss/cpu0/Svpbmt=T
@@ -47,8 +47,8 @@
 --override iss/cpu0/Zcb=T
 --override iss/cpu0/Sstc=T
 
-# mcause and scause only have 4 lsbs of code and 1 msb of interrupt flag
---override iss/cpu0/ecode_mask=0x800000000000000F # for RV64
+# mcause and scause only have 5 lsbs of code and 1 msb of interrupt flag
+--override iss/cpu0/ecode_mask=0x800000000000001F # for RV64
 
 # Misaligned access (Zicclsm) is supported
 --override iss/cpu0/unaligned=T

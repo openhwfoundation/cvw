@@ -271,7 +271,6 @@ There are stages in the old Dockerfile:
 - user and its group configuration
 - clone and build toolchain with prefix=$RISCV
     - riscv-gnu-toolchain: https://github.com/riscv-collab/riscv-gnu-toolchain
-    - elf2hex: https://github.com/sifive/elf2hex
     - qemu: https://github.com/qemu/qemu
     - spike: https://github.com/riscv-software-src/riscv-isa-sim
     - sail: https://github.com/riscv/sail-riscv/commits/master/
@@ -281,7 +280,6 @@ There are stages in the old Dockerfile:
 ### Tool Versions till 20240331
 
 - riscv-gnu-toolchain: `2024.03.01`
-- elf2hex: `f28a3103c06131ed3895052b1341daf4ca0b1c9c`
 - qemu: not tested
 - spike: `3427b459f88d2334368a1abbdf5a3000957f08e8`
 - sail: `f601c866153c79a7ae8404f939dc2d66aa2e41f9`

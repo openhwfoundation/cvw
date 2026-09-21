@@ -33,7 +33,7 @@
 module tlbmixer import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.VPN_BITS-1:0] VPN,
   input  logic [P.PPN_BITS-1:0] PPN,
-  input  logic [1:0]            HitPageType,
+  input  logic [2:0]            HitPageType,
   input  logic [11:0]           Offset,
   input  logic                  TLBHit,
   input  logic                  PTE_N,         // NAPOT page table entry
@@ -51,14 +51,31 @@ module tlbmixer import cvw::*;  #(parameter cvw_t P) (
     // megapage: 12 bits of PPN, 10 bits of VPN
     mux2 #(22) pnm(22'h000000, 22'h0003FF, HitPageType[0], PageNumberMask);
   else
-    // kilopage: 44 bits of PPN, 0 bits of VPN
-    // megapage: 35 bits of PPN, 9 bits of VPN
-    // gigapage: 26 bits of PPN, 18 bits of VPN
-    // terapage: 17 bits of PPN, 27 bits of VPN
-    mux4 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF, HitPageType, PageNumberMask);
+    if (P.SV57_SUPPORTED)
+      // petapage: 8  bits of PPN, 36 bits of VPN
+      // terapage: 17 bits of PPN, 27 bits of VPN
+      // gigapage: 26 bits of PPN, 18 bits of VPN
+      // megapage: 35 bits of PPN, 9 bits of VPN
+      // kilopage: 44 bits of PPN, 0 bits of VPN
+      mux5 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF,44'h00FFFFFFFFF, HitPageType, PageNumberMask);
+    else if (P.SV48_SUPPORTED)
+      // terapage: 17 bits of PPN, 27 bits of VPN
+      // gigapage: 26 bits of PPN, 18 bits of VPN
+      // megapage: 35 bits of PPN, 9 bits of VPN
+      // kilopage: 44 bits of PPN, 0 bits of VPN
+      mux4 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF, HitPageType[1:0], PageNumberMask);
+    else // SV39 only
+      // gigapage: 26 bits of PPN, 18 bits of VPN
+      // megapage: 35 bits of PPN, 9 bits of VPN
+      // kilopage: 44 bits of PPN, 0 bits of VPN
+      mux3 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, HitPageType[1:0], PageNumberMask);
 
   // merge low segments of VPN with high segments of PPN decided by the pagetype.
-  assign ZeroExtendedVPN = {{EXTRA_BITS{1'b0}}, VPN}; // forces the VPN to be the same width as PPN.
+  if (P.PPN_BITS > P.VPN_BITS)
+    assign ZeroExtendedVPN = {{EXTRA_BITS{1'b0}}, VPN}; // forces the VPN to be the same width as PPN.
+  else
+    assign ZeroExtendedVPN = VPN[P.PPN_BITS-1:0];
+
   assign PPNMixed = PPN | ZeroExtendedVPN & PageNumberMask; // low bits of PPN are already zero
 
   // In Svnapot, when N=1, use bottom bits of VPN for contiugous translations

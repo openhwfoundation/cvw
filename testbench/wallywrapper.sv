@@ -67,19 +67,26 @@ module wallywrapper import cvw::*;(
 
   logic        ExternalStall;
 
+  logic        tck, tms, tdi, tdo;
+
   // instantiate device to be tested
   assign GPIOIN = 0;
   assign UARTSin = 1;
 
-    assign HREADYEXT = 1;
-    assign HRESPEXT = 0;
-    assign HRDATAEXT = 0;
+  assign HREADYEXT = 1;
+  assign HRESPEXT = 0;
+  assign HRDATAEXT = 0;
 
   assign ExternalStall = '0;
+
+  assign tck = 1;
+  assign tms = 0;
+  assign tdi = 0;
 
   wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall, .HRDATAEXT,.HREADYEXT, .HRESPEXT,.HSELEXT,
                         .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
                         .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-                        .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+                        .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK,
+                        .tck, .tms, .tdi, .tdo);
 
 endmodule

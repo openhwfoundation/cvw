@@ -1,78 +1,59 @@
 # Verilator Makefile for WALLY
 # Kunlin Han, Rose Thompson, David Harris 2024
+# Jordan Carlin 2026
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 SHELL := /bin/bash
-.PHONY: profile run clean
+.PHONY: compile clean
 
-# verilator configurations
-OPT=--assert
-PARAMS?=--no-trace-top
-NONPROF?=--stats
-VERILATOR_DIR=${WALLY}/sim/verilator
-PLUS_ARGS=
-PARAM_ARGS=
-DEFINE_ARGS=
-EXPANDED_PARAM_ARGS:=$(patsubst %,-G%,$(PARAM_ARGS))
+# ------ Configuration variables (overridden by wsim) ------
+WALLYCONF  ?= rv64gc        # Wally configuration (e.g. rv64gc, rv32i)
+TESTBENCH  ?= testbench     # Top-level testbench module (testbench or testbench_fp)
+PARAM_ARGS  =               # Compile-time parameter overrides (e.g. MAKE_VCD=1)
+DEFINE_ARGS =               # Compile-time defines (e.g. +define+USE_IMPERAS_DV)
+BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARGS vary;
+                            # computed by wsim to avoid shell-escaping issues in Make
 
-WALLYCONF?=rv64gc
-TEST?=arch64i
-TESTBENCH?=testbench
+# ------ Verilator flags ------
+VERILATOR_FLAGS = --assert --no-trace-top --stats
 
-# constants
-# assume WALLY variable is correctly configured in the shell environment
-# INCLUDE_PATH are paths that Verilator should search for files it needs
-INCLUDE_PATH="-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
-# SOURCES are source files
-SOURCES=${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv
-# DEPENDENCIES are configuration files and source files, which leads to recompilation of executables
-DEPENDENCIES=${WALLY}/config/shared/*.vh $(SOURCES)
+# ------ Paths ------
+VERILATOR_DIR = ${WALLY}/sim/verilator
+INCLUDE_PATH  = "-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
+SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
+                ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv \
+                ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv
 
-WORKDIR = $(VERILATOR_DIR)/wkdir/$(WALLYCONF)_$(TEST)
+# Convert PARAM_ARGS entries (e.g. "MAKE_VCD=1") into verilator -G flags (e.g. "-GMAKE_VCD=1")
+EXPANDED_PARAM_ARGS := $(patsubst %,-G%,$(PARAM_ARGS))
 
-# regular testbench requires a wrapper defining getenvval
-ifeq ($(TESTBENCH), testbench)
-	WRAPPER=${WALLY}/sim/verilator/wrapper.c
-	ARGTEST=+TEST=$(TEST)
+# ------ Work directory ------
+# Keyed on config + testbench (+ optional hash when compile-time params differ).
+# Multiple test suites sharing the same config reuse a single compiled binary.
+# wsim handles freshness checking and flock serialization before invoking make.
+ifneq ($(BUILD_HASH),)
+    WORKDIR = $(VERILATOR_DIR)/wkdir/$(WALLYCONF)_$(TESTBENCH)_$(BUILD_HASH)
 else
-	WRAPPER=
-	ARGTEST=
+    WORKDIR = $(VERILATOR_DIR)/wkdir/$(WALLYCONF)_$(TESTBENCH)
 endif
 
-default: run
+# The regular testbench uses a C wrapper providing the getenvval DPI function
+ifeq ($(TESTBENCH), testbench)
+    WRAPPER = ${WALLY}/sim/verilator/wrapper.c
+else
+    WRAPPER =
+endif
 
-run: $(WORKDIR)/V${TESTBENCH}
-	mkdir -p $(VERILATOR_DIR)/logs
-	$(WORKDIR)/V${TESTBENCH} ${ARGTEST} $(PLUS_ARGS)
+# ------ Targets ------
 
-profile: obj_dir_profiling/V${TESTBENCH}_$(WALLYCONF)
-	$(VERILATOR_DIR)/obj_dir_profiling/V${TESTBENCH}_$(WALLYCONF) ${ARGTEST}
-	mv gmon.out gmon_$(WALLYCONF).out
-	gprof $(VERILATOR_DIR)/obj_dir_profiling/V${TESTBENCH}_$(WALLYCONF) gmon_$(WALLYCONF).out > gmon_$(WALLYCONF).log
-	verilator_profcfunc gmon_$(WALLYCONF).log > gmon_$(WALLYCONF).log2
-	mkdir -p $(VERILATOR_DIR)/logs_profiling
-	mv gmon_$(WALLYCONF)* $(VERILATOR_DIR)/logs_profiling
-	echo "Please check $(VERILATOR_DIR)/logs_profiling/gmon_$(WALLYCONF)* for logs and output files."
+default: compile
 
-$(WORKDIR)/V${TESTBENCH}: $(DEPENDENCIES)
+compile:
 	mkdir -p $(WORKDIR)
 	verilator \
 	--Mdir $(WORKDIR) -o V${TESTBENCH} \
 	--binary --trace \
-	$(OPT) $(PARAMS) $(NONPROF) \
-	--top-module ${TESTBENCH}  --relative-includes \
-	$(INCLUDE_PATH) \
-	${WRAPPER} \
-	${DEFINE_ARGS} \
-	${EXPANDED_PARAM_ARGS} \
-	$(SOURCES)
-
-obj_dir_profiling/V${TESTBENCH}_$(WALLYCONF): $(DEPENDENCIES)
-	mkdir -p obj_dir_profiling
-	verilator \
-	--Mdir obj_dir_profiling -o V${TESTBENCH}_$(WALLYCONF) \
-	--binary \
-	--prof-cfuncs $(OPT) $(PARAMS) \
+	$(VERILATOR_FLAGS) \
 	--top-module ${TESTBENCH}  --relative-includes \
 	$(INCLUDE_PATH) \
 	${WRAPPER} \
@@ -81,4 +62,4 @@ obj_dir_profiling/V${TESTBENCH}_$(WALLYCONF): $(DEPENDENCIES)
 	$(SOURCES)
 
 clean:
-	rm -rf $(VERILATOR_DIR)/wkdir $(VERILATOR_DIR)/obj_dir_profiling $(VERILATOR_DIR)/logs $(VERILATOR_DIR)/logs_profiling
+	rm -rf $(VERILATOR_DIR)/wkdir $(VERILATOR_DIR)/logs

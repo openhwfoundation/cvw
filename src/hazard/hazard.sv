@@ -34,6 +34,7 @@ module hazard (
   input  logic  FPUStallD, ExternalStall,
   input  logic  DivBusyE, FDivBusyE,
   input  logic  wfiM, IntPendingM,
+  input  logic  DebugMode, DebugResume, DebugHaltFlush, DebugResumeFlush,
   // Stall & flush outputs
   output logic StallF, StallD, StallE, StallM, StallW,
   output logic FlushD, FlushE, FlushM, FlushW
@@ -69,10 +70,15 @@ module hazard (
   // Branch misprediction is found in the Execute stage and must flush the next two instructions.
   //   However, an active division operation resides in the Execute stage, and when the BP incorrectly mispredicts the divide as a taken branch, the divide must still complete
   // When a WFI is interrupted and causes a trap, it flushes the rest of the pipeline but not the W stage, because the WFI needs to commit
-  assign FlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE;
-  assign FlushECause = TrapM | RetM | CSRWriteFenceM |(BPWrongE & ~(DivBusyE | FDivBusyE));
-  assign FlushMCause = TrapM | RetM | CSRWriteFenceM;
-  assign FlushWCause = TrapM & ~WFIInterruptedM;
+  // In Debug Mode, when the DPC register is changed, the Prorgram Counter is set to the new DPC value upon resume.
+  //   When this happens, previous stages need to be flushed so as to not conflict with the execution at the new PC.
+  //   For example, if a jump instruction completes in the execute stage, it will override DPC setting the Program Counter.
+  //   DebugResume will only go high and flush the contents of the D and E stages when DPC has actually been changed, not just on
+  //   any resume.
+  assign FlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE | DebugHaltFlush | DebugResumeFlush | DebugResume;
+  assign FlushECause = TrapM | RetM | CSRWriteFenceM | (BPWrongE & ~(DivBusyE | FDivBusyE)) | DebugHaltFlush | DebugResumeFlush | DebugResume;
+  assign FlushMCause = TrapM | RetM | CSRWriteFenceM | DebugHaltFlush | DebugResumeFlush | DebugResume;
+  assign FlushWCause = TrapM & ~WFIInterruptedM | DebugResume;
 
   // Stall causes
   //  Most data dependency stalls are identified in the decode stage
@@ -85,10 +91,11 @@ module hazard (
   assign StallFCause = 1'b0;
   assign StallDCause = (StructuralStallD | FPUStallD) & ~FlushDCause;
   assign StallECause = (DivBusyE | FDivBusyE) & ~FlushECause;
-  assign StallMCause = WFIStallM & ~FlushMCause;
+  assign StallMCause = WFIStallM & ~FlushMCause | DebugMode;
   // Need to gate IFUStallF when the equivalent FlushFCause = FlushDCause = 1.
   // assign StallWCause = ((IFUStallF & ~FlushDCause) | LSUStallM) & ~FlushWCause;
   // Because FlushWCause is a strict subset of FlushDCause, FlushWCause is factored out.
+  // DebugMode is added here to halt the processor upon entering DebugMode.
   assign StallWCause = (IFUStallF & ~FlushDCause) | (LSUStallM & ~FlushWCause) | ExternalStall;
 
   // Stall each stage for cause or if the next stage is stalled

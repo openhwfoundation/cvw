@@ -3,8 +3,6 @@
 #ifndef __UTIL_H
 #define __UTIL_H
 
-extern void setStats(int enable);
-
 #include <stdint.h>
 
 #define static_assert(cond) switch(0) { case 0: case !!(long)(cond): ; }

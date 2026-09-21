@@ -101,7 +101,7 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
   // =======
 
   assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
-  assign memread  = ~PWRITE & PSEL;           // read at start of access phase.  PENABLE hasn't set up before this
+  assign memread  = ~PWRITE & PSEL & ~PENABLE; // read once, in APB setup phase
   assign PREADY   = 1'b1;                     // PLIC never takes >1 cycle to respond
   assign entry    = {PADDR[23:2],2'b0};
   assign One[P.PLIC_NUM_SRC-1:1] = '0; assign One[0] = 1'b1; // Vivado does not like this as a single assignment.
@@ -134,9 +134,13 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
           PLIC_INTEN01:        if (P.PLIC_NUM_SRC >= 32) intEn[0][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_INTEN11:        if (P.PLIC_NUM_SRC >= 32) intEn[1][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_THRESHOLD0:     intThreshold[0]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE0: intInProgress           <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE0:
+            if (Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
           PLIC_THRESHOLD1:     intThreshold[1]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE1: intInProgress           <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE1:
+            if (Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
         endcase
 
       // Read synchronously because a read can have side effect of changing intInProgress
@@ -153,12 +157,14 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
           PLIC_THRESHOLD0:   Dout <= {29'b0,intThreshold[0]};
           PLIC_CLAIMCOMPLETE0: begin
             Dout <= {26'b0,intClaim[0]};
-            intInProgress <= intInProgress | (One << (intClaim[0]-1)); // claimed requests are currently in progress of being serviced until they are completed
+            if (intClaim[0] != 6'd0) // not an invalid request
+              intInProgress <= intInProgress | (One << (intClaim[0]-1)); // claimed requests are currently in progress of being serviced until they are completed
           end
           PLIC_THRESHOLD1:   Dout <= {29'b0,intThreshold[1]};
           PLIC_CLAIMCOMPLETE1: begin
             Dout <= {26'b0,intClaim[1]};
-            intInProgress <= intInProgress | (One << (intClaim[1]-1)); // claimed requests are currently in progress of being serviced until they are completed
+            if (intClaim[1] != 6'd0) // not an invalid request
+              intInProgress <= intInProgress | (One << (intClaim[1]-1));  // claimed requests are currently in progress of being serviced until they are completed
           end
           default:           Dout <= 32'h0; // invalid access
         endcase

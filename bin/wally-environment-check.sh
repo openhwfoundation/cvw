@@ -83,6 +83,9 @@ elif [[ "$ID" == ubuntu || "$ID_LIKE" == *ubuntu* ]]; then
             "is $PRETTY_NAME. The regular Ubuntu install will be attempted, but there may be issues."
         # Ubuntu derivates may use different version numbers. Attempt to derive version from Ubuntu codename
         case "$UBUNTU_CODENAME" in
+            resolute)
+                export UBUNTU_VERSION=26
+                ;;
             noble)
                 export UBUNTU_VERSION=24
                 ;;
@@ -103,12 +106,12 @@ elif [[ "$ID" == ubuntu || "$ID_LIKE" == *ubuntu* ]]; then
         UBUNTU_MINOR="${VERSION_ID#*.}"
     fi
     if (( UBUNTU_VERSION < 20 )); then
-        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Ubuntu versions 20.04 LTS, 22.04 LTS, and 24.04 LTS. You have version $VERSION. Please upgrade to a supported version of Ubuntu."
+        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Ubuntu versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS. You have version $VERSION. Please upgrade to a supported version of Ubuntu."
         exit 1
     fi
     # Warn if non LTS version or newer version
-    if ! [[ "$UBUNTU_MINOR" == 04 && "$UBUNTU_VERSION" =~ ^(20|22|24)$ ]]; then
-        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Ubuntu versions 20.04 LTS, 22.04 LTS, and 24.04 LTS. You have version $VERSION. The installation for the preceding Ubuntu LTS release will be attempted, but there may be issues."
+    if ! [[ "$UBUNTU_MINOR" == 04 && "$UBUNTU_VERSION" =~ ^(20|22|24|26)$ ]]; then
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Ubuntu versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS. You have version $VERSION. The installation for the preceding Ubuntu LTS release will be attempted, but there may be issues."
     fi
 elif [[ "$ID" == debian || "$ID_LIKE" == *debian* ]]; then
     export FAMILY=debian
@@ -132,11 +135,11 @@ elif [[ "$ID" == opensuse-leap || "$ID" == sles || "$ID_LIKE" == *suse* ]]; then
     fi
     export SUSE_VERSION="${VERSION_ID//.}"
     if (( SUSE_VERSION < 156 )); then
-        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with SUSE version 15.6. You have version $VERSION. Please upgrade to a supported version of SUSE."
+        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with SUSE versions 15.6 and 16.0. You have version $VERSION. Please upgrade to a supported version of SUSE."
         exit 1
     fi
-    if (( SUSE_VERSION > 156 )); then
-        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with SUSE version 15.6. You have a newer version ($VERSION). The installation for SUSE 15.6 will be attempted, but there may be issues."
+    if (( SUSE_VERSION > 160 )); then
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with SUSE versions 15.6 and 16.0. You have a newer version ($VERSION). The installation for SUSE 16.0 will be attempted, but there may be issues."
     fi
 else
     printf "${FAIL_COLOR}%s%s%s\n${ENDC}" "The Wally installation script is currently only compatible with Ubuntu, Debian, SUSE, and Red Hat family " \

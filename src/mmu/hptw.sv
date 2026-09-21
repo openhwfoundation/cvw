@@ -8,6 +8,9 @@
 //            adding support for terapage encoding, and for setting the HPTWAdr using the new level,
 //            adding the internal SvMode signal
 //
+//            implemented SV57 on top of SV48, SV39. This included, adding a level of the FSM for the extra page number segment
+//            adding support for petapage encoding, and for setting the HPTWAdr using the new level,
+//            adding the internal SvMode signal
 // Purpose: Hardware Page Table Walker
 //
 // Documentation: RISC-V System on Chip Design
@@ -51,7 +54,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   input  logic              FlushW,
   input  logic [3:0]        CMOpM,
   output logic [P.XLEN-1:0] PTE,                    // page table entry to TLBs
-  output logic [1:0]        PageType,               // page type to TLBs
+  output logic [2:0]        PageType,               // page type to TLBs
   output logic              ITLBWriteF, DTLBWriteM, // write TLB with new entry
   output logic [1:0]        PreLSURWM,
   output logic [P.XLEN+1:0] IHAdrM,
@@ -73,6 +76,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
           L1_ADR, L1_RD,
           L2_ADR, L2_RD,
           L3_ADR, L3_RD,
+          L4_ADR, L4_RD,
           LEAF, IDLE, UPDATE_PTE,
           FAULT} statetype;
 
@@ -85,7 +89,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic                     StartWalk;
   logic                     TLBMissOrUpdateDA;
   logic                     PRegEn;
-  logic [1:0]               NextPageType;
+  logic [2:0]               NextPageType;
   logic [P.SVMODE_BITS-1:0] SvMode;
   logic [P.XLEN-1:0]        TranslationVAdr;
   logic [P.XLEN-1:0]        NextPTE, NextPTE2;
@@ -179,7 +183,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     mux2 #(P.XLEN) NextPTEMux(ReadDataM, AccessedPTE, UpdatePTE, NextPTE); // NextPTE = ReadDataM when ADUE = 0 because UpdatePTE = 0
     flopenr #(P.PA_BITS) HPTWAdrWriteReg(clk, reset, SaveHPTWAdr, HPTWReadAdr, HPTWWriteAdr);
 
-    assign SaveHPTWAdr = (NextWalkerState == L0_RD | NextWalkerState == L1_RD | NextWalkerState == L2_RD | NextWalkerState == L3_RD); // save the HPTWAdr when the walker is about to read the PTE at any level; the last level read is the one to write during UpdatePTE
+    assign SaveHPTWAdr = (NextWalkerState == L0_RD | NextWalkerState == L1_RD | NextWalkerState == L2_RD | NextWalkerState == L3_RD | NextWalkerState == L4_RD); // save the HPTWAdr when the walker is about to read the PTE at any level; the last level read is the one to write during UpdatePTE
     assign SelHPTWWriteAdr = UpdatePTE | HPTWRW[0];
     mux2 #(P.PA_BITS) HPTWWriteAdrMux(HPTWReadAdr, HPTWWriteAdr, SelHPTWWriteAdr, HPTWAdr);
 
@@ -194,7 +198,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
 
     // Check for page faults
     vm64check #(P) vm64check(.SATP_MODE(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]), .VAdr(TranslationVAdr),
-      .SV39Mode(), .UpperBitsUnequal);
+      .SV39Mode(), .SV48Mode(), .UpperBitsUnequal);
     // This register is not functionally necessary, but improves the critical path.
     flopr #(1) upperbitsunequalreg(clk, reset, UpperBitsUnequal, UpperBitsUnequalD);
     assign InvalidRead = ReadAccess & ~Readable & (~STATUS_MXR | ~Executable);
@@ -221,18 +225,22 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
 
   // Enable and select signals based on states
   assign StartWalk  = (WalkerState == IDLE) & TLBMissOrUpdateDA;
-  assign HPTWRW[1]  = (WalkerState == L3_RD) | (WalkerState == L2_RD) | (WalkerState == L1_RD) | (WalkerState == L0_RD);
+  assign HPTWRW[1]  = (WalkerState == L4_RD & P.SV57_SUPPORTED) |
+                      (WalkerState == L3_RD & P.SV48_SUPPORTED) |
+                      (WalkerState == L2_RD & P.SV39_SUPPORTED) |
+                      (WalkerState == L1_RD) | (WalkerState == L0_RD);
   assign DTLBWriteM = (WalkerState == LEAF & ~HPTWUpdateDA) & DTLBWalk;
   assign ITLBWriteF = (WalkerState == LEAF & ~HPTWUpdateDA) & ~DTLBWalk;
 
   // FSM to track PageType based on the levels of the page table traversed
-  flopr #(2) PageTypeReg(clk, reset, NextPageType, PageType);
+  flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
   always_comb
     case (WalkerState)
-      L3_RD:  NextPageType = 2'b11; // terapage
-      L2_RD:  NextPageType = 2'b10; // gigapage
-      L1_RD:  NextPageType = 2'b01; // megapage
-      L0_RD:  NextPageType = 2'b00; // kilopage
+      L4_RD:  NextPageType = 3'b100; // petapage
+      L3_RD:  NextPageType = 3'b011; // terapage
+      L2_RD:  NextPageType = 3'b010; // gigapage
+      L1_RD:  NextPageType = 3'b001; // megapage
+      L0_RD:  NextPageType = 3'b000; // kilopage
       default: NextPageType = PageType;
     endcase
 
@@ -249,13 +257,15 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     logic [P.PPN_BITS-1:0] PPN;
     always_comb
       case (WalkerState) // select VPN field based on HPTW state
+        L4_ADR, L4_RD:  VPN = TranslationVAdr[56:48]; // Extracted top 9 bits for sv57
         L3_ADR, L3_RD:  VPN = TranslationVAdr[47:39];
         L2_ADR, L2_RD:  VPN = TranslationVAdr[38:30];
         L1_ADR, L1_RD:   VPN = TranslationVAdr[29:21];
         default:    VPN = TranslationVAdr[20:12];
       endcase
-    assign PPN = ((WalkerState == L3_ADR) | (WalkerState == L3_RD) |
-            (SvMode != P.SV48 & ((WalkerState == L2_ADR) | (WalkerState == L2_RD)))) ? BasePageTablePPN : CurrentPPN;
+      assign PPN = ((P.SV57_SUPPORTED & SvMode == P.SV57 & (WalkerState == L4_ADR | WalkerState == L4_RD)) |
+                    (P.SV48_SUPPORTED & SvMode == P.SV48 & (WalkerState == L3_ADR | WalkerState == L3_RD)) |
+                    (SvMode == P.SV39 & (WalkerState == L2_ADR | WalkerState == L2_RD)) ) ? BasePageTablePPN : CurrentPPN;
     assign HPTWReadAdr = {PPN, VPN, 3'b000};
     assign HPTWSize = 3'b011;
   end
@@ -266,12 +276,18 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign MegapageMisaligned = |(CurrentPPN[9:0]); // must have zero PPN0
     assign Misaligned = ((WalkerState == L0_ADR) & MegapageMisaligned);
   end else begin
-    logic  GigapageMisaligned, TerapageMisaligned;
-    assign InitialWalkerState = (SvMode == P.SV48) ? L3_ADR : L2_ADR;
-    assign TerapageMisaligned = |(CurrentPPN[26:0]); // Must have zero PPN2, PPN1, PPN0
-    assign GigapageMisaligned = |(CurrentPPN[17:0]); // Must have zero PPN1 and PPN0
+    logic  PetapageMisaligned, GigapageMisaligned, TerapageMisaligned;
+    assign InitialWalkerState = (P.SV57_SUPPORTED & SvMode == P.SV57) ? L4_ADR :
+                                (P.SV48_SUPPORTED & SvMode == P.SV48) ? L3_ADR :
+                                                                        L2_ADR ;
+    assign PetapageMisaligned = P.SV57_SUPPORTED & |(CurrentPPN[35:0]); // Must have zero PPN3, PPN2, PPN1, PPN0
+    assign TerapageMisaligned = P.SV48_SUPPORTED & |(CurrentPPN[26:0]); // Must have zero PPN2, PPN1, PPN0
+    assign GigapageMisaligned =                    |(CurrentPPN[17:0]); // Must have zero PPN1 and PPN0
     assign MegapageMisaligned = |(CurrentPPN[8:0]);  // Must have zero PPN0
-    assign Misaligned = ((WalkerState == L2_ADR) & TerapageMisaligned) | ((WalkerState == L1_ADR) & GigapageMisaligned) | ((WalkerState == L0_ADR) & MegapageMisaligned);
+    assign Misaligned = (P.SV57_SUPPORTED & (WalkerState == L3_ADR) & PetapageMisaligned) |
+                        (P.SV48_SUPPORTED & (WalkerState == L2_ADR) & TerapageMisaligned) |
+                                           ((WalkerState == L1_ADR) & GigapageMisaligned) |
+                                           ((WalkerState == L0_ADR) & MegapageMisaligned);
   end
 
   // Page Table Walker FSM
@@ -280,7 +296,13 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     case (WalkerState)
       IDLE:       if (TLBMissOrUpdateDA)                              NextWalkerState = InitialWalkerState;
                   else                                                NextWalkerState = IDLE;
-      L3_ADR:                                                         NextWalkerState = L3_RD; // First access in SV48
+      L4_ADR:                                                         NextWalkerState = L4_RD; // First access in SV57
+      L4_RD:      if (HPTWFaultM)                                     NextWalkerState = FAULT;
+                  else if (DCacheBusStallM)                           NextWalkerState = L4_RD;
+                  else                                                NextWalkerState = L3_ADR;   // Transition to level 3
+      L3_ADR:     if (HPTWFaultM)                                     NextWalkerState = FAULT;
+                  else if (InitialWalkerState == L3_ADR | ValidNonLeafPTE) NextWalkerState = L3_RD; // First access in SV48
+                  else                                                NextWalkerState = LEAF;
       L3_RD:      if (HPTWFaultM)                                     NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                           NextWalkerState = L3_RD;
                   else                                                NextWalkerState = L2_ADR;

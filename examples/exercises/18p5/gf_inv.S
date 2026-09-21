@@ -1,12 +1,9 @@
-// gf_inv.S
-// james.stine@okstate.edu 9 April 2025
-
 .text
 
 .global rvtest_entry_point
 rvtest_entry_point:
 
-    li a0, 0x32        # Input value to invert in GF(2^8)
+    li a0, 0x43        # Input value to invert in GF(2^8)
     li t0, 0x11B       # Modulus: irreducible poly x^8 + x^4 + x^3 + x + 1
 
     # Initialize Extended Euclidean variables: a*x+b*y=gcd(a,b)
@@ -42,28 +39,28 @@ inv_loop:
     # Compute degree of r0
     mv a1, t3               # Set a1 = r0 = (modulus m)
     call gf_degree          # Compute deg(r0)
-    mv t5, a0               # degree(r0)
+    mv t5, a0           # degree(r0)
 
     # Compute degree of r1
-    mv a1, t4              # Set a1 = r1 = (input a)
-    call gf_degree         # Compute deg(r1)
-    mv t6, a0              # degree (r1)
+    mv a1, t4               # Set a1 = r1 = (input a)
+    call gf_degree          # Compute deg(r1)
+    mv t6, a0           # degree (r1)
 
     # Compute shift = deg(r0) - deg(r1)
-    sub a2, t5, t6         # alignment r1 with highest term in r0
-    slt a3, a2, zero       # Check if shift < 0
+    sub a2, t5, t6      # alignment r1 with highest term in r0
+    slt a3, a2, zero        # Check if shift < 0
     bnez a3, swap_and_negate
 
     # Perform r0 ^= r1 << shift
     # Polynomial subtraction in GF(2)
     sll a4, t4, a2
     xor t3, t3, a4
-    andi t3, t3, 0x1FF     # Mask off 9 bits to stay in GF(2^8)
+    andi t3, t3, 0x1FF      # Mask off 9 bits to stay in GF(2^8)
 
     # Update s0: s0 ^= s1 << shift - Update Bezout coefficient
     sll a5, t2, a2
     xor t1, t1, a5
-    andi t1, t1, 0x1FF     # Mask off 9 bits to stay in GF(2^8)
+    andi t1, t1, 0x1FF      # Mask off 9 bits to stay in GF(2^8)
 
     # Swap (r0, r1)
     mv a4, t3
@@ -149,17 +146,17 @@ done:
     csrr s9, instret        # count instructions at end
     sub s9, s9, s8          # get number of #instructions executed
 
-write_tohost:            # HTIF stuff
+write_tohost:           # HTIF stuff
     la t1, tohost
     li t0, 1                # 1 for success, 3 for failure
     sw t0, 0(t1)            # send success code
 
     la t0, begin_signature  # Address of signature
-    sw a0, 0(t0)            # Store result (i.e., a0)
-    sw s9, 4(t0)            # record #instructions executed
+    sw a0, 0(t0)                # Store result (i.e., a0)
+    sw s9, 4(t0)                # record #instructions executed
 
 fail:
-    li a0, 0xff             # Signal failure: no inverse exists
+    li a0, 0xff         # Signal failure: no inverse exists
 
 self_loop:
     j self_loop

@@ -67,7 +67,7 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
   // Use req and ack signals synchronized across the clock domains.
 
   // register access
-  if (P.XLEN==64) begin:clint // 64-bit
+  if (P.XLEN==64) begin : clint // 64-bit
     always_ff @(posedge PCLK) begin
       case(entry)
         CLINT_MSIP:     PRDATA <= {63'b0, MSIP};
@@ -101,7 +101,7 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
           if(PSTRB[j])
             MTIME[j*8 +: 8] <= PWDATA[j*8 +: 8];
       end else MTIME <= MTIME + 1;
-  end else begin:clint // 32-bit
+  end else begin : clint // 32-bit
     always_ff @(posedge PCLK) begin
       case(entry)
         16'h0000: PRDATA <= {31'b0, MSIP};
@@ -182,8 +182,8 @@ module timereg  import cvw::*;  #(parameter cvw_t P) (
   output logic [63:0]       MTIME,
   output logic              done);
 
-//  if (P.TIMEBASE_SYNC) begin:timereg // use PCLK for MTIME
-  if (1) begin:timereg // use PCLK for MTIME
+//  if (P.TIMEBASE_SYNC) begin : timereg // use PCLK for MTIME
+  if (1) begin : timereg // use PCLK for MTIME
     timregsync timeregsync(.clk(PCLK), .resetn(PRESETn), .we0, .we1, .wd(PWDATA), .q(MTIME));
     assign done = 1;   // immediately completes
   end else begin       // use asynchronous TIMECLK
@@ -247,7 +247,7 @@ module graytobinary #(parameter N) (
   // requires rippling through N-1 XOR gates
     genvar i;
     assign b[N-1] = g[N-1];
-    for (i=N-2; i >= 0; i--) begin:g2b
+    for (i=N-2; i >= 0; i--) begin : g2b
       assign b[i] = g[i] ^ b[i+1];
     end
 endmodule

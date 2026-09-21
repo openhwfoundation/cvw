@@ -85,7 +85,7 @@ module ahbcacheinterface import cvw::*; #(
   genvar                      index;
 
   // fetch buffer is made of BEATSPERLINE flip-flops
-  for (index = 0; index < BEATSPERLINE; index++) begin:fetchbuffer
+  for (index = 0; index < BEATSPERLINE; index++) begin : fetchbuffer
     logic [BEATSPERLINE-1:0] CaptureBeat;
     assign CaptureBeat[index] = CaptureEn & (index == BeatCountDelayed);
     flopen #(P.AHBW) fb(.clk(HCLK), .en(CaptureBeat[index]), .d(HRDATA),
@@ -103,7 +103,7 @@ module ahbcacheinterface import cvw::*; #(
   if(LLENPOVERAHBW > 1) begin
     logic [P.AHBW-1:0]          AHBWordSets [(LLENPOVERAHBW)-1:0];
     genvar                     index;
-    for (index = 0; index < LLENPOVERAHBW; index++) begin:readdatalinesetsmux
+    for (index = 0; index < LLENPOVERAHBW; index++) begin : readdatalinesetsmux
         assign AHBWordSets[index] = CacheReadDataWordM[(index*P.AHBW)+P.AHBW-1: (index*P.AHBW)];
     end
     assign CacheReadDataWordAHB = AHBWordSets[BeatCount[$clog2(LLENPOVERAHBW)-1:0]];

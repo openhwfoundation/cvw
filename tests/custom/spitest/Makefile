@@ -106,7 +106,7 @@ $(TARGET).memfile: $(TARGET)
 	@echo 'Making object dump file.'
 	@riscv64-unknown-elf-objdump -D $< > $<.objdump
 	@echo 'Making memory file'
-	riscv64-unknown-elf-elf2hex --bit-width 64 --input $^ --output $@
+	elf2hex $^ $@
 	extractFunctionRadix.sh $<.objdump
 	mkdir -p ../work/
 	cp -f $(TARGETDIR)/* ../work/

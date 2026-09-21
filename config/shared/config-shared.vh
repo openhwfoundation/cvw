@@ -8,13 +8,17 @@ localparam S_MODE  = (2'b01);
 localparam U_MODE  = (2'b00);
 
 // Virtual Memory Constants
+localparam VIRTMEM_SUPPORTED = (SV32_SUPPORTED | SV39_SUPPORTED);
 localparam VPN_SEGMENT_BITS = (XLEN == 32 ? 32'd10 : 32'd9);
-localparam VPN_BITS = (XLEN==32 ? (2*VPN_SEGMENT_BITS) : (4*VPN_SEGMENT_BITS));
-localparam PPN_BITS = (XLEN==32 ? 32'd22 : 32'd44);
-localparam PA_BITS = (XLEN==32 ? 32'd34 : 32'd56);
-localparam SVMODE_BITS = (XLEN==32 ? 32'd1 : 32'd4);
-localparam ASID_BASE = (XLEN==32 ? 32'd22 : 32'd44);
-localparam ASID_BITS = (XLEN==32 ? 32'd9 : 32'd16);
+localparam VPN_BITS = (SV57_SUPPORTED ? (5*VPN_SEGMENT_BITS) :
+                       SV48_SUPPORTED ? (4*VPN_SEGMENT_BITS) :
+                       SV39_SUPPORTED ? (3*VPN_SEGMENT_BITS) :
+                                        (2*VPN_SEGMENT_BITS));
+localparam PPN_BITS    = (XLEN==32 ? 32'd22 : 32'd44);
+localparam PA_BITS     = (XLEN==32 ? 32'd34 : 32'd56);
+localparam SVMODE_BITS = (XLEN==32 ? 32'd1  : 32'd4);
+localparam ASID_BASE   = (XLEN==32 ? 32'd22 : 32'd44);
+localparam ASID_BITS   = (XLEN==32 ? 32'd9  : 32'd16);
 
 // constants to check SATP_MODE against
 // defined in Table 4.3 of the privileged spec
@@ -22,6 +26,7 @@ localparam NO_TRANSLATE = 4'd0;
 localparam SV32 = 4'd1;
 localparam SV39 = 4'd8;
 localparam SV48 = 4'd9;
+localparam SV57 = 4'd10;
 
 // macros to define supported modes
 localparam logic I_SUPPORTED = (!E_SUPPORTED);
@@ -122,3 +127,8 @@ localparam FMALEN = 3*NF + 6;
 localparam NORMSHIFTSZ = `max(`max((CVTLEN+NF+1), (DIVb + 1 + NF + 1)), (FMALEN + 2));
 
 localparam LOGNORMSHIFTSZ = ($clog2(NORMSHIFTSZ));                  // log_2(NORMSHIFTSZ)
+
+// Debug Specification (if enabled)
+localparam JEDEC = 32'h1002ac05;
+localparam ABITS = 6'd7;
+localparam DTM_INSTR_WIDTH = 32'd5;

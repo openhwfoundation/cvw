@@ -61,7 +61,7 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   logic                            MatchingR, MatchingW, MatchingX, MatchingL;
 
 
-  if (P.PMP_ENTRIES > 0) begin: pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
+  if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
       .PhysicalAddress,
       .Size,

@@ -37,7 +37,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   input  logic                     UngatedCSRMWriteM, CSRMWriteM, MTrapM,
   input  logic [11:0]              CSRAdrM,
   input  logic [P.XLEN-1:0]        NextEPCM, NextMtvalM, MSTATUS_REGW, MSTATUSH_REGW,
-  input  logic [4:0]               NextCauseM,
+  input  logic [5:0]               NextCauseM,
   input  logic [P.XLEN-1:0]        CSRWriteValM,
   input  logic [11:0]              MIP_REGW, MIE_REGW,
   output logic [P.XLEN-1:0]        CSRMReadValM, MTVEC_REGW,
@@ -108,7 +108,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
 
  // There are PMP_ENTRIES = 0, 16, or 64 PMPADDR registers, each of which has its own flop
   genvar i;
-  if (P.PMP_ENTRIES > 0) begin:pmp
+  if (P.PMP_ENTRIES > 0) begin : pmp
     logic [P.PMP_ENTRIES-1:0] WritePMPCFGM;
     logic [P.PMP_ENTRIES-1:0] WritePMPADDRM;
     logic [7:0]               CSRPMPWriteValM[P.PMP_ENTRIES-1:0];
@@ -116,7 +116,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
     logic [1:0]               CSRPMPWRLegalizedWriteValM[P.PMP_ENTRIES-1:0];
     logic [1:0]               CSRPMPALegalizedWriteValM[P.PMP_ENTRIES-1:0];
     logic [P.PMP_ENTRIES-1:0] ADDRLocked, CFGLocked;
-    for(i=0; i<P.PMP_ENTRIES; i++) begin:pmp
+    for(i=0; i<P.PMP_ENTRIES; i++) begin : pmp
       // when the lock bit is set, don't allow writes to the PMPCFG or PMPADDR
       // also, when the lock bit of the next entry is set and the next entry is TOR, don't allow writes to this entry PMPADDR
       assign CFGLocked[i] = PMPCFG_ARRAY_REGW[i][7];
@@ -169,17 +169,17 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   // CSRs
   assign TVECWriteValM = CSRWriteValM[0] ? {CSRWriteValM[P.XLEN-1:6], 6'b000001} : {CSRWriteValM[P.XLEN-1:2], 2'b00};
   flopenr #(P.XLEN) MTVECreg(clk, reset, WriteMTVECM, TVECWriteValM, MTVEC_REGW);
-  if (P.S_SUPPORTED) begin:deleg // DELEG registers should exist
+  if (P.S_SUPPORTED) begin : deleg // DELEG registers should exist
     flopenr #(16) MEDELEGreg(clk, reset, WriteMEDELEGM, CSRWriteValM[15:0] & MEDELEG_MASK, MEDELEG_REGW);
     flopenr #(12) MIDELEGreg(clk, reset, WriteMIDELEGM, CSRWriteValM[11:0] & MIDELEG_MASK, MIDELEG_REGW);
   end else assign {MEDELEG_REGW, MIDELEG_REGW} = '0;
 
   flopenr #(P.XLEN) MSCRATCHreg(clk, reset, WriteMSCRATCHM, CSRWriteValM, MSCRATCH_REGW);
   flopenr #(P.XLEN) MEPCreg(clk, reset, WriteMEPCM, NextEPCM, MEPC_REGW);
-  flopenr #(P.XLEN) MCAUSEreg(clk, reset, WriteMCAUSEM, {NextCauseM[4], {(P.XLEN-5){1'b0}}, NextCauseM[3:0]}, MCAUSE_REGW);
+  flopenr #(P.XLEN) MCAUSEreg(clk, reset, WriteMCAUSEM, {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}, MCAUSE_REGW);
   flopenr #(P.XLEN) MTVALreg(clk, reset, WriteMTVALM, NextMtvalM, MTVAL_REGW);
   flopenr #(32)   MCOUNTINHIBITreg(clk, reset, WriteMCOUNTINHIBITM, {CSRWriteValM[31:2], 1'b0, CSRWriteValM[0]}, MCOUNTINHIBIT_REGW);
-  if (P.U_SUPPORTED) begin: mcounteren // MCOUNTEREN only exists when user mode is supported
+  if (P.U_SUPPORTED) begin : mcounteren // MCOUNTEREN only exists when user mode is supported
     flopenr #(32)   MCOUNTERENreg(clk, reset, WriteMCOUNTERENM, CSRWriteValM[31:0], MCOUNTEREN_REGW);
   end else assign MCOUNTEREN_REGW = '0;
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 #
 # Python regression test for DC
 # Madeleine Masser-Frye mmasserfrye@hmc.edu 5/22

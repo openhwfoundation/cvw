@@ -86,7 +86,7 @@ module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) 
 
     onehotdecoder #($clog2(SRAMNUMSETS)) oh1(wa2[$clog2(SRAMNUMSETS)-1:0], SRAMBitMaskPre);
     genvar                    index;
-    for (index = 0; index < SRAMNUMSETS; index++) begin:readdatalinesetsmux
+    for (index = 0; index < SRAMNUMSETS; index++) begin : readdatalinesetsmux
       assign RD1Sets[index] = SRAMReadData[(index*WIDTH)+WIDTH-1 : (index*WIDTH)];
       assign SRAMWriteData[index*2+1:index*2] = wd2;
       assign SRAMBitMask[index*2+1:index*2] = {2{SRAMBitMaskPre[index]}};
@@ -104,7 +104,7 @@ module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) 
       .QA(SRAMReadData),
       .QB());
 
-  end else begin:ram
+  end else begin : ram
 
     ///////////////////////////////////////////////////////////////////////////////
     // READ first SRAM model

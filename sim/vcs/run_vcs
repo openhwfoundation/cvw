@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 
 # run_vcs
 # David_Harris@hmc.edu 2 July 2024
@@ -30,26 +30,17 @@ def runFindCommand(cmd):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
+    parser.add_argument("action", choices=["compile", "run"], help="Action to perform")
     parser.add_argument("config", help="Configuration file")
     parser.add_argument("testsuite", help="Test suite (or none, when running a single ELF file) ")
     parser.add_argument("--tb", "-t", help="Testbench", choices=["testbench", "testbench_fp"], default="testbench")
-    # parser.add_argument("--ccov", "-c", help="Code Coverage", action="store_true") # Not yet implemented
-    # parser.add_argument("--fcov", "-f", help="Functional Coverage", action="store_true") # Not yet implemented
+    parser.add_argument("--wkdir", "-w", help="Work directory path", default="")
     parser.add_argument("--args", "-a", help="Optional arguments passed to simulator via $value$plusargs", default="")
     parser.add_argument("--params", "-p", help="Optional top-level parameter overrides of the form param=value", default="")
     parser.add_argument("--define", "-d", help="Optional define macros passed to simulator", default="")
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--breker", "-b", help="Run Breker test", action="store_true")
-    #parser.add_argument("--gui", "-g", help="Simulate with GUI", action="store_true") # GUI not yet implemented
     return parser.parse_args()
-
-def createDirs(config, testsuite):
-    wkdir  = f"{simdir}/wkdir/{config}_{testsuite}"
-    covdir = f"{simdir}/cov/{config}_{testsuite}"
-    os.makedirs(wkdir, exist_ok=True)
-    os.makedirs(covdir, exist_ok=True)
-    os.makedirs(logdir, exist_ok=True)
-    return wkdir
 
 def generateFileList(testbench):
     rtlsrc_cmd = f'find {srcdir} -name "*.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x64.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_128x64.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x32.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_2048x64.sv"'
@@ -59,35 +50,42 @@ def generateFileList(testbench):
     tb_file = f"{tbdir}/{testbench}.sv"
     return f"{tb_file} {rtlsrc_files} {tbcommon_files}"
 
-def processArgs(wkdir, args):
+def getCompileOptions(wkdir, args):
+    """Build compile-time options for VCS."""
     compileOptions = []
-    simvOptions = []
     if args.lockstep:
         compileOptions.extend(["+incdir+$IMPERAS_HOME/ImpPublic/include/host",
+                                "+incdir+$IMPERAS_HOME/ImpPublic/include/host/rvvi",
                                 "+incdir+$IMPERAS_HOME/ImpProprietary/include/host",
+                                "+incdir+$IMPERAS_HOME/ImpProprietary/include/host/idv",
                                 "$IMPERAS_HOME/ImpPublic/source/host/rvvi/*.sv",
                                 "$IMPERAS_HOME/ImpProprietary/source/host/idv/*.sv"])
-        simvOptions.append("-sv_lib $IMPERAS_HOME/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0/model")
     if args.breker:
-        BREKER_HOME = os.environ.get("BREKER_HOME")
         WALLY_UVM_PKG = os.environ.get('WALLY_UVM_PKG')
+        if not WALLY_UVM_PKG:
+            raise RuntimeError("WALLY_UVM_PKG environment variable is not set for Breker test!")
         compileOptions.extend([f"+incdir+{WALLY}/testbench/trek_files",
                                f"+incdir+{os.path.dirname(WALLY_UVM_PKG)}",
                                 " -ntb_opts uvm",
                                f"{WALLY_UVM_PKG}",
                                "-top trek_uvm",])
-        simvOptions.append(f"-sv_lib {BREKER_HOME}/linux64/lib/libtrek")
-    # if args.ccov:
-    #     compileOptions.extend(["-cm line+cond+branch+fsm+tgl", f"-cm_log {wkdir}/coverage.log", f"-cm_dir {wkdir}/coverage"])
     if args.params:
         compileOptions.append(setupParamOverrides(wkdir, args))
     if args.define:
         compileOptions.append(args.define)
-    # if args.gui:
-    #     compileOptions.append("-debug_access+all+reverse -kdb +vcs+vcdpluson")
-    compileOptions = " ".join(compileOptions)
-    simvOptions = " ".join(simvOptions)
-    return compileOptions, simvOptions
+    return " ".join(compileOptions)
+
+def getSimvOptions(args):
+    """Build runtime options for the simulation binary."""
+    simvOptions = []
+    if args.lockstep:
+        simvOptions.append("-sv_lib $IMPERAS_HOME/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0/model")
+    if args.breker:
+        BREKER_HOME = os.environ.get("BREKER_HOME")
+        if not BREKER_HOME:
+            raise RuntimeError("BREKER_HOME environment variable is not set for Breker test!")
+        simvOptions.append(f"-sv_lib {BREKER_HOME}/linux64/lib/libtrek")
+    return " ".join(simvOptions)
 
 def setupParamOverrides(wkdir, args):
     paramOverrideFile = os.path.join(wkdir, "param_overrides.txt")
@@ -98,31 +96,31 @@ def setupParamOverrides(wkdir, args):
             f.write(f"assign {value} {args.tb}/{param}\n")
     return f" -parameters {wkdir}/param_overrides.txt "
 
-def setupCommands(wkdir, rtlFiles, compileOptions, simvOptions, args):
+def compileDesign(wkdir, args):
+    """Compile the design with VCS."""
+    os.makedirs(wkdir, exist_ok=True)
+    os.makedirs(logdir, exist_ok=True)
+    rtlFiles = generateFileList(args.tb)
+    compileOptions = getCompileOptions(wkdir, args)
     includePath = f"+incdir+{cfgdir}/{args.config} +incdir+{cfgdir}/deriv/{args.config} +incdir+{cfgdir}/shared +incdir+$WALLY/tests +incdir+{tbdir} +incdir+{srcdir}"
     vcsStandardFlags = "+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF -suppress +warn -sverilog +vc -Mupdate -line -full64 -lca -ntb_opts sensitive_dyn"
-    vcsCMD = f"vcs {vcsStandardFlags} -top {args.tb} {compileOptions} -Mdir={wkdir} {includePath} {srcdir}/cvw.sv {rtlFiles} -o {wkdir}/sim_out -work {wkdir} -Mlib={wkdir} -l {logdir}/{args.config}_{args.testsuite}.log"
-    simvCMD = f"{wkdir}/sim_out +TEST={args.testsuite} {args.args} -no_save {simvOptions}"
-    return vcsCMD, simvCMD
-
-def runVCS(vcsCMD, simvCMD):
-    print(f"Executing: {vcsCMD}")
+    vcsCMD = f"vcs {vcsStandardFlags} -top {args.tb} {compileOptions} -Mdir={wkdir} {includePath} {srcdir}/cvw.sv {rtlFiles} -o {wkdir}/sim_out -work {wkdir} -Mlib={wkdir} -l {logdir}/{args.config}_{args.tb}_compile.log"
+    print(f"Compiling VCS: {vcsCMD}")
     subprocess.run(vcsCMD, shell=True, check=True)
+
+def run(wkdir, args):
+    """Run simulation using the pre-compiled binary."""
+    simvOptions = getSimvOptions(args)
+    simvCMD = f"{wkdir}/sim_out +TEST={args.testsuite} {args.args} -no_save {simvOptions}"
     subprocess.run(simvCMD, shell=True, check=True)
 
-def runCoverage(wkdir, config, testsuite):
-    COV_RUN = f"urg -dir {wkdir}/coverage.vdb -format text -report IndividualCovReport/{config}_{testsuite}"
-    subprocess.run(COV_RUN, shell=True, check=True)
-
 def main(args):
-    print(f"run_vcs Config={args.config} tests={args.testsuite} lockstep={args.lockstep} args='{args.args}' params='{args.params}' define='{args.define}'")
-    wkdir = createDirs(args.config, args.testsuite)
-    rtlFiles = generateFileList(args.tb)
-    compileOptions, simvOptions = processArgs(wkdir, args)
-    vcsCMD, simvCMD = setupCommands(wkdir, rtlFiles, compileOptions, simvOptions, args)
-    runVCS(vcsCMD, simvCMD)
-    # if args.ccov:
-    #     runCoverage(wkdir, args.config, args.testsuite)
+    wkdir = args.wkdir if args.wkdir else f"{simdir}/wkdir/{args.config}_{args.testsuite}"
+    print(f"run_vcs {args.action} Config={args.config} tests={args.testsuite} lockstep={args.lockstep} args='{args.args}' params='{args.params}' define='{args.define}'")
+    if args.action == "compile":
+        compileDesign(wkdir, args)
+    elif args.action == "run":
+        run(wkdir, args)
 
 if __name__ == "__main__":
     args = parseArgs()

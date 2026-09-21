@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 #
 # Python regression test for DC
 # Madeleine Masser-Frye mmasserfrye@hmc.edu 5/22
 # James Stine james.stine@okstate.edu 15 October 2023
-#
 
 import csv
 import os
@@ -84,10 +83,8 @@ def synthsintocsv():
             delay = 1000 / int(freq) - metrics[0]
             area = metrics[1]
             lpower = metrics[4]
-            tpower = (metrics[2] + metrics[3] + metrics[4]*.000001)
-            denergy = (
-                (tpower) / int(freq) * 1000
-            )  # (switching + internal powers)*delay, more practical units for regression coefs
+            tpower = metrics[2] + metrics[3] + metrics[4] * 0.000001
+            denergy = (tpower) / int(freq) * 1000  # (switching + internal powers)*delay, more practical units for regression coefs
 
             if "flop" in module:  # since two flops in each module
                 [area, lpower, denergy] = [n / 2 for n in [area, lpower, denergy]]
@@ -136,12 +133,7 @@ def getVals(tech, module, var, freq=None, width=None):
 
     if freq is not None:
         for oneSynth in allSynths:
-            if (
-                (oneSynth.freq == freq)
-                & (oneSynth.tech == tech)
-                & (oneSynth.module == module)
-                & (oneSynth.width != 1)
-            ):
+            if (oneSynth.freq == freq) & (oneSynth.tech == tech) & (oneSynth.module == module) & (oneSynth.width != 1):
                 widthL += [oneSynth.width]
                 osdict = oneSynth._asdict()
                 metric += [osdict[var]]
@@ -149,11 +141,7 @@ def getVals(tech, module, var, freq=None, width=None):
     else:
         for w in widthsToGet:
             for oneSynth in bestSynths:
-                if (
-                    (oneSynth.width == w)
-                    & (oneSynth.tech == tech)
-                    & (oneSynth.module == module)
-                ):
+                if (oneSynth.width == w) & (oneSynth.tech == tech) & (oneSynth.module == module):
                     osdict = oneSynth._asdict()
                     met = osdict[var]
                     metric += [met]
@@ -244,9 +232,7 @@ def genLegend(fits, coefs, r2=None, spec=None, ale=False):
         return legend_elements
 
 
-def oneMetricPlot(
-    module, widths, var, freq=None, ax=None, fits="clsgn", norm=True, color=None
-):
+def oneMetricPlot(module, widths, var, freq=None, ax=None, fits="clsgn", norm=True, color=None):
     """module: string module name
     freq: int freq (MHz)
     var: string delay, area, lpower, or denergy
@@ -324,11 +310,7 @@ def oneMetricPlot(
         fullLeg += genLegend(fits, coefs, r2, combined, ale=ale)
         legLoc = "upper left" if ale else "center right"
         ax.add_artist(ax.legend(handles=fullLeg, loc=legLoc))
-        titleStr = (
-            "  (target  " + str(freq) + "MHz)"
-            if freq is not None
-            else " (best achievable delay)"
-        )
+        titleStr = "  (target  " + str(freq) + "MHz)" if freq is not None else " (best achievable delay)"
         ax.set_title(module + titleStr)
         plt.savefig(".plots/" + module + "_" + var + ".png")
         # plt.show()
@@ -392,9 +374,7 @@ def makeCoefTable():
     """
     with open("ppaFitting.csv", "w") as file:
         writer = csv.writer(file)
-        writer.writerow(
-            ["Module", "Metric", "Target", "1", "N", "N^2", "log2(N)", "Nlog2(N)", "R^2"]
-        )
+        writer.writerow(["Module", "Metric", "Target", "1", "N", "N^2", "log2(N)", "Nlog2(N)", "R^2"])
 
         for module in modules:
             for freq in [10, None]:
@@ -471,6 +451,7 @@ def makeEqTable():
             row = [module] + eqs
             writer.writerow(row)
 
+
 def genFuncs(fits="clsgn"):
     """helper function for regress()
     returns array of functions with one for each term desired in the regression fit
@@ -512,14 +493,8 @@ def freqPlot(tech, mod, width):
 
     freqsL, delaysL, areasL = ([[], []] for i in range(3))
     for oneSynth in allSynths:
-        if (
-            (mod == oneSynth.module)
-            & (width == oneSynth.width)
-            & (tech == oneSynth.tech)
-        ):
-            ind = (
-                1000 / oneSynth.delay < oneSynth.freq
-            )  # when delay is within target clock period
+        if (mod == oneSynth.module) & (width == oneSynth.width) & (tech == oneSynth.tech):
+            ind = 1000 / oneSynth.delay < oneSynth.freq  # when delay is within target clock period
             freqsL[ind] += [oneSynth.freq]
             delaysL[ind] += [oneSynth.delay]
             areasL[ind] += [oneSynth.area]
@@ -535,18 +510,14 @@ def freqPlot(tech, mod, width):
         delays = delaysL[ind]
         freqs = freqsL[ind]
 
-        freqs, delays, areas = noOutliers(
-            median, freqs, delays, areas
-        )  # comment out to see all syntheses
+        freqs, delays, areas = noOutliers(median, freqs, delays, areas)  # comment out to see all syntheses
 
         c = "blue" if ind else "green"
         ax1.scatter(freqs, delays, color=c)
         ax2.scatter(freqs, areas, color=c)
 
     legend_elements = [
-        lines.Line2D(
-            [0], [0], color="green", ls="", marker="o", label="timing achieved"
-        ),
+        lines.Line2D([0], [0], color="green", ls="", marker="o", label="timing achieved"),
         lines.Line2D([0], [0], color="blue", ls="", marker="o", label="slack violated"),
     ]
 
@@ -569,14 +540,8 @@ def squareAreaDelay(tech, mod, width):
     global allSynths
     freqsL, delaysL, areasL = ([[], []] for i in range(3))
     for oneSynth in allSynths:
-        if (
-            (mod == oneSynth.module)
-            & (width == oneSynth.width)
-            & (tech == oneSynth.tech)
-        ):
-            ind = (
-                1000 / oneSynth.delay < oneSynth.freq
-            )  # when delay is within target clock period
+        if (mod == oneSynth.module) & (width == oneSynth.width) & (tech == oneSynth.tech):
+            ind = 1000 / oneSynth.delay < oneSynth.freq  # when delay is within target clock period
             freqsL[ind] += [oneSynth.freq]
             delaysL[ind] += [oneSynth.delay]
             areasL[ind] += [oneSynth.area]
@@ -590,9 +555,7 @@ def squareAreaDelay(tech, mod, width):
         targets = freqsL[ind]
         targets = [1000 / f for f in targets]
 
-        targets, delays, areas = noOutliers(
-            targets, delays, areas
-        )  # comment out to see all
+        targets, delays, areas = noOutliers(targets, delays, areas)  # comment out to see all
 
         if not ind:
             achievedDelays = delays
@@ -604,18 +567,10 @@ def squareAreaDelay(tech, mod, width):
     bestAchieved = min(achievedDelays)
 
     legend_elements = [
-        lines.Line2D(
-            [0], [0], color="green", ls="", marker="^", label="delay (timing achieved)"
-        ),
-        lines.Line2D(
-            [0], [0], color="green", ls="", marker="s", label="area (timing achieved)"
-        ),
-        lines.Line2D(
-            [0], [0], color="blue", ls="", marker="^", label="delay (timing violated)"
-        ),
-        lines.Line2D(
-            [0], [0], color="blue", ls="", marker="s", label="area (timing violated)"
-        ),
+        lines.Line2D([0], [0], color="green", ls="", marker="^", label="delay (timing achieved)"),
+        lines.Line2D([0], [0], color="green", ls="", marker="s", label="area (timing achieved)"),
+        lines.Line2D([0], [0], color="blue", ls="", marker="^", label="delay (timing violated)"),
+        lines.Line2D([0], [0], color="blue", ls="", marker="s", label="area (timing violated)"),
     ]
 
     ax2.legend(handles=legend_elements, loc="upper left")
@@ -680,9 +635,7 @@ def plotPPA(mod, freq=None, norm=True, aleOpt=False):
                     pass
                 else:
                     # print(f"Passing in widths {widths}")
-                    r2 = oneMetricPlot(
-                        mod, widths, arr[i][j], ax=axs[i, j], freq=f, norm=norm
-                    )
+                    r2 = oneMetricPlot(mod, widths, arr[i][j], ax=axs[i, j], freq=f, norm=norm)
                     ls = "--" if f else "-"
                     leg += [
                         lines.Line2D(
@@ -763,9 +716,7 @@ def muxPlot(fits="clsgn", norm=True):
                 metric = [m / norm for m in metric]
                 # print(spec.tech, ' ', metric)
 
-            if (
-                len(metric) == 3
-            ):  # don't include the spec if we don't have points for all
+            if len(metric) == 3:  # don't include the spec if we don't have points for all
                 xp, pred, coefs, r2 = regress(inputs, metric, fits, ale=False)
                 ax.scatter(inputs, metric, color=spec.color, marker=spec.shape)
                 ax.plot(xp, pred, color=spec.color, linestyle=ls)
@@ -880,7 +831,7 @@ if __name__ == "__main__":
     TechSpec = namedtuple("TechSpec", "tech color shape delay area lpower denergy")
     # FO4 delay information information
     techSpecs = [
-        #["sky90", "green", "o", 43.2e-3, 1440.600027, 714.057, 0.658022690438],
+        # ["sky90", "green", "o", 43.2e-3, 1440.600027, 714.057, 0.658022690438],
         # Area/Lpower/Denergy needs to be corrected here (jes)
         ["sky130", "orange", "o", 99.5e-3, 1440.600027, 714.057, 0.658022690438],
         # ["tsmc28", "blue", "^", 12.2e-3, 209.286002, 1060.0, 0.08153281695882594],
@@ -905,7 +856,7 @@ if __name__ == "__main__":
 
     for mod in modules:
         for w in widths:
-            #freqPlot('sky90', mod, w)
+            # freqPlot('sky90', mod, w)
             freqPlot("sky130", mod, w)
             # freqPlot('tsmc28', mod, w)
             # freqPlot('tsmc28psyn', mod, w)

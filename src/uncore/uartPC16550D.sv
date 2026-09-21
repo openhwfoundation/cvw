@@ -348,11 +348,11 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   // tail is normally higher than head, but might wrap around.  unwrapped variable adds 16 to eliminate wrapping
   assign rxfifotailunwrapped = rxfifotail < rxfifohead ? {1'b1, rxfifotail} : {1'b0, rxfifotail};
   genvar i;
-  for (i=0; i<32; i++) begin:rxfull
+  for (i=0; i<32; i++) begin : rxfull
     if (i == 0) assign rxfullbitunwrapped[i] = (rxfifohead==0) & (rxfifotail != 0);
     else        assign rxfullbitunwrapped[i] = ({1'b0,rxfifohead}==i | rxfullbitunwrapped[i-1]) & (rxfifotailunwrapped != i);
   end
-  for (i=0; i<16; i++) begin:rx
+  for (i=0; i<16; i++) begin : rx
     assign RXerrbit[i]  = |rxfifo[i][10:8]; // are any of the error conditions set?
     assign rxfullbit[i] = rxfullbitunwrapped[i] | rxfullbitunwrapped[i+16];
   /*      if (i > 0)
@@ -535,7 +535,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   flopr #(1) squashRXerrIPreg(PCLK, ~PRESETn, squashRXerrIP, prevSquashRXerrIP);
   // Side effect of reading IIR is lowering THRE_IP if most significant intr
   assign setSquashTHRE_IP = ~MEMRb & (A==3'b010) & (intrID==3'h1); // there's a 1-cycle delay on set squash so that THRE_IP doesn't change during the process of reading IIR (otherwise combinational loop)
-  assign resetSquashTHRE_IP = ~THRE;
+  assign resetSquashTHRE_IP = ~MEMWb & (A==3'b000) & ~DLAB;
   assign squashTHRE_IP = prevSquashTHRE_IP & ~resetSquashTHRE_IP;
   flopr #(1) squashTHRE_IPreg(PCLK, ~PRESETn, squashTHRE_IP | setSquashTHRE_IP, prevSquashTHRE_IP);
 

@@ -5,6 +5,7 @@
 ## Written: Rose Thompson rose@rosethompson.net
 ## Modified: 30 June 2024, Jordan Carlin jcarlin@hmc.edu
 ## Modified: 30 May 2025
+## Modified: 24 Jan 2206, James Stine james.stine@okstate.edu
 ##
 ## Purpose: Open source tool chain installation script
 ##
@@ -47,11 +48,14 @@ else
 fi
 
 
-# Create python virtual environment so the python command targets desired version of python
-# and installed packages are isolated from the rest of the system. Also installs python packages,
-# including RISCOF (https://github.com/riscv-software-src/riscof.git)
-# RISCOF is a RISC-V compliance test framework that is used to run the RISC-V Arch Tests.
-source "$WALLY"/bin/installation/python-setup.sh
+# mise (https://mise.jdx.dev/)
+# mise is a development environment setup tool for managing tool versions and environment variables.
+source "$WALLY"/bin/installation/mise-install.sh
+
+
+# uv (https://docs.astral.sh/uv/)
+# uv is a Python package manager and virtual environment tool.
+source "$WALLY"/bin/installation/uv-install.sh
 
 
 # Activate tools (python virtual environment and possibly newer version of gcc)
@@ -59,7 +63,6 @@ source "${WALLY}"/bin/installation/activate-tools.sh
 
 
 # Newer version of glib required for QEMU.
-# Anything newer than this won't build on red hat 8
 # Used for all installed tools because mixing glib versions can cause issues.
 if (( RHEL_VERSION == 8 )) || (( UBUNTU_VERSION == 20 )); then
     source "$WALLY"/bin/installation/glib-installation.sh
@@ -73,12 +76,6 @@ fi
 source "$WALLY"/bin/installation/riscv-gnu-toolchain-install.sh
 
 
-# elf2hex (https://github.com/sifive/elf2hex)
-# The elf2hex utility to converts executable files into hexadecimal files for Verilog simulation.
-# Note: The exe2hex utility that comes with Spike doesn’t work for our purposes because it doesn’t
-# handle programs that start at 0x80000000.
-source "$WALLY"/bin/installation/elf2hex-install.sh
-
 
 # QEMU (https://www.qemu.org/docs/master/system/target-riscv.html)
 # QEMU is an open source machine emulator and virtualizer capable of emulating RISC-V
@@ -88,6 +85,16 @@ source "$WALLY"/bin/installation/qemu-install.sh
 # Spike (https://github.com/riscv-software-src/riscv-isa-sim)
 # Spike is a reference model for RISC-V. It is a functional simulator that can be used to run RISC-V programs.
 source "$WALLY"/bin/installation/spike-install.sh
+
+
+# Whisper (https://github.com/tenstorrent/whisper)
+# Whisper is a RISC-V instruction set simulator (ISS) developed by Tenstorrent.
+# The boost libraries (needed for Whisper) do not compile correctly on Debian 11 or Ubuntu 20.04
+if (( DEBIAN_VERSION != 11 )) && (( UBUNTU_VERSION != 20 )); then
+    source "$WALLY"/bin/installation/whisper-install.sh
+else
+    echo -e "${WARNING_COLOR}Skipping Whisper installation due to incompatible Boost libraries on Debian 11 or Ubuntu 20.04.${ENDC}"
+fi
 
 
 # RISC-V Sail Model (https://github.com/riscv/sail-riscv)
@@ -108,6 +115,12 @@ source "$WALLY"/bin/installation/verilator-install.sh
 # OSU Skywater 130 cell library (https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t12)
 # The OSU Skywater 130 cell library is a standard cell library that is used to synthesize Wally.
 source "$WALLY"/bin/installation/skywater-lib-install.sh
+
+
+# OpenOCD installation for RISC-V debug support
+# OpenOCD is used to provide JTAG-based debugging and programming support
+# for the Wally RISC-V processor during bring-up and validation.
+source "$WALLY"/bin/installation/openocd-install.sh
 
 
 # Buildroot and Linux testvectors

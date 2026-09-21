@@ -14,6 +14,11 @@
 *.list
 *.memfile
 
+# Emacs files
+*~
+*#
+\#*#
+
 # General directories to ignore
 .vscode/
 __pycache__/
@@ -35,6 +40,7 @@ tests/custom/*/*/
 tests/custom/*/*/*.memfile
 sim/tests/riscvdv
 testbench/trek_files/*/uvm_output
+tests/debug/build
 
 # Linux
 linux/buildroot
@@ -66,6 +72,8 @@ fpga/zsbl/OBJ/*
 fpga/zsbl/bin/*
 fpga/src/boot.mem
 fpga/src/data.mem
+*.jou
+*.str
 
 # Synthesis
 synthDC/WORK

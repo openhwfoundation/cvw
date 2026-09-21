@@ -34,6 +34,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   input  logic                        clk,
   input  logic                        reset,
   input  logic                        FlushStage,     // Pipeline flush of second stage (prevent writes and bus operations)
+  input  logic                        InvalidateFlushStage,     // Pipeline flush of second stage (prevent writes and bus operations)
   input  logic                        CacheEn,        // Enable the cache memory arrays.  Disable hold read data constant
   input  logic [$clog2(NUMSETS)-1:0]  CacheSetData,       // Cache address, the output of the address select mux, NextAdr, PAdr, or FlushAdr
   input  logic [$clog2(NUMSETS)-1:0]  CacheSetTag,       // Cache address, the output of the address select mux, NextAdr, PAdr, or FlushAdr
@@ -73,13 +74,13 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   logic                               SelectedWay;
   logic                               InvalidateCacheDelay;
 
-  if (!READ_ONLY_CACHE) begin:flushlogic
+  if (!READ_ONLY_CACHE) begin : flushlogic
     mux2 #(1) seltagmux(VictimWay, FlushWay, FlushCache, SelecteDirty);
     mux3 #(1) selectedmux(HitWay, FlushWay, VictimWay, {SelVictim, FlushCache}, SelectedWay);
     // FlushWay is part of a one hot way selection. Must clear it if FlushWay not selected.
     // coverage off -item e 1 -fecexprrow 3
     // nonzero ways will never see FlushCache=0 while FlushWay=1 since FlushWay only advances on a subset of FlushCache assertion cases.
-  end else begin:flushlogic // no flush operation for read-only caches.
+  end else begin : flushlogic // no flush operation for read-only caches.
     assign SelecteDirty = VictimWay;
   mux2 #(1) selectedwaymux(HitWay, SelecteDirty, SelVictim , SelectedWay);
   end
@@ -115,7 +116,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   assign DirtyWay = SelecteDirty & HitDirtyWay;                               // exclusion-tag: icache DirtyWay
   assign HitWay = ValidWay & (ReadTag == PAdr[PA_BITS-1:OFFSETLEN+INDEXLEN]) & ~InvalidateCacheDelay; // exclusion-tag: dcache HitWay
 
-  flop #(1) InvalidateCacheReg(clk, InvalidateCache, InvalidateCacheDelay);
+  flopenrc #(1) InvalidateCacheReg(clk, 1'b0, InvalidateFlushStage, 1'b1, InvalidateCache, InvalidateCacheDelay);
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Data Array
@@ -126,13 +127,13 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   localparam           NUMSRAM = LINELEN/P.CACHE_SRAMLEN;
   localparam           SRAMLENINBYTES = P.CACHE_SRAMLEN/8;
 
-  for(words = 0; words < NUMSRAM; words++) begin: word
-    if (READ_ONLY_CACHE) begin:wordram // no byte-enable needed for i$.
+  for (words = 0; words < NUMSRAM; words++) begin : word
+    if (READ_ONLY_CACHE) begin : wordram // no byte-enable needed for i$.
       ram1p1rwe #(.USE_SRAM(P.USE_SRAM), .DEPTH(NUMSETS), .WIDTH(P.CACHE_SRAMLEN)) CacheDataMem(.clk, .ce(CacheEn), .addr(CacheSetData),
       .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
       .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
       .we(SelectedWriteWordEn));
-    end else begin:wordram // D$ needs byte enables
+    end else begin : wordram // D$ needs byte enables
      ram1p1rwbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(NUMSETS), .WIDTH(P.CACHE_SRAMLEN)) CacheDataMem(.clk, .ce(CacheEn), .addr(CacheSetData),
       .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
       .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
@@ -149,9 +150,9 @@ module cacheway import cvw::*; #(parameter cvw_t P,
 
   always_ff @(posedge clk) begin // Valid bit array,
     if (reset) ValidBits        <= '0;
-    if(CacheEn) begin
+    if (CacheEn) begin
       ValidWay <= ValidBits[CacheSetTag];
-      if(InvalidateCache)                    ValidBits <= '0; // exclusion-tag: dcache invalidateway
+      if(InvalidateCache & ~InvalidateFlushStage)    ValidBits <= '0; // exclusion-tag: dcache invalidateway
       else if (SetValidEN) ValidBits[CacheSetData] <= SetValidWay;
       else if (ClearValidEN) ValidBits[CacheSetData] <= '0; // exclusion-tag: icache ClearValidBits
     end
@@ -162,13 +163,13 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   // Dirty bits
-  if (!READ_ONLY_CACHE) begin:dirty
+  if (!READ_ONLY_CACHE) begin : dirty
     always_ff @(posedge clk) begin
       // reset is optional.  Consider merging with TAG array in the future.
       //if (reset) DirtyBits <= {NUMSETS{1'b0}};
-      if(CacheEn) begin
+      if (CacheEn) begin
         Dirty <= DirtyBits[CacheSetTag];
-        if((SetDirtyWay | ClearDirtyWay) & ~FlushStage) begin
+        if ((SetDirtyWay | ClearDirtyWay) & ~FlushStage) begin
           DirtyBits[CacheSetData] <= SetDirtyWay; // exclusion-tag: cache UpdateDirty
           if (CacheSetData == CacheSetTag) Dirty <= SetDirtyWay;
           else Dirty <= DirtyBits[CacheSetTag];

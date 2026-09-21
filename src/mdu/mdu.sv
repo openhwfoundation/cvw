@@ -52,11 +52,11 @@ module mdu import cvw::*;  #(parameter cvw_t P) (
   // Start a divide when a new division instruction is received and the divider isn't already busy or finishing
   // When IDIV_ON_FPU is set, use the FPU divider instead
   // In ZMMUL, with M_SUPPORTED = 0, omit the divider
-  if ((P.IDIV_ON_FPU & P.F_SUPPORTED) | (!P.M_SUPPORTED)) begin:nodiv
+  if ((P.IDIV_ON_FPU & P.F_SUPPORTED) | (!P.M_SUPPORTED)) begin : nodiv
     assign QuotM = '0;
     assign RemM = '0;
     assign DivBusyE = 1'b0;
-  end else begin:div
+  end else begin : div
     div #(P) div(.clk, .reset, .StallM, .FlushE, .DivSignedE(~Funct3E[0]), .W64E, .IntDivE,
         .ForwardedSrcAE, .ForwardedSrcBE, .DivBusyE, .QuotM, .RemM);
   end
@@ -77,9 +77,9 @@ module mdu import cvw::*;  #(parameter cvw_t P) (
 
   // Handle sign extension for W-type instructions
   flopenrc #(1) W64MReg(clk, reset, FlushM, ~StallM, W64E, W64M);
-  if (P.XLEN == 64) begin:resmux // RV64 has W-type instructions
+  if (P.XLEN == 64) begin : resmux // RV64 has W-type instructions
     assign MDUResultM = W64M ? {{32{PrelimResultM[31]}}, PrelimResultM[31:0]} : PrelimResultM;
-  end else begin:resmux // RV32 has no W-type instructions
+  end else begin : resmux // RV32 has no W-type instructions
     assign MDUResultM = PrelimResultM;
   end
 

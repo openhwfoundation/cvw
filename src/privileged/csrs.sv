@@ -34,7 +34,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   input  logic              CSRSWriteM, STrapM,
   input  logic [11:0]       CSRAdrM,
   input  logic [P.XLEN-1:0] NextEPCM, NextMtvalM, SSTATUS_REGW,
-  input  logic [4:0]        NextCauseM,
+  input  logic [5:0]        NextCauseM,
   input  logic              STATUS_TVM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [1:0]        PrivilegeModeW,
@@ -89,10 +89,13 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   assign WriteSTVALM      = STrapM | (CSRSWriteM & (CSRAdrM == STVAL));
   if(P.XLEN == 64) begin
     logic LegalSatpModeM;
-    assign LegalSatpModeM = P.VIRTMEM_SUPPORTED & (CSRWriteValM[63:60] == 0 | CSRWriteValM[63:60] == P.SV39 | CSRWriteValM[63:60] == P.SV48); // supports SV39 and 48
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalSatpModeM;
+    assign LegalSatpModeM = CSRWriteValM[63:60] == 0 |
+                           (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
+                           (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
+                           (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57); // Only change Satp if the mode is supported
+    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalSatpModeM & P.SV39_SUPPORTED;
   end else  // RV32
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & P.VIRTMEM_SUPPORTED;
+    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & P.SV32_SUPPORTED;
   assign WriteSCOUNTERENM = CSRSWriteM & (CSRAdrM == SCOUNTEREN);
   assign WriteSENVCFGM    = CSRSWriteM & (CSRAdrM == SENVCFG);
   assign WriteSTIMECMPM   = CSRSWriteM & (CSRAdrM == STIMECMP) & STCE;
@@ -103,7 +106,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) STVECreg(clk, reset, WriteSTVECM, TVECWriteValM, STVEC_REGW);
   flopenr #(P.XLEN) SSCRATCHreg(clk, reset, WriteSSCRATCHM, CSRWriteValM, SSCRATCH_REGW);
   flopenr #(P.XLEN) SEPCreg(clk, reset, WriteSEPCM, NextEPCM, SEPC_REGW);
-  flopenr #(P.XLEN) SCAUSEreg(clk, reset, WriteSCAUSEM, {NextCauseM[4], {(P.XLEN-5){1'b0}}, NextCauseM[3:0]}, SCAUSE_REGW);
+  flopenr #(P.XLEN) SCAUSEreg(clk, reset, WriteSCAUSEM, {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}, SCAUSE_REGW);
   flopenr #(P.XLEN) STVALreg(clk, reset, WriteSTVALM, NextMtvalM, STVAL_REGW);
   if (P.VIRTMEM_SUPPORTED)
     flopenr #(P.XLEN) SATPreg(clk, reset, WriteSATPM, CSRWriteValM, SATP_REGW);
@@ -140,7 +143,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) SENVCFGreg(clk, reset, WriteSENVCFGM, SENVCFG_WriteValM, SENVCFG_REGW);
 
   // CSR Reads
-  always_comb begin:csrr
+  always_comb begin : csrr
     CSRSReadValM = '0;
     IllegalCSRSAccessM = 1'b0;
     case (CSRAdrM)

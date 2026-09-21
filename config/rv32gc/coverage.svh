@@ -24,7 +24,7 @@
 `define LARGEST_PROGRAM     32'h00002000
 
 // Define relevant addresses
-`define ACCESS_FAULT_ADDRESS 32'h0000
+`define RVMODEL_ACCESS_FAULT_ADDRESS 32'h0000
 `define CLINT_BASE 64'h02000000
 
 // Unprivileged extensions

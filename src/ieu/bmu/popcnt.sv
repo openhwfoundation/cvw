@@ -35,7 +35,7 @@ module popcnt #(parameter WIDTH = 32) (
 
   always_comb begin
     sum = '0;
-    for (int i=0;i<WIDTH;i++) begin:loop
+    for (int i=0;i<WIDTH;i++) begin : loop
       sum = (num[i]) ? sum + 1 : sum;
     end
   end

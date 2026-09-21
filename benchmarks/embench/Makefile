@@ -51,7 +51,7 @@ objdump:
 
 # build memfiles, objdump.lab and objdump.addr files
 sim_build_memfile: objdump
-	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf" | while read f; do riscv64-unknown-elf-elf2hex --bit-width 32 --input "$$f" --output "$$f.memfile"; done
+	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf" | while read f; do elf2hex "$$f" "$$f.memfile"; done
 	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf.objdump" | while read f; do extractFunctionRadix.sh $$f; done
 
 # builds the tests for speed, runs them on spike and then launches python script to present results

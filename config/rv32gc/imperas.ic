@@ -37,8 +37,8 @@
 --override cpu/Zcb=T
 --override cpu/Sstc=T
 
-# mcause and scause only have 4 lsbs of code and 1 msb of interrupt flag
---override cpu/ecode_mask=0x8000000F  # for RV32
+# mcause and scause have 5 lsbs of code and 1 msb of interrupt flag
+--override cpu/ecode_mask=0x8000001F  # for RV32
 
 # Misaligned access (Zicclsm) is not supported
 --override cpu/unaligned=F

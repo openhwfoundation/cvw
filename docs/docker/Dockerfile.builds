@@ -21,15 +21,6 @@ RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
     make install && cd ${RISCV} && \
     rm -rf ${RISCV}/riscv-gnu-toolchain
 
-# elf2hex
-RUN git clone https://github.com/sifive/elf2hex.git && \
-    cd elf2hex && \
-    autoreconf -i && \
-    ./configure --target=riscv64-unknown-elf --prefix=${RISCV} && \
-    make && \
-    make install && cd ${RISCV} && \
-    rm -rf ${RISCV}/elf2hex
-
 # QEMU
 RUN git clone --recursive https://github.com/qemu/qemu && \
     cd qemu && \

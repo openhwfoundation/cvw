@@ -39,7 +39,7 @@ if [ -z "$FAMILY" ]; then
 fi
 
 # Mold needed for Verilator, not available in all package managers.
-if (( UBUNTU_VERSION == 20  || DEBIAN_VERSION == 11 )) || [ "$FAMILY" == suse ]; then
+if (( UBUNTU_VERSION == 20  || DEBIAN_VERSION == 11 )) || (( SUSE_VERSION < 160 )); then
     STATUS="mold"
     if [ ! -e "$RISCV"/bin/mold ]; then
         section_header "Installing mold"

@@ -19,7 +19,7 @@ all: $(OBJDUMPS) $(MEMFILES)
 
 # Create memfile
 %.elf.memfile: %.elf
-	riscv64-unknown-elf-elf2hex --bit-width 64 --input $< --output $@
+	elf2hex $< $@
 
 # Link object file to create executable
 .PRECIOUS: %.$(EXEEXT)

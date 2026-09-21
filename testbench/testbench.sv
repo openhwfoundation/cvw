@@ -88,6 +88,11 @@ module testbench;
   // Variables that can be overwritten with $value$plusargs at start of simulation
   string       TEST, ElfFile, sim_log_prefix;
   integer      INSTR_LIMIT;
+  string       UART_LOG_FILE;
+  integer      UART_LOG;
+
+  // Debugger signals
+  logic        tck, tms, tdi, tdo;
 
   // DUT signals
   logic [P.AHBW-1:0]    HRDATAEXT;
@@ -128,6 +133,7 @@ module testbench;
   string tests[];
   logic DCacheFlushDone, DCacheFlushStart;
   logic riscofTest;
+  logic debugTest;
   logic Validate;
   logic SelectTest;
   logic TestComplete;
@@ -137,6 +143,10 @@ module testbench;
   integer elfFD;
   byte header[0:4];
   byte readBytes;
+
+  // Debugger tests
+  string debugger_tests[];
+  string debugfile;
 
   initial begin
     // look for arguments passed to simulation, or use defaults
@@ -150,6 +160,19 @@ module testbench;
     if (!$value$plusargs("sim_log_prefix=%s", sim_log_prefix)) begin
         sim_log_prefix = "";  // Assign default value if not passed
     end
+
+
+    // For single elf testing with Debug testvector files
+    if (!$value$plusargs("DEBUGFILE=%s", debugfile)) begin
+      debugfile = "none";
+    end else begin
+      $display("Debug file: %s", debugfile);
+    end
+
+    if (!$value$plusargs("UART_LOG=%d", UART_LOG))
+      UART_LOG = (TEST == "buildroot"); // Default to true for buildroot test, false otherwise
+    if (!$value$plusargs("UART_LOG_FILE=%s", UART_LOG_FILE))
+      UART_LOG_FILE = {"logs/", TEST, "_uart.out"};
     //$display("TEST = %s ElfFile = %s", TEST, ElfFile);
 
     if (ElfFile != "none") begin // If Elf File passed in, check its bit width
@@ -218,8 +241,19 @@ module testbench;
         "arch64zkne":    if (P.ZKNE_SUPPORTED)    tests = arch64zkne;
         "arch64zknh":    if (P.ZKNH_SUPPORTED)    tests = arch64zknh;
         "arch64pmp":     if (P.PMP_ENTRIES > 0)   tests = arch64pmp;
-        "arch64vm_sv39": if (P.VIRTMEM_SUPPORTED) tests = arch64vm_sv39;
-        "arch64vm_sv48": if (P.VIRTMEM_SUPPORTED) tests = arch64vm_sv48;
+        "wally64debug": begin
+          if (P.DEBUG_SUPPORTED) begin
+            tests = wally64debug;
+            debugger_tests = wally64debug_jtag;
+          end
+        end
+        "arch64vm_sv39": if (P.SV39_SUPPORTED)    tests = arch64vm_sv39;
+        "arch64vm_sv48": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48;
+        "arch64vm_sv48_a": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_a;
+        "arch64vm_sv48_b": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_b;
+        "arch64vm_sv39_isolate":     if (P.SV39_SUPPORTED) tests = arch64vm_sv39_isolate;
+        "arch64vm_sv48_mxr_isolate": if (P.SV48_SUPPORTED) tests = arch64vm_sv48_mxr_isolate;
+        "arch64vm_sv57": if (P.SV57_SUPPORTED)    tests = arch64vm_sv57;
       endcase
     end else begin // RV32
       case (TEST)
@@ -269,7 +303,14 @@ module testbench;
         "arch32zkne":    if (P.ZKNE_SUPPORTED)    tests = arch32zkne;
         "arch32zknh":    if (P.ZKNH_SUPPORTED)    tests = arch32zknh;
         "arch32pmp":     if (P.PMP_ENTRIES > 0)   tests = arch32pmp;
+
         "arch32vm_sv32": if (P.VIRTMEM_SUPPORTED) tests = arch32vm_sv32;
+        "wally32debug": begin
+          if (P.DEBUG_SUPPORTED) begin
+            tests = wally32debug;
+            debugger_tests = wally32debug_jtag;
+          end
+        end
       endcase
     end
     if (tests.size() == 0 & ElfFile == "none") begin
@@ -312,6 +353,8 @@ module testbench;
   integer begin_signature_addr, end_signature_addr, signature_size;
   integer uartoutfile;
 
+  string  debugger_filename;
+
 
   assign ResetThreshold = 3'd5;
 
@@ -330,6 +373,7 @@ module testbench;
     // riscof tests have a different signature, tests[0] == "0" refers to RiscvArchTests
     // and tests[0] == "1" refers to WallyRiscvArchTests
     riscofTest = tests[0] == "0" | tests[0] == "1";
+    debugTest = tests[0] == "7" | "9";
     pathname = tvpaths[tests[0].atoi()];
 
     case(CurrState)
@@ -408,8 +452,6 @@ module testbench;
         memfilename = {RISCV_DIR, "/linux-testvectors/ram.bin"};
         elffilename = "buildroot";
         bootmemfilename = {RISCV_DIR, "/linux-testvectors/bootmem.bin"};
-        uartoutfilename = {"logs/", TEST, "_uart.out"};
-        uartoutfile = $fopen(uartoutfilename, "w"); // delete UART output file
         ProgramAddrMapFile = {RISCV_DIR, "/buildroot/output/images/disassembly/vmlinux.objdump.addr"};
         ProgramLabelMapFile = {RISCV_DIR, "/buildroot/output/images/disassembly/vmlinux.objdump.lab"};
       end else if(TEST == "fpga") begin
@@ -422,6 +464,15 @@ module testbench;
         memfilename = {ElfFile, ".memfile"};
         ProgramAddrMapFile = {ElfFile, ".objdump.addr"};
         ProgramLabelMapFile = {ElfFile, ".objdump.lab"};
+        if (debugfile != "none") begin
+          debugger_filename = {"../../", debugfile};
+        end
+      end else if (debugTest) begin
+        elffilename = {pathname, tests[test], ".elf"};
+        memfilename = {pathname, tests[test], ".elf.memfile"};
+        ProgramAddrMapFile = {pathname, tests[test], ".elf.objdump.addr"};
+        ProgramLabelMapFile = {pathname, tests[test], ".elf.objdump.lab"};
+        debugger_filename = {tvpaths[debugger_tests[0].atoi()], debugger_tests[test], ".tv"};
       end else begin
         elffilename = {pathname, tests[test], ".elf"};
         memfilename = {pathname, tests[test], ".elf.memfile"};
@@ -432,10 +483,16 @@ module testbench;
       // the addr of each label and fill the array. To expand, add more elements to this array
       // and initialize them to zero (also initialize them to zero at the start of the next test)
       updateProgramAddrLabelArray(ProgramAddrMapFile, ProgramLabelMapFile, memfilename, WALLY_DIR, ProgramAddrLabelArray);
+      // Open UART log file if enabled (buildroot defaults to on, override with +UART_LOG=1)
+      if (UART_LOG) begin
+        uartoutfilename = UART_LOG_FILE;
+        uartoutfile = $fopen(uartoutfilename, "w");
+      end else
+        uartoutfile = 0;
     end
     if(Validate) begin
       if (PrevPCZero) totalerrors = totalerrors + 1; //  error if PC is stuck at zero
-      if (TEST == "buildroot")
+      if (uartoutfile)
         $fclose(uartoutfile);
       if (TEST == "embench") begin
         // Writes contents of begin_signature to .sim.output file
@@ -650,11 +707,20 @@ module testbench;
 
   end
 
+  if (P.DEBUG_SUPPORTED) begin
+    debugger #(P) debugger(.clk, .reset, .tck, .tms, .tdi, .tdo, .filename(debugger_filename));
+  end else begin
+    assign tck = 1;
+    assign tdi = 0;
+    assign tms = 0;
+  end
+
   wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK,
+    .tck, .tms, .tdi, .tdo);
 
   // generate clock to sequence tests
   always begin
@@ -720,10 +786,10 @@ module testbench;
             .clk(clk), .ProgramAddrMapFile(ProgramAddrMapFile), .ProgramLabelMapFile(ProgramLabelMapFile));
   end
 
-  // Append UART output to file for tests
+  // Optionally log UART output to file (always on for buildroot, enable with +UART_LOG=1)
   if (P.UART_SUPPORTED) begin: uart_logger
     always @(posedge clk) begin
-      if (TEST == "buildroot") begin
+      if (uartoutfile) begin
         if (~dut.uncoregen.uncore.uartgen.uart.MEMWb & dut.uncoregen.uncore.uartgen.uart.uartPC.A == 3'b000 & ~dut.uncoregen.uncore.uartgen.uart.uartPC.DLAB) begin
           $fwrite(uartoutfile, "%c", dut.uncoregen.uncore.uartgen.uart.uartPC.Din); // append characters one at a time so we see a consistent log appearing during the run
           $fflush(uartoutfile);
@@ -743,8 +809,13 @@ module testbench;
   // PCM is not valid for configurations without ZICSR or branch predictor
   flopenr #(P.XLEN) PCMReg(clk, reset, ~dut.core.StallM, dut.core.PCE, PCM);
   always @(posedge clk) begin
-    TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
-       ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
+    if (P.DEBUG_SUPPORTED) begin
+      TestComplete <= ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW");
+    end else begin
+      TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) | ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW");
+    end
+    // TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
+    //      ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
     //   (functionName.PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero));
     if (reset) PrevPCZero <= 0;
     else if (dut.core.InstrValidM) PrevPCZero <= (PCM == 0 & dut.core.ifu.InstrM == 0);
@@ -804,6 +875,8 @@ end
     #1;
     IDV_MAX_ERRORS = 3;
     elffilename = ElfFile;
+    debugger_filename = {"../../", debugfile};
+    $display("%s", debugger_filename);
 
     // Initialize REF (do this before initializing the DUT)
     if (!rvviVersionCheck(RVVI_API_VERSION)) begin

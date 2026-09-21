@@ -24,6 +24,7 @@ export DC_HOME=/cad/synopsys/SYN                                    # Change thi
 export VCS_HOME=/cad/synopsys/VCS                                   # Change this for your path to Synopsys VCS, excluding bin
 export BREKER_HOME=/cad/breker/TREK                                 # Change this for your path to Breker Trek
 export SPYGLASS_HOME=/cad/synopsys/SPYGLASS_HOME                    # Change this for your path to Synopsys Spyglass
+export IMPERAS_HOME=/cad/imperas/IMPERAS_DV                         # Change this for your path to Synopsys ImperasDV
 
 # Tools
 # Questa and Synopsys
@@ -47,21 +48,12 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$RISCV/riscv64-unk
 export LD_LIBRARY_PATH=$RISCV/lib:$RISCV/lib64:$LD_LIBRARY_PATH:$RISCV/lib/x86_64-linux-gnu/
 export PATH=$PATH:$RISCV/bin
 
-# Activate riscv-python Virtual Environment
-if [ -e "$RISCV"/riscv-python/bin/activate ]; then
-    source "$RISCV"/riscv-python/bin/activate
-else
-    echo -e "${FAIL_COLOR}Python virtual environment not found. Rerun wally-toolchain-install.sh to automatically create it.${ENDC}"
-    return 1
-fi
-
 # Environment variables needed for RISCV-DV
 export RISCV_GCC=$(which riscv64-unknown-elf-gcc)
 export RISCV_OBJCOPY=$(which riscv64-unknown-elf-objcopy)
 export SPIKE_PATH=$RISCV/bin
 
 # Imperas DV setup
-export IMPERAS_HOME=$RISCV/ImperasDV-OpenHW
 if [ -e "$IMPERAS_HOME" ]; then
     export IMPERAS_PERSONALITY=CPUMAN_DV_ASYNC
     source "${IMPERAS_HOME}"/bin/setup.sh &> /dev/null || {

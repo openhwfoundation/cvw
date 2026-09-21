@@ -81,7 +81,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // mmu management
   input  logic [1:0]           PrivilegeModeW,                           // Privilege mode in Writeback stage
   input  logic [P.XLEN-1:0]    PTE,                                      // Hardware page table walker (HPTW) writes Page table entry (PTE) to ITLB
-  input  logic [1:0]           PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
+  input  logic [2:0]           PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
   input  logic                 ITLBWriteF,                               // Writes PTE and PageType to ITLB
   input  logic [P.XLEN-1:0]    SATP_REGW,                                // Location of the root page table and page table configuration
   input  logic                 STATUS_MXR,                               // Status CSR: make executable page readable
@@ -96,7 +96,11 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
   output logic                 InstrAccessFaultF,                        // Instruction access fault
   output logic                 ICacheAccess,                             // Report I$ read to performance counters
-  output logic                 ICacheMiss                                // Report I$ miss to performance counters
+  output logic                 ICacheMiss,                               // Report I$ miss to performance counters
+  input  logic                 DebugResume,                              //
+  input  logic                 DebugUseDPC,
+  output logic [P.XLEN-1:0]    NextValidPCE,
+  input  logic [P.XLEN-1:0]    DPC
 );
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
@@ -111,7 +115,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]           PCSpillNextF;                             // Next PCF after possible + 2 to handle spill
   logic [P.XLEN-1:2]           PCPlus4F;                                 // PCPlus4F is always PCF + 4.  Fancy way to compute PCPlus2or4F
   logic [P.XLEN-1:0]           PCD;                                      // Decode stage instruction address
-  logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after  csr write or fence
+  //logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after  csr write or fence
   logic [P.XLEN-1:0]           PCF;                                      // Fetch stage instruction address
   logic [P.PA_BITS-1:0]        PCPF;                                     // Physical address after address translation
   logic [P.XLEN+1:0]           PCFExt;
@@ -263,7 +267,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
              .FlushCache('0),
              .NextSet(PCSpillNextF[11:0]),
              .PAdr(PCPF),
-             .CacheCommitted(CacheCommittedF), .InvalidateCache(InvalidateICacheM), .CMOpM('0));
+             .CacheCommitted(CacheCommittedF), .InvalidateCache(InvalidateICacheM), .InvalidateFlushStage(FlushW), .CMOpM('0));
 
       ahbcacheinterface #(P, BEATSPERLINE, AHBWLOGBWPL, LINELEN, LLENPOVERAHBW, 1)
       ahbcacheinterface(.HCLK(clk), .HRESETn(~reset),
@@ -322,15 +326,24 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(NextValidPCE), .s(CSRWriteFenceM),.y(PC2NextF));
   else assign PC2NextF = PC1NextF;
 
+  logic [P.XLEN-1:0] DebugPCNextF;
+
   mux3 #(P.XLEN) pcmux3(PC2NextF, EPCM, TrapVectorM, {TrapM, RetM}, UnalignedPCNextF);
-  mux2 #(P.XLEN) pcresetmux({UnalignedPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
+
+  if (P.DEBUG_SUPPORTED) begin
+    mux2 #(P.XLEN) pcmuxdebug(UnalignedPCNextF, DPC, DebugUseDPC, DebugPCNextF);
+  end else begin
+    assign DebugPCNextF = UnalignedPCNextF;
+  end
+
+  mux2 #(P.XLEN) pcresetmux({DebugPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
   flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF);
 
   // pcadder
   // add 2 or 4 to the PC, based on whether the instruction is 16 bits or 32
   assign PCPlus4F = PCF[P.XLEN-1:2] + 1; // add 4 to PC
 
-  if (P.ZCA_SUPPORTED) begin: pcadd
+  if (P.ZCA_SUPPORTED) begin : pcadd
     // choose PC+2 or PC+4 based on CompressedF, which arrives later.
     // Speeds up critical path as compared to selecting adder input based on CompressedF
     always_comb
@@ -338,7 +351,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
         if (PCF[1]) PCPlus2or4F = {PCPlus4F, 2'b00};
         else        PCPlus2or4F = {PCF[P.XLEN-1:2], 2'b10};
       else          PCPlus2or4F = {PCPlus4F, PCF[1:0]}; // add 4
-  end else begin: pcadd
+  end else begin : pcadd
     assign PCPlus2or4F = {PCPlus4F, PCF[1:0]}; // always add 4 if compressed instructions are not supported
   end
 
@@ -382,11 +395,11 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   flopenrc #(P.XLEN) PCDReg(clk, reset, FlushD, ~StallD, PCF, PCD);
 
   // expand 16-bit compressed instructions to 32 bits
-  if (P.ZCA_SUPPORTED) begin: decomp
+  if (P.ZCA_SUPPORTED) begin : decomp
     logic IllegalCompInstrD;
     decompress #(P) decomp(.InstrRawD, .InstrD, .IllegalCompInstrD);
     assign IllegalIEUInstrD = IllegalBaseInstrD | IllegalCompInstrD; // illegal if bad 32 or 16-bit instr
-  end else begin: decomp
+  end else begin : decomp
     assign InstrD = InstrRawD;
     assign IllegalIEUInstrD = IllegalBaseInstrD;
   end
