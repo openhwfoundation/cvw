@@ -55,7 +55,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6
   // Lower privilege status registers are a subset of the full status register
-  if (P.XLEN==64) begin: csrsr64 // RV64
+  if (P.XLEN==64) begin : csrsr64 // RV64
     assign MSTATUS_REGW  = {STATUS_SD, 25'b0, STATUS_MBE, STATUS_SBE, STATUS_SXL, STATUS_UXL, 9'b0,
                            STATUS_TSR, STATUS_TW, STATUS_TVM, STATUS_MXR, STATUS_SUM, STATUS_MPRV,
                            STATUS_XS, STATUS_FS, STATUS_MPP, 2'b0,
@@ -67,7 +67,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
                            STATUS_SPP, /*STATUS_MPIE*/ 1'b0, STATUS_UBE, STATUS_SPIE,
                           /*1'b0, STATUS_MIE, 1'b0*/ 3'b0, STATUS_SIE, 1'b0};
     assign MSTATUSH_REGW = '0; // does not exist when XLEN=64, and accessing will throw an illegal instruction
-  end else begin: csrsr32 // RV32
+  end else begin : csrsr32 // RV32
     assign MSTATUS_REGW  = {STATUS_SD, 8'b0,
                            STATUS_TSR, STATUS_TW, STATUS_TVM, STATUS_MXR, STATUS_SUM, STATUS_MPRV,
                            STATUS_XS, STATUS_FS, STATUS_MPP, 2'b0,
@@ -81,10 +81,10 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   end
 
   // extract values to write to upper status register on 64/32-bit access
-  if (P.XLEN==64) begin:upperstatus
+  if (P.XLEN==64) begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & CSRWriteValM[37];
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[36];
-  end else begin:upperstatus
+  end else begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & STATUS_MBE;
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & STATUS_SBE;
   end
@@ -113,7 +113,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   // Endianness logic Privileged Spec 3.1.6.4
   ///////////////////////////////////////////
 
-  if (P.BIGENDIAN_SUPPORTED) begin: endianmux
+  if (P.BIGENDIAN_SUPPORTED) begin : endianmux
     // determine whether big endian accesses should be made
     logic [1:0] EndiannessPrivMode;
     always_comb begin
@@ -130,7 +130,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
         default: BigEndianM  = STATUS_UBE;
       endcase
     end
-  end else begin: endianmux
+  end else begin : endianmux
     assign BigEndianM = 1'b0;
   end
 

@@ -77,9 +77,9 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
     endcase
 
   // sign extend output if necessary for w64
-  if (P.XLEN == 32) begin:sext
+  if (P.XLEN == 32) begin : sext
     assign AMOResultM = y;
-  end else begin:sext // P.XLEN = 64
+  end else begin : sext // P.XLEN = 64
     always_comb
       if (w64) begin // sign-extend word-length operations
         AMOResultM = {{32{y[31]}}, y[31:0]};

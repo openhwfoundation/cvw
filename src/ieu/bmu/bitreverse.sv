@@ -33,7 +33,7 @@ module bitreverse #(parameter WIDTH=32) (
   output logic [WIDTH-1:0] RevA);
 
   genvar i;
-  for (i=0; i<WIDTH;i++) begin:loop
+  for (i=0; i<WIDTH;i++) begin : loop
     assign RevA[WIDTH-i-1] = A[i];
   end
 endmodule
