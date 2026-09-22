@@ -102,7 +102,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   assign STATUS_SUM  = P.S_SUPPORTED & P.VIRTMEM_SUPPORTED & STATUS_SUM_INT; // override register with 0 if supervisor mode not supported
   assign STATUS_MPRV = P.U_SUPPORTED & STATUS_MPRV_INT; // override with 0 if user mode not supported
   assign STATUS_FS   = P.F_SUPPORTED ? STATUS_FS_INT : 2'b00; // off if no FP
-  assign STATUS_VS   = P.V_SUPPORTED ? STATUS_VS_INT : 2'b00; // off if no V
+  assign STATUS_VS   = P.ZVE32X_SUPPORTED ? STATUS_VS_INT : 2'b00; // off if no vector extension
   assign STATUS_SD   = (STATUS_FS == 2'b11) | (STATUS_VS == 2'b11) | (STATUS_XS == 2'b11); // dirty state logic
   assign STATUS_XS   = 2'b00; // No additional user-mode state to be dirty
 
@@ -148,7 +148,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
       STATUS_SUM_INT  <= 1'b0;
       STATUS_MPRV_INT <= 1'b0; // Per Priv 3.3
       STATUS_FS_INT   <= 2'b00; // leave floating-point off until activated, even if F_SUPPORTED
-      STATUS_VS_INT   <= 2'b00; // leave vector off until activated, even if V_SUPPORTED
+      STATUS_VS_INT   <= 2'b00; // leave vector off until activated, even if a vector extension is supported
       STATUS_MPP      <= 2'b00;
       STATUS_SPP      <= 1'b0;
       STATUS_MPIE     <= 1'b0;

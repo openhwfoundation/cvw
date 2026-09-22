@@ -294,7 +294,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   end
 
   // Vector CSRs in User Mode only needed if vector is supported
-  if (P.V_SUPPORTED) begin : csrv
+  if (P.ZVE32X_SUPPORTED) begin : csrv
     csrv #(P) csrv(.clk, .reset, .InstrValidNotFlushedM,
       .CSRWriteM, .CSRUWriteM, .CSRAdrM, .CSRWriteValM, .STATUS_VS,
       .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .SetVXSATM, .ClearVSTARTM,
