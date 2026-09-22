@@ -386,7 +386,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   for(i = 0; i < P.VPU_LSU_LANES; i++) begin
       assign VReadDataM[i] = '0;
   end
-  if (P.V_SUPPORTED) begin : vpu
+  if (P.ZVE32X_SUPPORTED) begin : vpu
     vpu #(P) vpu(.clk, .reset, .StallD, .StallE, .StallM, .StallW,
                  .FlushD, .FlushE, .FlushM, .FlushW, .VPUFrontEndBusyD,
                  .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE,

@@ -192,7 +192,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign MFunctD          = (Funct7D == 7'b0000001) & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
     assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
                               ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
-    assign VLSFunctD        = (Funct3D == 3'b000 | Funct3D == 3'b101 | Funct3D == 3'b110 | Funct3D == 3'b111) & P.V_SUPPORTED;  //*** needed in else branch?
+    assign VLSFunctD        = (Funct3D == 3'b000 | Funct3D == 3'b101 | Funct3D == 3'b110 | Funct3D == 3'b111) & P.ZVE32X_SUPPORTED;  //*** needed in else branch?
     assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
                               (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
@@ -299,7 +299,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     endcase
   end
 
-  if (P.V_SUPPORTED) begin
+  if (P.ZVE32X_SUPPORTED) begin
     assign VectorD = ((OpD == 7'b0000111 | OpD == 7'b0100111) & VLSFunctD) | OpD == 7'b1010111;
   end else begin
     assign VectorD = '0;

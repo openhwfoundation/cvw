@@ -91,7 +91,7 @@ module csrv import cvw::*;  #(parameter cvw_t P) (
   assign VTYPE_REGW = {VILL_REG, {(P.XLEN-9){1'b0}}, VTYPE_CFG_REG};
 
   // CSR Reads
-  localparam [P.XLEN-1:0] VLENB_CONST = P.VLEN / 8;
+  localparam [P.XLEN-1:0] VLENB_CONST = (P.XLEN)'(P.VLEN / 8);
   always_comb begin
     CSRVReadValM       = '0;
     IllegalCSRVAccessM = 1'b0;

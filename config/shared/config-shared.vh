@@ -34,6 +34,7 @@ localparam logic A_SUPPORTED = (ZAAMO_SUPPORTED & ZALRSC_SUPPORTED);
 localparam logic B_SUPPORTED = ((ZBA_SUPPORTED & ZBB_SUPPORTED & ZBS_SUPPORTED));
 localparam logic C_SUPPORTED = ZCA_SUPPORTED & (D_SUPPORTED ? ZCD_SUPPORTED : 1) & (F_SUPPORTED ? ((XLEN == 32) ? ZCF_SUPPORTED : 1) : 1);
 localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORTED & ZKND_SUPPORTED & ZKNE_SUPPORTED & ZKNH_SUPPORTED);
+localparam logic V_SUPPORTED = ZVE64D_SUPPORTED & (VLEN >= 32'd128);   // V requires Zve64d and Zvl128b
 
 // Configure MISA based on supported extensions
 localparam MISA = {6'b0, 4'b0, V_SUPPORTED, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,
@@ -128,8 +129,9 @@ localparam NORMSHIFTSZ = `max(`max((CVTLEN+NF+1), (DIVb + 1 + NF + 1)), (FMALEN 
 
 localparam LOGNORMSHIFTSZ = ($clog2(NORMSHIFTSZ));                  // log_2(NORMSHIFTSZ)
 
-// *** change 64 to the max vector element length
-localparam VPU_LSU_BLEN = 64 * VPU_LSU_LANES;
-localparam VPU_INT_BLEN = 64 * VPU_INT_LANES;
-localparam VPU_INT_MUL_BLEN = 64 * VPU_INT_MUL_LANES;
-localparam VPU_FP_BLEN = 64 * VPU_FP_LANES;
+// vector unit constants
+localparam ELEN = (ZVE64X_SUPPORTED | ZVE64F_SUPPORTED | ZVE64D_SUPPORTED) ? 32'd64 : 32'd32;
+localparam VPU_LSU_BLEN = ELEN * VPU_LSU_LANES;
+localparam VPU_INT_BLEN = ELEN * VPU_INT_LANES;
+localparam VPU_INT_MUL_BLEN = ELEN * VPU_INT_MUL_LANES;
+localparam VPU_FP_BLEN = ELEN * VPU_FP_LANES;
