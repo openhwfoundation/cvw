@@ -127,12 +127,14 @@ ZICSR_SUPPORTED     0
 
 deriv syn_rv64gc_noFPU syn_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
 
 deriv syn_sram_rv64gc_noFPU syn_sram_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
@@ -891,6 +893,7 @@ deriv f_rv32gc rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 ZCD_SUPPORTED   0
 
 deriv fh_rv32gc rv32gc
@@ -901,6 +904,7 @@ ZCD_SUPPORTED   0
 
 deriv fd_rv32gc rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdh_rv32gc rv32gc
 ZFH_SUPPORTED   1
@@ -908,6 +912,7 @@ ZFH_SUPPORTED   1
 deriv fdq_rv32gc rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdqh_rv32gc rv32gc
 Q_SUPPORTED     1
@@ -917,6 +922,7 @@ deriv f_rv64gc rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 ZCD_SUPPORTED   0
 
 deriv fh_rv64gc rv64gc
@@ -927,6 +933,7 @@ ZCD_SUPPORTED   0
 
 deriv fd_rv64gc rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdh_rv64gc rv64gc
 ZFH_SUPPORTED   1
@@ -934,6 +941,7 @@ ZFH_SUPPORTED   1
 deriv fdq_rv64gc rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdqh_rv64gc rv64gc
 Q_SUPPORTED     1
@@ -946,61 +954,73 @@ deriv f_div_2_1_rv32gc    div_2_1_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_2_2_rv32gc    div_2_2_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_2_4_rv32gc    div_2_4_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_1_rv32gc    div_4_1_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_2_rv32gc    div_4_2_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_4_rv32gc    div_4_4_rv32gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_2_1_rv64gc    div_2_1_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_2_2_rv64gc    div_2_2_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_2_4_rv64gc    div_2_4_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_1_rv64gc    div_4_1_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_2_rv64gc    div_4_2_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv f_div_4_4_rv64gc    div_4_4_rv64gc
 D_SUPPORTED     0
 ZCD_SUPPORTED   0
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 
 #### FH_only, RK variable
@@ -1068,39 +1088,51 @@ ZFH_SUPPORTED   1
 
 deriv fd_div_2_1_rv32gc    div_2_1_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_2_2_rv32gc    div_2_2_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_2_4_rv32gc    div_2_4_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_1_rv32gc    div_4_1_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_2_rv32gc    div_4_2_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_4_rv32gc    div_4_4_rv32gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_2_1_rv64gc    div_2_1_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_2_2_rv64gc    div_2_2_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_2_4_rv64gc    div_2_4_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_1_rv64gc    div_4_1_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_2_rv64gc    div_4_2_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fd_div_4_4_rv64gc    div_4_4_rv64gc
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 
 # FDH only , rk variable
@@ -1146,50 +1178,62 @@ ZFH_SUPPORTED   1
 deriv fdq_div_2_1_rv32gc    div_2_1_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_2_2_rv32gc    div_2_2_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_2_4_rv32gc    div_2_4_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_1_rv32gc    div_4_1_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_2_rv32gc    div_4_2_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_4_rv32gc    div_4_4_rv32gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_2_1_rv64gc    div_2_1_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_2_2_rv64gc    div_2_2_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_2_4_rv64gc    div_2_4_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_1_rv64gc    div_4_1_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_2_rv64gc    div_4_2_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 deriv fdq_div_4_4_rv64gc    div_4_4_rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
+ZFBFMIN_SUPPORTED 0
 
 # FDQH only , rk variable
 

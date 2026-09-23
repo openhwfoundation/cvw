@@ -72,6 +72,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   logic                        FRegWriteW;                         // FP register write enable
   logic [2:0]                  FrmE, FrmM;                         // FP rounding mode
   logic [P.FMTBITS-1:0]        FmtE, FmtM;                         // FP precision 0-single 1-double
+  logic                        Bf16SrcE, Bf16DstE, Bf16DstM;       // Zfbfmin conversion direction
   logic                        FDivStartE, IDivStartE;             // Start division or squareroot
   logic                        FWriteIntM;                         // Write to integer register
   logic [1:0]                  ForwardXE, ForwardYE, ForwardZE;    // forwarding mux control signals
@@ -181,6 +182,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
               .FDivStartE, .IDivStartE, .FWriteIntE, .FCvtIntE, .FWriteIntM, .OpCtrlE, .OpCtrlM, .FpLoadStoreM,
               .IllegalFPUInstrD, .XEnD, .YEnD, .ZEnD, .XEnE, .YEnE, .ZEnE,
               .FResSelE, .FResSelM, .FResSelW, .FPUActiveE, .PostProcSelE, .PostProcSelM, .FCvtIntW,
+              .Bf16SrcE, .Bf16DstE, .Bf16DstM,
               .Adr1D, .Adr2D, .Adr3D, .Adr1E, .Adr2E, .Adr3E);
 
   // FP register file
@@ -234,7 +236,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   mux3  #(P.FLEN)  fzmulmux (PreZE, BoxedZeroE, PreYE, FmaZSelE, ZE);
 
   // unpack unit: splits FP inputs into their parts and classifies SNaN, NaN, Subnorm, Norm, Zero, Infinity
-  unpack #(P) unpack (.X(XE), .Y(YE), .Z(ZE), .Fmt(FmtE), .Xs(XsE), .Ys(YsE), .Zs(ZsE),
+  unpack #(P) unpack (.X(XE), .Y(YE), .Z(ZE), .Fmt(FmtE), .Bf16Src(Bf16SrcE), .Xs(XsE), .Ys(YsE), .Zs(ZsE),
     .Xe(XeE), .Ye(YeE), .Ze(ZeE), .Xm(XmE), .Ym(YmE), .Zm(ZmE), .YEn(YEnE), .FPUActive(FPUActiveE),
     .XNaN(XNaNE), .YNaN(YNaNE), .ZNaN(ZNaNE), .XSNaN(XSNaNE), .XEn(XEnE),
     .YSNaN(YSNaNE), .ZSNaN(ZSNaNE), .XSubnorm(XSubnormE),
@@ -375,7 +377,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .ZInf(ZInfM), .XNaN(XNaNM), .YNaN(YNaNM), .ZNaN(ZNaNM), .XSNaN(XSNaNM), .YSNaN(YSNaNM), .ZSNaN(ZSNaNM),
     .FmaSm(SmM), .DivUe(UeM), .FmaAs(AsM), .FmaPs(PsM), .OpCtrl(OpCtrlM), .FmaSCnt(SCntM), .FmaSe(SeM),
     .CvtCe(CeM), .CvtResSubnormUf(CvtResSubnormUfM),.CvtShiftAmt(CvtShiftAmtM), .CvtCs(CsM),
-    .ToInt(FWriteIntM), .Zfa(ZfaM), .DivSticky(DivStickyM), .CvtLzcIn(CvtLzcInM), .IntZero(IntZeroM),
+    .ToInt(FWriteIntM), .Zfa(ZfaM), .Bf16Dst(Bf16DstM), .DivSticky(DivStickyM), .CvtLzcIn(CvtLzcInM), .IntZero(IntZeroM),
     .PostProcSel(PostProcSelM), .PostProcRes(PostProcResM), .PostProcFlg(PostProcFlgM), .FCvtIntRes(FCvtIntResM));
 
   // FPU flag selection - to privileged

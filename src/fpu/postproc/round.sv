@@ -29,6 +29,7 @@
 
 module round import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.FMTBITS-1:0]     OutFmt,             // output format
+  input  logic                     Bf16Dst,            // Zfbfmin: round the fraction to BF16
   input  logic [2:0]               Frm,                // rounding mode
   input  logic [1:0]               PostProcSel,        // select the postprocessor output
   input  logic                     Ms,                 // normalized sign
@@ -60,15 +61,19 @@ module round import cvw::*;  #(parameter cvw_t P) (
 
   logic                            UfCalcPlus1;        // calculated plus one for unbounded exponent
   logic                            NormSticky;         // normalized sum's sticky bit
+  logic                            DstSticky;          // NormSticky, or BF16's for a BF16 result
   logic [P.NF-1:0]                 RoundFrac;          // rounded fraction
   logic                            FpRes;              // is the result a floating point
   logic                            IntRes;             // is the result an integer
   logic                            FpGuard, FpRound;   // floating point round/guard bits
   logic                            FpLsbRes;           // least significant bit of floating point result
+  logic                            DstGuard, DstRound; // FpGuard/FpRound, or BF16's for a BF16 result
+  logic                            DstLsbRes;          // FpLsbRes, or BF16's for a BF16 result
   logic                            LsbRes;             // lsb of result
   logic                            CalcPlus1;          // calculated plus1
   logic                            FpPlus1;            // do you add one to the fp result
   logic [P.FLEN:0]                 RoundAdd;           // how much to add to the result
+  logic [P.FLEN:0]                 DstRoundAdd;        // RoundAdd, or BF16's for a BF16 result
   logic                            CvtToInt;           // Convert to integer operation
 
 // what position is XLEN in?
@@ -181,9 +186,15 @@ module round import cvw::*;  #(parameter cvw_t P) (
 
   end
 
+  // a BF16 result is rounded at its own fraction width, which is not one of the formats above.
+  // The sticky window is narrow because a single precision source reaches Mf with at most S_NF+1
+  // significand bits, plus BF16_NF of denormalization.
+  localparam BF16STICKYLSB = P.NORMSHIFTSZ - (P.S_NF+1) - P.BF16_NF - 1;
+  assign DstSticky = Bf16Dst ? |Mf[P.NORMSHIFTSZ-P.BF16_NF-2:BF16STICKYLSB] : NormSticky;
+
   // only add the Addend sticky if doing an FMA operation
   //      - the shifter shifts too far left when there's an underflow (shifting out all possible sticky bits)
-  assign Sticky = FmaASticky&FmaOp | NormSticky | CvtResUf&CvtOp | FmaMe[P.NE+1]&FmaOp | DivSticky&DivOp;
+  assign Sticky = FmaASticky&FmaOp | DstSticky | CvtResUf&CvtOp | FmaMe[P.NE+1]&FmaOp | DivSticky&DivOp;
 
   // determine round and LSB of the rounded value
   //      - underflow round bit is used to determint the underflow flag
@@ -247,9 +258,14 @@ module round import cvw::*;  #(parameter cvw_t P) (
           endcase
   end
 
-  assign Guard  = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN-1] : FpGuard;
-  assign LsbRes = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN] : FpLsbRes;
-  assign Round  = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN-2] : FpRound;
+  // a BF16 result rounds at its own fraction width
+  assign DstGuard  = Bf16Dst ? Mf[P.NORMSHIFTSZ-P.BF16_NF-1] : FpGuard;
+  assign DstLsbRes = Bf16Dst ? Mf[P.NORMSHIFTSZ-P.BF16_NF]   : FpLsbRes;
+  assign DstRound  = Bf16Dst ? Mf[P.NORMSHIFTSZ-P.BF16_NF-2] : FpRound;
+
+  assign Guard  = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN-1] : DstGuard;
+  assign LsbRes = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN] : DstLsbRes;
+  assign Round  = CvtToInt ? Mf[P.NORMSHIFTSZ-P.XLEN-2] : DstRound;
 
   always_comb begin
       // Determine if you add 1
@@ -295,6 +311,9 @@ module round import cvw::*;  #(parameter cvw_t P) (
   end else if (P.FPSIZES == 4)
       assign RoundAdd = {(P.Q_NE+1+P.H_NF)'(0), FpPlus1&(OutFmt==P.H_FMT), (P.S_NF-P.H_NF-1)'(0), FpPlus1&(OutFmt==P.S_FMT), (P.D_NF-P.S_NF-1)'(0), FpPlus1&(OutFmt==P.D_FMT), (P.Q_NF-P.D_NF-1)'(0), FpPlus1&(OutFmt==P.Q_FMT)};
 
+  // place Plus1 at the BF16 lsb for a BF16 result
+  assign DstRoundAdd = Bf16Dst ? {(P.NE+1+P.BF16_NF)'(0), FpPlus1, (P.NF-P.BF16_NF)'(0)} : RoundAdd;
+
   // trim unneeded bits from fraction
   assign RoundFrac = Mf[P.NORMSHIFTSZ-1:P.NORMSHIFTSZ-P.NF];
 
@@ -312,7 +331,7 @@ module round import cvw::*;  #(parameter cvw_t P) (
 
   // round the result
   //      - if the fraction overflows one should be added to the exponent
-  assign {FullRe, Rf} = {Me, RoundFrac} + RoundAdd;
+  assign {FullRe, Rf} = {Me, RoundFrac} + DstRoundAdd;
   assign Re           = FullRe[P.NE-1:0];
 
 endmodule

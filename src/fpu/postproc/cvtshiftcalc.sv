@@ -32,6 +32,7 @@ module cvtshiftcalc import cvw::*;  #(parameter cvw_t P) (
   input  logic                     ToInt,              // to integer conversion?
   input  logic                     IntToFp,            // integer to floating point conversion?
   input  logic [P.FMTBITS-1:0]     OutFmt,             // output format
+  input  logic                     Bf16Dst,            // Zfbfmin: result fraction is BF16's
   input  logic [P.NE:0]            CvtCe,              // the calculated exponent
   input  logic [P.NF:0]            Xm,                 // input mantissas
   input  logic [P.CVTLEN-1:0]      CvtLzcIn,           // input to the Leading Zero Counter (without msb)
@@ -41,6 +42,7 @@ module cvtshiftcalc import cvw::*;  #(parameter cvw_t P) (
 );
 
   logic [$clog2(P.NF):0]           ResNegNF;           // the result's fraction length negated (-NF)
+  logic [$clog2(P.NF):0]           DstNegNF;           // ResNegNF, or BF16's for a BF16 destination
 
   ///////////////////////////////////////////////////////////////////////////
   // shifter
@@ -96,9 +98,12 @@ module cvtshiftcalc import cvw::*;  #(parameter cvw_t P) (
           endcase
   end
 
+  // a BF16 result has its own fraction length, which is not one of the formats above
+  assign DstNegNF = Bf16Dst ? -($clog2(P.NF)+1)'(P.BF16_NF) : ResNegNF;
+
   // determine if the result underflows ??? -> fp
   //      - if the first 1 is shifted out of the result then the result underflows
   //      - can't underflow an integer to fp conversions
-  assign CvtResUf = ($signed(CvtCe) < $signed({{P.NE-$clog2(P.NF){1'b1}}, ResNegNF}))&~XZero&~IntToFp;
+  assign CvtResUf = ($signed(CvtCe) < $signed({{P.NE-$clog2(P.NF){1'b1}}, DstNegNF}))&~XZero&~IntToFp;
 
 endmodule

@@ -33,6 +33,7 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
   input  logic                 XNaN, YNaN, ZNaN,  // are the inputs NaN
   input  logic [2:0]           Frm,               // rounding mode
   input  logic [P.FMTBITS-1:0] OutFmt,            // output format
+  input  logic                 Bf16Dst,          // Zfbfmin: result is BF16 (fcvt.bf16.s)
   input  logic                 InfIn,             // are any inputs infinity
   input  logic                 NaNIn,             // are any input NaNs
   input  logic                 XInf, YInf,        // are X or Y inifnity
@@ -69,6 +70,8 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
   logic [P.FLEN-1:0]   ZNaNRes;    // Z is NaN result
   logic [P.FLEN-1:0]   InvalidRes; // Invalid result result
   logic [P.FLEN-1:0]   UfRes;      // underflowed result result
+  logic [P.FLEN-1:0]   Bf16UfRes;  // underflowed result for a BF16 destination
+  logic [P.FLEN-1:0]   PostProcResPreBox; // result in single precision form, before BF16 reboxing
   logic [P.FLEN-1:0]   OfRes;      // overflowed result result
   logic [P.FLEN-1:0]   NormRes;    // normal result
   logic [P.XLEN-1:0]   OfIntRes;   // the overflow result for integer output
@@ -78,6 +81,14 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
   logic                KillRes;    // kill the result for underflow
   logic                SelOfRes;   // should the overflow result be selected (excluding convert)
   logic                SelCvtOfRes; // select overflow result for convert instruction
+
+  // number of single precision lsbs dropped when a result is reboxed to BF16
+  localparam BF16LSB = P.S_NF - P.BF16_NF;
+
+  // A BF16 result is packed for single precision below and reboxed at the end of the module.  That
+  // works for every result but underflow, whose one nonzero bit sits at single's lsb and would be
+  // reboxed away, so give it its own result with that bit at the BF16 lsb.
+  assign Bf16UfRes = {{P.FLEN-P.S_LEN{1'b1}}, Rs, (P.S_LEN-2-BF16LSB)'(0), Plus1&Frm[1]&~(DivOp&YInf), (BF16LSB)'(0)};
 
   // does the overflow result output the maximum normalized floating point number
   //                output infinity if the input is infinity
@@ -252,19 +263,19 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
   // output infinity with result sign if divide by zero
   if(P.IEEE754)
     always_comb
-      if(XNaN&~(IntToFp&CvtOp))   PostProcRes = XNaNRes;
-      else if(YNaN&~CvtOp)        PostProcRes = YNaNRes;
-      else if(ZNaN&FmaOp)         PostProcRes = ZNaNRes;
-      else if(Invalid)            PostProcRes = InvalidRes;
-      else if(SelOfRes)           PostProcRes = OfRes;
-      else if(KillRes)            PostProcRes = UfRes;
-      else                        PostProcRes = NormRes;
+      if(XNaN&~(IntToFp&CvtOp))   PostProcResPreBox = XNaNRes;
+      else if(YNaN&~CvtOp)        PostProcResPreBox = YNaNRes;
+      else if(ZNaN&FmaOp)         PostProcResPreBox = ZNaNRes;
+      else if(Invalid)            PostProcResPreBox = InvalidRes;
+      else if(SelOfRes)           PostProcResPreBox = OfRes;
+      else if(KillRes)            PostProcResPreBox = Bf16Dst ? Bf16UfRes : UfRes;
+      else                        PostProcResPreBox = NormRes;
   else
     always_comb
-      if(NaNIn|Invalid)           PostProcRes = InvalidRes;
-      else if(SelOfRes)           PostProcRes = OfRes;
-      else if(KillRes)            PostProcRes = UfRes;
-      else                        PostProcRes = NormRes;
+      if(NaNIn|Invalid)           PostProcResPreBox = InvalidRes;
+      else if(SelOfRes)           PostProcResPreBox = OfRes;
+      else if(KillRes)            PostProcResPreBox = Bf16Dst ? Bf16UfRes : UfRes;
+      else                        PostProcResPreBox = NormRes;
 
   ///////////////////////////////////////////////////////////////////////////////////////
   // integer result selection
@@ -366,4 +377,9 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
       else                  FCvtIntRes = {{P.XLEN-1{1'b0}}, Plus1};
     else if(Int64)          FCvtIntRes = Int64Res;
     else                    FCvtIntRes = {{P.XLEN-32{CvtNegRes[31]}}, CvtNegRes[31:0]};
+
+  // BF16 shares single's exponent field and the fraction was rounded to BF16 precision, so a BF16
+  // result is the top half of the single precision one
+  assign PostProcRes = Bf16Dst ? {{P.FLEN-P.S_LEN+BF16LSB{1'b1}}, PostProcResPreBox[P.S_LEN-1:BF16LSB]} : PostProcResPreBox;
+
 endmodule

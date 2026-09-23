@@ -66,6 +66,7 @@ localparam S_FMT = 2'd0;
 localparam H_LEN = 32'd16;
 localparam H_NE = 32'd5;
 localparam H_NF = 32'd10;
+localparam BF16_NF = 32'd7;   // BF16 shares single's exponent and bias, so only its fraction width is needed
 localparam H_BIAS = 32'd15;
 localparam H_FMT = 2'd2;
 
