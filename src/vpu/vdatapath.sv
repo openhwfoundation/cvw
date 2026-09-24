@@ -40,15 +40,15 @@ module vdatapath import cvw::*;  #(parameter cvw_t P) (
   // control input
   input  logic [4:0] Vs1FinalD, Vs2FinalD,               // Vector Source 1 and 2
   input  logic [4:0] VdFinalD,                      // Vector Destination read (overwrite)
-  input  logic VMD,                            // 0 = mask enabled, 1 mask disabled
+  input  logic VmD,                            // 0 = mask enabled, 1 mask disabled
   input  logic [5:0] Funct6D,
   input  logic [2:0] Funct3D,
-  input  logic RegWriteD,
+  input  logic VWriteIntD,
   input  logic VRegWriteD,
   input  logic [1:0] VALUSrcAD,
   input  logic VALUSrcBD,
   input  logic VALUResultD,
-  input  logic IllegalVectorInstructionD,
+  input  logic IllegalVPUInstrD,
   // from/to the scalar core
   input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE,     // Integer/FP input for convert, move (from IEU)
   output logic [P.VPU_LSU_BLEN-1:0]    VWriteDataM [P.VPU_LSU_EU-1:0],          // Data to be written to memory (to LSU)
