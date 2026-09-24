@@ -33,7 +33,7 @@ set WALLY $::env(WALLY)
 set CONFIG ${WALLY}/config
 set SRC ${WALLY}/src
 set TB ${WALLY}/testbench
-set FCRVVI ${WALLY}/addins/cvw-arch-verif/fcov
+set ACTDIR ${WALLY}/addins/riscv-arch-test
 
 # Shift off the first three arguments (config, testbench, wkdir)
 shift
@@ -53,9 +53,38 @@ if {[lcheck lst "--ccov"]} {
     set CoverageVoptArg "+cover=sbecf"
 }
 
+# Functional coverage comes from riscv-arch-test: riscv_arch_test.sv instantiates the generated
+# covergroups and samples them off the RVVI trace.  It needs four include paths: its own sources,
+# the generated coverpoints, the test environment for derived_config.svh, and the work directory of
+# the matching ACT configuration for the generated rvtest_config.svh and rvmodel_macros.svh.
+# ACT names that configuration cvw-<config>, matching config/<config>/act.
 set FCvlog ""
 if {[lcheck lst "--fcov"]} {
-    set FCvlog "-f ${FCRVVI}/cvw-arch-verif.f"
+    set FCOVSRC ${ACTDIR}/framework/src/act/fcov
+    set FCOVWORK ${ACTDIR}/work/cvw-${CFG}
+    if {![file isdirectory ${FCOVWORK}]} {
+        echo "Error: no ACT work directory ${FCOVWORK}; build its tests before collecting functional coverage"
+        quit -f
+    }
+    # Each covergroup is compiled in only when its group is named by a +define+<GROUP>_COVERAGE.
+    # riscv-arch-test derives its coverage groups from the directory structure of the generated
+    # tests, so take the same set: every test directory that has a matching covergroup file.
+    set FCOVDEFS {}
+    if {![catch {exec find ${FCOVWORK}/elfs -mindepth 1 -type d -printf "%f\n"} dirlist]} {
+        foreach name [lsort -unique [split $dirlist "\n"]] {
+            if {$name eq ""} continue
+            if {[file exists ${ACTDIR}/coverpoints/unpriv/${name}_coverage.svh] ||
+                [file exists ${ACTDIR}/coverpoints/priv/${name}_coverage.svh]} {
+                lappend FCOVDEFS "+define+[string toupper $name]_COVERAGE"
+            }
+        }
+    }
+    echo "Functional coverage: [llength $FCOVDEFS] covergroups"
+    set FCvlog "+incdir+${FCOVSRC} +incdir+${ACTDIR}/coverpoints \
+                +incdir+${ACTDIR}/coverpoints/unpriv +incdir+${ACTDIR}/coverpoints/priv \
+                +incdir+${ACTDIR}/tests/env +incdir+${FCOVWORK} \
+                [join $FCOVDEFS { }] \
+                ${FCOVSRC}/rvviTrace.sv ${FCOVSRC}/riscv_arch_test.sv"
 }
 
 set lockstepvlog ""

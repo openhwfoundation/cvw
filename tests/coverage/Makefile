@@ -15,7 +15,6 @@ all: $(OBJDUMPS) $(MEMFILES)
 # Create disassembly
 %.elf.objdump: %.elf
 	riscv64-unknown-elf-objdump -S -D $< > $@
-	extractFunctionRadix.sh $@
 
 # Create memfile
 %.elf.memfile: %.elf

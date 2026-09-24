@@ -80,4 +80,5 @@
 --callcommand refRoot/cpu/setPMA -lo 0x0010000000 -hi 0x0010000007 -attributes " rw-aA- 1--- " # UART0
 --callcommand refRoot/cpu/setPMA -lo 0x0010060000 -hi 0x00100600FF -attributes " rw-aA- --4- " # GPIO
 --callcommand refRoot/cpu/setPMA -lo 0x0010040000 -hi 0x0010040FFF -attributes " rw-aA- --4- " # SPI
+--callcommand refRoot/cpu/setPMA -lo 0x0010020000 -hi 0x00100200FF -attributes " rw-aA- --4- " # PWM
 --callcommand refRoot/cpu/setPMA -lo 0x0080000000 -hi 0x008FFFFFFF -attributes " rwx--- 1248 " # UNCORE_RAM
