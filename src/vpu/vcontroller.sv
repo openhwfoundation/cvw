@@ -34,19 +34,28 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   input  logic        StallD, FlushD,          // Stall, flush Decode stage
   input  logic [31:0] InstrD,                  // Instruction in Decode stage
   input  logic  VectorD,                       // This instruction is a vector
+  // CSR state
+  input  logic [1:0] STATUS_VS,                // vector context status
+  input  logic [P.XLEN-1:0] VTYPE_REGW,        // vtype (vill)
 
   // Decode stage outputs
   output logic [4:0] Vs1FinalD, Vs2FinalD,               // Vector Source 1 and 2
   output logic [4:0] VdFinalD,                      // Vector Destination read (overwrite)
-  output logic VMD,                            // 0 = mask enabled, 1 mask disabled
+  output logic VmD,                            // 0 = mask enabled, 1 mask disabled
   output logic [5:0] Funct6D,
   output logic [2:0] Funct3D,
-  output logic RegWriteD,
+  output logic VWriteIntD,
+  output logic VWriteFPD,
   output logic VRegWriteD,
   output logic [1:0] VALUSrcAD,
   output logic VALUSrcBD,
   output logic VALUResultD,
-  output logic IllegalVectorInstructionD,
+  output logic IllegalVPUInstrD,
+  // vset controls, sent to vconfig
+  output logic        VsetD,                 // vsetvli, vsetivli, or vsetvl
+  output logic        VsetvlD,               // vsetvl: vtype comes from rs2 rather than an immediate
+  output logic        VsetivliD,             // vsetivli: AVL is the uimm5 in the rs1 field
+  output logic [10:0] VTYPEImmD,             // zero-extended vtype immediate for vsetvli / vsetivli
   // hand shaking controls
   output logic [P.VPU_MAX_EU-1:0] ControllerValidD,
   input  logic [P.VPU_MAX_EU-1:0] ExecutionUnitReadyD
@@ -56,18 +65,29 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [4:0]  Vs1D, Vs2D;               // Vector Source 1 and 2
   logic [4:0]  VdD;                      // Vector Destination read (overwrite)
   logic [6:0]  lmulDecodedD;
+
+  logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
+  logic [3:0]  VOpClassD;                 // execution block requirement for the EU
+  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic        VReductionD;               // instr is a reduction op
+  logic [1:0]  VdEEWD, Vs1EEWD, Vs2EEWD;  // effective element width of Vd/Vs1/Vs2
+  logic [2:0]  VLSEEWD;                   // effective element width of load/store
   //logic [2:0]  lmulD;                  // *** should be set by vset* instruction
 
   assign lmulDecodedD = 7'b0001_000; // m1
 
 
   vdecoder #(P) vdecoder(.clk, .reset, .StallD, .FlushD,
-                         .InstrD, .Vs1D, .Vs2D, .VdD, .VMD,
-                         .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD,
-                         .VALUResultD, .VALUSrcAD, .VALUSrcBD, .IllegalVectorInstructionD);
+                         .InstrD, .STATUS_VS, .VTYPE_REGW, .Vs1D, .Vs2D, .VdD, .VmD,
+                         .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
+                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
+                         .VdEEWD, .Vs1EEWD, .Vs2EEWD, .VLSEEWD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultD, .IllegalVPUInstrD,
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .StallD, .FlushD,
-                               .VectorD, .Vs1D, .Vs2D, .VdD, .ControllerValidD, .ExecutionUnitReadyD,
+                               .VectorD, .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .lmulDecodedD);
 
 endmodule

@@ -34,37 +34,49 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input  logic                 StallD, StallE, StallM, StallW,      // stall signals (from HZU)
   input  logic                 FlushD, FlushE, FlushM, FlushW,      // flush signals (from HZU)
   output logic                 VPUFrontEndBusyD,                    // Stall the decode stage (To HZU)
-
-
-  // TODO ***
-  // Add CSRs between priv and VPU
-
   // Decode stage
   input  logic [31:0]          InstrD,                             // instruction (from IFU)
   input  logic VectorD,                                            // This instruction is a vector
   // Execute state
   input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE,     // Integer/FP input for convert, move (from IEU)
+  output logic                 VWriteIntE,                         // writes integer register rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
   output logic [P.VPU_LSU_BLEN-1:0]    VWriteDataM [P.VPU_LSU_EU-1:0],          // Data to be written to memory (to LSU)
   output logic [P.XLEN-1:0]            VEUAdrM     [P.VPU_LSU_EU-1:0],          // Data to be written to memory (to LSU)
   input  logic [P.VPU_LSU_BLEN-1:0]    VReadDataM  [P.VPU_LSU_EU-1:0], // Read data (from LSU)
-  output logic                 IllegalVectorInstructionD,                   // Is the instruction an illegal fpu instruction (to IFU)
+  output logic [P.XLEN-1:0]    VIntResM,                           // Integer result for rd
+  output logic                 IllegalVPUInstrD,                   // Is the instruction an illegal vector instruction (to IFU)
   // Writeback stage
-  output logic [P.XLEN-1:0] VIEUFPResultW                            // Int or FP result for X or F regs.
+  output logic [P.XLEN-1:0] VIEUFPResultW,                           // Int or FP result for X or F regs.
+  // CSR state
+  input  logic [1:0]        STATUS_VS,
+  input  logic [P.XLEN-1:0] VTYPE_REGW,
+  input  logic [P.XLEN-1:0] VL_REGW,
+  // CSR updates
+  output logic              WriteVLVTYPEM,                           // vset writes vl and vtype
+  output logic [P.XLEN-1:0] NewVLM,
+  output logic [7:0]        NewVTYPEM,
+  output logic              NewVILLM,
+  output logic              VRegWriteM,                              // instruction writes a vector register
+  output logic              ClearVSTARTM                             // vector instruction resets vstart
 );
 
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
   logic [4:0] VdFinalD;                      // Vector Destination read (overwrite)
-  logic       VMD;                            // 0 = mask enabled; 1 mask disabled
+  logic       VmD;                            // 0 = mask enabled; 1 mask disabled
   logic [5:0] Funct6D;
   logic [2:0] Funct3D;
-  logic       RegWriteD;
+  logic       VWriteIntD;
+  logic       VWriteFPD;                      // writes to fd  *** wire to the FPU
   logic       VRegWriteD;
   logic [1:0] VALUSrcAD;
   logic       VALUSrcBD;
   logic       VALUResultD;
-  //logic       IllegalVectorInstructionD;
+  logic        VsetD;                       // vsetvli, vsetivli, or vsetvl
+  logic        VsetvlD;                     // vsetvl (vtype from rs2)
+  logic        VsetivliD;                   // vsetivli (AVL from the uimm5)
+  logic [10:0] VTYPEImmD;                   // vtype immediate
 
   logic [P.VPU_MAX_EU-1:0] ControllerValidD;
   logic [P.VPU_MAX_EU-1:0] ExecutionUnitReadyD;
@@ -87,21 +99,46 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   // vector instruction progress under this condiction.
 
 
-  assign VPUFrontEndBusyD = '0; // *** vcontroller needs to drive VPUFrontEndBusyD when all the EUs are busy
-
   vcontroller #(P) vcontroller(.clk, .reset, .StallD, .FlushD,
-                               .InstrD, .VectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                               .VMD, .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultD, .IllegalVectorInstructionD, .ControllerValidD, .ExecutionUnitReadyD);
+                               .InstrD, .VectorD, .STATUS_VS, .VTYPE_REGW, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
+                               .VmD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultD,
+                               .IllegalVPUInstrD,
+                               .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
+                               .ControllerValidD, .ExecutionUnitReadyD);
 
   vdatapath #(P) vdatapath(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-                           .ControllerValidD, .ExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .VMD, .Funct6D, .Funct3D,
-                           .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultD, .IllegalVectorInstructionD,
+                           .ControllerValidD, .ExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .VmD, .Funct6D, .Funct3D,
+                           .VWriteIntD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultD, .IllegalVPUInstrD,
                            .ForwardedSrcAE, .ForwardedSrcBE, .VWriteDataM, .VEUAdrM, .VReadDataM, .VIEUFPResultW);
 
   // **** add EUs here. Remove this code
   assign ExecutionUnitReadyD = '1;
 
+  logic VectorE, VRegWriteE;
+  flopenrc #(2) VectorEReg (clk, reset, FlushE, ~StallE, {VectorD, VRegWriteD}, {VectorE, VRegWriteE});
+  flopenrc #(2) VectorMReg (clk, reset, FlushM, ~StallM, {VectorE, VRegWriteE}, {ClearVSTARTM, VRegWriteM});
 
+  logic              VsetE, VsetvlE, VsetivliE;
+  logic [4:0]        Rs1E, RdE;
+  logic [10:0]       VTYPEImmE;
+
+  flopenrc #(3)  VsetEReg     (clk, reset, FlushE, ~StallE, {VsetD, VsetvlD, VsetivliD},
+                                                            {VsetE, VsetvlE, VsetivliE});
+  flopenrc #(5)  Rs1EReg      (clk, reset, FlushE, ~StallE, InstrD[19:15], Rs1E);
+  flopenrc #(5)  RdEReg       (clk, reset, FlushE, ~StallE, InstrD[11:7],  RdE);
+  flopenrc #(11) VTYPEImmEReg (clk, reset, FlushE, ~StallE, VTYPEImmD,     VTYPEImmE);
+
+  // TODO: vset fusion and forwarding not done yet, vconfig in E/M for initial vset implementation
+  vconfig #(P) vconfig(.clk, .reset, .StallM, .FlushM,
+                       .VsetE, .VsetvlE, .VsetivliE, .Rs1E, .RdE, .VTYPEImmE,
+                       .ForwardedSrcAE, .ForwardedSrcBE, .VL_REGW,
+                       .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM);
+
+  // TODO: vmv.x.s, vcpop.m and vfirst.m also write rd, only enabling rf write for vset instructions for now
+  assign VWriteIntE = VsetE;
+  assign VIntResM   = NewVLM;
+
+  // TODO: vcontroller also needs to drive VPUFrontEndBusyD when all the EUs are busy
+  assign VPUFrontEndBusyD = VectorD & (VsetE | WriteVLVTYPEM);  // stall vset for now
 
 endmodule
