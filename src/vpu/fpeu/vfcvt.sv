@@ -51,24 +51,24 @@ module vfcvt import cvw::*; #(parameter cvw_t P) (
   assign FtoF = ~ToInt & ~OpCtrl[2];
 
   always_comb
-  case ({WideNarrow, Vsew})
-    // non-widening
-    5'b00_b001: begin XinFmt = P.H_FMT; XoutFmt = P.H_FMT; end
-    5'b00_010: begin XinFmt = P.S_FMT; XoutFmt = P.S_FMT; end
-    5'b00_011: begin XinFmt = P.D_FMT; XoutFmt = P.D_FMT; end
+    case ({WideNarrow, Vsew})
+      // non-widening
+      5'b00_001: begin XinFmt = P.H_FMT; XoutFmt = P.H_FMT; end
+      5'b00_010: begin XinFmt = P.S_FMT; XoutFmt = P.S_FMT; end
+      5'b00_011: begin XinFmt = P.D_FMT; XoutFmt = P.D_FMT; end
 
-    // widening
-    5'b01_001: begin XinFmt = P.H_FMT; XoutFmt = P.S_FMT; end
-    5'b01_010: begin XinFmt = P.S_FMT; XoutFmt = P.D_FMT; end
-    5'b01_011: begin XinFmt = P.D_FMT; XoutFmt = P.Q_FMT; end
+      // widening
+      5'b01_001: begin XinFmt = P.H_FMT; XoutFmt = P.S_FMT; end
+      5'b01_010: begin XinFmt = P.S_FMT; XoutFmt = P.D_FMT; end
+      5'b01_011: begin XinFmt = P.D_FMT; XoutFmt = P.Q_FMT; end
 
-    // narrowing
-    5'b10_001: begin XinFmt = P.S_FMT; XoutFmt = P.H_FMT; end
-    5'b10_010: begin XinFmt = P.D_FMT; XoutFmt = P.S_FMT; end
-    5'b10_011: begin XinFmt = P.Q_FMT; XoutFmt = P.D_FMT; end
+      // narrowing
+      5'b10_001: begin XinFmt = P.S_FMT; XoutFmt = P.H_FMT; end
+      5'b10_010: begin XinFmt = P.D_FMT; XoutFmt = P.S_FMT; end
+      5'b10_011: begin XinFmt = P.Q_FMT; XoutFmt = P.D_FMT; end
 
-    default: begin XinFmt = 'x; XoutFmt = 'x; end
-  endcase
+      default: begin XinFmt = 'x; XoutFmt = 'x; end
+    endcase
 
   logic [2:0] VfcvtOpCtrl;
 
