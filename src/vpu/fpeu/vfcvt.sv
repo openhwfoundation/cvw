@@ -34,7 +34,7 @@ module vfcvt import cvw::*; #(parameter cvw_t P) (
   input logic FPUActive,
   output logic [P.FLEN-1:0] VfcvtRes,
   output logic [4:0] VfcvtFlg,
-  output logic [P.XLEN-1:0] VfcvtIntRes
+  output logic [P.ELEN-1:0] VfcvtIntRes
 );
 
   // OpCtrl[0]: Signed
@@ -89,12 +89,12 @@ module vfcvt import cvw::*; #(parameter cvw_t P) (
   logic [P.CVTLEN-1:0] CvtLzcIn;
 
   // fpu converter
-  fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(X[P.XLEN-1:0]), .OpCtrl(VfcvtOpCtrl),
+  fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(X[P.ELEN-1:0]), .OpCtrl(VfcvtOpCtrl),
   .ToInt(ToInt), .XZero(XZero), .Fmt(XoutFmt), .Ce(Ce), .ShiftAmt(CvtShiftAmt),
   .ResSubnormUf(CvtResSubnormUf), .Cs(Cs), .IntZero(IntZero), .LzcIn(CvtLzcIn));
 
   // postprocessor
-  postprocess #(P) postproc (
+  postprocess #(P, 1) postproc (
     .Xs(Xs), .Ys(1'b0),
     .Xm(Xm), .Ym({(P.NF+1){1'b0}}), .Zm({(P.NF+1){1'b0}}),
     .Frm(Frm),
