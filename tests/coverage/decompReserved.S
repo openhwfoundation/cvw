@@ -43,4 +43,11 @@ main:
     # It decodes to an illegal instruction; the trap handler advances mepc by 2 and returns.
     .2byte 0x8002
 
+    # c.ldsp x0 : funct3=011, rd=00000, op=10  => 0x6002
+    # c.ldsp is only defined for rd != 0, so this is the RESERVED encoding.  It reaches the
+    # `else if (rds1 != 5'b0)` guard on the RV64 arm of case 5'b10011 in decompress.sv with
+    # rds1 == 0, which nothing else exercises.  It decodes to an illegal instruction, and the
+    # trap handler advances mepc by 2 and returns.
+    .2byte 0x6002
+
     j done

@@ -17,6 +17,16 @@ BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARG
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
 
+# Compiling the generated C++ dominates the build, and Verilator does it serially by default.
+JOBS ?= $(shell nproc)
+
+# Waveform tracing generates a large amount of extra C++, so only build it when a VCD is wanted.
+# wsim sets MAKE_VCD=1 for --vcd and keys the work directory on the parameters, so the traced and
+# untraced builds do not collide.
+ifneq ($(filter MAKE_VCD=1,$(PARAM_ARGS)),)
+    VERILATOR_FLAGS += --trace
+endif
+
 # ------ Paths ------
 VERILATOR_DIR = ${WALLY}/sim/verilator
 INCLUDE_PATH  = "-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
@@ -52,7 +62,7 @@ compile:
 	mkdir -p $(WORKDIR)
 	verilator \
 	--Mdir $(WORKDIR) -o V${TESTBENCH} \
-	--binary --trace \
+	--binary -j $(JOBS) \
 	$(VERILATOR_FLAGS) \
 	--top-module ${TESTBENCH}  --relative-includes \
 	$(INCLUDE_PATH) \

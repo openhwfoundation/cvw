@@ -43,16 +43,15 @@ sim: sim_build_memfile sim_run speed
 
 # launches sim to simulate tests on wally
 sim_run:
-	wsim --sim verilator rv32gc embench --params "BPRED_LOGGER=1\'b1"
+	wsim --sim verilator rv32gc $(embench_dir)/bd_speedopt_speed/src --test embench --params "BPRED_LOGGER=1\'b1"
 
 # builds the objdump based on the compiled c elf files
 objdump:
 	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf" | while read f; do riscv64-unknown-elf-objdump -S -D "$$f" > "$$f.objdump"; done
 
-# build memfiles, objdump.lab and objdump.addr files
+# build memfiles
 sim_build_memfile: objdump
 	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf" | while read f; do elf2hex "$$f" "$$f.memfile"; done
-	find $(embench_dir)/bd_*_speed/ -type f -name "*.elf.objdump" | while read f; do extractFunctionRadix.sh $$f; done
 
 # builds the tests for speed, runs them on spike and then launches python script to present results
 # note that the speed python script benchmark_speed.py can get confused if there's both a .output file created from spike and questa

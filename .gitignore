@@ -23,14 +23,8 @@ __pycache__/
 /**/gmon*
 
 # Tests
-tests/riscof/config32.ini
-tests/riscof/config32e.ini
-tests/riscof/config64.ini
-tests/riscof/riscof_work/
-tests/wally-riscv-arch-test/riscv-test-suite/*/I/*/**
 tests/fp/vectors/*.tv
 tests/fp/vectors/sed*
-tests/fp/combined_IF_vectors/IF_vectors/*.tv
 tests/custom/*/*/
 tests/custom/*/*/*.memfile
 sim/tests/riscvdv
@@ -182,3 +176,4 @@ config/deriv
 sim/slack-notifier/slack-webhook-url.txt
 docs/docker/buildroot-config-src
 docs/docker/testvector-generation
+sim/*/testlists/

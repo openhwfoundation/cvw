@@ -196,11 +196,13 @@ jobs:
             rm -rf $RISCV/buildroot/ || sudo rm -rf $RISCV/buildroot/
             rm -rf $RISCV/logs || sudo rm -rf $RISCV/logs
             df -h
-      # Make riscof and zsbl only as that is the only testsuite used by standard regression
+      # Build only what the smoke test below needs: the self-checking peripheral tests, the ZSBL,
+      # the derivative configurations and the coverage tests.  The riscv-arch-test suite is built by
+      # regression-wally itself and needs the reference-model toolchain, so it is not built here.
       - name: make tests
         run: |
               source setup.sh
-              make riscof zsbl deriv coverage --jobs $(nproc --ignore 1)
+              make periph zsbl deriv coverage --jobs $(nproc --ignore 1)
       # Run standard regression, skipping distros that are known to be broken with Verilator
       # - name: Regression
       #   if: ${{ matrix.regressionFail != true }}
@@ -213,7 +215,7 @@ jobs:
               source setup.sh
               mkdir -p $WALLY/sim/verilator/logs/
               lint-wally
-              wsim rv32i arch32i --sim verilator | tee $WALLY/sim/verilator/logs/rv32i_arch32i.log
+              wsim rv32imc $WALLY/tests/periph/rv32/WALLY-periph-m-01.elf --sim verilator | tee $WALLY/sim/verilator/logs/rv32imc_WALLY-periph-m-01.log
       # Upload regression logs for debugging
       - name: Upload regression logs
         uses: actions/upload-artifact@v7

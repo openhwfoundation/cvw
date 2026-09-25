@@ -7,7 +7,8 @@
 %.memfile: %
 	elf2hex $< $@
 
-%.objdump.addr: %.objdump
+# regenerate when the extraction script changes, since that changes which labels are listed
+%.objdump.addr: %.objdump $(WALLY)/bin/extractFunctionRadix.sh
 	extractFunctionRadix.sh $<
 
 %.objdump: %

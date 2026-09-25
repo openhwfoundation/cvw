@@ -78,13 +78,28 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [(P.XLEN-1):0]     IVAdrF,IVAdrD,IVAdrE,IVAdrM,IVAdrW,DVAdrM,DVAdrW;
   logic [(P.XLEN-1):0]     IPTEF,IPTED,IPTEE,IPTEM,IPTEW,DPTEM,DPTEW;
   logic [(P.PA_BITS-1):0]  IPAF,IPAD,IPAE,IPAM,IPAW,DPAM,DPAW;
-  logic [(P.PPN_BITS-1):0] IPPNF,IPPND,IPPNE,IPPNM,IPPNW,DPPNM,DPPNW;
   logic [1:0]              IPageTypeF, IPageTypeD, IPageTypeE, IPageTypeM, IPageTypeW, DPageTypeM, DPageTypeW;
   logic                    ReadAccessM,WriteAccessM,ReadAccessW,WriteAccessW;
   logic                    ExecuteAccessF,ExecuteAccessD,ExecuteAccessE,ExecuteAccessM,ExecuteAccessW;
   logic [P.XLEN-1:0]       order;
   logic [P.XLEN-1:0]       IPTEHPTWF;
   logic [P.XLEN-1:0]       DPTEHPTWM;
+  logic [1:0]              IPageTypeHPTWF, DPageTypeHPTWM;     // page type of the last walk for each TLB
+  logic                    HPTWWalkDone;                       // last cycle of a walk
+  logic                    DTLBWalk;                           // the walk under way serves the DTLB, else the ITLB
+  logic                    ITLBHitF, DTLBHitM;                 // access hit its TLB while translating
+  logic [P.XLEN-1:0]       ITLBPTEF, DTLBPTEM;                 // page table entry the TLB hit on
+  logic [6:0]              IHitResvF, DHitResvM;               // PTE[60:54] of the entry the TLB hit on (RV64)
+  logic [2:0]              IHitPageTypeF, DHitPageTypeM;       // page type of the entry the TLB hit on
+  logic                    IWalkedF, DWalkedM;                 // this access ran its own page table walk
+  logic [P.XLEN-1:0]       IPTEAccessF, DPTEAccessM;           // page table entry this access used
+  logic [1:0]              IPageTypeAccessF, DPageTypeAccessM; // page type this access used
+  logic                    SpillSaveF, SelSpillF;              // first parcel of a spilled fetch is done / second parcel is being fetched
+  logic                    ISecondParcelF;                     // report the second parcel: it is the one that faulted
+  logic [P.XLEN-1:0]       IVAdrFirstF, IVAdrRptF;             // fetch virtual address: first parcel saved / reported
+  logic [P.PA_BITS-1:0]    IPAFirstF, IPARptF;                 // fetch physical address: first parcel saved / reported
+  logic [P.XLEN-1:0]       IPTEFirstF, IPTERptF;               // fetch page table entry: first parcel saved / reported
+  logic [1:0]              IPageTypeFirstF, IPageTypeRptF;     // fetch page type: first parcel saved / reported
 
   assign clk = testbench.dut.clk;
   //  assign InstrValidF = testbench.dut.core.ieu.InstrValidF;  // not needed yet
@@ -136,21 +151,35 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   if (P.VIRTMEM_SUPPORTED) begin
     assign SelHPTW        = testbench.dut.core.lsu.hptw.hptw.SelHPTW;
     assign HPTWUpdateDA   = testbench.dut.core.lsu.hptw.hptw.HPTWUpdateDA;
+    assign HPTWWalkDone   = testbench.dut.core.lsu.hptw.hptw.WalkDone;
     assign IVAdrF         = testbench.dut.core.ifu.immu.immu.tlb.tlb.VAdr;
-    assign DVAdrM         = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.VAdr;
+    // Take the data access's own address and type from ahead of the walker's multiplexers.  While the
+    // walker owns the LSU (a DTLB walk chains straight into a pending ITLB walk, and the fault the DTLB
+    // walk found traps the access during the ITLB walk), the DMMU sees the walker's reads.  In that
+    // case report the virtual address as the physical one, as a walk that ends in FAULT does.
+    assign DVAdrM         = testbench.dut.core.lsu.IEUAdrExtM[P.XLEN-1:0];
     assign IPAF           = testbench.dut.core.ifu.immu.immu.PhysicalAddress;
-    assign DPAM           = testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
-    assign ReadAccessM    = testbench.dut.core.lsu.dmmu.dmmu.ReadAccessM;
-    assign WriteAccessM   = testbench.dut.core.lsu.dmmu.dmmu.WriteAccessM;
+    assign DPAM           = SelHPTW ? testbench.dut.core.lsu.IEUAdrExtM[P.PA_BITS-1:0] : testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
+    assign ReadAccessM    = testbench.dut.core.lsu.MemRWM[1];
+    assign WriteAccessM   = testbench.dut.core.lsu.MemRWM[0];
     assign ExecuteAccessF = testbench.dut.core.ifu.immu.immu.ExecuteAccessF;
     assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
     assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
-    assign IPPNF          = testbench.dut.core.ifu.immu.immu.tlb.tlb.PPN;
-    assign DPPNM          = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.PPN;
     assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal;
     assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal;
+    assign DTLBWalk       = testbench.dut.core.lsu.hptw.hptw.DTLBWalk;
+    // The entry each TLB hit on, for an access that did not have to walk.  TLBHit alone is not
+    // qualified by translation being on, so pair it with Translate the way tlbcontrol does.
+    assign ITLBHitF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.TLBHit & testbench.dut.core.ifu.immu.immu.tlb.tlb.Translate;
+    assign DTLBHitM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.TLBHit & testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.Translate;
+    assign ITLBPTEF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.tlbram.PageTableEntry;
+    assign DTLBPTEM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.tlbram.PageTableEntry;
+    assign IHitPageTypeF  = testbench.dut.core.ifu.immu.immu.tlb.tlb.HitPageType;
+    assign DHitPageTypeM  = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.HitPageType;
   end else begin
     assign SelHPTW        = 1'b0;
+    assign HPTWUpdateDA   = 1'b0;
+    assign HPTWWalkDone   = 1'b0;
     assign IVAdrF         = 0;
     assign DVAdrM         = 0;
     assign IPAF           = 0;
@@ -160,10 +189,15 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign ExecuteAccessF = 0;
     assign IPTEF          = 0;
     assign DPTEM          = 0;
-    assign IPPNF          = 0;
-    assign DPPNM          = 0;
     assign IPageTypeF     = 0;
     assign DPageTypeM     = 0;
+    assign DTLBWalk       = 1'b0;
+    assign ITLBHitF       = 1'b0;
+    assign DTLBHitM       = 1'b0;
+    assign ITLBPTEF       = 0;
+    assign DTLBPTEM       = 0;
+    assign IHitPageTypeF  = 0;
+    assign DHitPageTypeM  = 0;
   end
 
 
@@ -339,42 +373,115 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   flopenrc #(1)     CSRWriteWReg (clk, reset, FlushW, ~StallW, CSRWriteM, CSRWriteW);
 
   // For VM Verification
-  flopenr #(P.XLEN)     IVAdrDReg (clk, reset, ~StallD, IVAdrF, IVAdrD); //Virtual Address for IMMU
+  // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts, so a walk reports the PTE as it
+  // was read rather than with the A and D bits the walker then sets.  It clears at the end of each walk,
+  // because a DTLB walk can chain straight into a pending ITLB walk without the walker going idle.
+  flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW | HPTWWalkDone, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
+  // Capture the PTE and page type the walker reaches, separately for each TLB, since one DTLB walk
+  // can be followed by an ITLB walk before the access it served leaves the Memory stage.
+  assign capture_PTE = SelHPTW & ~DA_updated;
+  flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE & ~DTLBWalk, IPTEF, IPTEHPTWF);           //PTE for IMMU
+  flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE & DTLBWalk, DPTEM, DPTEHPTWM);            //PTE for DMMU
+  flopenr #(2)          IPageTypeFReg (clk, reset, capture_PTE & ~DTLBWalk, IPageTypeF, IPageTypeHPTWF); //PageType for IMMU
+  flopenr #(2)          DPageTypeMReg (clk, reset, capture_PTE & DTLBWalk, DPageTypeM, DPageTypeHPTWM);  //PageType for DMMU
+
+  // A walk serves the access that missed its TLB, and the walker's port carries that PTE only
+  // while the walk runs.  Remember which stage each walk served, so that access keeps reporting
+  // the PTE the walker fetched: with Svadu the walker sets the A and D bits on the way, and the
+  // entry it then writes to the TLB no longer matches what the test put in the page table.  The
+  // stage holds until the access leaves it, which is the same edge the registers below sample on.
+  // The second parcel of a spilled fetch translates on its own, so it starts afresh.
+  always @(posedge clk)
+    if (reset)                     DWalkedM <= 1'b0;
+    else if (SelHPTW & DTLBWalk)   DWalkedM <= 1'b1;
+    else if (~StallW)              DWalkedM <= 1'b0;
+  always @(posedge clk)
+    if (reset)                     IWalkedF <= 1'b0;
+    else if (SelHPTW & ~DTLBWalk)  IWalkedF <= 1'b1;
+    else if (~StallD | SpillSaveF) IWalkedF <= 1'b0;
+
+  // An RV64 TLB entry keeps only the OR of PTE[60:54] (see tlbramline).  Shadow the field for each
+  // entry so an access that hits the TLB reports the reserved bits of the PTE that filled the entry.
+  if (P.XLEN == 64 & P.VIRTMEM_SUPPORTED) begin : resvshadow
+    logic [6:0] IResv [P.ITLB_ENTRIES-1:0];
+    logic [6:0] DResv [P.DTLB_ENTRIES-1:0];
+    always_ff @(posedge clk) begin
+      for (int k = 0; k < P.ITLB_ENTRIES; k++)
+        if (testbench.dut.core.ifu.immu.immu.tlb.tlb.WriteEnables[k]) IResv[k] <= testbench.dut.core.ifu.immu.immu.tlb.tlb.PTE[60:54];
+      for (int k = 0; k < P.DTLB_ENTRIES; k++)
+        if (testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.WriteEnables[k]) DResv[k] <= testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.PTE[60:54];
+    end
+    always_comb begin
+      IHitResvF = '0;
+      DHitResvM = '0;
+      for (int k = 0; k < P.ITLB_ENTRIES; k++)
+        if (testbench.dut.core.ifu.immu.immu.tlb.tlb.Matches[k]) IHitResvF |= IResv[k];
+      for (int k = 0; k < P.DTLB_ENTRIES; k++)
+        if (testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.Matches[k]) DHitResvM |= DResv[k];
+    end
+  end else begin : noresvshadow
+    assign IHitResvF = '0;
+    assign DHitResvM = '0;
+  end
+
+  // Report the page table entry and page type the access actually used: those of its own walk, else
+  // those of the TLB entry it hit.  An access that hits the TLB never touches the walker, so it must
+  // not carry whatever page was walked last.  An access that used no translation (translation off, a
+  // prefetch hint that does not look up the TLB, or a trap raised before translation, such as a
+  // misaligned access when misaligned faults take priority) reports zero: no PTE was read.
+  if (P.XLEN == 64) begin
+    assign IPTEAccessF = IWalkedF ? IPTEHPTWF : ITLBHitF ? {ITLBPTEF[63:61], IHitResvF, ITLBPTEF[53:0]} : '0;
+    assign DPTEAccessM = DWalkedM ? DPTEHPTWM : DTLBHitM ? {DTLBPTEM[63:61], DHitResvM, DTLBPTEM[53:0]} : '0;
+  end else begin
+    assign IPTEAccessF = IWalkedF ? IPTEHPTWF : ITLBHitF ? ITLBPTEF : '0;
+    assign DPTEAccessM = DWalkedM ? DPTEHPTWM : DTLBHitM ? DTLBPTEM : '0;
+  end
+  // A walk that faults traps the data access in the walk's last cycle, before the register above has
+  // captured that cycle's page type, so pass it through: it is the level whose PTE the walk was reading.
+  assign IPageTypeAccessF = IWalkedF ? IPageTypeHPTWF : ITLBHitF ? IHitPageTypeF[1:0] : '0;
+  assign DPageTypeAccessM = DWalkedM ? ((SelHPTW & DTLBWalk) ? DPageTypeM : DPageTypeHPTWM) : DTLBHitM ? DHitPageTypeM[1:0] : '0;
+
+  // A 32-bit instruction that crosses a fetch boundary is fetched and translated as two parcels, and
+  // the second parcel's fetch is the one in flight when the instruction leaves Fetch.  Report the
+  // instruction's own address, PC, with its translation, unless the second parcel faulted and the
+  // first did not; then report the second parcel, as xtval does.
+  if (P.ZCA_SUPPORTED) begin : spillparcel
+    assign SpillSaveF     = testbench.dut.core.ifu.Spill.spill.SpillSaveF;
+    assign SelSpillF      = testbench.dut.core.ifu.Spill.SelSpillF;
+    assign ISecondParcelF = testbench.dut.core.ifu.Spill.FirstHalfFaultF ? 1'b0 : testbench.dut.core.ifu.IFUFaultF;
+  end else begin : nospillparcel
+    assign {SpillSaveF, SelSpillF, ISecondParcelF} = '0;
+  end
+  flopenr #(P.XLEN)     IVAdrFirstReg (clk, reset, SpillSaveF, IVAdrF, IVAdrFirstF);
+  flopenr #(P.PA_BITS)  IPAFirstReg (clk, reset, SpillSaveF, IPAF, IPAFirstF);
+  flopenr #(P.XLEN)     IPTEFirstReg (clk, reset, SpillSaveF, IPTEAccessF, IPTEFirstF);
+  flopenr #(2)          IPageTypeFirstReg (clk, reset, SpillSaveF, IPageTypeAccessF, IPageTypeFirstF);
+  assign {IVAdrRptF, IPARptF, IPTERptF, IPageTypeRptF} = (SelSpillF & ~ISecondParcelF) ?
+         {IVAdrFirstF, IPAFirstF, IPTEFirstF, IPageTypeFirstF} : {IVAdrF, IPAF, IPTEAccessF, IPageTypeAccessF};
+
+  flopenr #(P.XLEN)     IVAdrDReg (clk, reset, ~StallD, IVAdrRptF, IVAdrD); //Virtual Address for IMMU
   flopenr #(P.XLEN)     IVAdrEReg (clk, reset, ~StallE, IVAdrD, IVAdrE); //Virtual Address for IMMU
   flopenr #(P.XLEN)     IVAdrMReg (clk, reset, ~StallM, IVAdrE, IVAdrM); //Virtual Address for IMMU
   flopenr #(P.XLEN)     IVAdrWReg (clk, reset, ~StallW, IVAdrM, IVAdrW); //Virtual Address for IMMU
   flopenr #(P.XLEN)     DVAdrWReg (clk, reset, ~StallW, DVAdrM, DVAdrW); //Virtual Address for DMMU
 
-  flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPAF, IPAD); //Physical Address for IMMU
+  flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPARptF, IPAD); //Physical Address for IMMU
   flopenr #(P.PA_BITS)  IPAEReg (clk, reset, ~StallE, IPAD, IPAE); //Physical Address for IMMU
   flopenr #(P.PA_BITS)  IPAMReg (clk, reset, ~StallM, IPAE, IPAM); //Physical Address for IMMU
   flopenr #(P.PA_BITS)  IPAWReg (clk, reset, ~StallW, IPAM, IPAW); //Physical Address for IMMU
   flopenr #(P.PA_BITS)  DPAWReg (clk, reset, ~StallW, DPAM, DPAW); //Physical Address for DMMU
 
-  // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts. Cleared as the walk finishes.
-  flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
-  // Capture valid PTE during page table walk; no value when SelHPTW is low
-  // Don't capture if hardware has update DA bits of PTE
-  assign capture_PTE = SelHPTW & ~DA_updated;
-  flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE, IPTEF, IPTEHPTWF); //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTEHPTWF, IPTED);     //PTE for IMMU
+  flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTERptF, IPTED);      //PTE for IMMU
   flopenr #(P.XLEN)     IPTEEReg (clk, reset, ~StallE, IPTED, IPTEE);         //PTE for IMMU
   flopenr #(P.XLEN)     IPTEMReg (clk, reset, ~StallM, IPTEE, IPTEM);         //PTE for IMMU
   flopenr #(P.XLEN)     IPTEWReg (clk, reset, ~StallW, IPTEM, IPTEW);         //PTE for IMMU
-  flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE, DPTEM, DPTEHPTWM); //PTE for DMMU
-  flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEHPTWM, DPTEW);     //PTE for DMMU
+  flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEAccessM, DPTEW);   //PTE for DMMU
 
-  flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
+  flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeRptF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
   flopenr #(2)     IPageTypeEReg (clk, reset, ~StallE, IPageTypeD, IPageTypeE); //PageType (kilo, mega, giga, tera) from IMMU
   flopenr #(2)     IPageTypeMReg (clk, reset, ~StallM, IPageTypeE, IPageTypeM); //PageType (kilo, mega, giga, tera) from IMMU
   flopenr #(2)     IPageTypeWReg (clk, reset, ~StallW, IPageTypeM, IPageTypeW); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
-
-  flopenr #(P.PPN_BITS) IPPNDReg (clk, reset, ~StallD, IPPNF, IPPND); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNEReg (clk, reset, ~StallE, IPPND, IPPNE); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNMReg (clk, reset, ~StallM, IPPNE, IPPNM); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNWReg (clk, reset, ~StallW, IPPNM, IPPNW); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) DPPNWReg (clk, reset, ~StallW, DPPNM, DPPNW); //Physical Page Number for DMMU
+  flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeAccessM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
 
   flopenr #(1)  ReadAccessWReg    (clk, reset, ~StallW, ReadAccessM, ReadAccessW);   //LoadAccess
   flopenr #(1)  WriteAccessWReg   (clk, reset, ~StallW, WriteAccessM, WriteAccessW); //StoreAccess
@@ -419,14 +526,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign rvvi.f_wb[0][0][index]    = frf_wb[index];
   end
 
-`ifdef FCOV
-  // Interrupts
-  assign rvvi.m_ext_intr[0][0]   = MExtInt;
-  assign rvvi.s_ext_intr[0][0]   = SExtInt;
-  assign rvvi.m_timer_intr[0][0] = MTimerInt;
-  assign rvvi.m_soft_intr[0][0]  = MSwInt;
-`endif
-
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
 
@@ -441,8 +540,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rvvi.execute_access[0][0] = ExecuteAccessW;
   assign rvvi.pte_i[0][0]          = IPTEW;
   assign rvvi.pte_d[0][0]          = DPTEW;
-  assign rvvi.ppn_i[0][0]          = IPPNW;
-  assign rvvi.ppn_d[0][0]          = DPPNW;
+  assign rvvi.ppn_i[0][0]          = IPTEW[P.PPN_BITS+9:10]; // the PPN field of the PTE reported
+  assign rvvi.ppn_d[0][0]          = DPTEW[P.PPN_BITS+9:10];
   assign rvvi.page_type_i[0][0]    = IPageTypeW;
   assign rvvi.page_type_d[0][0]    = DPageTypeW;
 `endif

@@ -19,10 +19,9 @@ CFLAGS    := -static -mcmodel=medany -nostdlib -nostartfiles -g -T link.ld -Wl,-
 
 all: $(ELFS) $(OBJDUMPS) $(MEMFILES)
 
-# Create disassembly and the .addr/.lab files used by the testbench
+# Create disassembly
 %.elf.objdump: %.elf
 	riscv64-unknown-elf-objdump -S -D $< > $@
-	extractFunctionRadix.sh $@
 
 # Create memfile
 %.elf.memfile: %.elf
