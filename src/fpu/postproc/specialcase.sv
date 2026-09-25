@@ -81,7 +81,7 @@ module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
 
   // does the overflow result output the maximum normalized floating point number
   //                output infinity if the input is infinity
-  assign OfResMax = (~InfIn|(IntToFp&CvtOp))&~DivByZero&((Frm[1:0]==2'b01) | (Frm[1:0]==2'b10&~Rs) | (Frm[1:0]==2'b11&Rs) | (P.V_SUPPORTED & Frm[2:0]==3'b110));
+  assign OfResMax = (~InfIn|(IntToFp&CvtOp))&~DivByZero&((Frm[1:0]==2'b01) | (Frm[1:0]==2'b10&~Rs) | (Frm[1:0]==2'b11&Rs) | (V & Frm[2:0]==3'b110));
 
   // select correct outputs for special cases
   if (P.FPSIZES == 1) begin
