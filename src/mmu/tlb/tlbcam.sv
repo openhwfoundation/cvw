@@ -33,20 +33,21 @@
 module tlbcam  import cvw::*;  #(parameter cvw_t P,
                                  parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
   input  logic                    clk, reset,
-  input  logic [P.VPN_BITS-1:0]    VPN,
-  input  logic [1:0]              PageTypeWriteVal,
+  input  logic [P.VPN_BITS-1:0]   VPN,
+  input  logic [2:0]              PageTypeWriteVal,
   input  logic                    SV39Mode,
+  input  logic                    SV48Mode,
   input  logic                    TLBFlush,
   input  logic [TLB_ENTRIES-1:0]  WriteEnables,
   input  logic [TLB_ENTRIES-1:0]  PTE_Gs,
   input  logic [TLB_ENTRIES-1:0]  PTE_NAPOTs,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
   input  logic [P.ASID_BITS-1:0]  SATP_ASID,
   output logic [TLB_ENTRIES-1:0]  Matches,
-  output logic [1:0]              HitPageType,
+  output logic [2:0]              HitPageType,
   output logic                    CAMHit
 );
 
-  logic [1:0] PageTypeRead [TLB_ENTRIES-1:0];
+  logic [2:0] PageTypeRead [TLB_ENTRIES-1:0];
 
   // TLB_ENTRIES CAM lines, each of which will independently consider
   // whether the requested virtual address is a match. Each line stores the
@@ -55,8 +56,8 @@ module tlbcam  import cvw::*;  #(parameter cvw_t P,
   // page number segments.
 
   tlbcamline #(P, KEY_BITS, SEGMENT_BITS) camlines[TLB_ENTRIES-1:0](
-    .clk, .reset, .VPN, .SATP_ASID, .SV39Mode, .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs), .PageTypeWriteVal, .TLBFlush,
+    .clk, .reset, .VPN, .SATP_ASID, .SV39Mode, .SV48Mode, .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs), .PageTypeWriteVal, .TLBFlush,
     .WriteEnable(WriteEnables), .PageTypeRead, .Match(Matches));
   assign CAMHit = |Matches & ~TLBFlush;
-  or_rows #(TLB_ENTRIES,2) PageTypeOr(PageTypeRead, HitPageType);
+  or_rows #(TLB_ENTRIES,3) PageTypeOr(PageTypeRead, HitPageType);
 endmodule

@@ -37,9 +37,9 @@ module clmul #(parameter WIDTH=32) (
   integer i,j;
 
   always_comb begin
-    for (i=0;i<WIDTH;i++) begin: outer
+    for (i=0;i<WIDTH;i++) begin : outer
       S[WIDTH*i] = X[0] & Y[i];
-      for (j=1;j<=i;j++) begin: inner
+      for (j=1;j<=i;j++) begin : inner
         S[WIDTH*i+j] = (X[j] & Y[i-j]) ^ S[WIDTH*i+j-1];
       end
       ClmulResult[i] = S[WIDTH*i+j-1];

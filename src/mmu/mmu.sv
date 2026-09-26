@@ -42,7 +42,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
   input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits , 11 = 64 bits
   input  logic [P.XLEN-1:0]    PTE,                // page table entry
-  input  logic [1:0]           PageTypeWriteVal,   // page type
+  input  logic [2:0]           PageTypeWriteVal,   // page type
   input  logic                 TLBWrite,           // write TLB entry
   input  logic                 TLBFlush,           // Invalidate all TLB entries
   output logic [P.PA_BITS-1:0] PhysicalAddress,    // PAdr when no translation, or translated VAdr (TLBPAdr) when there is translation
@@ -83,7 +83,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   assign EffectivePrivilegeModeW = IMMU ? PrivilegeModeW : (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW);
 
   // only instantiate TLB if Virtual Memory is supported
-  if (P.VIRTMEM_SUPPORTED) begin:tlb
+  if (P.VIRTMEM_SUPPORTED) begin : tlb
     logic ReadAccess, WriteAccess;
     assign ReadAccess = ExecuteAccessF | ReadAccessM; // execute also acts as a TLB read.  Execute and Read are never active for the same MMU, so safe to mix pipestages
     assign WriteAccess = WriteAccessM;
@@ -96,7 +96,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .DisableTranslation, .PTE, .PageTypeWriteVal,
           .TLBWrite, .TLBFlush, .TLBPAdr, .TLBMiss,
           .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
-  end else begin:tlb // just pass address through as physical
+  end else begin : tlb // just pass address through as physical
     assign Translate    = 1'b0;
     assign TLBMiss      = 1'b0;
     assign TLBPageFault = 1'b0;

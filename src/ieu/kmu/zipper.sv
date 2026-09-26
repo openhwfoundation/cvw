@@ -34,7 +34,7 @@ module zipper #(parameter WIDTH=64) (
   logic [WIDTH-1:0]       zip, unzip;
   genvar                  i;
 
-  for (i=0; i<WIDTH/2; i+=1) begin: loop
+  for (i=0; i<WIDTH/2; i+=1) begin : loop
     assign zip[2*i]           = A[i];
     assign zip[2*i + 1]       = A[i + WIDTH/2];
     assign unzip[i]           = A[2*i];

@@ -101,6 +101,23 @@ check14:
 
 check15:
     li t0, 0x00001001800F0000   # unimplemented memory with upper all zero, lower mixed
+    la ra, check15a
+    jalr t0
+
+    # The checks above leave three SV39 FEC terms in vm64check uncovered because no
+    # VA exercises these exact upper-bit field patterns.  Add them explicitly:
+check15a:                       # all0_55_47_0: bits[63:56]=0, bits[55:47]!=0 (bit47), bits[46:38]=0
+    li t0, 0x00008000800F0000
+    la ra, check15b
+    jalr t0
+
+check15b:                       # all1_46_38_0: bits[63:47]=all1, bits[46:38]!=all1 (=0)
+    li t0, 0xFFFF8000800F0000
+    la ra, check15c
+    jalr t0
+
+check15c:                       # all1_55_47_0: bits[63:56]=all1, bits[55:47]!=all1 (=0), bits[46:38]=all1
+    li t0, 0xFF007FC0800F0000
     la ra, check16
     jalr t0
 

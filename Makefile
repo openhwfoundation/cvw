@@ -6,9 +6,14 @@ MAKEFLAGS += --output-sync --no-print-directory
 
 SIM = ${WALLY}/sim
 
-.PHONY: all riscof testfloat combined_IF_vectors zsbl coverage sim_bp deriv clean
+.PHONY: all act riscof testfloat combined_IF_vectors zsbl coverage sim_bp deriv clean
 
-all: riscof	testfloat combined_IF_vectors zsbl coverage sim_bp deriv
+all: act riscof	testfloat combined_IF_vectors zsbl coverage sim_bp deriv
+
+# act builds the riscv-arch-test suite using the testgen generator
+ACTDIR = ${WALLY}/addins/riscv-arch-test-cvw
+act:
+	$(MAKE) -C $(ACTDIR) EXTENSIONS= CONFIG_FILES="$(ACTDIR)/config/cores/cvw/cvw-rv32gc/test_config.yaml $(ACTDIR)/config/cores/cvw/cvw-rv64gc/test_config.yaml"
 
 # riscof builds the riscv-arch-test and wally-riscv-arch-test suites
 riscof:

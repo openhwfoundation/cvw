@@ -19,14 +19,14 @@ extern volatile uint64_t fromhost;
 
 
 void _send_char(char c) {
-/*#error "You must implement the method _send_char to use this file!\n";
-*/
-volatile unsigned char *THR=(unsigned char *)0x10000000;
-volatile unsigned char *LSR=(unsigned char *)0x10000005;
+  /*#error "You must implement the method _send_char to use this file!\n";
+  */
+  volatile unsigned char *THR=(unsigned char *)0x10000000;
+  volatile unsigned char *LSR=(unsigned char *)0x10000005;
 
-while(!(*LSR&0b100000));
-*THR=c;
-while(!(*LSR&0b100000));
+  while(!(*LSR&0b100000));
+  *THR=c;
+  while(!(*LSR&0b100000));
 }
 
 int sendstring(const char *p){

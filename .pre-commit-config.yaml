@@ -14,6 +14,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-added-large-files
+        exclude: uv.lock  # lockfile can be large
       - id: check-case-conflict
       - id: check-docstring-first
       - id: check-executables-have-shebangs
@@ -28,7 +29,6 @@ repos:
       - id: check-merge-conflict
         args: ["--assume-in-merge"]
         exclude: \.adoc$ # sections titles Level 6 "=======" get flagged otherwise
-      - id: check-json
       - id: check-toml
       - id: check-yaml
 

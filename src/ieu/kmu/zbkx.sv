@@ -38,11 +38,11 @@ module zbkx #(parameter WIDTH=32) (
   int                       i;
 
   always_comb begin
-    for(i=0; i<WIDTH; i=i+4) begin: xperm4calc
+    for(i=0; i<WIDTH; i=i+4) begin : xperm4calc
       xperm4lookup = A >> {B[i+:4], 2'b0};
       xperm4[i+:4] = xperm4lookup[3:0];
     end
-    for(i=0; i<WIDTH; i=i+8) begin: xperm8calc
+    for(i=0; i<WIDTH; i=i+8) begin : xperm8calc
       xperm8lookup = A >> {B[i+:8], 3'b0};
       xperm8[i+:8] = xperm8lookup[7:0];
     end

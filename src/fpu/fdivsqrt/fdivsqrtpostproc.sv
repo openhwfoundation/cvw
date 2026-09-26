@@ -60,7 +60,7 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
   // check for early termination on an exact result.
   aplusbeq0 #(P.DIVb+4) wspluswceq0(WS, WC, weq0E);
 
-  if (P.RADIX == 2) begin: R2EarlyTerm
+  if (P.RADIX == 2) begin : R2EarlyTerm
     logic [P.DIVb+3:0] FZeroE, FZeroSqrtE, FZeroDivE;
     logic [P.DIVb+2:0] FirstK;
     logic wfeq0E;
@@ -97,7 +97,7 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
   mux2 #(P.DIVb+1)    ummux(PreUmM, (PreUmM << 1), SqrtM, UmM);
 
   // Integer quotient or remainder correction, normalization, and special cases
-  if (P.IDIV_ON_FPU) begin:intpostproc // Int supported
+  if (P.IDIV_ON_FPU) begin : intpostproc // Int supported
     logic [P.INTDIVb+3:0] UnsignedQuotM, NormRemM, NormRemDM, NormQuotM;
     logic signed [P.INTDIVb+3:0] PreResultM, PreResultShiftedM, PreIntResultM;
     logic [P.INTDIVb+3:0] DTrunc, SumTrunc;

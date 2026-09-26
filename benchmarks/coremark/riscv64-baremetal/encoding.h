@@ -195,6 +195,15 @@
   asm volatile ("csrr %0, " #reg : "=r"(__tmp)); \
   __tmp; })
 
+#define read_csr64(reg) ({ \
+  unsigned long __hi, __lo, __tmp; \
+  do { \
+    asm volatile ("csrr %0, " #reg "h" : "=r"(__hi)); \
+    asm volatile ("csrr %0, " #reg : "=r"(__lo)); \
+    asm volatile ("csrr %0, " #reg "h" : "=r"(__tmp)); \
+  } while (__hi != __tmp); \
+  ((unsigned long long)__hi << 32) | __lo; })
+
 #define write_csr(reg, val) ({ \
   asm volatile ("csrw " #reg ", %0" :: "rK"(val)); })
 

@@ -1,0 +1,130 @@
+#!/usr/bin/env -S uv run --script
+###########################################
+## elf2hex - Convert ELF files to memfiles for Verilog simulation
+##
+## Written: Jordan Carlin, jcarlin@hmc.edu
+## Created: April 7 2026
+##
+## Purpose: Replaces the SiFive elf2hex utility with a simple script
+##          built on riscv64-unknown-elf-objcopy.
+##          Produces output compatible with Verilog $readmemh().
+##
+## A component of the CORE-V-WALLY configurable RISC-V project.
+## https://github.com/openhwgroup/cvw
+##
+## Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+##
+## SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+##
+## Licensed under the Solderpad Hardware License v 2.1 (the "License"); you may not use this file
+## except in compliance with the License, or, at your option, the Apache License version 2.0. You
+## may obtain a copy of the License at
+##
+## https://solderpad.org/licenses/SHL-2.1/
+##
+## Unless required by applicable law or agreed to in writing, any work distributed under the
+## License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+## either express or implied. See the License for the specific language governing permissions
+## and limitations under the License.
+################################################################################################
+
+import subprocess
+import sys
+import tempfile
+from itertools import zip_longest
+from pathlib import Path
+from shutil import which
+
+OBJCOPY_CANDIDATES = [
+    "riscv64-unknown-elf-objcopy",
+    "llvm-objcopy",
+]
+
+READELF_CANDIDATES = [
+    "riscv64-unknown-elf-readelf",
+    "llvm-readelf",
+]
+
+
+def find_tool(candidates):
+    """Return the first available tool from candidates, or None."""
+    for tool in candidates:
+        if which(tool):
+            return tool
+    return None
+
+
+def detect_bit_width(elf_path, readelf):
+    """Detect 32 or 64 bit width from the ELF header."""
+    result = subprocess.run(
+        [readelf, "-h", elf_path],
+        capture_output=True, text=True, check=True
+    )
+    for line in result.stdout.splitlines():
+        if "Class:" in line:
+            if "ELF32" in line:
+                return 32
+            if "ELF64" in line:
+                return 64
+    print(f"Error: cannot determine bit width from ELF header of '{elf_path}'", file=sys.stderr)
+    sys.exit(1)
+
+
+def elf_to_bin(elf_path, bin_path, objcopy):
+    """Convert ELF to raw binary using objcopy."""
+    subprocess.run(
+        [objcopy, elf_path, "-O", "binary", bin_path],
+        check=True
+    )
+
+
+def bin_to_memfile(bin_path, output_path, byte_width):
+    """Convert raw binary to hex memfile for Verilog $readmemh().
+
+    Reads byte_width bytes at a time, reverses byte order (little-endian
+    to big-endian for Verilog), and writes one hex line per word. Partial
+    final words are zero-padded.
+    """
+    with open(bin_path, "rb") as f:
+        data = f.read()
+    args = [iter(data)] * byte_width
+    with open(output_path, "w") as out:
+        for row in zip_longest(*args, fillvalue=0):
+            out.write("".join(f"{b:02x}" for b in reversed(row)) + "\n")
+
+
+def main():
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <input.elf> <output.memfile>", file=sys.stderr)
+        print("  Converts a RISC-V ELF to a hex memfile for Verilog $readmemh().", file=sys.stderr)
+        print("  Bit width (32 or 64) is auto-detected from the ELF header.", file=sys.stderr)
+        sys.exit(1)
+
+    elf_path = sys.argv[1]
+    output_path = sys.argv[2]
+
+    if not Path(elf_path).is_file():
+        print(f"Error: input file '{elf_path}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    objcopy = find_tool(OBJCOPY_CANDIDATES)
+    if not objcopy:
+        print(f"Error: no objcopy found in $PATH (tried: {', '.join(OBJCOPY_CANDIDATES)})", file=sys.stderr)
+        sys.exit(1)
+
+    readelf = find_tool(READELF_CANDIDATES)
+    if not readelf:
+        print(f"Error: no readelf found in $PATH (tried: {', '.join(READELF_CANDIDATES)})", file=sys.stderr)
+        sys.exit(1)
+
+    bit_width = detect_bit_width(elf_path, readelf)
+    byte_width = bit_width // 8
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bin_path = str(Path(tmpdir) / "output.bin")
+        elf_to_bin(elf_path, bin_path, objcopy)
+        bin_to_memfile(bin_path, output_path, byte_width)
+
+
+if __name__ == "__main__":
+    main()

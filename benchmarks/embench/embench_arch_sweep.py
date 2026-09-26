@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # embench_arch_sweep.py
 # David_Harris@hmc.edu 16 November 2023
 # james.stine@okstate.edu 14 November 2025

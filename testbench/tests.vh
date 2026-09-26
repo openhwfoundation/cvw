@@ -31,6 +31,10 @@
 `define CUSTOM "4"
 `define COVERAGE "5"
 `define BUILDROOT "6"
+`define DEBUGELFS "7"
+`define DEBUGTV "8"
+`define DEBUG32ELFS "9"
+`define DEBUG32TV "10"
 
 string tvpaths[] = '{
   "../../tests/riscof/work/riscv-arch-test/",
@@ -38,7 +42,12 @@ string tvpaths[] = '{
   "../../benchmarks/coremark/work/",
   "../../addins/embench-iot/",
   "../../tests/custom/work/",
-  "../../tests/coverage/"
+  "../../tests/coverage/",
+  "",
+  "../../tests/debug/build/",
+  "../../tests/debug/build/testvectors/",
+  "../../tests/debug/build32/",
+  "../../tests/debug/build32/testvectors/"
 };
 
 string coverage64gc[] = '{
@@ -55,6 +64,9 @@ string coverage64gc[] = '{
   "tlbNAPOT",
   "tlbASID",
   "tlbGLB",
+  "tlbGLBASID",
+  "tlbGLBHIT",
+  "tlbASIDMISS",
   "tlbMP",
   "tlbGP",
   "tlbTP",
@@ -73,7 +85,12 @@ string coverage64gc[] = '{
   "pmppriority",
   "pmpcbo",
   "pmpadrdecs",
-  "btbthrash"
+  "btbthrash",
+  "fpuReservedRM",
+  "decompReserved",
+  "pmpTOR7",
+  "cacheInval",
+  "wfitimeout"
 };
 
 string buildroot[] = '{
@@ -377,7 +394,7 @@ string arch64vm_sv39[] = '{
   "rv64i_m/vm_sv39/src/vm_mprv_U_set_sum_set_S_mode.S",
   "rv64i_m/vm_sv39/src/vm_mprv_U_set_sum_unset_S_mode.S",
   "rv64i_m/vm_sv39/src/vm_mprv_bare_mode.S",
-  //"rv64i_m/vm_sv39/src/vm_mstatus_sbe_set_S_mode.S",
+  //"rv64i_m/vm_sv39/src/vm_mstatus_sbe_set_S_mode.S",   // uncomment these lines when Sail supports Supervisor Big Endian
   //"rv64i_m/vm_sv39/src/vm_mstatus_sbe_set_sum_set_S_mode.S",
   "rv64i_m/vm_sv39/src/vm_mstatus_tvm_test.S",
   "rv64i_m/vm_sv39/src/vm_mxr_S_mode.S",
@@ -389,7 +406,7 @@ string arch64vm_sv39[] = '{
   "rv64i_m/vm_sv39/src/vm_reserved_rsw_pte_U_mode.S",
   "rv64i_m/vm_sv39/src/vm_reserved_rwx_pte_S_mode.S",
   "rv64i_m/vm_sv39/src/vm_reserved_rwx_pte_U_mode.S",
-  //"rv64i_m/vm_sv39/src/vm_reserved_svnapot_S_mode.S",  // Run this if SVNAPOT_SUPPORTED == 0
+  //"rv64i_m/vm_sv39/src/vm_reserved_svnapot_S_mode.S",  // run this if SVNAPOT_SUPPORTED == 0
   "rv64i_m/vm_sv39/src/vm_reserved_svpbmt_S_mode.S",
   "rv64i_m/vm_sv39/src/vm_satp_access_tests.S",
   "rv64i_m/vm_sv39/src/vm_spage_access_U_mode.S",
@@ -421,7 +438,7 @@ string arch64vm_sv48[] = '{
   "rv64i_m/vm_sv48/src/sv48_mprv_U_set_sum_set_S_mode.S",
   "rv64i_m/vm_sv48/src/sv48_mprv_U_set_sum_unset_S_mode.S",
   "rv64i_m/vm_sv48/src/sv48_mprv_bare_mode.S",
-  //"rv64i_m/vm_sv48/src/sv48_mstatus_sbe_set_S_mode.S",
+  //"rv64i_m/vm_sv48/src/sv48_mstatus_sbe_set_S_mode.S",   //Uncomment these lines when Sail supports Supervisor Big Endian
   //"rv64i_m/vm_sv48/src/sv48_mstatus_sbe_set_sum_set_S_mode.S",
   "rv64i_m/vm_sv48/src/sv48_mstatus_tvm_test.S",
   "rv64i_m/vm_sv48/src/sv48_mxr_S_mode.S",
@@ -433,7 +450,7 @@ string arch64vm_sv48[] = '{
   "rv64i_m/vm_sv48/src/sv48_reserved_rsw_pte_U_mode.S",
   "rv64i_m/vm_sv48/src/sv48_reserved_rwx_pte_S_mode.S",
   "rv64i_m/vm_sv48/src/sv48_reserved_rwx_pte_U_mode.S",
-  //"rv64i_m/vm_sv48/src/sv48_reserved_svnapot_S_mode.S",  // Run this if SVNAPOT_SUPPORTED == 0
+  // "rv64i_m/vm_sv48/src/sv48_reserved_svnapot_S_mode.S", // run this if SVNAPOT_SUPPORTED == 0
   "rv64i_m/vm_sv48/src/sv48_reserved_svpbmt_S_mode.S",
   "rv64i_m/vm_sv48/src/sv48_satp_access_tests.S",
   "rv64i_m/vm_sv48/src/sv48_spage_access_U_mode.S",
@@ -444,6 +461,66 @@ string arch64vm_sv48[] = '{
   "rv64i_m/vm_pmp/src/sv48/sv48_pmp_on_pa_U_mode.S",
   "rv64i_m/vm_pmp/src/sv48/sv48_pmp_on_pte_S_mode.S",
   "rv64i_m/vm_pmp/src/sv48/sv48_pmp_on_pte_U_mode.S"
+};
+
+string arch64vm_sv48_a[] = '{
+  `RISCVARCHTEST,
+  "rv64i_m/vm_sv48/src/sv48_res_global_pte_U_mode.S",
+  "rv64i_m/vm_sv48/src/sv48_pte_reserved_field_S_mode.S"
+};
+
+string arch64vm_sv48_b[] = '{
+  `RISCVARCHTEST,
+  "rv64i_m/vm_sv48/src/sv48_pte_reserved_field_S_mode.S",
+  "rv64i_m/vm_sv48/src/sv48_res_global_pte_U_mode.S"
+};
+
+string arch64vm_sv39_isolate[] = '{
+  `RISCVARCHTEST,
+  "rv64i_m/vm_sv39/src/vm_VA_all_zeros_S_mode.S"
+};
+
+string arch64vm_sv48_mxr_isolate[] = '{
+  `RISCVARCHTEST,
+  "rv64i_m/vm_sv48/src/sv48_mxr_S_mode.S"
+};
+
+string arch64vm_sv57[] = '{
+  `RISCVARCHTEST,
+  //"rv64i_m/vm_sv57/src/sv57_A_and_D_S_mode.S",        // Disable until fixed; Might be due to Issue#1538 ***TODO: Zain
+  //"rv64i_m/vm_sv57/src/sv57_A_and_D_U_mode.S",        // Disable until fixed; Might be due to Issue#1538 ***TODO: Zain
+  "rv64i_m/vm_sv57/src/sv57_VA_all_ones_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_VA_all_zeros_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_canonical_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_canonical_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_global_pte_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_global_pte_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_invalid_pte_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_invalid_pte_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_misaligned_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_misaligned_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mprv_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mprv_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mprv_U_set_sum_set_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mprv_U_set_sum_unset_S_mode.S",
+  //"rv64i_m/vm_sv57/src/sv57_mstatus_sbe_set_S_mode.S",  // uncomment these lines when Sail supports Supervisor Big Endian
+  //"rv64i_m/vm_sv57/src/sv57_mstatus_sbe_set_sum_set_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mxr_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_mxr_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_nleaf_pte_level0_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_nleaf_pte_level0_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_pte_reserved_field_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_reserved_rsw_pte_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_reserved_rsw_pte_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_reserved_rwx_pte_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_reserved_rwx_pte_U_mode.S",
+  //"rv64i_m/vm_sv57/src/sv57_reserved_svnapot_S_mode.S", // run this if SVNAPOT_SUPPORTED == 0
+  "rv64i_m/vm_sv57/src/sv57_reserved_svpbmt_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_satp_access_tests.S",
+  "rv64i_m/vm_sv57/src/sv57_spage_access_U_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_sum_set_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_sum_set_U_bit_unset_S_mode.S",
+  "rv64i_m/vm_sv57/src/sv57_sum_unset_S_mode.S"
 };
 
 string arch64priv[] = '{
@@ -4058,3 +4135,91 @@ string ahb32[] = '{
   `RISCVARCHTEST,
   "rv32i_m/F/src/fadd_b11-01.S"
 };
+
+string wally32debug[] = '{
+  `DEBUG32ELFS,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv"
+};
+
+string wally32debug_jtag[] = '{
+  `DEBUG32TV,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv"
+};
+
+string wally64debug[] = '{
+  `DEBUGELFS,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv",
+  "WALLY-debug-pipeline-state"
+};
+
+string wally64debug_jtag[] = '{
+  `DEBUGTV,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv",
+  "WALLY-debug-pipeline-state"
+};
+
+// string wally64debug[] = '{
+//   `DEBUGELFS,
+//   "WALLY-debug-pipeline-state"
+// };
+
+// string wally64debug_jtag[] = '{
+//   `DEBUGTV,
+//   "WALLY-debug-pipeline-state"
+// };

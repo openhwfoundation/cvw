@@ -39,6 +39,11 @@ help() {
     exit 0;
 }
 
+abort() {
+    echo -e "$NAME $ERRORTEXT $*" >&2
+    exit 1
+}
+
 # Output colors
 GREEN="\e[32m"
 RED="\e[31m"
@@ -113,7 +118,7 @@ if [ ! -d $IMAGES ] ; then
 else
     # If images are not built, exit
     if [ ! -e $FW_JUMP ] || [ ! -e $LINUX_KERNEL ] ; then
-        echo -e '$ERRORTEXT Missing images in buildroot output directory.'
+        echo -e "$ERRORTEXT Missing images in buildroot output directory."
         echo '       Build images before running this script.'
         exit 1
     fi
@@ -146,17 +151,20 @@ echo -e "$NAME Kernel block size:          $KERNEL_SIZE"
 read -p $'\e[1;33mWarning:\e[0m Doing this will replace all data on this card. Continue? y/n: ' -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]] ; then
+    # We need to make sure that the file system partition of the card
+    # is not mounted before re-flashing it.
     DEVBASENAME=$(basename $SDCARD)
     CHECKMOUNT=$(lsblk | grep "$DEVBASENAME"4 | tr -s ' ' | cut -d' ' -f 7)
 
     if [ ! -z $CHECKMOUNT ] ; then
-        sudo umount -v $CHECKMOUNT
+        sudo umount -v $CHECKMOUNT || abort "Could not unmount $CHECKMOUNT. Aborting."
     fi
 
     #Make empty image
     if [ ! -z $WIPECARD ] ; then
         echo -e "$NAME Wiping SD card. This could take a while."
-        sudo dd if=/dev/zero of=$SDCARD bs=64k status=progress && sync
+        sudo dd if=/dev/zero of=$SDCARD bs=64k status=progress || abort "Failed to wipe card"
+        sync
     fi
 
     # GUID Partition Tables (GPT)
@@ -167,40 +175,47 @@ if [[ $REPLY =~ ^[Yy]$ ]] ; then
     # to 1 sector boundaries I think? This would normally be set to 2048
     # apparently.
 
-    sudo sgdisk -z $SDCARD
+    sudo sgdisk -z $SDCARD || abort "Failed to zap partition table."
 
     sleep 1
 
     echo -e "$NAME Creating GUID Partition Table"
     sudo sgdisk -g --clear --set-alignment=1 \
-         --new=1:34:+$DST_SIZE: --change-name=1:'fdt' \
-         --new=2:$FW_JUMP_START:+$FW_JUMP_SIZE --change-name=2:'opensbi' --typecode=1:2E54B353-1271-4842-806F-E436D6AF6985 \
+         --new=1:34:+$DST_SIZE --change-name=1:'fdt' \
+         --new=2:$FW_JUMP_START:+$FW_JUMP_SIZE --change-name=2:'opensbi' --typecode=2:2E54B353-1271-4842-806F-E436D6AF6985 \
          --new=3:$KERNEL_START:+$KERNEL_SIZE --change-name=3:'kernel' \
          --new=4:$FS_START:-0 --change-name=4:'filesystem' \
-         $SDCARD
+         $SDCARD || abort "Failed to create partition table on $SDCARD."
 
+    # Inform OS about the partition table change
     sudo partprobe $SDCARD
-
     sleep 3
 
     echo -e "$NAME Copying binaries into their partitions."
     DD_FLAGS="bs=4k iflag=direct,fullblock oflag=dsync conv=fsync status=progress"
 
     echo -e "$NAME Copying device tree"
-    sudo dd if=$DEVICE_TREE of="$SDCARD""$PART_PREFIX"1 $DD_FLAGS && sync
+    sudo dd if=$DEVICE_TREE of="$SDCARD""$PART_PREFIX"1 $DD_FLAGS && sync || \
+            abort "Failed to write device tree to ${SDCARD}${PART_PREFIX}1"
 
     echo -e "$NAME Copying OpenSBI"
-    sudo dd if=$FW_JUMP of="$SDCARD""$PART_PREFIX"2 $DD_FLAGS && sync
+    sudo dd if=$FW_JUMP of="$SDCARD""$PART_PREFIX"2 $DD_FLAGS && sync || \
+            abort "Failed to write OpenSBI to ${SDCARD}${PART_PREFIX}2"
 
     echo -e "$NAME Copying Kernel"
-    sudo dd if=$LINUX_KERNEL of="$SDCARD""$PART_PREFIX"3 $DD_FLAGS && sync
+    sudo dd if=$LINUX_KERNEL of="$SDCARD""$PART_PREFIX"3 $DD_FLAGS && sync || \
+            abort "Failed to write the Linux Kernel to ${SDCARD}${PART_PREFIX}3"
 
-    sudo mkfs.ext4 -E lazy_itable_init=0,lazy_journal_init=0 "$SDCARD""$PART_PREFIX"4
-    sudo fsck -fv "$SDCARD""$PART_PREFIX"4
+    # Initialize all inodes immediately. This avoids the case where
+    # the Kernel on the FPGA thinks the filesystem is corrupted.
+    sudo mkfs.ext4 -E lazy_itable_init=0,lazy_journal_init=0 "$SDCARD""$PART_PREFIX"4 || \
+        abort "Failed to initialize the filesystem on ${SDCARD}${PART_PREFIX}4."
+
+    # Fix any potential errors in the file system.
+    sudo fsck -fv "$SDCARD""$PART_PREFIX"4 || true
+
     sudo mkdir /mnt/$MNT_DIR
-
     sudo mount -o init_itable=0 -v "$SDCARD""$PART_PREFIX"4 /mnt/$MNT_DIR
-
     sudo umount -v /mnt/$MNT_DIR
 
     sudo rmdir /mnt/$MNT_DIR

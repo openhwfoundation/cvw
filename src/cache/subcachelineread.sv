@@ -46,7 +46,7 @@ module subcachelineread #(parameter LINELEN, WORDLEN,
   else            assign ReadDataLinePad = ReadDataLine;
 
   genvar index;
-  for (index = 0; index < WORDSPERLINE; index++) begin:readdatalinesetsmux
+  for (index = 0; index < WORDSPERLINE; index++) begin : readdatalinesetsmux
     assign ReadDataLineSets[index] = ReadDataLinePad[(index*MUXINTERVAL)+WORDLEN-1 : (index*MUXINTERVAL)];
   end
 

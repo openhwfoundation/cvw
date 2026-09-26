@@ -34,6 +34,7 @@ if [ -z "$FAMILY" ]; then
     WALLY="$(dirname $(dirname "$dir"))"
     export WALLY
     source "${dir}"/../wally-environment-check.sh
+    source "${dir}"/activate-tools.sh
 fi
 
 # Buildroot and Linux testvectors

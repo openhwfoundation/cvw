@@ -69,7 +69,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // Integer Preprocessing
   //////////////////////////////////////////////////////
 
-  if (P.IDIV_ON_FPU) begin:intpreproc // Int Supported
+  if (P.IDIV_ON_FPU) begin : intpreproc // Int Supported
     logic [P.XLEN-1:0] BE, PosA, PosB;
 
     // Extract inputs, signs, zero, depending on W64 mode if applicable
@@ -118,7 +118,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   //  and nE (number of fractional digits)
   //////////////////////////////////////////////////////
 
-  if (P.IDIV_ON_FPU) begin:intrightshift // Int Supported
+  if (P.IDIV_ON_FPU) begin : intrightshift // Int Supported
     logic [P.DIVBLEN-1:0] ZeroDiff,p;
 
     // calculate number of fractional bits p
@@ -213,7 +213,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // Number of FSM cycles (to FSM)
   fdivsqrtcycles #(P) cyclecalc(.Nf, .IntDivE, .IntResultBitsE, .CyclesE);
 
-  if (P.IDIV_ON_FPU) begin:intpipelineregs
+  if (P.IDIV_ON_FPU) begin : intpipelineregs
     logic [P.DIVBLEN-1:0] IntDivNormShiftE, IntRemNormShiftE, IntNormShiftE;
     logic               RemOpE;
 

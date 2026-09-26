@@ -32,7 +32,7 @@ run: $(work_dir)/coremark.bare.riscv.elf.memfile
 
 $(work_dir)/coremark.bare.riscv.elf.memfile: $(work_dir)/coremark.bare.riscv
 	riscv64-unknown-elf-objdump -D $< > $<.elf.objdump
-	riscv64-unknown-elf-elf2hex --bit-width $(XLEN) --input $< --output $@
+	elf2hex $< $@
 	extractFunctionRadix.sh $<.elf.objdump
 
 $(work_dir)/coremark.bare.riscv: $(sources) Makefile

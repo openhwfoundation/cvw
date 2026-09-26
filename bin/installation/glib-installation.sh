@@ -27,6 +27,8 @@
 ## and limitations under the License.
 ################################################################################################
 
+GLIB_VERSION=2.86.3
+
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script
 if [ -z "$FAMILY" ]; then
@@ -37,21 +39,19 @@ if [ -z "$FAMILY" ]; then
 fi
 
 # Newer version of glib required for QEMU.
-# Anything newer than this won't build on red hat 8
+section_header "Installing glib"
 STATUS="glib"
+cd "$RISCV"
 if [ ! -e "$RISCV"/include/glib-2.0 ]; then
-    section_header "Installing glib"
-    pip --require-virtualenv install -U meson # Meson is needed to build glib
+    wget -nv --retry-connrefused $retry_on_host_error --output-document=glib.tar.xz https://download.gnome.org/sources/glib/${GLIB_VERSION%.*}/glib-$GLIB_VERSION.tar.xz
+    tar -xJf glib.tar.xz
+    rm -f glib.tar.xz
+    cd glib-$GLIB_VERSION
+    uvx meson setup _build --prefix="$RISCV"
+    uvx meson compile -C _build -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    uvx meson install -C _build 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     cd "$RISCV"
-    wget -nv --retry-connrefused $retry_on_host_error https://download.gnome.org/sources/glib/2.70/glib-2.70.5.tar.xz
-    tar -xJf glib-2.70.5.tar.xz
-    rm -f glib-2.70.5.tar.xz
-    cd glib-2.70.5
-    meson setup _build --prefix="$RISCV"
-    meson compile -C _build -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
-    meson install -C _build 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
-    cd "$RISCV"
-    rm -rf glib-2.70.5
+    rm -rf glib-$GLIB_VERSION
     echo -e "${SUCCESS_COLOR}glib successfully installed!${ENDC}"
 else
     echo -e "${OK_COLOR}glib already installed.${ENDC}"

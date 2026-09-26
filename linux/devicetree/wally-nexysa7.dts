@@ -1,0 +1,118 @@
+/dts-v1/;
+
+/ {
+  #address-cells = <0x02>;
+  #size-cells = <0x02>;
+  compatible = "wally-virt";
+  model = "wally-virt,qemu";
+
+  chosen {
+    linux,initrd-end = <0x85c43a00>;
+    linux,initrd-start = <0x84200000>;
+    bootargs = "root=/dev/vda ro  console=ttyS0,115200 loglevel=7";
+    stdout-path = "/soc/uart@10000000";
+  };
+
+  memory@80000000 {
+    device_type = "memory";
+    reg = <0x00 0x80000000 0x00 0x8000000>;
+  };
+
+  cpus {
+    #address-cells = <0x01>;
+    #size-cells = <0x00>;
+    clock-frequency = <20000000>;
+    timebase-frequency = <20000000>;
+
+    cpu@0 {
+      phandle = <0x01>;
+      device_type = "cpu";
+      reg = <0x00>;
+      status = "okay";
+      compatible = "riscv";
+      riscv,isa-base = "rv64i";
+      riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "sstc", "svade", "svadu", "svinval", "svnapot", "svpbmt", "zba", "zbb", "zbc", "zbs", "zca", "zcb", "zcd", "zfa", "zfh", "zkn", "zkt", "zicbom", "zicboz", "zicntr", "zicond", "zicsr", "zifencei", "zihpm";
+      riscv,cboz-block-size = <64>;
+      riscv,cbom-block-size = <64>;
+      mmu-type = "riscv,sv48";
+
+      interrupt-controller {
+        #interrupt-cells = <0x01>;
+        interrupt-controller;
+        compatible = "riscv,cpu-intc";
+        phandle = <0x02>;
+      };
+    };
+  };
+
+  soc {
+    #address-cells = <0x02>;
+    #size-cells = <0x02>;
+    compatible = "simple-bus";
+    ranges;
+
+    refclk: refclk {
+      #clock-cells = <0>;
+      compatible = "fixed-clock";
+      clock-frequency = <20000000>;
+      clock-output-names = "xtal";
+    };
+
+    gpio0: gpio@10060000 {
+      compatible = "sifive,gpio0";
+      interrupt-parent = <0x03>;
+      interrupts = <3>;
+      reg = <0x00 0x10060000 0x00 0x1000>;
+      reg-names = "control";
+      gpio-controller;
+      #gpio-cells = <2>;
+      interrupt-controller;
+      #interrupt-cells = <2>;
+    };
+
+    uart@10000000 {
+      interrupts = <0x0a>;
+      interrupt-parent = <0x03>;
+      clock-frequency = <20000000>;
+      reg = <0x00 0x10000000 0x00 0x100>;
+      compatible = "ns16550a";
+    };
+
+    plic@c000000 {
+      phandle = <0x03>;
+      riscv,ndev = <0x35>;
+      reg = <0x00 0xc000000 0x00 0x210000>;
+      interrupts-extended = <0x02 0x0b 0x02 0x09>;
+      interrupt-controller;
+      compatible = "sifive,plic-1.0.0\0riscv,plic0";
+      #interrupt-cells = <0x01>;
+      #address-cells = <0x00>;
+    };
+
+    spi@13000 {
+      compatible = "sifive,spi0";
+      interrupt-parent = <0x03>;
+      interrupts = <0x14>;
+      reg = <0x0 0x13000 0x0 0x1000>;
+      reg-names = "control";
+      clocks = <&refclk>;
+
+      #address-cells = <1>;
+      #size-cells = <0>;
+      mmc@0 {
+        compatible = "mmc-spi-slot";
+        reg = <0>;
+        spi-max-frequency = <1000000>;
+        voltage-ranges = <3300 3300>;
+        disable-wp;
+        // gpios = <&gpio0 6 1>;
+      };
+    };
+
+    clint@2000000 {
+      interrupts-extended = <0x02 0x03 0x02 0x07>;
+      reg = <0x00 0x2000000 0x00 0x10000>;
+      compatible = "sifive,clint0\0riscv,clint0";
+    };
+  };
+};

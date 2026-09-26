@@ -1,0 +1,17 @@
+wally/wallypipelinedcore.sv: logic             PCM
+wally/wallypipelinedcore.sv: logic    TrapM
+wally/wallypipelinedcore.sv: logic                InstrValidM
+wally/wallypipelinedcore.sv: logic                 InstrM
+wally/wallypipelinedcore.sv: logic                 PrivilegeModeW
+lsu/lsu.sv: logic        IEUAdrM
+lsu/lsu.sv: logic       MemRWM
+wally/wallypipelinedcore.sv: logic CommitedM
+wally/wallypipelinedcore.sv: logic CommitedF
+privileged/csr.sv: logic IllegalCSRAccessM
+privileged/trap.sv: logic LoadPageFaultM
+privileged/trap.sv: logic IllegalInstrFaultM
+privileged/csrs.sv: logic SCAUSE_REGW
+privileged/csrs.sv: logic STVAL_REGW
+privileged/csrm.sv: logic MCAUSE_REGW
+debug/debug.sv: logic CSRDebugEnable
+mmu/hptw.sv: logic     SATP_REGW

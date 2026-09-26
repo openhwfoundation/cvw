@@ -62,14 +62,14 @@ module alu import cvw::*; #(parameter cvw_t P) (
   assign {Carry, Sum} = CondShiftA + CondMaskInvB + {{(P.XLEN-1){1'b0}}, SubArith};
 
   // Zicond block conditionally zeros B
-  if (P.ZICOND_SUPPORTED) begin: zicond
+  if (P.ZICOND_SUPPORTED) begin : zicond
     logic  BZero;
 
     assign BZero = (B == 0); // check if rs2 = 0
     // Create a signal that is 0 when czero.* instruction should clear result
     // If B = 0 for czero.eqz or if B != 0 for czero.nez
     always_comb
-     case (CZero)
+      case (CZero)
         2'b01:   ZeroCondMaskInvB = {P.XLEN{~BZero}}; // czero.eqz: kill if B = 0
         2'b10:   ZeroCondMaskInvB = {P.XLEN{BZero}};  // czero.nez: kill if B != 0
         default: ZeroCondMaskInvB = CondMaskInvB;     // otherwise normal behavior

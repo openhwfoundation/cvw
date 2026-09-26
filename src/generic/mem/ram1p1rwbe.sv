@@ -80,7 +80,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=64, WIDTH=44, PRE
     ///////////////////////////////////////////////////////////////////////////////
     // READ first SRAM model
     ///////////////////////////////////////////////////////////////////////////////
-  end else begin: ram
+  end else begin : ram
     bit [WIDTH-1:0] RAM[DEPTH-1:0];
 
     // if (PRELOAD_ENABLED) begin

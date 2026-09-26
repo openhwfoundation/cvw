@@ -94,11 +94,11 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
   genvar i;
   generate
     for(i=0; $unsigned(i)<P.DIVCOPIES; i++) begin : iterations
-      if (P.RADIX == 2) begin: stage
+      if (P.RADIX == 2) begin : stage
         fdivsqrtstage2 #(P) fdivsqrtstage(.D, .DBar, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
           .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));
-      end else begin: stage
+      end else begin : stage
         fdivsqrtstage4 #(P) fdivsqrtstage(.D, .DBar, .D2, .DBar2, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
           .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));

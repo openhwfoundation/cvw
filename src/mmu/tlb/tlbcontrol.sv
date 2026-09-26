@@ -47,6 +47,7 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   output logic                     TLBPageFault,
   output logic                     UpdateDA,
   output logic                     SV39Mode,
+  output logic                     SV48Mode,
   output logic                     Translate,
   output logic                     PTE_N,         // NAPOT page table entry
   output logic [1:0]               PBMemoryType   // PBMT field of PTE during TLB hit, or 00 otherwise
@@ -70,7 +71,7 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   assign TLBAccess = ReadAccess | WriteAccess | (|CMOpM);
 
   // Check that upper bits are legal (all 0s or all 1s)
-  vm64check #(P) vm64check(.SATP_MODE, .VAdr, .SV39Mode, .UpperBitsUnequal);
+  vm64check #(P) vm64check(.SATP_MODE, .VAdr, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
 
   // unswizzle useful PTE bits
   assign PTE_N = PTEAccessBits[11];
@@ -89,13 +90,13 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   assign ReservedRW = PTE_W & ~PTE_R;                                      // page fault on reserved encoding with R=0, W=1 per Privileged Spec 10.3.1
 
   // Check whether the access is allowed, page faulting if not.
-  if (ITLB == 1) begin:itlb // Instruction TLB fault checking
+  if (ITLB == 1) begin : itlb // Instruction TLB fault checking
     // User mode may only execute user mode pages, and supervisor mode may
     // only execute non-user mode pages.
     assign ImproperPrivilege = ((EffectivePrivilegeModeW == P.U_MODE) & ~PTE_U) | ((EffectivePrivilegeModeW == P.S_MODE) & PTE_U);
     assign PreUpdateDA = ~PTE_A;
     assign InvalidAccess = ~PTE_X | ReservedRW;
- end else begin:dtlb // Data TLB fault checking
+ end else begin : dtlb // Data TLB fault checking
     logic InvalidRead, InvalidWrite;
     logic InvalidCBOM, InvalidCBOZ;
 

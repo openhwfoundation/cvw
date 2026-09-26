@@ -30,6 +30,8 @@ if {$board=="ArtyA7"} {
     add_files  {../src/fpgaTopArtyA7.sv}
 } elseif {$board=="genesys2"} {
     add_files  {../src/fpgaTopGenesys2.sv}
+} elseif {$board=="nexysa7"} {
+    add_files  {../src/fpgaTopNexysA7.sv}
 } else {
     add_files  {../src/fpgaTop.sv}
 }
@@ -41,6 +43,9 @@ import_ip IP/clkconverter.srcs/sources_1/ip/clkconverter/clkconverter.xci
 
 if {$board=="ArtyA7" || $board=="genesys2"} {
     import_ip IP/ddr3.srcs/sources_1/ip/ddr3/ddr3.xci
+    import_ip IP/mmcm.srcs/sources_1/ip/mmcm/mmcm.xci
+} elseif {$board=="nexysa7" } {
+    import_ip IP/ddr2.srcs/sources_1/ip/ddr2/ddr2.xci
     import_ip IP/mmcm.srcs/sources_1/ip/mmcm/mmcm.xci
 } else {
     import_ip IP/ddr4.srcs/sources_1/ip/ddr4/ddr4.xci
@@ -67,7 +72,7 @@ report_compile_order -constraints > reports/compile_order.rpt
 #synth_design -rtl -name rtl_1  -flatten_hierarchy none
 
 # apply timing constraint after elaboration
-if {$board=="ArtyA7" || $board=="genesys2"} {
+if {$board=="ArtyA7" || $board=="genesys2" || $board=="nexysa7" } {
     add_files -fileset constrs_1 -norecurse ../constraints/constraints-$board.xdc
     set_property PROCESSING_ORDER NORMAL [get_files  ../constraints/constraints-$board.xdc]
 } else {
@@ -98,10 +103,12 @@ report_clock_interaction                                                -file re
 write_verilog -force -mode funcsim sim/syn-funcsim.v
 
 if {$board=="ArtyA7"} {
-    #source ../constraints/small-debug.xdc
+    source ../constraints/small-debug.xdc
     #source ../constraints/small-debug-rvvi.xdc
-    source ../constraints/small-debug-wfi.xdc
+    #source ../constraints/small-debug-wfi.xdc
 } elseif {$board=="genesys2"} {
+    source ../constraints/small-debug.xdc
+} elseif {$board=="nexysa7"} {
     source ../constraints/small-debug.xdc
 } else {
     #source ../constraints/vcu-small-debug.xdc

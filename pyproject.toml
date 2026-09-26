@@ -1,0 +1,20 @@
+[project]
+name = "cvw"
+version = "0.9.0"
+description = "Core-V Wally RISC-V Processor"
+readme = "../README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+
+dependencies = [
+  "adjustText>=1.4",
+  "lief>=0.17.6",
+  "Markdown>=3.9",
+  "matplotlib>=3.9.0",
+  "pre-commit>=4.3.0",
+  "scikit-learn>=1.6.0",
+  "scipy>=1.13.0",
+  "riscof @ git+https://github.com/riscv/riscof.git@be84132874963e001c14d846a140a3edd9c9d48f",                                              # May 31, 2025
+  "riscv-config @ git+https://github.com/riscv-software-src/riscv-config.git@54171f205be802f9f8e0b1cf4156a6cc826fb467",                     # May 31, 2025
+  "riscv-isac @ git+https://github.com/riscv-non-isa/riscv-arch-test.git@450de2eabfe4fcdfdf54135b5ab2dbb1d94805f8#subdirectory=riscv-isac", # May 31, 2025
+]

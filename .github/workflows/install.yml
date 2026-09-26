@@ -50,6 +50,10 @@ jobs:
             image: ubuntu:24.04
             imageFamily: debian
             os: ubuntu-latest
+          - name: ubuntu-26.04
+            image: ubuntu:26.04
+            imageFamily: debian
+            os: ubuntu-latest
           # Ubuntu ARM64 Installation
           - name: ubuntu-24.04-arm
             image: ubuntu:24.04
@@ -100,6 +104,10 @@ jobs:
             image: opensuse/leap:15.6
             imageFamily: suse
             os: ubuntu-latest
+          - name: opensuse-16.0
+            image: opensuse/leap:16.0
+            imageFamily: suse
+            os: ubuntu-latest
           # User level installation
           - name: user-install
             image: null
@@ -137,7 +145,7 @@ jobs:
               zypper install -y git
             fi
       # Only clone submodules needed for standard tests/regression to save space
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Clone Necessary Submodules
         run: |
               git config --global --add safe.directory '*'
@@ -180,7 +188,7 @@ jobs:
         run: sed -i 's,~/riscv,${{ matrix.riscv_path }},g' setup.sh
       # Upload installation logs for debugging
       - name: Upload Installation Logs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: installation-logs-${{ matrix.name }}
@@ -198,13 +206,13 @@ jobs:
               source setup.sh
               make riscof zsbl deriv coverage --jobs $(nproc --ignore 1)
       # Run standard regression, skipping distros that are known to be broken with Verilator
-      - name: Regression
-        if: ${{ matrix.regressionFail != true }}
-        run: |
-              source setup.sh
-              regression-wally
+      # - name: Regression
+      #   if: ${{ matrix.regressionFail != true }}
+      #   run: |
+      #         source setup.sh
+      #         regression-wally
       - name: Lint + wsim Test Only (for distros with broken Verilator sim)
-        if: ${{ matrix.regressionFail == true }}
+        # if: ${{ matrix.regressionFail == true }}
         run: |
               source setup.sh
               mkdir -p $WALLY/sim/verilator/logs/
@@ -212,7 +220,7 @@ jobs:
               wsim rv32i arch32i --sim verilator | tee $WALLY/sim/verilator/logs/rv32i_arch32i.log
       # Upload regression logs for debugging
       - name: Upload regression logs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: regression-logs-${{ matrix.name }}

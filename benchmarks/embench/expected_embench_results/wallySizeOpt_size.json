@@ -1,29 +1,29 @@
 {  "size results" :
   { "detailed size results" :
-    { "aha-mont64" : 0.96,
-      "crc32" : 0.74,
-      "cubic" : 2.01,
-      "edn" : 1.09,
-      "huffbench" : 1.16,
+    { "aha-mont64" : 0.94,
+      "crc32" : 0.75,
+      "cubic" : 1.44,
+      "edn" : 1.03,
+      "huffbench" : 1.10,
       "matmult-int" : 0.87,
       "md5sum" : 1.00,
-      "minver" : 0.87,
-      "nbody" : 0.92,
+      "minver" : 0.88,
+      "nbody" : 0.86,
       "nettle-aes" : 1.26,
-      "nettle-sha256" : 1.62,
-      "nsichneu" : 1.42,
-      "picojpeg" : 1.14,
+      "nettle-sha256" : 1.51,
+      "nsichneu" : 1.38,
+      "picojpeg" : 1.07,
       "primecount" : 0.73,
-      "qrduino" : 1.03,
-      "sglib-combined" : 1.01,
+      "qrduino" : 1.02,
+      "sglib-combined" : 1.02,
       "slre" : 1.05,
-      "st" : 0.93,
+      "st" : 0.85,
       "statemate" : 0.82,
       "tarfind" : 0.95,
-      "ud" : 0.96,
-      "wikisort" : 0.94
+      "ud" : 0.94,
+      "wikisort" : 0.93
     },
-    "size geometric mean" : 1.04,
-    "size geometric standard deviation" : 1.26
+    "size geometric mean" : 1.00,
+    "size geometric standard deviation" : 1.21
   }
 }

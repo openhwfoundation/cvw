@@ -174,7 +174,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
 
   if (P.ZICSR_SUPPORTED | P.ZBA_SUPPORTED  | P.ZBB_SUPPORTED  | P.ZBC_SUPPORTED  | P.ZBS_SUPPORTED |
       P.ZBKB_SUPPORTED  | P.ZBKC_SUPPORTED | P.ZBKX_SUPPORTED | P.ZKNE_SUPPORTED |
-      P.ZKND_SUPPORTED  | P.ZKNH_SUPPORTED | P.ZICOND_SUPPORTED) begin:legalcheck // Exact integer decoding
+      P.ZKND_SUPPORTED  | P.ZKNH_SUPPORTED | P.ZICOND_SUPPORTED) begin : legalcheck // Exact integer decoding
     logic Funct7ZeroD, Funct7b5D, IShiftD, INoShiftD;
     logic Funct7ShiftZeroD, Funct7Shiftb5D;
 
@@ -217,7 +217,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign PFunctD          = Funct3D == 3'b000 & RdD == 5'b0;
     assign CSRFunctD        = Funct3D[1:0] != 2'b00;
     assign IWValidFunct3D   = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b101;
-  end else begin:legalcheck2
+  end else begin : legalcheck2
     assign IFunctD = 1'b1; // Don't bother to separate out shift decoding
     assign RFunctD = ~Funct7D[0]; // Not a multiply
     assign MFunctD = Funct7D[0] & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
@@ -318,7 +318,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   // bit manipulation Configuration Block
   if (P.ZBS_SUPPORTED  | P.ZBA_SUPPORTED  | P.ZBB_SUPPORTED  | P.ZBC_SUPPORTED |
       P.ZBKB_SUPPORTED | P.ZBKC_SUPPORTED | P.ZBKX_SUPPORTED | P.ZKNE_SUPPORTED |
-      P.ZKND_SUPPORTED | P.ZKNH_SUPPORTED) begin: bitmanipi
+      P.ZKND_SUPPORTED | P.ZKNH_SUPPORTED) begin : bitmanipi
     logic IllegalBitmanipInstrD;          // Unrecognized B instruction
     logic BRegWriteD;                     // Indicates if it is a R type BMU instruction in decode stage
     logic BW64D;                          // Indicates if it is a W type BMU instruction in decode stage
@@ -342,7 +342,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign ALUSrcBD = BaseALUSrcBD | BALUSrcBD;
     assign SubArithD = BaseSubArithD | BSubArithD; // TRUE If BMU or R-type instruction involves inverted operand
 
-  end else begin: bitmanipi
+  end else begin : bitmanipi
     assign PreALUSelectD = ALUOpD ? Funct3D : 3'b000; // add for address generation when not doing ALU operation
     assign sltD = (Funct3D == 3'b010);
     assign IllegalBaseInstrD = ControlsD[0] | IllegalERegAdrD ;
@@ -359,7 +359,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign BMUActiveE = 1'b0;
   end
 
-  if (P.ZICOND_SUPPORTED) begin: Zicond
+  if (P.ZICOND_SUPPORTED) begin : Zicond
     logic  SomeCZeroD; // instruction is czero.*
     assign SomeCZeroD = FunctCZeroD & (OpD == 7'b0110011);
     assign CZeroD = {SomeCZeroD & (Funct3D == 3'b111), SomeCZeroD & (Funct3D == 3'b101)}; // {czero.nez, czero.eqz}
@@ -372,12 +372,12 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   // Fences
   // Ordinary fence is presently a nop
   // fence.i flushes the D$ and invalidates the I$ if Zifencei is supported and I$ is implemented
-  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED)) begin:fencei
+  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED)) begin : fencei
     logic FenceID;
     assign FenceID = FenceXD & (Funct3D == 3'b001); // is it a FENCE.I instruction?
     assign InvalidateICacheD = FenceID;
     assign FlushDCacheD = FenceID;
-  end else begin:fencei
+  end else begin : fencei
     assign InvalidateICacheD = 1'b0;
     assign FlushDCacheD = 1'b0;
   end

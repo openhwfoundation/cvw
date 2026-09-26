@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # Madeleine Masser-Frye mmasserfrye@hmc.edu 1/2023
 
 import argparse

@@ -73,16 +73,6 @@ RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
     make --jobs && \
     make install
 
-# elf2hex
-ENV PATH=$RISCV/riscv-gnu-toolchain/bin:$PATH
-WORKDIR /opt/riscv
-RUN git clone https://github.com/sifive/elf2hex.git && \
-  cd elf2hex && \
-  autoreconf -i && \
-  ./configure --target=riscv64-unknown-elf --prefix=$RISCV && \
-  make && \
-  make install
-
 # QEMU
 WORKDIR /opt/riscv
 RUN git clone --recurse-submodules https://github.com/qemu/qemu && \
