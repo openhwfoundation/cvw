@@ -809,6 +809,14 @@ module testbench;
 `ifdef ENABLE_RVVI_TRACE
   rvviTrace #(.XLEN(P.XLEN), .FLEN(P.FLEN)) rvvi();
   wallyTracer #(P) wallyTracer(rvvi);
+
+  rvviTextLogger #(
+    .VENDOR_NAME("cvw"),
+    .VENDOR_MAJOR(1),
+    .VENDOR_MINOR(0)
+  ) rvvi_text_logger (
+    .rvvi(rvvi)
+  );
 `endif
 
 // Functional coverage
