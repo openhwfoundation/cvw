@@ -7,7 +7,7 @@ set boardName $::env(XILINX_BOARD)
 set ipName clkconverter
 
 create_project $ipName . -force -part $partNumber
-if {$boardName!="ArtyA7"} {
+if {$boardName!="ArtyA7" && $boardName!="qmtechk7"} {
     set_property board_part $boardName [current_project]
 }
 

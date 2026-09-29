@@ -65,6 +65,9 @@ EXT_MEM_RANGE       64'h0FFFFFFF
 deriv fpgagenesys2 fpga
 EXT_MEM_RANGE       64'h3FFFFFFF
 
+deriv fpgaqmtechk7 fpga
+EXT_MEM_RANGE       64'h0FFFFFFF
+
 deriv fpgavcu108 fpga
 EXT_MEM_RANGE       64'h7FFFFFFF
 

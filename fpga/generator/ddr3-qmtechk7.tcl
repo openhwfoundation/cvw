@@ -1,17 +1,16 @@
-
 set partNumber $::env(XILINX_PART)
 set boardName $::env(XILINX_BOARD)
 
-set ipName ahbaxibridge
+set ipName ddr3
 
 create_project $ipName . -force -part $partNumber
-if {$boardName!="ArtyA7" && $boardName!="qmtechk7"} {
-    set_property board_part $boardName [current_project]
-}
 
-# really just these two lines which change
-create_ip -name ahblite_axi_bridge -vendor xilinx.com -library ip -module_name $ipName
-set_property -dict [list CONFIG.C_M_AXI_DATA_WIDTH {64} CONFIG.C_S_AHB_DATA_WIDTH {64} CONFIG.C_M_AXI_THREAD_ID_WIDTH {4}] [get_ips $ipName]
+create_ip -name mig_7series -vendor xilinx.com -library ip -module_name $ipName
+
+exec mkdir -p IP/$ipName.srcs/sources_1/ip/$ipName
+exec cp ../xlnx_ddr3-qmtechk7-mig.prj $ipName.srcs/sources_1/ip/$ipName/xlnx_ddr3-qmtechk7-mig.prj
+
+set_property -dict [list CONFIG.XML_INPUT_FILE {xlnx_ddr3-qmtechk7-mig.prj} CONFIG.RESET_BOARD_INTERFACE {Custom} CONFIG.MIG_DONT_TOUCH_PARAM {Custom} CONFIG.BOARD_MIG_PARAM {Custom}] [get_ips $ipName]
 
 generate_target {instantiation_template} [get_files ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
 generate_target all [get_files  ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
