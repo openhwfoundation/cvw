@@ -261,7 +261,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // unsigned integer loads lbu/lhu/lwu, which are byte/halfword/word accesses.  Clear the unsigned bit
   // for integer accesses; FP accesses use funct3 as the true width (including 100 for a 128-bit flq).
   // funct3[2] is the unsigned bit for ordinary loads, so only the wide accesses use all three bits
-  assign LSUSizeM = (FpLoadStoreM | AMOCASPairM) ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]};
+  assign LSUSizeM = (FpLoadStoreM | (P.ZACAS_SUPPORTED & AMOCASPairM)) ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]};
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // MMU and misalignment fault logic required if privileged unit exists
@@ -462,7 +462,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   subwordread #(P) subwordread(.ReadDataWordMuxM(LittleEndianReadDataWordM), .PAdrM(PAdrM[3:0]), .BigEndianM,
-    .FpLoadStoreM, .WideAccessM(FpLoadStoreM | AMOCASPairM), .Funct3M(LSUFunct3M), .ReadDataM);
+    .FpLoadStoreM, .WideAccessM(FpLoadStoreM | (P.ZACAS_SUPPORTED & AMOCASPairM)), .Funct3M(LSUFunct3M), .ReadDataM);
   subwordwrite #(P.LLEN) subwordwrite(.LSUFunct3M, .IMAFWriteDataM, .LittleEndianWriteDataM);
 
   // Compute byte masks

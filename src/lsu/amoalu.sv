@@ -52,7 +52,8 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
   // lane holding the sign bit of the operation's width cares about signedness, and that is applied
   // when the lane results are assembled, so the operands never need extending.
   assign sngd = ~LSUFunct7M[5]; // Funct7[5] = 0 for signed amomin/max
-  assign w64 = (LSUFunct3M[1:0] != 2'b11); // operation is narrower than 64 bits, so sign extend the result
+  // operation is narrower than 64 bits, so sign extend the result; funct3 100 is the 128-bit amocas.q
+  assign w64 = (LSUFunct3M[1:0] != 2'b11) & ~(P.ZACAS_SUPPORTED & LSUFunct3M[2]);
 
   comparator #(8)  cmpb0(a[7:0],   b[7:0],   1'b0, {eqB0, ltB0});
   comparator #(8)  cmpb1(a[15:8],  b[15:8],  1'b0, {eqB1, ltB1});
@@ -92,7 +93,7 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
   // comparison says so, and amocas keeps it when the compare operand did not match.  An unmatched
   // amocas therefore writes the loaded value back, which the spec permits and which leaves the
   // ordinary AMO store path untouched.
-  assign SelA = (LSUFunct7M[6:2] == 5'b00101) ? ~CASMatchM : cmp;
+  assign SelA = (P.ZACAS_SUPPORTED & (LSUFunct7M[6:2] == 5'b00101)) ? ~CASMatchM : cmp;
 
   // AMO ALU
   always_comb

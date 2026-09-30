@@ -92,8 +92,6 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] ALUResultE, AltResultE, IEUResultE; // ALU result, Alternative result (ImmExtE or PC+4), result of execution stage
   logic [P.XLEN*2-1:0] R2PD;                        // Zacas register pair read through the rs2 port
   logic [4:0]          A2D;                         // rs2 port address, borrowed by amocas to read rd
-  logic [P.XLEN*2-1:0] ComparePairE;                 // amocas compare operand, captured and held
-  logic [P.XLEN-1:0]   SwapHighD, SwapHighE;         // amocas swap value for rd+1 on its way to the LSU
   logic [P.XLEN-1:0] IEUAdrRawE;                     // ALU sum before clearing bit 0 of a jump target
   // Memory stage signals
   logic [P.XLEN-1:0] IEUResultM;                     // Result from execution stage
@@ -106,21 +104,31 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
   // Decode stage
-  // amocas borrows the rs2 read port for one cycle to read its compare operand from rd
-  assign A2D = CASReadD ? InstrD[11:7] : Rs2D;
   // A pair amocas writes both halves: rd takes the low word of the loaded pair, rd+1 the high word
   regfile #(P.XLEN, P.E_SUPPORTED, P.ZACAS_SUPPORTED) regf(clk, reset, RegWriteW, RegWriteW & AMOCASPairW,
     Rs1D, A2D, RdW, ResultW, ReadDataHighW, R1D, R2D, R2PD);
-  // The borrowed cycle reads the rd pair (compare), the normal cycle the rs2 pair (swap)
-  assign SwapHighD = R2PD[P.XLEN*2-1:P.XLEN]; // X(rs2+1); X(rs2) reaches the LSU as WriteDataM
-  flopenrc #(P.XLEN) SwapHighEReg(clk, reset, FlushE, ~StallE, SwapHighD, SwapHighE);
-  flopenrc #(P.XLEN) SwapHighMReg(clk, reset, FlushM, ~StallM, SwapHighE, SwapHighM);
 
-  // Capture the compare value in the borrowed cycle and hold it until Execute, so one register does
-  // the work of two.  The next amocas only reaches Decode after this one has left, so it cannot
-  // overwrite it.  R2D supplies the low half because a scalar amocas may name an odd rd.
-  flopenr #(P.XLEN*2) ComparePairEReg(clk, reset, CASReadD, {R2PD[P.XLEN*2-1:P.XLEN], R2D}, ComparePairE);
-  flopenrc #(P.XLEN*2) ComparePairMReg(clk, reset, FlushM, ~StallM, ComparePairE, ComparePairM);
+  if (P.ZACAS_SUPPORTED) begin : cas
+    logic [P.XLEN*2-1:0] ComparePairE;               // amocas compare operand, captured and held
+    logic [P.XLEN-1:0]   SwapHighD, SwapHighE;       // amocas swap value for rd+1 on its way to the LSU
+
+    // amocas borrows the rs2 read port for one cycle to read its compare operand from rd
+    assign A2D = CASReadD ? InstrD[11:7] : Rs2D;
+    // The borrowed cycle reads the rd pair (compare), the normal cycle the rs2 pair (swap)
+    assign SwapHighD = R2PD[P.XLEN*2-1:P.XLEN]; // X(rs2+1); X(rs2) reaches the LSU as WriteDataM
+    flopenrc #(P.XLEN) SwapHighEReg(clk, reset, FlushE, ~StallE, SwapHighD, SwapHighE);
+    flopenrc #(P.XLEN) SwapHighMReg(clk, reset, FlushM, ~StallM, SwapHighE, SwapHighM);
+
+    // Capture the compare value in the borrowed cycle and hold it until Execute, so one register does
+    // the work of two.  The next amocas only reaches Decode after this one has left, so it cannot
+    // overwrite it.  R2D supplies the low half because a scalar amocas may name an odd rd.
+    flopenr #(P.XLEN*2) ComparePairEReg(clk, reset, CASReadD, {R2PD[P.XLEN*2-1:P.XLEN], R2D}, ComparePairE);
+    flopenrc #(P.XLEN*2) ComparePairMReg(clk, reset, FlushM, ~StallM, ComparePairE, ComparePairM);
+  end else begin : cas
+    assign A2D = Rs2D;
+    assign SwapHighM = '0;
+    assign ComparePairM = '0;
+  end
   extend #(P)        ext(.InstrD(InstrD[31:7]), .ImmSrcD, .ImmExtD);
 
   // Execute stage pipeline register and logic
