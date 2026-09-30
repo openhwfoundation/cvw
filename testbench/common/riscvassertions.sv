@@ -26,6 +26,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert (P.F_SUPPORTED | !P.D_SUPPORTED) else $fatal(1, "Can't support double fp (D) without supporting float (F)");
     assert (P.D_SUPPORTED | !P.Q_SUPPORTED) else $fatal(1, "Can't support quad fp (Q) without supporting double (D)");
     assert (P.F_SUPPORTED | !P.ZFH_SUPPORTED) else $fatal(1, "Can't support half-precision fp (ZFH) without supporting float (F)");
+    assert (P.ZFH_SUPPORTED | !P.ZFBFMIN_SUPPORTED) else $fatal(1, "Can't support BF16 converts (Zfbfmin) without supporting half-precision fp (ZFH) for its loads, stores and moves");
 
     assert (P.I_SUPPORTED ^ P.E_SUPPORTED) else $fatal(1, "Exactly one of I and E must be supported");
 
