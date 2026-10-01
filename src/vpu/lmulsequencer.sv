@@ -28,20 +28,22 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module lmulsequencer (
-  input  logic        clk, reset,
-  // Decode stage control signals
-  input  logic        StallD, FlushD,          // Stall, flush Decode stage
-  input  logic        VectorD,                 // This instruction is a vector
-  input  logic [4:0]  Vs1D, Vs2D, VdD,
-  input  logic [6:0]  lmulDecodedD,
-  // hand shaking controls
-  input  logic        AnyExecutionUnitReadyD,
-  // output micro vector instruction
-  output logic [4:0]  Vs1FinalD, Vs2FinalD, VdFinalD
+module lmulsequencer
+  (
+   input logic       clk, reset,
+   // Decode stage control signals
+   input logic       StallVectorD, FlushVectorD, // Stall, flush Decode stage
+   input logic       VectorD,        // This instruction is a vector
+   input logic [4:0] Vs1D, Vs2D, VdD,
+   input logic [6:0] lmulDecodedD,
+   // hand shaking controls
+   input logic       AnyExecutionUnitReadyD,
+   // output micro vector instruction
+   output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD,
+   output logic MicroVectorD,
+   output logic LMULExpansionD
 );
 
-  logic        IncrMicroOpD;            // Next micro vector instruction when lmul > 1
 
   logic        IncrD;
   logic [4:0]  Vs1P1D, Vs2P1D, VdP1D;
@@ -70,26 +72,31 @@ module lmulsequencer (
   mux2 #(5) VdMux (VdD, VdP1QD, lmulCntrFirstCaptureD, VdFinalD);
 
 
-  flopenl #(4) counter (clk, lmulCntrLoad, IncrD, lmulCntrP1, 4'b0001, lmulCntrD);
+  flopenl #(4) counter (clk, lmulCntrLoad | reset, IncrD, lmulCntrP1, 4'b0001, lmulCntrD);
   assign lmulCntrDone = lmulCntrD == lmulIntD; // *** this is a bug for lmul less than 1
   assign lmulCntrP1 = lmulCntrD + 4'b0001;
 
   always_ff @(posedge clk)
-    if(reset | FlushD) CurrState <= STATE_BEGIN;
+    if(reset | FlushVectorD) CurrState <= STATE_BEGIN;
     else CurrState <= NextState;
 
-  assign IncrD = AnyExecutionUnitReadyD & VectorD;
 
   always_comb begin
     NextState = STATE_BEGIN;
     case(CurrState)
       STATE_BEGIN: if(VectorD & (lmulIntD > 4'd1) & IncrD) NextState = STATE_INCR;
-      STATE_INCR:  if(lmulCntrD == lmulIntD) NextState = STATE_BEGIN;
+      STATE_INCR:  if(lmulCntrDone) NextState = STATE_BEGIN;
       else NextState = STATE_INCR;
       default: NextState = STATE_BEGIN;
     endcase
   end
 
-  assign lmulCntrLoad = CurrState == STATE_BEGIN & VectorD;
+  //assign lmulCntrLoad = CurrState == STATE_BEGIN & VectorD;
+  assign lmulCntrLoad = CurrState == STATE_INCR & lmulCntrDone;
+  //assign LMULExpansionD = AnyExecutionUnitReadyD & (CurrState == STATE_INCR);
+  assign LMULExpansionD = (CurrState == STATE_INCR & ~lmulCntrDone) | (CurrState == STATE_BEGIN & lmulIntD > 4'd1 & VectorD);
+  assign IncrD = (AnyExecutionUnitReadyD & VectorD) | LMULExpansionD;
+
+  assign MicroVectorD = IncrD | VectorD;
 
 endmodule

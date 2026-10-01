@@ -61,6 +61,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0]    TrapVectorM,                              // Trap vector, from privileged unit
   input  logic                 RetM, TrapM,                              // return instruction, or trap
   output logic [31:0]          InstrD,                                   // The decoded instruction in Decode stage
+  output logic [P.XLEN-1:0]    PCD,                                      // Decode stage instruction address
   output logic [31:0]          InstrM,                                   // The decoded instruction in Memory stage
   output logic [31:0]          InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
   output logic [P.XLEN-1:0]    PCM,                                      // Memory stage instruction address
@@ -75,8 +76,9 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Faults
   input  logic                 IllegalBaseInstrD,                        // Illegal non-compressed instruction
   input  logic                 IllegalFPUInstrD,                         // Illegal FP instruction
+  input  logic                 IllegalVPUInstrD,                         // Illegal vector instruction
   output logic                 InstrPageFaultF,                          // Instruction page fault
-  output logic                 IllegalIEUFPUInstrD,                      // Illegal instruction including compressed & FP
+  output logic                 IllegalIEUFPUVPUInstrD,                      // Illegal instruction including compressed & FP
   output logic                 InstrMisalignedFaultM,                    // Branch target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
   // mmu management
   input  logic [1:0]           PrivilegeModeW,                           // Privilege mode in Writeback stage
@@ -110,7 +112,6 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]           PCPlus2or4F;                              // PCF + 2 (CompressedF) or PCF + 4 (Non-compressed)
   logic [P.XLEN-1:0]           PCSpillNextF;                             // Next PCF after possible + 2 to handle spill
   logic [P.XLEN-1:2]           PCPlus4F;                                 // PCPlus4F is always PCF + 4.  Fancy way to compute PCPlus2or4F
-  logic [P.XLEN-1:0]           PCD;                                      // Decode stage instruction address
   logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after  csr write or fence
   logic [P.XLEN-1:0]           PCF;                                      // Fetch stage instruction address
   logic [P.PA_BITS-1:0]        PCPF;                                     // Physical address after address translation
@@ -390,7 +391,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign InstrD = InstrRawD;
     assign IllegalIEUInstrD = IllegalBaseInstrD;
   end
-  assign IllegalIEUFPUInstrD = IllegalIEUInstrD & (IllegalFPUInstrD | !P.F_SUPPORTED);
+  assign IllegalIEUFPUVPUInstrD = IllegalIEUInstrD & (IllegalFPUInstrD | !P.F_SUPPORTED) & (IllegalVPUInstrD | !P.V_SUPPORTED); // *** this isn't quite correct.  it should be F_SUPPORTED or any fpu suported
 
   // Misaligned PC logic
   // Instruction address misalignment only from br/jal(r) instructions.

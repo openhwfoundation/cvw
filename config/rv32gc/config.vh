@@ -91,15 +91,14 @@ localparam logic ZVE64X_SUPPORTED = 1;
 localparam logic ZVE64F_SUPPORTED = 1;
 localparam logic ZVE64D_SUPPORTED = 1;
 localparam VLEN = 32'd256;
-localparam VPU_MAX_EU = 32'd4;
 localparam VPU_INT_EU = 32'd2;
 localparam VPU_INT_LANES = 32'd2;
 localparam VPU_INT_MUL = 32'd2;
 localparam VPU_INT_MUL_LANES = 32'd2;
+localparam VPU_LSU_EU = 32'd1;
+localparam VPU_LSU_LANES = 32'd2;
 localparam VPU_FP_EU = 32'd2;
 localparam VPU_FP_LANES = 32'd2;
-localparam VPU_LSU_EU = 32'd2;
-localparam VPU_LSU_LANES = 32'd2;
 
 // privilege modes
 localparam logic S_SUPPORTED = 1; // Supervisor mode

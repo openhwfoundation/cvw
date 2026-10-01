@@ -34,7 +34,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 /* verilator lint_on UNUSEDPARAM */
   input  logic        clk, reset,
   // Decode stage control signals
-  input  logic        StallD, FlushD,          // Stall, flush Decode stage
+  input  logic        StallVectorD, FlushVectorD,          // Stall, flush Decode stage
   input  logic [31:0] InstrD,             // lmul sequenced micro-op instruction in Decode stage
 
   // Decode stage outputs
@@ -47,8 +47,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic VRegWriteD,
   output logic [1:0] VALUSrcAD,
   output logic VALUSrcBD,
-  output logic VALUResultD,
-  output logic IllegalVectorInstructionD
+  output logic VALUResultSrcD,
+  output logic IllegalVPUInstrD
 );
 
 
@@ -86,9 +86,9 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
     case(OpD)
       // RegWrite_VRegWrite_ALUSrc(A_B)_ALUResult_Illegal
       7'b0000111: if(VLSFunctD)
-        ControlsD = `VCTRLW'b0_1_10_0_1_0; // unit-strip; vl // *** add the address modes later
+        ControlsD = `VCTRLW'b0_1_10_0_1_0; // unit-stride; vl // *** add the address modes later
       7'b0100111: if(VLSFunctD)
-        ControlsD = `VCTRLW'b0_0_10_1_0_0; // unit-strip; vs
+        ControlsD = `VCTRLW'b0_0_10_1_0_0; // unit-stride; vs
       7'b1010111: begin // vector data operation
         if(OPIVVD)
           ControlsD = `VCTRLW'b0_1_00_0_0_0;
@@ -112,6 +112,6 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
     endcase
   end
 
-  assign {RegWriteD, VRegWriteD, VALUSrcAD, VALUSrcBD, VALUResultD, IllegalVectorInstructionD} = ControlsD;
+  assign {RegWriteD, VRegWriteD, VALUSrcAD, VALUSrcBD, VALUResultSrcD, IllegalVPUInstrD} = ControlsD;
 
 endmodule

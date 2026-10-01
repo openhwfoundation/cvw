@@ -50,6 +50,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
 
   logic                          StallF, StallD, StallE, StallM, StallW;
   logic                          FlushD, FlushE, FlushM, FlushW;
+  logic                          StallVectorF, StallVectorD, StallVectorE;
+  logic                          FlushVectorD, FlushVectorE, FlushVectorM;
   logic                          TrapM, RetM;
 
   //  signals that must connect through DP
@@ -60,6 +62,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]             SrcAM;
   logic [2:0]                    Funct3E;
   logic [31:0]                   InstrD;
+  logic [P.XLEN-1:0]             PCD;                        // Decode stage instruction address
+
   logic [31:0]                   InstrM, InstrOrigM;
   logic [P.XLEN-1:0]             PCSpillF, PCE, PCLinkE;
   logic [P.XLEN-1:0]             PCM, PCSpillM;
@@ -69,7 +73,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [1:0]                    MemRWM;
   logic                          InstrValidD, InstrValidE, InstrValidM;
   logic                          InstrMisalignedFaultM;
-  logic                          IllegalBaseInstrD, IllegalFPUInstrD, IllegalIEUFPUInstrD;
+  logic                          IllegalBaseInstrD, IllegalFPUInstrD, IllegalIEUFPUVPUInstrD;
   logic                          InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM;
   logic                          LoadMisalignedFaultM, LoadAccessFaultM;
   logic                          StoreAmoMisalignedFaultM, StoreAmoAccessFaultM;
@@ -181,14 +185,13 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          wfiM, IntPendingM;
 
   logic                          VectorD;
+  logic                          IllegalVPUInstrD;
+  logic [P.XLEN-1:0]             VIEUFPResultFinalW;
+  logic [P.VPU_LSU_BLEN-1:0]     VWriteDataM;
+  logic [P.XLEN-1:0]             VEUAdrM;
+  logic [P.VPU_LSU_BLEN-1:0]     VReadDataM;
   logic                          VPUFrontEndBusyD;
-  logic                          IllegalVectorInstructionD;
-  logic [P.XLEN-1:0]             VIEUFPResultW;
-  logic [P.VPU_LSU_BLEN-1:0]     VWriteDataM [P.VPU_LSU_EU-1:0];
-  logic [P.XLEN-1:0]             VEUAdrM [P.VPU_LSU_EU-1:0];
-  logic [P.VPU_LSU_BLEN-1:0]     VReadDataM [P.VPU_LSU_EU-1:0];
-
-
+  logic                          VPUBackEndBusyE;
 
   // instruction fetch unit: PC, branch prediction, instruction cache
   ifu #(P) ifu(.clk, .reset,
@@ -203,10 +206,10 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE,  .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
-    .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
+    .PCD, .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
-    .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
+    .IllegalBaseInstrD, .IllegalFPUInstrD, .IllegalVPUInstrD, .InstrPageFaultF, .IllegalIEUFPUVPUInstrD, .InstrMisalignedFaultM,
     // mmu management
     .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
     .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .ITLBMissOrUpdateAF,
@@ -216,7 +219,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
      // Decode Stage interface
-     .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD, .VectorD,
+     .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUVPUInstrD, .IllegalBaseInstrD, .VectorD,
      // Execute Stage interface
      .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .IntDivE, .W64E,
      .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
@@ -294,14 +297,15 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // global stall and flush control
   hazard hzu(
     .BPWrongE, .CSRWriteFenceM, .RetM, .TrapM,
-    .StructuralStallD,
+    .StructuralStallD, .VPUFrontEndBusyD, .VPUBackEndBusyE,
     .LSUStallM, .IFUStallF,
     .FPUStallD, .ExternalStall,
     .DivBusyE, .FDivBusyE,
-    .wfiM, .IntPendingM,
+    .wfiM, .IntPendingM, .VectorD,
     // Stall & flush outputs
     .StallF, .StallD, .StallE, .StallM, .StallW,
-    .FlushD, .FlushE, .FlushM, .FlushW);
+    .FlushD, .FlushE, .FlushM, .FlushW,
+     .StallVectorF, .StallVectorD, .StallVectorE, .FlushVectorD, .FlushVectorE, .FlushVectorM);
 
   // privileged unit
   if (P.ZICSR_SUPPORTED) begin : priv
@@ -317,7 +321,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .RASPredPCWrongM, .IClassWrongM, .DivBusyE, .FDivBusyE,
       .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .PrivilegedM,
       .InstrPageFaultF, .LoadPageFaultM, .StoreAmoPageFaultM,
-      .InstrMisalignedFaultM, .IllegalIEUFPUInstrD,
+      .InstrMisalignedFaultM, .IllegalIEUFPUVPUInstrD,
       .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
       .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
@@ -382,17 +386,16 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   end
 
   // *** fix me replace with driver from LSU
-  genvar i;
-  for(i = 0; i < P.VPU_LSU_LANES; i++) begin
-      assign VReadDataM[i] = '0;
-  end
+  assign VReadDataM = '0;
+
   if (P.ZVE32X_SUPPORTED) begin : vpu
-    vpu #(P) vpu(.clk, .reset, .StallD, .StallE, .StallM, .StallW,
-                 .FlushD, .FlushE, .FlushM, .FlushW, .VPUFrontEndBusyD,
-                 .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE,
-                 .VWriteDataM, .VEUAdrM, .IllegalVectorInstructionD, .VReadDataM, .VIEUFPResultW);
+    vpu #(P) vpu(.clk, .reset, .StallVectorD, .StallVectorE, .StallM, .StallW,
+                 .FlushVectorD, .FlushVectorE, .FlushVectorM, .FlushW, .VPUFrontEndBusyD, .VPUBackEndBusyE,
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE,
+                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW);
+
   end else begin
-    //assign {VPUFrontEndBusyD, IllegalVPUInstrD, VResultIntFPW} = '0;
+    assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD} = '0;
   end
 
 endmodule

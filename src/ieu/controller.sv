@@ -36,7 +36,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]  STATUS_FS,               // is FPU enabled?
   input  logic [3:0]  ENVCFG_CBE,              // Cache block operation enables
   output logic [2:0]  ImmSrcD,                 // Type of immediate extension
-  input  logic        IllegalIEUFPUInstrD,     // Illegal IEU and FPU instruction
+  input  logic        IllegalIEUFPUVPUInstrD,     // Illegal IEU and FPU instruction
   output logic        IllegalBaseInstrD,       // Illegal I-type instruction, or illegal RV32 access to upper 16 registers
   output logic        JumpD,                   // Jump instruction
   output logic        BranchD,                 // Branch instruction
@@ -313,7 +313,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   assign IllegalERegAdrD = P.E_SUPPORTED & P.ZICSR_SUPPORTED & ControlsD[`CTRLW-1] & InstrD[11];
   assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, MemRWD,
           ResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
-          PrivilegedD, FenceXD, MDUD, AtomicD, CMOD, unused} = IllegalIEUFPUInstrD ? `CTRLW'b0 : ControlsD;
+          PrivilegedD, FenceXD, MDUD, AtomicD, CMOD, unused} = IllegalIEUFPUVPUInstrD ? `CTRLW'b0 : ControlsD;
 
   assign CSRZeroSrcD = InstrD[14] ? (InstrD[19:15] == 0) : (Rs1D == 0); // Is a CSR instruction using zero as the source?
   assign CSRWriteD = CSRReadD & !(CSRZeroSrcD & InstrD[13]);            // Don't write if setting or clearing zeros

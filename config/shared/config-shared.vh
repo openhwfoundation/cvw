@@ -129,9 +129,14 @@ localparam NORMSHIFTSZ = `max(`max((CVTLEN+NF+1), (DIVb + 1 + NF + 1)), (FMALEN 
 
 localparam LOGNORMSHIFTSZ = ($clog2(NORMSHIFTSZ));                  // log_2(NORMSHIFTSZ)
 
+// *** change 64 to the max vector element length
+localparam VPU_MAX_EU = VPU_INT_EU + VPU_FP_EU + VPU_LSU_EU;  // *** change the name to VPU_EU
 // vector unit constants
 localparam ELEN = (ZVE64X_SUPPORTED | ZVE64F_SUPPORTED | ZVE64D_SUPPORTED) ? 32'd64 : 32'd32;
 localparam VPU_LSU_BLEN = ELEN * VPU_LSU_LANES;
 localparam VPU_INT_BLEN = ELEN * VPU_INT_LANES;
 localparam VPU_INT_MUL_BLEN = ELEN * VPU_INT_MUL_LANES;
 localparam VPU_FP_BLEN = ELEN * VPU_FP_LANES;
+localparam VPU_INT_MAX_BEATS = VLEN/VPU_INT_BLEN;
+localparam VPU_QUEUESIZE = VPU_MAX_EU * 4;
+localparam VPU_QUEUEDEPTH = $clog2(VPU_QUEUESIZE);
