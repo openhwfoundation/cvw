@@ -259,7 +259,7 @@ module round import cvw::*;  #(parameter cvw_t P, parameter V=0) (
           3'b010: CalcPlus1  = Ms;//round down
           3'b011: CalcPlus1  = ~Ms;//round up
           3'b100: CalcPlus1  = Guard;//round to nearest max magnitude
-          3'b110: if (V) CalcPlus1 = ~LsbRes;//round to odd
+          3'b110: CalcPlus1  = V ? ~LsbRes : 1'bx;//round to odd
           default: CalcPlus1 = 1'bx;
       endcase
       // Determine if you add 1 (for underflow flag)

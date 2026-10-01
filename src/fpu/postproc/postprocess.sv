@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module postprocess import cvw::*;  #(parameter cvw_t P, V) (
+module postprocess import cvw::*;  #(parameter cvw_t P, parameter V) (
   // general signals
   input logic                              Xs, Ys,              // input signs
   input logic  [P.NF:0]                    Xm, Ym, Zm,          // input mantissas
