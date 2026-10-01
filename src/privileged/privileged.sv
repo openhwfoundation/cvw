@@ -72,7 +72,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              LoadPageFaultM, StoreAmoPageFaultM,             // page faults
   input  logic              InstrMisalignedFaultM,                          // misaligned instruction fault
   input  logic              LoadMisalignedFaultM, StoreAmoMisalignedFaultM, // misaligned data fault
-  input  logic              IllegalIEUFPUInstrD,                            // illegal instruction from IEU or FPU
+  input  logic              IllegalIEUFPUVPUInstrD,                         // illegal instruction from IEU, FPU, or VPU
   input  logic              MTimerInt, MExtInt, SExtInt, MSwInt,            // interrupt sources
   input  logic [63:0]       MTIME_CLINT,                                    // timer value from CLINT
   input  logic [4:0]        SetFflagsM,                                     // set FCSR flags from FPU
@@ -117,7 +117,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   logic [11:0]              MIDELEG_REGW;                                   // interrupt delegation CSR
   logic                     sretM, mretM;                                   // supervisor / machine return instruction
   logic                     IllegalCSRAccessM;                              // Illegal access to CSR
-  logic                     IllegalIEUFPUInstrM;                            // Illegal IEU or FPU instruction, delayed to Mem stage
+  logic                     IllegalIEUFPUVPUInstrM;                         // Illegal IEU, FPU, or VPU instruction, delayed to Mem stage
   logic                     InstrPageFaultM;                                // Instruction page fault, delayed to Mem stage
   logic                     InstrAccessFaultM;                              // Instruction access fault, delayed to Mem stages
   logic                     IllegalInstrFaultM;                             // Illegal instruction fault
@@ -140,7 +140,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
 
   // decode privileged instructions
   privdec #(P) pmd(.clk, .reset, .StallW, .FlushW, .InstrM(InstrM[31:7]),
-    .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM,
+    .PrivilegedM, .IllegalIEUFPUVPUInstrM, .IllegalCSRAccessM,
     .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .TrapM, .IllegalInstrFaultM,
     .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM);
 
@@ -167,8 +167,8 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
-    .InstrPageFaultF, .InstrAccessFaultF, .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .IllegalIEUFPUInstrD,
-    .InstrPageFaultM, .InstrAccessFaultM, .HPTWInstrAccessFaultM, .HPTWInstrPageFaultM, .IllegalIEUFPUInstrM);
+    .InstrPageFaultF, .InstrAccessFaultF, .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .IllegalIEUFPUVPUInstrD,
+    .InstrPageFaultM, .InstrAccessFaultM, .HPTWInstrAccessFaultM, .HPTWInstrPageFaultM, .IllegalIEUFPUVPUInstrM);
 
   // trap logic
   trap #(P) trap(.reset,

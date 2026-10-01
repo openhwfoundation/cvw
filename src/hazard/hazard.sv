@@ -31,7 +31,7 @@ module hazard (
   input  logic  BPWrongE, CSRWriteFenceM, RetM, TrapM,
   input  logic  StructuralStallD,
   input  logic  LSUStallM, IFUStallF,
-  input  logic  FPUStallD, ExternalStall,
+  input  logic  FPUStallD, VPUFrontEndBusyD, ExternalStall,
   input  logic  DivBusyE, FDivBusyE,
   input  logic  wfiM, IntPendingM,
   // Stall & flush outputs
@@ -83,7 +83,7 @@ module hazard (
   //    The IFU stalls the entire pipeline rather than just Fetch to avoid complications with instructions later in the pipeline causing Exceptions
   //    A trap could be asserted at the start of a IFU/LSU stall, and should flush the memory operation
   assign StallFCause = 1'b0;
-  assign StallDCause = (StructuralStallD | FPUStallD) & ~FlushDCause;
+  assign StallDCause = (StructuralStallD | FPUStallD | VPUFrontEndBusyD) & ~FlushDCause;
   assign StallECause = (DivBusyE | FDivBusyE) & ~FlushECause;
   assign StallMCause = WFIStallM & ~FlushMCause;
   // Need to gate IFUStallF when the equivalent FlushFCause = FlushDCause = 1.
