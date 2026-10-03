@@ -80,9 +80,11 @@ interrupt:              # must be a timer interrupt
 
 exception:
     csrr t0, mcause
-    li t1, 0xC          # is it an instruction page fault
-    li a0, 3            # set a0 to 3 to ecall looks like a program terminate
-    beq t0, t1, ecall   # terminate program for instruction page fault
+    li t1, 0xC          # is it an instruction page fault?
+    bne t0, t1, notipf
+    li a0, 3            # yes: handle it as a request to change to machine mode,
+    j ecall             # since the faulting code cannot be fetched
+notipf:
     li t1, 8            # is it an ecall trap?
     andi t0, t0, 0xFC # if CAUSE = 8, 9, or 11
     bne t0, t1, trap_return # ignore other exceptions

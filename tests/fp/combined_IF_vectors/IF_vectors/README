@@ -1,4 +1,0 @@
-This folder holds the archtest and testfloat vectors necessary for evaluating performance
-of standalone intdiv vs combined IFdivsqrt
-
-to generate vectors, uncomment line 8 in create_all_vectors.sh

@@ -128,6 +128,12 @@ def main():
         print(f"{RED}Linting failed for {fails} of {len(configs)} configurations{NC}")
         sys.exit(1)
 
+    # The ACT test-generation configurations must agree with config.vh.  Differences from ACT's own
+    # copies are only warned about, since clearing them takes a commit in the ACT repository.
+    if subprocess.run(["actconfig-sync", "--check"]).returncode:
+        print(f"{RED}ACT configurations disagree with config.vh; see bin/actconfig-sync{NC}")
+        sys.exit(1)
+
     print(f"{GREEN}All lints passed with no errors or warnings{NC}")
 
 
