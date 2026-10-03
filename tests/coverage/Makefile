@@ -15,7 +15,6 @@ all: $(OBJDUMPS) $(MEMFILES)
 # Create disassembly
 %.elf.objdump: %.elf
 	riscv64-unknown-elf-objdump -S -D $< > $@
-	extractFunctionRadix.sh $@
 
 # Create memfile
 %.elf.memfile: %.elf
@@ -30,8 +29,8 @@ all: $(OBJDUMPS) $(MEMFILES)
 %.$(OBJEXT): %.$(AEXT)
 	riscv64-unknown-elf-as -g -o $@ -march=rv64gqc_zcb_zfa_zba_zbb_zbc_zbs_zfh_zicboz_zicbop_zicbom_zbkb_zbkx_zknd_zkne_zknh_svinval -mabi=lp64 $<
 
-# Preprocess assembly files
-%.$(AEXT): %.$(SRCEXT) WALLY-init-lib.h
+# Preprocess assembly files; a test can include any of the WALLY-*.h headers
+%.$(AEXT): %.$(SRCEXT) $(wildcard WALLY-*.h)
 	riscv64-unknown-elf-gcc -E -g -o $@ $<
 
 sim: %.$(EXEEXT)

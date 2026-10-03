@@ -145,16 +145,17 @@ module mmu import cvw::*;  #(parameter cvw_t P,
 
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
   // When ZICCLSM_SUPPORTED, misaligned uncachable accesses are lower priority than page and access faults, so must wait for TLB to resolve
+  // When ZICCLSM_SUPPORTED, misaligned atomics take an access fault instead (below), whatever the region
   // When ZICCLSM is not supported, misaligned accesses always fault, with higher priority than access or page fault
-  assign MisalignedFaultAllowedM  = ~P.ZICCLSM_SUPPORTED | (~Cacheable & ~TLBMiss & Idempotent); // should a misaligned access fault?
+  assign MisalignedFaultAllowedM  = ~P.ZICCLSM_SUPPORTED | (~Cacheable & ~TLBMiss & Idempotent & ~AtomicAccessM); // should a misaligned access fault?
   assign LoadMisalignedFaultM     = DataMisalignedM & ReadNoAmoAccessM & MisalignedFaultAllowedM;
   assign StoreAmoMisalignedFaultM = DataMisalignedM & WriteAccessM & MisalignedFaultAllowedM; // Store and AMO both assert WriteAccess
 
   // A misaligned access causes an access fault rather than a misaligned fault when a misaligned load/store is
-  // handled in hardware and either the access is atomic (never handled in hardware; see privileged spec 3.6.3.3)
-  // or the region is non-idempotent, where the spec recommends an access fault so software does not emulate the
-  // access with multiple smaller accesses that could have side effects
-  assign MisalignedCausesAccessFaultM = DataMisalignedM & P.ZICCLSM_SUPPORTED & ((AtomicAccessM & Cacheable) | ~Idempotent);
+  // handled in hardware and either the access is atomic, which is never handled in hardware and must not be
+  // emulated (privileged spec 3.6.3.3), or the region is non-idempotent, where the spec recommends an access
+  // fault so software does not emulate the access with multiple smaller accesses that could have side effects
+  assign MisalignedCausesAccessFaultM = DataMisalignedM & P.ZICCLSM_SUPPORTED & (AtomicAccessM | ~Idempotent);
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.
