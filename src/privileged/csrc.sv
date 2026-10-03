@@ -127,10 +127,8 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
     assign CounterEvent[21] = sfencevmaM & InstrValidNotFlushedM;                        // sfence.vma
     assign CounterEvent[22] = InterruptM;                                                // interrupt, InstrValidNotFlushedM will be low
     assign CounterEvent[23] = ExceptionM;                                                // exceptions, InstrValidNotFlushedM will be low
-    // coverage off
-    // DivBusyE will never be asserted high because the RV64GC configuration uses the FPU to do integer division
+    // DivBusyE is never asserted on rv64gc, which divides integers in the FPU; coverage-exclusions-rv64gc.do excludes that row
     assign CounterEvent[24] = DivBusyE | FDivBusyE;                                      // division cycles
-    // coverage on
     assign CounterEvent[31:25] = '0; // eventually give these sources, including FP instructions, I$/D$ misses, branches and mispredictions
   end else begin : cevent
     assign CounterEvent[31:3] = '0;

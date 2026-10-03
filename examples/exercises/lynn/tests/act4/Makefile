@@ -3,7 +3,7 @@
 # kacassidy@hmc.edu
 # 1/22/26
 
-RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test-cvw
+RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test
 
 WORK_DIR        ?= $(CURDIR)/work
 STAMP           := $(WORK_DIR)/copy_stamp

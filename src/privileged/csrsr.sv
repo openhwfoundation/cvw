@@ -196,12 +196,10 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
         STATUS_MBE      <= nextMBE;
         STATUS_SBE      <= nextSBE;
-      // coverage off
-      // MSTATUSH only exists in 32-bit configurations, will not be hit on rv64gc
+      // MSTATUSH only exists in 32-bit configurations; coverage-exclusions-rv64gc.do excludes it on rv64gc
       end else if ((P.XLEN == 32) & WriteMSTATUSHM) begin
         STATUS_MBE      <= P.BIGENDIAN_SUPPORTED & CSRWriteValM[5];
         STATUS_SBE      <= P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[4];
-      // coverage on
       end else if (P.S_SUPPORTED & WriteSSTATUSM) begin // write a subset of the STATUS bits
         STATUS_MXR_INT  <= P.S_SUPPORTED & CSRWriteValM[19];
         STATUS_SUM_INT  <= P.VIRTMEM_SUPPORTED & CSRWriteValM[18];

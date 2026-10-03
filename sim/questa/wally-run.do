@@ -116,7 +116,9 @@ run -all
 if {$ccov} {
     set UCDB ${WALLY}/sim/questa/ucdb/${CFG}_${TESTSUITE}.ucdb
     echo "Saving coverage to ${UCDB}"
-    do coverage-exclusions-rv64gc.do
+    # Exclusions are not applied here.  sim/Makefile (QuestaCodeCoverage) applies
+    # coverage-exclusions-rv64gc.do once, to the merged database, where row-level
+    # (-fecexprrow/-feccondrow) exclusions and -comment work.
     coverage save -instance /testbench/dut/core ${UCDB}
 }
 
