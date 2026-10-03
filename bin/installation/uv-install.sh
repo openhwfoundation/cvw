@@ -27,7 +27,7 @@
 ## and limitations under the License.
 ################################################################################################
 
-UV_VERSION=0.11.0 # Latest version as of March 23, 2026
+UV_VERSION=0.12.13 # The version riscv-arch-test moves to in riscv/riscv-arch-test#2062; September 19, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script

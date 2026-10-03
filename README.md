@@ -101,7 +101,6 @@ The toolchain installation script installs the following tools:
 - [OSU Skywater 130 cell library](https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t12): standard cell library
 - [uv](https://docs.astral.sh/uv/): Python package manager and virtual environment tool
 - [mise](https://mise.jdx.dev/): development environment setup tool for managing tool versions and environment variables
-- [RISCOF](https://github.com/riscv-software-src/riscof.git): RISC-V compliance test framework
 
 Additionally, Buildroot Linux is built for Wally and linux test-vectors are generated for simulation. See the [Linux README](linux/README.md) for more details. This can be skipped using the `--no-buildroot` flag.
 
@@ -227,20 +226,25 @@ This utility will take up approximately 100 GB on your hard drive. You can also 
 
 # Example wsim commands
 
-wsim runs one of multiple simulators, Questa, VCS, or Verilator using a specific configuration and either a suite of tests or a specific elf file.
+wsim runs one of multiple simulators, Questa, VCS, or Verilator using a specific configuration and one or more ELF files.
 The general syntax is
-`wsim <config> <suite or elf file> [--options]`
+`wsim <config> <elf or directory>... [--options]`
+
+Every ELF named, and every `*.elf` found under every directory named, runs back-to-back in a single simulation session.
+Tests are self-checking, so the simulation ends with a single summary: `SUCCESS! All tests ran without failures.` or `FAIL: N test programs had errors`.
 
 Parameters and options:
 
 ```
 -h, --help                                                   show this help message and exit
 --elf ELF, -e ELF                                            ELF File name; use if name does not end in .elf
+--test {buildroot,fpga,coremark,embench}, -T ...             Special testbench mode
+--name NAME, -n NAME                                         Name used for log and coverage database files
 --sim {questa,verilator,vcs}, -s {questa,verilator,vcs}      Simulator
 --tb {testbench,testbench_fp}, -t {testbench,testbench_fp}   Testbench
 --gui, -g                                                    Simulate with GUI
 --ccov, -c                                                   Code Coverage
---fcov, -f                                                   Functional Coverage with cvw-arch-verif, implies lockstep
+--fcov, -f                                                   Functional Coverage
 --args ARGS, -a ARGS                                         Optional arguments passed to simulator via $value$plusargs
 --params PARAMS, -p PARAMS                                   Optional top-level parameter overrides of the form param=value
 --define DEFINE, -d DEFINE                                   Optional define macros passed to simulator
@@ -250,34 +254,34 @@ Parameters and options:
 --rvvi, -r                                                   Simulate rvvi hardware interface and ethernet.
 ```
 
-Run basic test with Questa
+Run a whole directory of RISC-V Architecture Tests in one session with Questa
 
 ```bash
-wsim rv64gc arch64i
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 ```
 
-Run Questa with gui
+Run one ELF in the Questa gui
 
 ```bash
-wsim rv64gc wally64priv --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --gui
 ```
 
-Run basic test with Verilator
+Run several ELFs back-to-back with Verilator
 
 ```bash
-wsim rv32i arch32i --sim verilator
+wsim rv32gc $WALLY/tests/periph/rv32/WALLY-gpio-01.elf $WALLY/tests/periph/rv32/WALLY-clint-01.elf --sim verilator
 ```
 
-Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires single elf.
+Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires a single elf.
 
 ```bash
-wsim rv64gc $WALLY/tests/riscof/work/riscv-arch-test/rv64i_m/I/src/add-01.S/ref/ref.elf --lockstep --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
 ```
 
-Run lockstep against ImperasDV with a single elf file. Collect functional coverage.
+Collect functional coverage over a directory of tests.
 
 ```bash
-wsim rv64gc $WALLY/addins/cvw-arch-verif/tests/rv64/Zicsr/WALLY-COV-ALL.elf --fcov
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov
 ```
 
 Run Linux boot simulation in lock step between Wally and ImperasDV

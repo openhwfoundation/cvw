@@ -11,10 +11,6 @@
 [submodule "addins/vivado-boards"]
   path = addins/vivado-boards
   url = https://github.com/Digilent/vivado-boards/
-[submodule "addins/riscv-arch-test"]
-  path = addins/riscv-arch-test
-  url = https://github.com/riscv-non-isa/riscv-arch-test
-  branch = dev
 [submodule "addins/branch-predictor-simulator"]
   path = addins/branch-predictor-simulator
   url = https://github.com/rosethompson/branch-predictor-simulator
@@ -29,7 +25,7 @@
   path = addins/berkeley-testfloat-3
   url = https://github.com/ucb-bar/berkeley-testfloat-3
   ignore = untracked
-[submodule "addins/riscv-arch-test-cvw"]
-  path = addins/riscv-arch-test-cvw
-  url = https://github.com/riscv-non-isa/riscv-arch-test
+[submodule "addins/riscv-arch-test"]
+  path = addins/riscv-arch-test
+  url = https://github.com/riscv/riscv-arch-test
   branch = act4
