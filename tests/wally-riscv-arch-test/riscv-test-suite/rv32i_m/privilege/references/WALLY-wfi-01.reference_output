@@ -1,9 +1,0 @@
-00000aaa # writeback value of writing all 1's to mie
-0007ec07 # value to indicate successful vectoring on m time interrupt
-80000007 # mcause value from m time interrupt
-00000000 # mtval for mtime interrupt (0x0)
-00001880 # masked out mstatus.MPP = 11, mstatus.MPIE = 1, and mstatus.MIE = 0
-0600d111 # magic number written to output after interrupt
-0000000b # mcause from M mode ecall from test termination
-00000000 # mtval of ecall (*** defined to be zero for now)
-00001880 # masked out mstatus.MPP = 11, mstatus.MPIE = 1, and mstatus.MIE = 0

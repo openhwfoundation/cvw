@@ -8,8 +8,10 @@
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 # Global variables
 WALLY  = os.environ.get("WALLY")
@@ -18,6 +20,24 @@ cfgdir = f"{WALLY}/config"
 srcdir = f"{WALLY}/src"
 tbdir  = f"{WALLY}/testbench"
 logdir = f"{simdir}/logs"
+actdir = f"{WALLY}/addins/riscv-arch-test"
+
+# Code coverage metrics, chosen to match Questa's +cover=sbecf (see wally-compile.do):
+#   line   statements (s); -cm_line contassign also counts continuous assignments, as Questa does
+#   branch if/case arms and ?: operators (b)
+#   cond   conditions in if statements and expressions in assignments (c, e).  The default mode counts
+#          logical operators and bitwise operators on 1-bit operands, which is what Wally's logic is
+#          written with; -cm_cond allops would add a condition for every bit of every vector bitwise
+#          operation (tens of thousands), which Questa does not count either.  -cm_cond obs counts a
+#          subexpression's vector only when it is observable at the output of the whole expression,
+#          as Questa's focused expression coverage does, so that the two report the same holes and
+#          exclusions2el can carry Questa's row exclusions over.
+#   fsm    state machine states and transitions (f)
+# Toggle coverage (Questa's t) is not collected, as with Questa.  -cm_noconst leaves out what a constant,
+# such as a configuration parameter, makes unreachable (the XLEN=32 arm of an if (P.XLEN == 64)), which
+# Questa's optimizer removes before it counts coverage.
+CCOV_METRICS = "line+cond+branch+fsm"
+CCOV_COMPILE = f"-cm {CCOV_METRICS} -cm_line contassign -cm_cond obs -cm_noconst -cm_hier {simdir}/coverage.hier"
 
 # run a Linux command and return the result as a string in a form that VCS can use
 def runFindCommand(cmd):
@@ -40,6 +60,8 @@ def parseArgs():
     parser.add_argument("--define", "-d", help="Optional define macros passed to simulator", default="")
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--breker", "-b", help="Run Breker test", action="store_true")
+    parser.add_argument("--ccov", "-c", help="Code coverage of testbench.dut.core", action="store_true")
+    parser.add_argument("--fcov", "-f", help="Functional coverage: compile in the riscv-arch-test covergroups", action="store_true")
     return parser.parse_args()
 
 def generateFileList(testbench, params):
@@ -57,13 +79,19 @@ def generateFileList(testbench, params):
 def getCompileOptions(wkdir, args):
     """Build compile-time options for VCS."""
     compileOptions = []
+    if args.ccov:
+        compileOptions.append(CCOV_COMPILE)
+    if args.fcov:
+        compileOptions.append(fcovCompileOptions(args.config))
     if args.lockstep:
         compileOptions.extend(["+incdir+$IMPERAS_HOME/ImpPublic/include/host",
                                 "+incdir+$IMPERAS_HOME/ImpPublic/include/host/rvvi",
                                 "+incdir+$IMPERAS_HOME/ImpProprietary/include/host",
                                 "+incdir+$IMPERAS_HOME/ImpProprietary/include/host/idv",
-                                "$IMPERAS_HOME/ImpPublic/source/host/rvvi/*.sv",
+                                "$IMPERAS_HOME/ImpPublic/source/host/rvvi/rvviApiPkg.sv",
                                 "$IMPERAS_HOME/ImpProprietary/source/host/idv/*.sv"])
+        if not args.fcov:  # --fcov compiles riscv-arch-test's RVVI trace interface instead of ImperasDV's
+            compileOptions.append("$IMPERAS_HOME/ImpPublic/source/host/rvvi/rvviTrace.sv")
     if args.breker:
         WALLY_UVM_PKG = os.environ.get('WALLY_UVM_PKG')
         if not WALLY_UVM_PKG:
@@ -79,9 +107,58 @@ def getCompileOptions(wkdir, args):
         compileOptions.append(args.define)
     return " ".join(compileOptions)
 
-def getSimvOptions(args):
+def fcovCompileOptions(config):
+    """Sources, include paths and defines for the riscv-arch-test covergroups, as wally-compile.do adds them.
+
+    riscv_arch_test.sv instantiates the generated covergroups and samples them off the RVVI trace.  It
+    needs its own sources, the generated coverpoints, the test environment for derived_config.svh, and
+    the work directory of the matching ACT configuration (cvw-<config>) for rvtest_config.svh and
+    rvmodel_macros.svh.  Each covergroup is compiled in only when a +define+<GROUP>_COVERAGE names it;
+    take every directory of built tests that has a matching covergroup file."""
+    fcovsrc = f"{actdir}/framework/src/act/fcov"
+    fcovwork = Path(f"{actdir}/work/cvw-{config}")
+    if not fcovwork.is_dir():
+        sys.exit(f"Error: no ACT work directory {fcovwork}; build its tests before collecting functional coverage")
+    elfs = fcovwork / "elfs"
+    names = sorted({d.name for d in elfs.rglob("*") if d.is_dir()}) if elfs.is_dir() else []
+    groups = [n for n in names if any(Path(f"{actdir}/coverpoints/{k}/{n}_coverage.svh").exists() for k in ("unpriv", "priv"))]
+    print(f"Functional coverage: {len(groups)} covergroups")
+    return " ".join([f"+incdir+{fcovsrc}", f"+incdir+{actdir}/coverpoints",
+                     f"+incdir+{actdir}/coverpoints/unpriv", f"+incdir+{actdir}/coverpoints/priv",
+                     f"+incdir+{actdir}/tests/env", f"+incdir+{fcovwork}",
+                     *(f"+define+{g.upper()}_COVERAGE" for g in groups),
+                     f"{fcovsrc}/rvviTrace.sv", f"{fcovsrc}/riscv_arch_test.sv"])
+
+def coverageDatabase(args):
+    """The coverage database a run writes, named like Questa's .ucdb (see wally-run.do), or None.
+    Code coverage goes to ucdb/, functional coverage to fcov_ucdb/; with both, code coverage wins
+    and the one database holds both."""
+    if args.ccov:
+        return f"{simdir}/ucdb/{args.config}_{args.testsuite}.vdb"
+    if args.fcov:
+        return f"{simdir}/fcov_ucdb/{args.config}_{args.testsuite}.vdb"
+    return None
+
+def getSimvOptions(wkdir, args):
     """Build runtime options for the simulation binary."""
     simvOptions = []
+    db = coverageDatabase(args)
+    if db:
+        # Each run writes a database of its own, so that runs can go in parallel and be merged, kept or
+        # discarded one at a time.  For code coverage, start it from a copy of the coverage model the
+        # compile wrote (sim_out.vdb, without test results) so that it can be reported and merged on its
+        # own; the simulation writes only its results there.  Covergroups need no such model.
+        shutil.rmtree(db, ignore_errors=True)
+        if args.ccov:
+            shutil.copytree(f"{wkdir}/sim_out.vdb", db, ignore=shutil.ignore_patterns("testdata"))
+        simvOptions.append(f"-cm_dir {db} -cm_name {args.testsuite}")
+        if args.ccov:
+            simvOptions.append(f"-cm {CCOV_METRICS}")
+        if args.fcov:
+            # VCS W-2024.09 stops with an internal assertion failure ("CovgCountStates result is
+            # negative") while sampling some riscv-arch-test covergroups, such as I_beq_cg; riscv-arch-test's
+            # own VCS flow (riscv-arch-test-vcs.sh) runs with the same option
+            simvOptions.append("-vcs_assert off")
     if args.lockstep:
         simvOptions.append("-sv_lib $IMPERAS_HOME/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0/model")
     if args.breker:
@@ -108,13 +185,13 @@ def compileDesign(wkdir, args):
     compileOptions = getCompileOptions(wkdir, args)
     includePath = f"+incdir+{cfgdir}/{args.config} +incdir+{cfgdir}/deriv/{args.config} +incdir+{cfgdir}/shared +incdir+$WALLY/tests +incdir+{tbdir} +incdir+{srcdir}"
     vcsStandardFlags = "+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF -suppress +warn -sverilog +vc -Mupdate -line -full64 -lca -ntb_opts sensitive_dyn"
-    vcsCMD = f"vcs {vcsStandardFlags} -top {args.tb} {compileOptions} -Mdir={wkdir} {includePath} {srcdir}/cvw.sv {rtlFiles} -o {wkdir}/sim_out -work {wkdir} -Mlib={wkdir} -l {logdir}/{args.config}_{args.tb}_compile.log"
+    vcsCMD = f"vcs {vcsStandardFlags} -top {args.tb} {compileOptions} -Mdir={wkdir} {includePath} {srcdir}/cvw.sv {rtlFiles} -o {wkdir}/sim_out -work {wkdir} -Mlib={wkdir} -l {logdir}/{os.path.basename(wkdir)}_compile.log"
     print(f"Compiling VCS: {vcsCMD}")
     subprocess.run(vcsCMD, shell=True, check=True)
 
 def run(wkdir, args):
     """Run simulation using the pre-compiled binary."""
-    simvOptions = getSimvOptions(args)
+    simvOptions = getSimvOptions(wkdir, args)
     simvCMD = f"{wkdir}/sim_out +TEST={args.testsuite} {args.args} -no_save {simvOptions}"
     subprocess.run(simvCMD, shell=True, check=True)
 

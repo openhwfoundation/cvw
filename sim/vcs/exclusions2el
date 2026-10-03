@@ -1,0 +1,857 @@
+#!/usr/bin/env -S uv run --script
+#
+# exclusions2el
+# David_Harris@hmc.edu 2 October 2026
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Translate the Questa code coverage exclusions into a URG exclusion file, so that VCS code coverage
+# leaves out the same unreachable items without keeping a second list in step with the first.
+#
+# Two sources of exclusions are read:
+#   - sim/questa/coverage-exclusions-rv64gc.do, replayed with tclsh so that its loops and GetLineNum
+#     calls resolve to the "coverage exclude" commands Questa runs
+#   - "// coverage off [-item ...]" ... "// coverage on" pragmas in the RTL, which Questa honors and
+#     VCS ignores
+# Each is matched against what VCS reports for the merged database: the full exclusion dump that
+# "urg -dump full_exclusions" writes (every excludable object, with its checksum, file and line), and
+# the branch layout in urg's text report (modinfo.txt), which gives the source line of each branch
+# condition.  The result is an .el file for "urg -elfile" and a log that says, for each exclusion,
+# what it became or why it has no VCS counterpart.
+#
+# How Questa items map to VCS objects (rows are Questa's focused expression/condition coverage rows):
+#   -item s N              the Nth statement on the line: a VCS line-coverage block, not counting if/case
+#   -item b N              the Nth branch arm on the line, numbered as Questa does: the case item labelled
+#                          on the line, then each if on the line (its true arm), then an else (the false
+#                          arm of the closest if above); a ?: operator's arms in order.  A VCS branch is a
+#                          whole if/case statement whose vectors are paths through it, so an arm becomes
+#                          the vectors that take it.
+#   -item c N / -item e N  the Nth condition or expression on the line, with all of its subexpressions
+#   -linerange alone       every statement, branch arm and condition on the lines
+#   -fecexprrow/-feccondrow L R..  Questa row R of the first expression on line L tests input term
+#                          (R+1)/2 at 0 for odd R and at 1 for even R (inputs numbered in order of first
+#                          appearance, leaving out constants, as Questa does), with the rest of the
+#                          expression not masking it.  VCS
+#                          condition coverage, compiled with -cm_cond obs, has the matching vector in the
+#                          subexpression where that input is an operand: the input at that value and the
+#                          other operands at their non-controlling value, counted only when observable at
+#                          the output.  For an & (|) operand at 1 (0) that vector is shared with every
+#                          other operand, so it is excluded only when all of their rows are.
+#   -ftrans / -fstate      the FSM transition or state of that name
+# A Questa scope inside a generate block names code that VCS reports as part of the enclosing instance,
+# marked with the generate loop's index; such a scope selects that instance's objects with that index.
+# The log marks each exclusion PORTED, PARTLY PORTED (some items have no VCS counterpart that can be
+# excluded on its own), NOT PORTED, or N/A (VCS does not count what Questa excludes, so nothing is lost).
+
+import argparse
+import re
+import subprocess
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+# Questa scopes in the exclusion file are rooted at the saved instance /core (wally-run.do saves
+# /testbench/dut/core); VCS reports full hierarchical names
+QUESTA_ROOT = "/core"
+VCS_ROOT = "testbench.dut.core"
+
+# Replays a Questa .do file, printing each "coverage exclude" command's arguments separated by \x1f
+REPLAY_TCL = r"""
+proc do {f} { uplevel #0 [list source $f] }
+proc echo {args} {}
+proc onerror {args} {}
+# vsim treats [N] in a scope such as iterations[0] as an index rather than a command; do the same
+proc unknown {args} { return "\[[join $args]\]" }
+proc coverage {args} { puts [join $args "\x1f"] }
+uplevel #0 [list source [lindex $argv 0]]
+"""
+
+CONTROL_STMT = re.compile(r"^(if\b|if\(|case[zx]?\b|unique\b|priority\b|for\b|else\b|while\b)")
+
+
+################################################################################
+# URG full exclusion dump
+################################################################################
+
+class Scope:
+    """Excludable objects of one metric for one instance (or module) from a full exclusion dump."""
+    def __init__(self, checksum, module, header):
+        self.checksum = checksum
+        self.module = module
+        self.header = header            # "INSTANCE: x" or "MODULE: m"
+        self.objects = []               # dicts: kind, file, line, text, and per metric details
+
+
+def parseDump(path):
+    """Parse a fullexclude.<metric> or fullexclude_module.<metric> file into {header: Scope}."""
+    scopes = {}
+    cur = None
+    checksum = module = None
+    fileName = None
+    line = 0
+    gen = []
+    fsm = None
+    if not path.exists():
+        return scopes
+    for raw in path.read_text(errors="replace").splitlines():
+        if not raw.startswith("// ") or raw.startswith("//  "):
+            continue
+        s = raw[3:]
+        if s.startswith('CHECKSUM: "'):
+            checksum = s[len('CHECKSUM: "'):-1]
+        elif s.startswith('ANNOTATION: "ModuleName: '):
+            module = s[len('ANNOTATION: "ModuleName: '):-1]
+        elif s.startswith(("INSTANCE: ", "MODULE: ")):
+            cur = Scope(checksum, s[len("MODULE: "):] if s.startswith("MODULE: ") else module, s)
+            scopes[s] = cur
+            fsm = None
+        elif s.startswith('ANNOTATION: "') and "FileName: " in s:
+            # objects in a generate loop carry its genvar values: "vcs_gen_start:i=1:vcs_gen_end:FileName: ..."
+            m = re.match(r'ANNOTATION: "(?:vcs_gen_start:(.*?):vcs_gen_end:)?FileName: (.*), LineNumber: (\d+)"', s)
+            if m:
+                gen = [int(v) for v in re.findall(r"=(-?\d+)", m.group(1) or "")]
+                fileName, line = m.group(2), int(m.group(3))
+        elif cur is None:
+            continue
+        elif s.startswith("Block "):
+            m = re.match(r'Block (\d+) "(\d+)" "(.*)"$', s)
+            if m:
+                cur.objects.append(dict(kind="block", file=fileName, line=line, gen=gen, text=s, stmt=m.group(3)))
+        elif s.startswith("Branch "):
+            m = re.match(r'Branch (\d+) "(\d+)" "(.*?)"(?: \((\d+)\) "(.*)")?$', s)
+            if m:
+                bid, sig, vec, val = int(m.group(1)), m.group(3), m.group(4), m.group(5)
+                if vec is None:
+                    cur.objects.append(dict(kind="branch", file=fileName, line=line, gen=gen, text=s, id=bid, vectors=[]))
+                else:
+                    fields = val[len(sig):].strip().split(",") if val.startswith(sig) else val.split(",")
+                    cur.objects[-1]["vectors"].append(dict(text=s, index=int(vec), fields=[f.strip() for f in fields]))
+        elif s.startswith("Condition "):
+            m = re.match(r'Condition (\d+) "(\d+)" "(.*?) (\d+) (-?\d+)"(?: \((\d+) "([01]*)"\))?$', s)
+            if m:
+                if m.group(6) is None:
+                    cur.objects.append(dict(kind="cond", file=fileName, line=line, gen=gen, text=s, id=int(m.group(1)),
+                                            expr=m.group(3), width=int(m.group(4)), bit=int(m.group(5)), vectors=[]))
+                else:
+                    cur.objects[-1]["vectors"].append(dict(text=s, index=int(m.group(6)), bits=m.group(7)))
+        elif s.startswith("Fsm "):
+            m = re.match(r'Fsm (\S+) "(\d+)"', s)
+            fsm = dict(kind="fsm", file=fileName, line=line, gen=gen, text=s, var=m.group(1) if m else "", items=[])
+            cur.objects.append(fsm)
+        elif s.startswith(("State ", "Transition ")) and fsm is not None:
+            fsm["items"].append(dict(text=s, name=s.split()[1]))
+    return scopes
+
+
+################################################################################
+# URG text report: branch condition lines
+################################################################################
+
+def parseBranchLayout(modinfo):
+    """From urg's modinfo.txt, the branch statements of each module (keyed ("mod", name)) and of each
+    instance that has a section of its own (keyed ("inst", path)): for each start line, their type (IF,
+    CASE, TERNARY) and the source line of each numbered condition column."""
+    layout = defaultdict(dict)
+    key = None
+    branches = []
+    current = None
+    lastSrcLine = None
+
+    def finish():
+        for b in branches:
+            layout[key].setdefault(b["line"], []).append(b)
+
+    with open(modinfo, errors="replace") as f:
+        for raw in f:
+            m = re.match(r"^Branch Coverage for (Module|Instance) : (\S+)", raw)
+            if m:
+                if key is not None:
+                    finish()
+                key = ("mod" if m.group(1) == "Module" else "inst", m.group(2))
+                branches, current, lastSrcLine = [], None, None
+                continue
+            if key is None:
+                continue
+            if raw.startswith(("====", "Module Instance", "Line Coverage", "Cond Coverage", "FSM Coverage",
+                               "Toggle Coverage", "Module : ")):
+                finish()
+                key = None
+                continue
+            m = re.match(r"^(IF|CASE|TERNARY)\s+(\d+)\s+\d+\s+\d+", raw)
+            if m:  # the summary table lists the branch statements in report order
+                branches.append(dict(type=m.group(1), line=int(m.group(2)), cols={}))
+                continue
+            m = re.match(r"^(\d+)\s", raw)
+            if m:
+                lastSrcLine = int(m.group(1))
+                if current is None or current["done"]:
+                    # the listing of the next branch statement starts with its first line
+                    idx = sum(1 for b in branches if b.get("listed"))
+                    if idx < len(branches):
+                        branches[idx]["listed"] = True
+                        current = dict(branch=branches[idx], done=False)
+                continue
+            m = re.match(r"^-(\d+)-\s+(\d+)\s+\S", raw)  # ?: operators list their columns in a table
+            if m and current is not None:
+                current["branch"]["cols"][int(m.group(1))] = int(m.group(2))
+                continue
+            if re.match(r"^\s+(-\d+-\s*)+$", raw) and current is not None and lastSrcLine is not None:
+                for k in re.findall(r"-(\d+)-", raw):
+                    current["branch"]["cols"].setdefault(int(k), lastSrcLine)
+                continue
+            if raw.startswith("Branches:") and current is not None:
+                current["done"] = True
+    if key is not None:
+        finish()
+    return layout
+
+
+################################################################################
+# Expressions in VCS condition signatures
+################################################################################
+
+LOGIC_OPS = ("||", "&&", "|", "^", "&")
+PRECEDENCE = {"?": 1, "||": 2, "&&": 3, "|": 4, "^": 5, "&": 6}
+TOKEN = re.compile(r"\s*(===|!==|==|!=|<=|>=|<<<|>>>|<<|>>|\|\||&&|~\^|\^~|~&|~\||[()?:|&^~!]|[<>+\-*/%]|"
+                   r"[A-Za-z_$][\w$.]*(?:\[[^\]]*\])*|\d*'[sS]?[bBoOdDhH][0-9a-fA-FxXzZ_?]+|'[01xzXZ]|\d+|"
+                   r"\[|\]|,|\{|\})")
+
+
+def tokenize(s):
+    out, pos = [], 0
+    while pos < len(s):
+        m = TOKEN.match(s, pos)
+        if not m or m.end() == pos:
+            if s[pos:].strip() == "":
+                break
+            raise ValueError(f"cannot parse {s!r} at {s[pos:]!r}")
+        out.append(m.group(1))
+        pos = m.end()
+    return out
+
+
+class Node:
+    def __init__(self, op, args=(), text=""):
+        self.op, self.args, self.text = op, list(args), text   # op: leaf, not, ?:, or a logic operator
+
+
+def norm(text):
+    """Canonical text of an operand: no spaces and no redundant outer parentheses."""
+    t = re.sub(r"\s+", "", text)
+    while t.startswith("(") and t.endswith(")"):
+        depth = 0
+        for i, c in enumerate(t):
+            depth += c == "("
+            depth -= c == ")"
+            if depth == 0 and i < len(t) - 1:
+                return t
+        t = t[1:-1]
+    return t
+
+
+class Parser:
+    """Precedence parser for the logical part of an expression; anything else (comparisons,
+    arithmetic, reductions, selects, constants) is a leaf, as it is an input term to Questa."""
+    def __init__(self, text):
+        self.toks = tokenize(text)
+        self.i = 0
+
+    def peek(self):
+        return self.toks[self.i] if self.i < len(self.toks) else None
+
+    def take(self):
+        t = self.toks[self.i]
+        self.i += 1
+        return t
+
+    def parse(self):
+        n = self.expr(0)
+        if self.peek() is not None:
+            raise ValueError(f"trailing {self.toks[self.i:]}")
+        return n
+
+    def expr(self, minPrec):
+        left = self.unary()
+        while True:
+            op = self.peek()
+            if op in ("~^", "^~"):
+                op = "^"
+            if op not in PRECEDENCE or PRECEDENCE[op] < minPrec:
+                return left
+            self.take()
+            if op == "?":
+                a = self.expr(0)
+                if self.take() != ":":
+                    raise ValueError("expected :")
+                b = self.expr(1)
+                left = Node("?:", [left, a, b])
+            else:
+                right = self.expr(PRECEDENCE[op] + 1)
+                if left.op == op and not getattr(left, "paren", False):
+                    left.args.append(right)
+                else:
+                    left = Node(op, [left, right])
+
+    def unary(self):
+        t = self.peek()
+        if t in ("~", "!"):
+            self.take()
+            return Node("not", [self.unary()])
+        if t in ("~&", "~|", "&", "|", "^", "~^", "^~"):  # reduction: a leaf
+            self.take()
+            inner = self.primary()
+            return Node("leaf", text=t + inner.text)
+        return self.primary()
+
+    def primary(self):
+        t = self.take()
+        if t == "(":
+            start = self.i
+            n = self.expr(0)
+            # a comparison or arithmetic inside the parentheses makes the whole group a leaf
+            if self.peek() != ")":
+                depth = 1
+                while depth:
+                    x = self.take()
+                    depth += x == "("
+                    depth -= x == ")"
+                return Node("leaf", text=norm("(" + " ".join(self.toks[start:self.i])))
+            self.take()
+            n.paren = True
+            return n
+        if t == "{":
+            depth = 1
+            parts = [t]
+            while depth:
+                x = self.take()
+                depth += x == "{"
+                depth -= x == "}"
+                parts.append(x)
+            return Node("leaf", text="".join(parts))
+        text = t
+        while self.peek() in ("==", "!=", "===", "!==", "<", ">", "<=", ">=", "<<", ">>", "<<<", ">>>",
+                              "+", "-", "*", "/", "%"):
+            text += self.take()
+            text += self.unary().text if self.peek() not in ("(",) else self.primary().text
+        return Node("leaf", text=norm(text))
+
+
+def isConstant(text):
+    """True for a term with no signal in it, such as 1'b1 or 64==64 (a configuration parameter)."""
+    return not re.search(r"[A-Za-z_]\w*", re.sub(r"\d*'[sS]?[bBoOdDhH][0-9a-fA-FxXzZ_?]+", "", text))
+
+
+def leaves(node, out):
+    """Input terms in order of first appearance, as Questa numbers them.  Questa does not count constant
+    terms, which VCS keeps where a configuration parameter is folded into the expression."""
+    if node.op == "leaf":
+        if node.text not in out and not isConstant(node.text):
+            out.append(node.text)
+    else:
+        for a in node.args:
+            leaves(a, out)
+    return out
+
+
+def operands(text):
+    """The operator and operand nodes of a VCS (sub)condition, flattened as VCS does."""
+    n = Parser(text).parse()
+    while n.op == "not":
+        n = n.args[0]
+    return n.op, n.args
+
+
+def leafOf(node):
+    """(leaf text, inverted) if node is a leaf or a negated leaf, else None.  A term combined only with
+    constants, such as (64 == 64) & x where a configuration parameter was folded in, counts as that term."""
+    inv = False
+    while True:
+        if node.op == "not":
+            inv = not inv
+            node = node.args[0]
+        elif node.op in LOGIC_OPS and node.op != "^":
+            live = [a for a in node.args if not (a.op == "leaf" and isConstant(a.text))]
+            if len(live) != 1:
+                return None
+            node = live[0]
+        else:
+            break
+    return (node.text, inv) if node.op == "leaf" else None
+
+
+################################################################################
+# Translation
+################################################################################
+
+class Translator:
+    def __init__(self, dumpdir, modinfo):
+        self.inst = {}     # metric -> {header: Scope}
+        self.mod = {}
+        for metric in ("line", "branch", "cond", "fsm"):
+            self.inst[metric] = parseDump(dumpdir / f"fullexclude.{metric}")
+            self.mod[metric] = parseDump(dumpdir / f"fullexclude_module.{metric}")
+        self.layout = parseBranchLayout(modinfo)
+        self.selected = defaultdict(dict)   # (metric, header) -> {object text: annotation}
+        self.log = []
+        self.sources = {}
+        self.gen = None    # genvar values a Questa scope inside a generate loop selects, else None
+
+    def inScope(self, o):
+        return self.gen is None or o["gen"] == self.gen
+
+    def srcLine(self, file, line):
+        if file not in self.sources:
+            try:
+                self.sources[file] = Path(file).read_text(errors="replace").splitlines()
+            except OSError:
+                self.sources[file] = []
+        lines = self.sources[file]
+        return re.sub(r"//.*", "", lines[line - 1]) if 0 < line <= len(lines) else ""
+
+    def select(self, metric, scope, texts, why):
+        for t in texts:
+            self.selected[(metric, scope.header)].setdefault(t, why)
+
+    def scopes(self, metric, header):
+        """Instance or module scopes that header names (a MODULE: header for pragmas)."""
+        table = self.mod[metric] if header.startswith("MODULE: ") else self.inst[metric]
+        s = table.get(header)
+        return s
+
+    # ---- statements ----
+    def blocks(self, header, lines, ordinal, file=None):
+        sc = self.scopes("line", header)
+        if sc is None:
+            return sc, []
+        out = []
+        for ln in lines:
+            stmts = [o for o in sc.objects if o["line"] == ln and (file is None or o["file"] == file)
+                     and self.inScope(o) and not CONTROL_STMT.match(o["stmt"])]
+            if ordinal is None:
+                out += stmts
+            elif ordinal <= len(stmts):
+                out.append(stmts[ordinal - 1])
+        return sc, [o["text"] for o in out]
+
+    # ---- conditions ----
+    def condGroups(self, sc, line, file=None):
+        """Conditions on a line, grouped into top-level expressions with their subexpressions."""
+        groups = []
+        for o in sc.objects:
+            if o["kind"] != "cond" or o["line"] != line or (file is not None and o["file"] != file) \
+                    or not self.inScope(o):
+                continue
+            if groups and norm(o["expr"]) in norm(groups[-1][0]["expr"]) and o["bit"] == groups[-1][0]["bit"]:
+                groups[-1].append(o)
+            else:
+                groups.append([o])
+        return groups
+
+    def continuedExpr(self, sc, line, file=None):
+        """Questa reports a subexpression on a continuation line of a statement at that line; VCS reports
+        it, with the whole statement, at the statement's first line.  Find the subexpression (with its own
+        subexpressions) whose identifiers are on the line."""
+        starts = sorted({o["line"] for o in sc.objects if o["kind"] == "cond" and o["line"] < line
+                         and (file is None or o["file"] == file) and self.inScope(o)})
+        if not starts:
+            return []
+        first = starts[-1]
+        f = file or next(o["file"] for o in sc.objects if o["kind"] == "cond" and o["line"] == first)
+        if any(";" in self.srcLine(f, ln) for ln in range(first, line)):
+            return []      # the statement at the first line ended before this line
+        words = set(re.findall(r"[A-Za-z_]\w*", self.srcLine(f, line)))
+        conds = [o for g in self.condGroups(sc, first, file) for o in g]
+        for i, o in enumerate(conds):
+            ids = set(re.findall(r"[A-Za-z_]\w*", o["expr"])) - {"b", "h", "d"}
+            if ids and ids <= words:
+                return [o] + [x for x in conds[i + 1:] if norm(x["expr"]) in norm(o["expr"])]
+        return []
+
+    def conditions(self, header, lines, ordinal, file=None):
+        sc = self.scopes("cond", header)
+        if sc is None:
+            return sc, []
+        out = []
+        for ln in lines:
+            groups = self.condGroups(sc, ln, file)
+            chosen = groups if ordinal is None else groups[ordinal - 1:ordinal]
+            for g in chosen:
+                out += [o["text"] for o in g]
+        return sc, out
+
+    def fecRows(self, header, line, rows, file=None):
+        """Vectors for Questa FEC rows of the first expression on a line; returns (scope, texts, problems)."""
+        sc = self.scopes("cond", header)
+        if sc is None:
+            return None, [], ["N/A: VCS counts no condition in this scope"]
+        groups = self.condGroups(sc, line, file)
+        group = groups[0] if groups else self.continuedExpr(sc, line, file)
+        if not group:
+            return sc, [], [f"N/A: VCS counts no condition on line {line}"]
+        try:
+            terms = leaves(Parser(group[0]["expr"]).parse(), [])
+        except (ValueError, IndexError) as e:
+            return sc, [], [f"cannot parse {group[0]['expr']}: {e}"]
+        wanted = set()
+        problems = []
+        for r in rows:
+            k, v = (r - 1) // 2, (r - 1) % 2
+            if k >= len(terms):
+                problems.append(f"row {r}: the VCS expression has only {len(terms)} input terms")
+                continue
+            wanted.add((terms[k], v))
+        out = []
+        done = set()
+        for o in group:
+            if not o["vectors"]:
+                continue
+            try:
+                op, args = operands(o["expr"])
+            except (ValueError, IndexError):
+                continue
+            if op not in ("&", "&&", "|", "||"):
+                if op == "?:":
+                    lf = leafOf(args[0])
+                    for (t, v) in wanted:
+                        if lf and lf[0] == t:
+                            bit = str(v ^ lf[1])
+                            out += [x["text"] for x in o["vectors"] if x["bits"] == bit]
+                            done.add((t, v))
+                continue
+            nonctl = "1" if op in ("&", "&&") else "0"
+            ops = [leafOf(a) for a in args]
+            for i, lf in enumerate(ops):
+                if lf is None:
+                    continue
+                for v in (0, 1):
+                    if (lf[0], v) not in wanted:
+                        continue
+                    bit = str(v ^ int(lf[1]))
+                    vec = "".join(bit if j == i else nonctl for j in range(len(ops)))
+                    if bit == nonctl:  # the vector every operand shares at its non-controlling value
+                        others = [ops[j] for j in range(len(ops)) if j != i]
+                        if any(x is None or (not isConstant(x[0]) and (x[0], int(nonctl) ^ int(x[1])) not in wanted)
+                               for x in others):
+                            continue
+                    match = [x["text"] for x in o["vectors"] if x["bits"] == vec]
+                    if match:
+                        out += match
+                        done.add((lf[0], v))
+        operandsSeen = set()
+        for o in group:
+            try:
+                _, args = operands(o["expr"])
+            except (ValueError, IndexError):
+                continue
+            operandsSeen |= {lf[0] for lf in map(leafOf, args) if lf}
+        for (t, v) in sorted(wanted - done):
+            if t in operandsSeen:
+                problems.append(f"{t}_{v}: its VCS vector is shared with rows that stay counted")
+            else:
+                problems.append(f"{t}_{v}: not an operand of a VCS condition vector")
+        return sc, out, problems
+
+    # ---- branches ----
+    def branchInfo(self, sc, header):
+        """VCS branches of a scope with their type and column lines, matched by start line (and order,
+        where several start on one line) to the instance's own report section or else its module's."""
+        lay = self.layout.get(("inst", header[len("INSTANCE: "):])) or self.layout.get(("mod", sc.module), {})
+        used = defaultdict(int)
+        info = []
+        for o in sc.objects:
+            if o["kind"] != "branch":
+                continue
+            cands = lay.get(o["line"], [])
+            n = used[o["line"]]
+            used[o["line"]] += 1
+            info.append((o, cands[n] if n < len(cands) else None))
+        return info
+
+    def branchArms(self, header, line, ordinals, file=None):
+        """Vectors of the Questa branch items numbered on a line; ordinals None means all of them."""
+        sc = self.scopes("branch", header)
+        if sc is None:
+            return None, [], ["N/A: VCS counts no branch in this scope"]
+        arms = []   # (sort key, vector texts)
+        branchFile = file
+        info = [(o, b) for (o, b) in self.branchInfo(sc, header)
+                if (file is None or o["file"] == file) and self.inScope(o)]
+        if info and branchFile is None:
+            branchFile = info[0][0]["file"]
+        src = self.srcLine(branchFile, line) if branchFile else ""
+        label = re.match(r"^\s*([A-Za-z_]\w*|\d*'[bBdDhHoO][\w?]+|\d+|default)\s*:(?!:)", src)
+        for o, b in info:
+            if b is None:
+                continue
+            vecs = o["vectors"]
+            if b["type"] == "TERNARY":
+                if o["line"] == line:
+                    for i, v in enumerate(vecs):
+                        arms.append(((1, i), [v["text"]]))
+                continue
+            caseOffset = 1 if b["type"] == "CASE" else 0
+            if b["type"] == "CASE" and label and b["line"] < line:
+                lab = label.group(1)
+                sel = [v["text"] for v in vecs if v["fields"] and v["fields"][0] == lab]
+                if sel:
+                    arms.append(((0, 0), sel))
+            for k, ln in sorted(b["cols"].items()):
+                if ln == line and k > caseOffset:
+                    sel = [v["text"] for v in vecs if len(v["fields"]) >= k and v["fields"][k - 1] == "1"]
+                    arms.append(((1, k), sel))
+            if re.search(r"\belse\b(?!\s*if\b)", src):
+                above = [(ln, k) for k, ln in b["cols"].items() if ln < line and k > caseOffset]
+                if above and b["line"] < line:
+                    ln, k = max(above)
+                    sel = [v["text"] for v in vecs if len(v["fields"]) >= k and v["fields"][k - 1] == "0"]
+                    arms.append(((2, k), sel))
+        arms.sort(key=lambda a: a[0])
+        problems = []
+        if ordinals is None:
+            chosen = arms
+        else:
+            chosen = []
+            for n in ordinals:
+                if n <= len(arms):
+                    chosen.append(arms[n - 1])
+                else:
+                    problems.append(f"branch item {n} on line {line}: VCS shows {len(arms)} arms there")
+        out = [t for _, sel in chosen for t in sel]
+        if ordinals is not None and not out and not problems:
+            problems.append(f"N/A: VCS counts no branch on line {line}")
+        return sc, out, problems
+
+    # ---- one Questa command ----
+    def questa(self, args):
+        cmd = "coverage " + " ".join(args)
+        opts = defaultdict(list)
+        key = None
+        for a in args[1:]:
+            if a.startswith("-") and not re.match(r"^-\d", a):
+                key = a
+                opts[key]
+            elif key:
+                opts[key].append(a)
+        scope = opts.get("-scope", [None])[0]
+        if scope is None or not scope.startswith(QUESTA_ROOT):
+            self.log.append((cmd, "NOT PORTED", "only -scope exclusions under /core are translated"))
+            return
+        # VCS reports code in a generate block as part of the enclosing module instance, marking code in a
+        # generate loop with its genvar values; Questa makes each generate block a scope of its own
+        parts = [p for p in scope[len(QUESTA_ROOT):].split("/") if p]
+        for n in range(len(parts), -1, -1):
+            header = "INSTANCE: " + ".".join([VCS_ROOT] + parts[:n])
+            if any(self.inst[m].get(header) is not None for m in self.inst):
+                break
+        else:
+            self.log.append((cmd, "NOT PORTED", "VCS has no coverage for this scope"))
+            return
+        rest = parts[n:]
+        self.gen = [int(x) for p in rest for x in re.findall(r"\[(\d+)\]", p)] or None
+        why = f"Questa: {cmd}"
+        results, problems = [], []
+        if "-ftrans" in opts or "-fstate" in opts:
+            kind, vals = ("Transition", opts["-ftrans"]) if "-ftrans" in opts else ("State", opts["-fstate"])
+            var, names = vals[0], vals[1:]
+            sc = self.inst["fsm"].get(header)
+            fsm = next((o for o in sc.objects if o["var"] == var), None) if sc else None
+            if fsm is None:
+                self.log.append((cmd, "N/A", f"VCS extracts no FSM {var} here, so has nothing to exclude"))
+                return
+            for n in names:
+                item = next((i for i in fsm["items"] if i["text"].startswith(kind + " ") and i["name"] == n), None)
+                if item is None:
+                    problems.append(f"N/A: VCS reports no {kind.lower()} {n}")
+                else:
+                    results.append(("fsm", sc, [fsm["text"] + "\n" + item["text"]]))
+        elif "-fecexprrow" in opts or "-feccondrow" in opts:
+            vals = opts.get("-fecexprrow") or opts.get("-feccondrow")
+            line, rows = int(vals[0]), rowList(vals[1:])
+            sc, texts, probs = self.fecRows(header, line, rows)
+            problems += probs
+            if texts:
+                results.append(("cond", sc, texts))
+        elif "-linerange" in opts:
+            lines = []
+            for r in opts["-linerange"]:
+                a, _, b = r.partition("-")
+                lines += list(range(int(a), int(b or a) + 1))
+            items = opts.get("-item")
+            if items:
+                letters, nums = items[0], [int(x) for x in items[1:]] or [1]
+            else:
+                letters, nums = "sbce", None
+            for letter in letters:
+                if letter == "s":
+                    for n in nums or [None]:
+                        sc, texts = self.blocks(header, lines, n)
+                        if texts:
+                            results.append(("line", sc, texts))
+                        elif n is not None:
+                            problems.append(f"N/A: VCS counts no statement {n} on line(s) {lines[0]}-{lines[-1]}")
+                elif letter == "b":
+                    for ln in lines:
+                        sc, texts, probs = self.branchArms(header, ln, nums)
+                        problems += probs if len(lines) == 1 else []
+                        if texts:
+                            results.append(("branch", sc, texts))
+                elif letter in "ce":
+                    for n in nums or [None]:
+                        sc, texts = self.conditions(header, lines, n)
+                        if texts:
+                            results.append(("cond", sc, texts))
+                        elif n is not None:
+                            problems.append(f"N/A: VCS counts no condition {n} on line(s) {lines[0]}-{lines[-1]}")
+        else:
+            self.log.append((cmd, "NOT PORTED", "unsupported form"))
+            return
+        self.record(cmd, why, results, problems)
+
+    def record(self, cmd, why, results, problems):
+        n = 0
+        for metric, sc, texts in results:
+            self.select(metric, sc, texts, why)
+            n += len(texts)
+        real = [p for p in problems if not p.startswith("N/A")]
+        if n and not real:
+            status = "PORTED"
+        elif n:
+            status = "PARTLY PORTED"
+        elif not real:
+            status = "N/A"       # VCS does not count what Questa excludes, so there is nothing to exclude
+        else:
+            status = "NOT PORTED"
+        self.log.append((cmd, status, f"{n} VCS objects" + ("; " + "; ".join(problems) if problems else "")))
+
+    # ---- RTL pragmas ----
+    def pragmas(self, srcdir):
+        for f in sorted(Path(srcdir).rglob("*.sv")):
+            lines = f.read_text(errors="replace").splitlines()
+            start = spec = None
+            for i, text in enumerate(lines, 1):
+                m = re.search(r"//\s*coverage\s+(off|on)\b(.*)", text)
+                if not m:
+                    continue
+                if m.group(1) == "off" and start is None:
+                    start, spec = i, m.group(2)
+                elif m.group(1) == "on" and start is not None:
+                    self.pragma(f, start, i, spec)
+                    start = None
+            if start is not None:
+                self.pragma(f, start, len(lines) + 1, spec)
+
+    def pragma(self, f, start, end, spec):
+        self.gen = None
+        cmd = f"{f}:{start}: // coverage off{spec}"
+        why = f"pragma {f.name}:{start}"
+        file = str(f)
+        mods = {sc.header for t in self.mod.values() for sc in t.values() if any(o["file"] == file for o in sc.objects)}
+        if not mods:
+            self.log.append((cmd, "N/A", "no VCS coverage objects in this file"))
+            return
+        region = range(start + 1, end)
+        item = re.search(r"-item\s+([a-z]+)\s+(\d+)", spec)
+        rows = re.search(r"-fec(?:expr|cond)row\s+([\d\s-]+)", spec)
+        results, problems = [], []
+        for header in sorted(mods):
+            if item and rows:
+                # rows of the first expression in the region
+                sc = self.mod["cond"].get(header)
+                lines = sorted({o["line"] for o in sc.objects if o["kind"] == "cond" and o["file"] == file
+                                and o["line"] in region}) if sc else []
+                if not lines:
+                    problems.append(f"{header[8:]}: no VCS condition in the region")
+                    continue
+                s2, texts, probs = self.fecRows(header, lines[0], rowList(rows.group(1).split()), file)
+                problems += [f"{header[8:]}: {p}" for p in probs]
+                if texts:
+                    results.append(("cond", s2, texts))
+            elif item:
+                problems.append(f"pragma item {item.group(0)} without rows is not translated")
+            else:
+                sc, texts = self.blocks(header, region, None, file)
+                if texts:
+                    results.append(("line", sc, texts))
+                sc, texts = self.conditions(header, region, None, file)
+                if texts:
+                    results.append(("cond", sc, texts))
+                for ln in region:
+                    sc, texts, _ = self.branchArms(header, ln, None, file)
+                    if texts:
+                        results.append(("branch", sc, texts))
+        self.record(cmd, why, results, problems)
+
+    # ---- output ----
+    def write(self, out):
+        lines = ["// URG exclusion file generated by sim/vcs/exclusions2el from the Questa code coverage",
+                 "// exclusions and the RTL coverage pragmas.  Do not edit; regenerate it.", ""]
+        for (metric, header), objs in sorted(self.selected.items()):
+            table = self.mod[metric] if header.startswith("MODULE: ") else self.inst[metric]
+            sc = table[header]
+            lines.append(f'CHECKSUM: "{sc.checksum}"')
+            lines.append(header)
+            if metric == "fsm":   # group the states and transitions under their FSM line
+                byFsm = defaultdict(list)
+                for text, why in objs.items():
+                    fsmLine, item = text.split("\n")
+                    byFsm[fsmLine].append((item, why))
+                for fsmLine, items in byFsm.items():
+                    lines.append(fsmLine)
+                    for item, why in items:
+                        lines.append(f'ANNOTATION: "{annot(why)}"')
+                        lines.append(item)
+            else:
+                for text, why in objs.items():
+                    lines.append(f'ANNOTATION: "{annot(why)}"')
+                    lines.append(text)
+            lines.append("")
+        Path(out).write_text("\n".join(lines) + "\n")
+
+
+def annot(why):
+    return why.replace('"', "'").replace("\x1f", " ")
+
+
+def rowList(vals):
+    rows = []
+    for v in vals:
+        a, _, b = v.partition("-")
+        if a.isdigit():
+            rows += list(range(int(a), int(b or a) + 1))
+    return rows
+
+
+def questaCommands(dofile, wally):
+    res = subprocess.run(["tclsh", "/dev/stdin", str(dofile)], input=REPLAY_TCL, capture_output=True, text=True,
+                         env={"WALLY": str(wally), "PATH": "/usr/bin:/bin"})
+    if res.returncode:
+        sys.exit(f"exclusions2el: replaying {dofile} failed:\n{res.stderr}")
+    return [line.split("\x1f") for line in res.stdout.splitlines() if line.startswith("exclude")]
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--wally", required=True, help="cvw root (for the .do file's $WALLY and the RTL)")
+    ap.add_argument("--do", required=True, help="Questa exclusion file, e.g. sim/questa/coverage-exclusions-rv64gc.do")
+    ap.add_argument("--dump", required=True, help="directory holding urg's fullexclude.* files")
+    ap.add_argument("--modinfo", required=True, help="urg text report modinfo.txt for the same database")
+    ap.add_argument("--out", required=True, help="URG exclusion file to write")
+    ap.add_argument("--log", required=True, help="translation log to write")
+    a = ap.parse_args()
+    t = Translator(Path(a.dump), a.modinfo)
+    for args in questaCommands(a.do, a.wally):
+        t.questa(args)
+    t.pragmas(Path(a.wally) / "src")
+    t.write(a.out)
+    counts = defaultdict(int)
+    with open(a.log, "w") as f:
+        for cmd, status, detail in t.log:
+            counts[status] += 1
+            f.write(f"{status:14s} {cmd.replace(chr(31), ' ')}\n               {detail}\n")
+        summary = ", ".join(f"{n} {s.lower()}" for s, n in sorted(counts.items()))
+        f.write(f"\n{len(t.log)} exclusions: {summary}\n")
+    print(f"exclusions2el: {len(t.log)} exclusions: {summary}; {sum(len(v) for v in t.selected.values())} "
+          f"VCS objects excluded; see {a.log}")
+
+
+if __name__ == "__main__":
+    main()
