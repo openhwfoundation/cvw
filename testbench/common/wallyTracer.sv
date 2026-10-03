@@ -419,14 +419,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign rvvi.f_wb[0][0][index]    = frf_wb[index];
   end
 
-`ifdef FCOV
-  // Interrupts
-  assign rvvi.m_ext_intr[0][0]   = MExtInt;
-  assign rvvi.s_ext_intr[0][0]   = SExtInt;
-  assign rvvi.m_timer_intr[0][0] = MTimerInt;
-  assign rvvi.m_soft_intr[0][0]  = MSwInt;
-`endif
-
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
 

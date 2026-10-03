@@ -28,4 +28,24 @@ main:
     cbo.zero (a0)
     cbo.inval (a0)
 
+    # Back to machine mode for the case where PMP is not enforced at all.  With every pmpcfg
+    # cleared there is no matching region and none of them are locked, so EnforcePMP is low.  That
+    # is the only way to evaluate the cache management PMP checks in pmpchecker.sv with EnforcePMP
+    # low, which the supervisor mode accesses above cannot do.
+    li a0, 3
+    ecall
+
+    csrw pmpcfg0, zero
+    csrw pmpcfg2, zero
+    la a0, cboscratch   # ordinary RAM, so zeroing a line here is harmless
+    cbo.inval (a0)
+    cbo.clean (a0)
+    cbo.flush (a0)
+    cbo.zero (a0)
+
     j done
+
+.section .data
+.align 6                # a cache line, so cbo.zero stays inside the scratch area
+cboscratch:
+    .fill 16, 8, 0
