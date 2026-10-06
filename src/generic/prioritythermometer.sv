@@ -13,7 +13,7 @@
 //        out 00000000000011111
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
@@ -41,7 +41,7 @@ module prioritythermometer #(parameter N = 8) (
   // create thermometer code mask
   genvar i;
   assign y[0] = ~a[0];
-  for (i=1; i<N; i++) begin:therm
+  for (i=1; i<N; i++) begin : therm
     assign y[i] = y[i-1] & ~a[i];
   end
 endmodule

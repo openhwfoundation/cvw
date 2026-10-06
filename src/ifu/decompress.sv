@@ -8,7 +8,7 @@
 // Purpose: Expand 16-bit compressed instructions to 32 bits
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -79,7 +79,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
     if (op == 2'b11) begin // noncompressed instruction
       LInstrD = {1'b1, InstrRawD};
     end else begin  // convert compressed instruction into uncompressed
-      LInstrD = {1'b0, 16'b0, instr16}; // if a legal instruction is not decoded, default to illegal and preserve 16-bit value for mtval
+      LInstrD = {1'b0, 16'b0, instr16}; // if a legal instruction is not decoded, default to illegal and preserve 16-bit value for xtval
       case ({op, instr16[15:13]})
         5'b00000: if (immCIW != 0)                      LInstrD = {1'b1, immCIW, 5'b00010, 3'b000, rdp, 7'b0010011};                      // c.addi4spn
         5'b00001: if (P.ZCD_SUPPORTED)                  LInstrD = {1'b1, immCLD, rs1p, 3'b011, rdp, 7'b0000111};                          // c.fld

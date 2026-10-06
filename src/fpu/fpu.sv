@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -272,7 +272,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .ResSubnormUf(CvtResSubnormUfE), .Cs(CsE), .IntZero(IntZeroE), .LzcIn(CvtLzcInE));
 
   // ZFA: fround and floating-point load immediate fli
-  if (P.ZFA_SUPPORTED) begin:Zfa
+  if (P.ZFA_SUPPORTED) begin : Zfa
     logic [4:0] Rs1E;
     logic [1:0] Fmt2E; // Two-bit format field from instruction
     logic [P.FLEN-1:0]           FRoundE;                            // Zfa fround output

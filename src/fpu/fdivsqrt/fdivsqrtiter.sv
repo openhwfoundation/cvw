@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -71,8 +71,8 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
   // Initialize U to 0 = 0.0000... and UM to -1 = 1.00000... (in Q1.Divb)
   assign initU  ={(P.DIVb+1){1'b0}};
   assign initUM = {{1'b1}, {(P.DIVb){1'b0}}};
-  mux2   #(P.DIVb+1)  Umux(UNext[P.DIVCOPIES-1],  initU,  IFDivStartE, UMux);
-  mux2   #(P.DIVb+1) UMmux(UMNext[P.DIVCOPIES-1], initUM, IFDivStartE, UMMux);
+  mux2   #(P.DIVb+1)  uinitmux(UNext[P.DIVCOPIES-1],  initU,  IFDivStartE, UMux);
+  mux2   #(P.DIVb+1) uminitmux(UMNext[P.DIVCOPIES-1], initUM, IFDivStartE, UMMux);
   flopen #(P.DIVb+1)  UReg(clk, FDivBusyE, UMux,  U[0]);
   flopen #(P.DIVb+1) UMReg(clk, FDivBusyE, UMMux, UM[0]);
 
@@ -85,7 +85,7 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
 
   // Divisor Selections
   assign DBar    = ~D;        // for -D
-  if(P.RADIX == 4) begin : d2
+  if(P.RADIX == 4) begin : radix4divisor
     assign D2    = D << 1;    // for 2D,  only used in R4
     assign DBar2 = ~D2;       // for -2D, only used in R4
   end
@@ -94,11 +94,11 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
   genvar i;
   generate
     for(i=0; $unsigned(i)<P.DIVCOPIES; i++) begin : iterations
-      if (P.RADIX == 2) begin: stage
+      if (P.RADIX == 2) begin : stage
         fdivsqrtstage2 #(P) fdivsqrtstage(.D, .DBar, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
           .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));
-      end else begin: stage
+      end else begin : stage
         fdivsqrtstage4 #(P) fdivsqrtstage(.D, .DBar, .D2, .DBar2, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
           .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));

@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -84,7 +84,7 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P)(
     assign NextPtr = Sum;
   //assign NextPtr = Ptr + IncDecPtr;
 
-  flopenr #(Depth) PTR(clk, reset, CounterEn, NextPtr, Ptr);
+  flopenr #(Depth) ptrreg(clk, reset, CounterEn, NextPtr, Ptr);
 
   // RAS must be reset.
   always_ff @ (posedge clk) begin

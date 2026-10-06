@@ -123,6 +123,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   logic [7:0]  TransmitReg;                        // Transmit shift register
   logic [7:0]  ReceiveShiftReg;                    // Receive shift register
   logic [7:0]  TransmitDataEndian;                 // Reverses TransmitData from txFIFO if littleendian, since TransmitReg always shifts MSB
+  logic [7:0]  TransmitDataReversed;               // TransmitData from txFIFO with bit order reversed
   logic        TransmitLoad;                       // Determines when to load TransmitReg
   logic        TransmitRegLoaded;
 
@@ -130,6 +131,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   logic        ShiftIn;                            // Determines whether to shift from SPIIn or SPIOut (if SPI_LOOPBACK_TEST)
   logic [3:0]  LeftShiftAmount;                    // Determines left shift amount to left-align data when little endian
   logic [7:0]  ASR;                                // AlignedReceiveShiftReg
+  logic [7:0]  ASRReversed;                        // ASR with bit order reversed
 
   // CS signals
   logic [3:0]  ChipSelectAuto;                     // Assigns ChipSelect value to selected CS signal based on CS ID
@@ -307,7 +309,8 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Shift Registers --------------------------------------------------
   // Transmit shift register
   assign TransmitLoad = TransmitStart | (EndOfFrame & ~TransmitFIFOEmpty);
-  assign TransmitDataEndian = Format[0] ? {<<{TransmitReadData[7:0]}} : TransmitReadData[7:0];
+  assign TransmitDataReversed = {<<{TransmitReadData[7:0]}};
+  assign TransmitDataEndian = Format[0] ? TransmitDataReversed : TransmitReadData[7:0];
   always_ff @(posedge PCLK)
     if(~PRESETn)            TransmitReg <= 8'b0;
     else if (TransmitLoad)  TransmitReg <= TransmitDataEndian;
@@ -332,7 +335,8 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Aligns received data and reverses if little-endian
   assign LeftShiftAmount = 4'h8 - FrameLength;
   assign ASR = ReceiveShiftReg << LeftShiftAmount[2:0];
-  assign ReceiveShiftRegEndian = Format[0] ? {<<{ASR[7:0]}} : ASR[7:0];
+  assign ASRReversed = {<<{ASR[7:0]}};
+  assign ReceiveShiftRegEndian = Format[0] ? ASRReversed : ASR[7:0];
 
   // Interrupt logic: raise interrupt if any enabled interrupts are pending
   assign SPIIntr = |(InterruptPending & InterruptEnable);

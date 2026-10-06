@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -32,7 +32,7 @@ module cacheLRU
   #(parameter NUMWAYS = 4, SETLEN = 9, NUMSETS = 128) (
   input  logic                clk,
   input  logic                reset,
-  input  logic                FlushStage,
+  input  logic                InvalidateFlushStage,
   input  logic                CacheEn,         // Enable the cache memory arrays.  Disable hold read data constant
   input  logic [NUMWAYS-1:0]  HitWay,          // Which way is valid and matches PAdr's tag
   input  logic [NUMWAYS-1:0]  ValidWay,        // Which ways for a particular set are valid, ignores tag
@@ -137,7 +137,7 @@ module cacheLRU
 
   // LRU memory must be reset for Questa to run. The reset value does not matter but it is best to be deterministc.
   always_ff @(posedge clk)
-    if (reset | (InvalidateCache & ~FlushStage))
+    if (reset | (InvalidateCache & ~InvalidateFlushStage))
       for (int set = 0; set < NUMSETS; set++) LRUMemory[set] <= '0; // exclusion-tag: initialize
     else if (CacheEn & LRUWriteEn) LRUMemory[PAdr] <= NextLRU;
 

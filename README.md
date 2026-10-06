@@ -1,4 +1,4 @@
-[![Installation CI](https://github.com/openhwgroup/cvw/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/openhwgroup/cvw/actions/workflows/install.yml)
+[![Installation CI](https://github.com/openhwfoundation/cvw/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/openhwfoundation/cvw/actions/workflows/install.yml)
 
 # core-v-wally
 
@@ -6,7 +6,7 @@ Wally is a 5-stage pipelined processor configurable to support all the standard 
 
 ![Wally block diagram](wallyriscvTopAll.png)
 
-Wally is described in an upcoming textbook, *RISC-V System-on-Chip Design*, by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.  A system administrator must install CAD tools using the directions further down.
+Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages.hmc.edu/harris/ddca/rvsocd.html), by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.  A system administrator must install CAD tools using the directions further down.
 
 # Verification
 
@@ -31,7 +31,7 @@ New users may wish to do the following setup to access the server via a GUI and 
 Then fork and clone the repo, source setup, make the tests and run regression
 
 1. If you don't already have a Github account, create one
-2. In a web browser, visit https://github.com/openhwgroup/cvw
+2. In a web browser, visit https://github.com/openhwfoundation/cvw
 3. In the upper right part of the screen, click on Fork
 4. Create a fork, choosing the owner as your github account and the repository as cvw.
 5. On the Linux computer where you will be working, log in.
@@ -39,7 +39,7 @@ Then fork and clone the repo, source setup, make the tests and run regression
   ```bash
   $ git clone --recurse-submodules https://github.com/<yourgithubid>/cvw
   $ cd cvw
-  $ git remote add upstream https://github.com/openhwgroup/cvw
+  $ git remote add upstream https://github.com/openhwfoundation/cvw
   ```
 
 > [!NOTE]
@@ -83,17 +83,16 @@ Then fork and clone the repo, source setup, make the tests and run regression
 > This section describes the open source toolchain installation.
 
 ### Compatibility
-The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, and 24.04 LTS), Debian (versions 11, 12, and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), and SUSE version 15.6. Only the latest minor release of each major version is tested.
+The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS), Debian (versions 12 and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), and SUSE versions 15.6 and 16.0. Only the latest minor release of each major version is tested.
 
 > [!WARNING]
 > - Ubuntu 22.04LTS is incompatible with Synopsys Design Compiler.
 > - Verilator currently fails to simulate correctly on Ubuntu 20.04 LTS and Red Hat/Rocky/AlmaLinux 8.
-> - Whisper is not installed on Ubuntu 20.04 LTS or Debian 11 due to issues compiling the boost libraries.
+> - Whisper is not installed on Ubuntu 20.04 LTS due to issues compiling the boost libraries.
 
 ### Overview
 The toolchain installation script installs the following tools:
 - [RISC-V GNU Toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain): GCC and accompanying compiler tools
-- [elf2hex](https://github.com/sifive/elf2hex): executable file to hexadecimal converter
 - [QEMU](https://www.qemu.org/docs/master/system/target-riscv.html): emulator
 - [Spike](https://github.com/riscv-software-src/riscv-isa-sim): functional RISC-V model
 - [Whisper](https://github.com/tenstorrent/whisper): RISC-V instruction set simulator (ISS)
@@ -222,7 +221,7 @@ If you want to add a cronjob you can do the following:
 2) Enter `crontab -e` into a terminal
 3) add this code to test cloning CVW, making CVW's tests, then running `regression-wally --nightly --buildroot` every day at 21:30 in your local time
 ```bash
-30 21 * * * curl -L https://raw.githubusercontent.com/openhwgroup/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
+30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
 ```
 This utility will take up approximately 100 GB on your hard drive. You can also run the script directly from `bin/nightly_build.py`.
 

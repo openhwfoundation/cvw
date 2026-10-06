@@ -215,8 +215,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, testbench.dut.core.priv.priv.csr.csrm.MCOUNTINHIBIT_REGW);
     // mhpmevent3-31 not connected (232-33F)
     if (P.ZICNTR_SUPPORTED) begin
-      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[0]); // MCYCLE
-      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2]); // MINSTRET
+      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0]); // MCYCLE
+      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2]); // MINSTRET
       // mhpmcounter3-31 not connected (B03-B1F)
       // cycle, time, instret not connected (C00-C02)
       // hpmcounter3-31 not connected (C03-C1F)

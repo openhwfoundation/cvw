@@ -8,7 +8,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -35,7 +35,7 @@ module popcnt #(parameter WIDTH = 32) (
 
   always_comb begin
     sum = '0;
-    for (int i=0;i<WIDTH;i++) begin:loop
+    for (int i=0;i<WIDTH;i++) begin : loop
       sum = (num[i]) ? sum + 1 : sum;
     end
   end

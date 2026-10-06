@@ -50,16 +50,16 @@ jobs:
             image: ubuntu:24.04
             imageFamily: debian
             os: ubuntu-latest
+          - name: ubuntu-26.04
+            image: ubuntu:26.04
+            imageFamily: debian
+            os: ubuntu-latest
           # Ubuntu ARM64 Installation
           - name: ubuntu-24.04-arm
             image: ubuntu:24.04
             imageFamily: debian
             os: ubuntu-24.04-arm
           # Debian Installations
-          - name: debian-11
-            image: debian:11
-            imageFamily: debian
-            os: ubuntu-latest
           - name: debian-12
             image: debian:12
             imageFamily: debian
@@ -100,6 +100,10 @@ jobs:
             image: opensuse/leap:15.6
             imageFamily: suse
             os: ubuntu-latest
+          - name: opensuse-16.0
+            image: opensuse/leap:16.0
+            imageFamily: suse
+            os: ubuntu-latest
           # User level installation
           - name: user-install
             image: null
@@ -137,7 +141,7 @@ jobs:
               zypper install -y git
             fi
       # Only clone submodules needed for standard tests/regression to save space
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Clone Necessary Submodules
         run: |
               git config --global --add safe.directory '*'

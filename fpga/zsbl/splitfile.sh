@@ -30,7 +30,7 @@
 
 
 # Acquired from here.
-# https:##stackoverflow.com#questions#3066948#how-to-file-split-at-a-line-number
+# https://stackoverflow.com/questions/3066948/how-to-file-split-at-a-line-number
 file_name=$1
 
 # set first K lines:

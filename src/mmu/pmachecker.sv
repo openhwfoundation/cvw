@@ -11,7 +11,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -46,7 +46,7 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
 
   logic                        PMAAccessFault;
   logic                        AccessRW, AccessRWXC, AccessRX;
-  logic [11:0]                 SelRegions;
+  logic [12:0]                 SelRegions;
   logic                        AtomicAllowed;
   logic                        CacheableRegion, IdempotentRegion;
 
@@ -64,7 +64,7 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
 
   // Nonidemdempotent means access could have side effect and must not be done speculatively or redundantly
   // I/O is nonidempotent.  PBMT can override PMA; NC is idempotent and IO is non-idempotent
-  assign IdempotentRegion = SelRegions[1] | SelRegions[2] | SelRegions[3] | SelRegions[4] | SelRegions[5]; // exclusion-tag: unused-idempotent
+  assign IdempotentRegion = SelRegions[1] | SelRegions[2] | SelRegions[3] | SelRegions[4] | SelRegions[5];
   assign Idempotent = (PBMemoryType == 2'b00) ? IdempotentRegion : (PBMemoryType == 2'b01);
 
   // Atomic operations are only allowed on RAM

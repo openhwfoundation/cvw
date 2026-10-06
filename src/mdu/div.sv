@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -70,7 +70,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
   assign DivBusyE = (state == BUSY) | DivStartE;
 
   // Handle sign extension for W-type instructions
-  if (P.XLEN == 64) begin:rv64 // RV64 has W-type instructions
+  if (P.XLEN == 64) begin : rv64 // RV64 has W-type instructions
     mux2 #(P.XLEN) xinmux(ForwardedSrcAE, {ForwardedSrcAE[31:0], 32'b0}, W64E, XinE);
     mux2 #(P.XLEN) dinmux(ForwardedSrcBE, {{32{ForwardedSrcBE[31]&DivSignedE}}, ForwardedSrcBE[31:0]}, W64E, DinE);
   end else begin // RV32 has no W-type instructions

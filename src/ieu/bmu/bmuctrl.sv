@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 //
@@ -106,11 +106,11 @@ module bmuctrl import cvw::*;  #(parameter cvw_t P) (
       endcase
       if (P.XLEN==32)
         casez({OpD, Funct7D, Funct3D})
-          17'b0110011_0000100_100: BMUControlsD = `BMUCTRLW'b000_0010_0001_1_1_0_0_1_0_0_0_0_0;  // zexth (rv32)
+          17'b0110011_0000100_100: if (Rs2D == 5'b0) BMUControlsD = `BMUCTRLW'b000_0010_0001_1_1_0_0_1_0_0_0_0_0;  // zexth (rv32)
         endcase
       else if (P.XLEN==64)
         casez({OpD, Funct7D, Funct3D})
-          17'b0111011_0000100_100: BMUControlsD = `BMUCTRLW'b000_0010_0001_1_0_0_0_1_0_0_0_0_0;  // zexth (rv64)
+          17'b0111011_0000100_100: if (Rs2D == 5'b0) BMUControlsD = `BMUCTRLW'b000_0010_0001_1_0_0_0_1_0_0_0_0_0;  // zexth (rv64)
           17'b0011011_0110000_001: if ((Rs2D[4:2]==3'b000) & ~(Rs2D[1] & Rs2D[0]))
                                    BMUControlsD = `BMUCTRLW'b000_0010_0000_1_1_1_1_0_0_0_0_0_0;  // count word instruction (clzw/ctzw/cpopw)
         endcase

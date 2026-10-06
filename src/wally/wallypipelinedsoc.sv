@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -63,7 +63,8 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   input  logic                SDCIn,            // SDC DATA[0]     to     SPI DI
   output logic                SDCCmd,           // SDC CMD         from   SPI DO
   output logic [3:0]          SDCCS,            // SDC Card Detect from   SPI CS
-  output logic                SDCCLK            // SDC Clock       from   SPI Clock
+  output logic                SDCCLK,           // SDC Clock       from   SPI Clock
+  output logic [3:0]          PWMGPIO           // PWM GPIO output
 );
 
   // Uncore signals
@@ -90,10 +91,10 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
       .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .HRDATAEXT,
       .HREADYEXT, .HRESPEXT, .HRDATA, .HREADY, .HRESP, .HSELEXT,
       .MTimerInt, .MSwInt, .MExtInt, .SExtInt, .HGEIPIn, .GPIOIN, .GPIOOUT, .GPIOEN, .UARTSin,
-      .UARTSout, .MTIME_CLINT, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+      .UARTSout, .MTIME_CLINT, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO);
   end else begin
     assign {HRDATA, HREADY, HRESP, HSELEXT, MTimerInt, MSwInt, MExtInt, SExtInt,
-            MTIME_CLINT, HGEIPIn, GPIOOUT, GPIOEN, UARTSout, SPIOut, SPICS, SPICLK, SDCCmd, SDCCS, SDCCLK} = '0;
+            MTIME_CLINT, HGEIPIn, GPIOOUT, GPIOEN, UARTSout, SPIOut, SPICS, SPICLK, SDCCmd, SDCCS, SDCCLK, PWMGPIO} = '0;
   end
 
 

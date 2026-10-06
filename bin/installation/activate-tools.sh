@@ -9,7 +9,7 @@
 ## Purpose: Activate gcc and python virtual environment
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 ##
@@ -19,7 +19,7 @@
 ## except in compliance with the License, or, at your option, the Apache License version 2.0. You
 ## may obtain a copy of the License at
 ##
-## https:##solderpad.org/licenses/SHL-2.1/
+## https://solderpad.org/licenses/SHL-2.1/
 ##
 ## Unless required by applicable law or agreed to in writing, any work distributed under the
 ## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -44,7 +44,7 @@ if [ "$FAMILY" == rhel ] && (( RHEL_VERSION < 10 )); then
         echo -e "${FAIL_COLOR}GCC toolset 13 not found. Please install it with wally-package-install.sh.${ENDC}"
         return 1
     fi
-elif [ "$FAMILY" == suse ]; then
+elif [ "$FAMILY" == suse ] && ((SUSE_VERSION < 160)); then
     if [ ! -e "$RISCV"/gcc-13/bin/gcc ]; then
         mkdir -p "$RISCV"/gcc-13/bin
         for f in gcc cpp g++ gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool lto-dump; do
@@ -60,4 +60,10 @@ elif (( UBUNTU_VERSION == 20 )); then
         done
     fi
     export PATH="$RISCV"/gcc-10/bin:$PATH
+elif (( UBUNTU_VERSION == 26 )); then
+    if [ ! -e "$RISCV"/gnuinstall/bin/install ]; then
+        mkdir -p "$RISCV"/gnuinstall/bin
+        ln -vsf "$(which gnuinstall)" $RISCV/gnuinstall/bin/install
+    fi
+    export PATH="$RISCV"/gnuinstall/bin:$PATH
 fi

@@ -9,7 +9,7 @@
 
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -86,7 +86,7 @@ module localbpbasic import cvw::*; #(parameter cvw_t P,
   genvar      index;
   assign UpdateM = BranchM & ~StallW & ~FlushW;
   assign IndexLHRM = {PCM[m+1] ^ PCM[1], PCM[m:2]};
-  for (index = 0; index < 2**m; index = index +1) begin:localhist
+  for (index = 0; index < 2**m; index = index +1) begin : localhist
     flopenr #(k) LocalHistoryRegister(.clk, .reset, .en(UpdateM & (index == IndexLHRM)),
                                       .d(LHRNextW), .q(LHRArray[index]));
   end

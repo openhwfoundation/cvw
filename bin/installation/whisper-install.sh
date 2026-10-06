@@ -9,7 +9,7 @@
 ## Purpose: Whisper ISS installation script
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 ##
@@ -19,7 +19,7 @@
 ## except in compliance with the License, or, at your option, the Apache License version 2.0. You
 ## may obtain a copy of the License at
 ##
-## https:##solderpad.org/licenses/SHL-2.1/
+## https://solderpad.org/licenses/SHL-2.1/
 ##
 ## Unless required by applicable law or agreed to in writing, any work distributed under the
 ## License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -27,7 +27,7 @@
 ## and limitations under the License.
 ################################################################################################
 
-WHISPER_VERSION=16ff8a8b76175457e214a5b5efaa8e0c1ec132d1 # Latest commit as of March 22, 2026
+WHISPER_VERSION=ffa61c2bd8b331bb6f31161f0223a114a59c21a9 # Latest commit as of July 13, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script

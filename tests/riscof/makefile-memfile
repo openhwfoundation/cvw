@@ -12,12 +12,8 @@ ADDRFILES ?= $(OBJDUMPFILES:.objdump=.objdump.addr)
 .PHONY: wally-sim-files
 wally-sim-files: $(MEMFILES) $(ADDRFILES)
 
-BITWIDTH = $(if $(findstring ELF32, $(shell riscv64-unknown-elf-readelf -h $<)),32, \
-           $(if $(findstring ELF64, $(shell riscv64-unknown-elf-readelf -h $<)),64, \
-           $(error "Unknown bit width (XLEN) for $<")))
-
 %.elf.memfile: %.elf
-	riscv64-unknown-elf-elf2hex --bit-width $(BITWIDTH) --input $< --output $@
+	elf2hex $< $@
 
 %.elf.objdump.addr: %.elf.objdump
 	extractFunctionRadix.sh $<

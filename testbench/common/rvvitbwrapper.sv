@@ -83,8 +83,8 @@ module rvvitbwrapper import cvw::*; #(parameter cvw_t P,
   assign InstrValidM    = dut.core.ieu.InstrValidM;
   assign InstrRawD      = dut.core.ifu.InstrRawD;
   assign PCM            = dut.core.ifu.PCM;
-  assign Mcycle         = dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[0];
-  assign Minstret       = dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2];
+  assign Mcycle         = dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0];
+  assign Minstret       = dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
   assign TrapM          = dut.core.TrapM;
   assign PrivilegeModeW = dut.core.priv.priv.privmode.PrivilegeModeW;
   assign GPRAddr        = dut.core.ieu.dp.regf.a3;

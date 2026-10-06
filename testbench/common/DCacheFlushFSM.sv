@@ -68,7 +68,7 @@ module DCacheFlushFSM import cvw::*; #(parameter cvw_t P)
           .valid(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].ValidBits[index]),
           .dirty(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].DirtyBits[index]),
                            // these dirty bit selections would be needed if dirty is moved inside the tag array.
-          //.dirty(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].dirty.DirtyMem.RAM[index]),
+          //.dirty(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].dirtyarray.DirtyMem.RAM[index]),
           //.dirty(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].CacheTagMem.RAM[index][P.PA_BITS+tagstart]),
           .data(testbench.dut.core.lsu.bus.dcache.dcache.CacheWays[way].word[cacheWord].wordram.CacheDataMem.ram.RAM[index]),
           .index(index),

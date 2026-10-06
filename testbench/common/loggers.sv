@@ -151,13 +151,13 @@ module loggers import cvw::*; #(parameter cvw_t P,
     always @(negedge clk) begin
       if(StartSample) begin
         for(HPMCindex = 0; HPMCindex < 32; HPMCindex += 1) begin
-          InitialHPMCOUNTERH[HPMCindex] <= dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[HPMCindex];
+          InitialHPMCOUNTERH[HPMCindex] <= dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[HPMCindex];
         end
       end
       if(EndSample) begin
         for(HPMCindex = 0; HPMCindex < HPMCnames.size(); HPMCindex += 1) begin
           // unlikely to have more than 10M in any counter.
-          $display("Cnt[%2d] = %7d %s", HPMCindex, dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[HPMCindex] - InitialHPMCOUNTERH[HPMCindex], HPMCnames[HPMCindex]);
+          $display("Cnt[%2d] = %7d %s", HPMCindex, dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[HPMCindex] - InitialHPMCOUNTERH[HPMCindex], HPMCnames[HPMCindex]);
         end
       end
     end

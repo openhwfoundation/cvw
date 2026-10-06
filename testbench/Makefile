@@ -4,15 +4,8 @@
 # jcarlin@hmc.edu 7 Jul 2025
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-# the width is set by the elf's type to allow for individual elf compilation
-
-BITWIDTH = $(if $(findstring ELF32, $(shell riscv64-unknown-elf-readelf -h $<)),32, \
-	         $(if $(findstring ELF64, $(shell riscv64-unknown-elf-readelf -h $<)),64, \
-					 $(error "Unknown bit width (XLEN) for $<")))
-
 %.memfile: %
-	echo "Processing $< with --bit-width ${BITWIDTH}"; \
-	riscv64-unknown-elf-elf2hex --bit-width ${BITWIDTH} --input $< --output $@
+	elf2hex $< $@
 
 %.objdump.addr: %.objdump
 	extractFunctionRadix.sh $<

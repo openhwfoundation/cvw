@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -65,7 +65,7 @@ module ahbcacheinterface import cvw::*; #(
   input logic [P.LLEN-1:0]      WriteDataM,              // IEU write data for uncached store
   input logic [1:0]           BusRW,                   // Uncached memory operation read/write control: 10: read, 01: write
   input logic                 BusAtomic,          // Uncache atomic memory operation
-  input logic [2:0]           Funct3,                  // Size of uncached memory operation
+  input logic [2:0]           Size,                    // Size of uncached memory operation
   input logic                 BusCMOZero,               // Uncached cbo.zero must write zero to full sized cacheline without going through the cache
 
   // lsu/ifu interface
@@ -85,7 +85,7 @@ module ahbcacheinterface import cvw::*; #(
   genvar                      index;
 
   // fetch buffer is made of BEATSPERLINE flip-flops
-  for (index = 0; index < BEATSPERLINE; index++) begin:fetchbuffer
+  for (index = 0; index < BEATSPERLINE; index++) begin : fetchbufferbeat
     logic [BEATSPERLINE-1:0] CaptureBeat;
     assign CaptureBeat[index] = CaptureEn & (index == BeatCountDelayed);
     flopen #(P.AHBW) fb(.clk(HCLK), .en(CaptureBeat[index]), .d(HRDATA),
@@ -96,14 +96,14 @@ module ahbcacheinterface import cvw::*; #(
   mux2 #(P.PA_BITS) localadrmux(PAdrZero, CacheBusAdr, Cacheable, LocalHADDR);
   assign HADDR = ({{P.PA_BITS-AHBWLOGBWPL{1'b0}}, BeatCount} << $clog2(P.AHBW/8)) + LocalHADDR;
 
-  mux2 #(3) sizemux(.d0(Funct3), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
+  mux2 #(3) sizemux(.d0(Size), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
 
   // When AHBW is less than LLEN need extra muxes to select the subword from cache's read data.
   logic [P.AHBW-1:0]          CacheReadDataWordAHB;
   if(LLENPOVERAHBW > 1) begin
     logic [P.AHBW-1:0]          AHBWordSets [(LLENPOVERAHBW)-1:0];
     genvar                     index;
-    for (index = 0; index < LLENPOVERAHBW; index++) begin:readdatalinesetsmux
+    for (index = 0; index < LLENPOVERAHBW; index++) begin : readdatalinesetsmux
         assign AHBWordSets[index] = CacheReadDataWordM[(index*P.AHBW)+P.AHBW-1: (index*P.AHBW)];
     end
     assign CacheReadDataWordAHB = AHBWordSets[BeatCount[$clog2(LLENPOVERAHBW)-1:0]];

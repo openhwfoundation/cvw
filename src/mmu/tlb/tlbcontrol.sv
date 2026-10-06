@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -90,13 +90,13 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   assign ReservedRW = PTE_W & ~PTE_R;                                      // page fault on reserved encoding with R=0, W=1 per Privileged Spec 10.3.1
 
   // Check whether the access is allowed, page faulting if not.
-  if (ITLB == 1) begin:itlb // Instruction TLB fault checking
+  if (ITLB == 1) begin : itlb // Instruction TLB fault checking
     // User mode may only execute user mode pages, and supervisor mode may
     // only execute non-user mode pages.
     assign ImproperPrivilege = ((EffectivePrivilegeModeW == P.U_MODE) & ~PTE_U) | ((EffectivePrivilegeModeW == P.S_MODE) & PTE_U);
     assign PreUpdateDA = ~PTE_A;
     assign InvalidAccess = ~PTE_X | ReservedRW;
- end else begin:dtlb // Data TLB fault checking
+ end else begin : dtlb // Data TLB fault checking
     logic InvalidRead, InvalidWrite;
     logic InvalidCBOM, InvalidCBOZ;
 

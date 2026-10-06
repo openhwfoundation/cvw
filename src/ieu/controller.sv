@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -67,7 +67,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   output logic        BMUActiveE,              // Bit manipulation instruction being executed
   output logic [1:0]  CZeroE,                  // {czero.nez, czero.eqz} instructions active
   output logic        MDUActiveE,              // Mul/Div instruction being executed
-  output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic        IFUPrefetchE,            // instruction prefetch
   output logic        LSUPrefetchM,            // data prefetch
   output logic [1:0]  ForwardAE, ForwardBE,    // Select signals for forwarding multiplexers
@@ -154,7 +154,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]  PreALUSelectD;                  // ALU Output selection mux control (before possible Zicond logic)
   logic [2:0]  ALUSelectD;                     // ALU Output selection mux control
   logic        IWValidFunct3D;                 // Detects if Funct3 is valid for IW instructions
-  logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
   logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
@@ -170,49 +170,74 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   assign Rs2D    = InstrD[24:20];
   assign RdD     = InstrD[11:7];
 
-  // Funct 7 checking — always rigorous per Sstrict profile
-  logic Funct7ZeroD, Funct7b5D, IShiftD, INoShiftD;
-  logic Funct7ShiftZeroD, Funct7Shiftb5D;
+  // Funct 7 checking
+  // Be rigorous about detecting illegal instructions if CSRs or bit manipulation or conditional ops are supported
+  // otherwise be cheap
 
-  assign Funct7ZeroD      = (Funct7D == 7'b0000000); // most R-type instructions
-  assign Funct7b5D        = (Funct7D == 7'b0100000); // srai, sub
-  assign FunctCZeroD      = (Funct3D == 3'b101 | Funct3D == 3'b111) & (Funct7D == 7'b0000111) & P.ZICOND_SUPPORTED; // czero.eqz or czero.nez
-  assign Funct7ShiftZeroD = (P.XLEN==64 & ~OpD[3]) ? (Funct7D[6:1] == 6'b000000) : Funct7ZeroD; // 64-bit logical shifts allowed on XLEN=64, non-W
-  assign Funct7Shiftb5D   = (P.XLEN==64 & ~OpD[3]) ? (Funct7D[6:1] == 6'b010000) : Funct7b5D;   // 64-bit arithmetic shifts allowed on XLEN=64, non-W
-  assign IShiftD          = (Funct3D == 3'b001 & Funct7ShiftZeroD) | (Funct3D == 3'b101 & (Funct7ShiftZeroD | Funct7Shiftb5D)); // slli, srli, srai, or w forms
-  assign INoShiftD        = ((Funct3D != 3'b001) & (Funct3D != 3'b101));
-  assign IFunctD          = IShiftD | INoShiftD;
-  assign RFunctD          = ((Funct3D == 3'b000 | Funct3D == 3'b101) & Funct7b5D) | FunctCZeroD | Funct7ZeroD;
-  assign MFunctD          = (Funct7D == 7'b0000001) & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
-  assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
-                            ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
-  assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
-                            (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
-  assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
-  assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) &
-                            ((P.ZICBOZ_SUPPORTED & InstrD[31:20] == 12'd4 & ENVCFG_CBE[3]) |
-                             (P.ZICBOM_SUPPORTED & ((InstrD[31:20] == 12'd0 & (ENVCFG_CBE[1:0] != 2'b00))) |
-                                                    (InstrD[31:20] == 12'd1 | InstrD[31:20] == 12'd2) & ENVCFG_CBE[2]));
-  assign AFunctD          = (Funct3D == 3'b010) | (P.XLEN == 64 & Funct3D == 3'b011);
-  assign AMOFunctD        = (InstrD[31:27] == 5'b00001) |
-                            (InstrD[31:27] == 5'b00000) |
-                            (InstrD[31:27] == 5'b00100) |
-                            (InstrD[31:27] == 5'b01100) |
-                            (InstrD[31:27] == 5'b01000) |
-                            (InstrD[31:27] == 5'b10000) |
-                            (InstrD[31:27] == 5'b10100) |
-                            (InstrD[31:27] == 5'b11000) |
-                            (InstrD[31:27] == 5'b11100);
-  assign RWFunctD         = ((Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b101) & Funct7ZeroD |
-                            (Funct3D == 3'b000 | Funct3D == 3'b101) & Funct7b5D) & (P.XLEN == 64);
-  assign MWFunctD         = MFunctD & (P.XLEN == 64) & ~(Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b011);
-  assign SFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 |
-                            ((P.XLEN == 64) & (Funct3D == 3'b011));
-  assign BFunctD          = Funct3D[2:1] != 2'b01; // legal branches
-  assign JRFunctD         = Funct3D == 3'b000;
-  assign PFunctD          = Funct3D == 3'b000 & RdD == 5'b0;
-  assign CSRFunctD        = Funct3D[1:0] != 2'b00;
-  assign IWValidFunct3D   = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b101;
+  if (P.ZICSR_SUPPORTED | P.ZBA_SUPPORTED  | P.ZBB_SUPPORTED  | P.ZBC_SUPPORTED  | P.ZBS_SUPPORTED |
+      P.ZBKB_SUPPORTED  | P.ZBKC_SUPPORTED | P.ZBKX_SUPPORTED | P.ZKNE_SUPPORTED |
+      P.ZKND_SUPPORTED  | P.ZKNH_SUPPORTED | P.ZICOND_SUPPORTED) begin : legalcheck // Exact integer decoding
+    logic Funct7ZeroD, Funct7b5D, IShiftD, INoShiftD;
+    logic Funct7ShiftZeroD, Funct7Shiftb5D;
+
+    assign Funct7ZeroD      = (Funct7D == 7'b0000000); // most R-type instructions
+    assign Funct7b5D        = (Funct7D == 7'b0100000); // srai, sub
+    assign FunctCZeroD      = (Funct3D == 3'b101 | Funct3D == 3'b111) & (Funct7D == 7'b0000111) & P.ZICOND_SUPPORTED; // czero.eqz or czero.nez
+    assign Funct7ShiftZeroD = (P.XLEN==64 & ~OpD[3]) ? (Funct7D[6:1] == 6'b000000) : Funct7ZeroD; // 64-bit logical shifts allowed on XLEN=64, non-W
+    assign Funct7Shiftb5D   = (P.XLEN==64 & ~OpD[3]) ? (Funct7D[6:1] == 6'b010000) : Funct7b5D;   // 64-bit arithmetic shifts allowed on XLEN=64, non-W
+    assign IShiftD          = (Funct3D == 3'b001 & Funct7ShiftZeroD) | (Funct3D == 3'b101 & (Funct7ShiftZeroD | Funct7Shiftb5D)); // slli, srli, srai, or w forms
+    assign INoShiftD        = ((Funct3D != 3'b001) & (Funct3D != 3'b101));
+    assign IFunctD          = IShiftD | INoShiftD;
+    assign RFunctD          = ((Funct3D == 3'b000 | Funct3D == 3'b101) & Funct7b5D) | FunctCZeroD | Funct7ZeroD;
+    assign MFunctD          = (Funct7D == 7'b0000001) & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
+    assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
+                              ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
+    assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
+                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
+    assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
+    assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) &
+                              ((P.ZICBOZ_SUPPORTED & (InstrD[31:20] == 12'd4) & ENVCFG_CBE[3]) |
+                               (P.ZICBOM_SUPPORTED & (((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01 | ENVCFG_CBE[1:0] == 2'b11)) |
+                                                      ((InstrD[31:20] == 12'd1 | InstrD[31:20] == 12'd2) & ENVCFG_CBE[2]))));
+    assign AFunctD          = (Funct3D == 3'b010) | (P.XLEN == 64 & Funct3D == 3'b011);
+    assign AMOFunctD        = (InstrD[31:27] == 5'b00001) |
+                              (InstrD[31:27] == 5'b00000) |
+                              (InstrD[31:27] == 5'b00100) |
+                              (InstrD[31:27] == 5'b01100) |
+                              (InstrD[31:27] == 5'b01000) |
+                              (InstrD[31:27] == 5'b10000) |
+                              (InstrD[31:27] == 5'b10100) |
+                              (InstrD[31:27] == 5'b11000) |
+                              (InstrD[31:27] == 5'b11100);
+    assign RWFunctD         = ((Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b101) & Funct7ZeroD |
+                              (Funct3D == 3'b000 | Funct3D == 3'b101) & Funct7b5D) & (P.XLEN == 64);
+    assign MWFunctD         = MFunctD & (P.XLEN == 64) & ~(Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b011);
+    assign SFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 |
+                              ((P.XLEN == 64) & (Funct3D == 3'b011));
+    assign BFunctD          = Funct3D[2:1] != 2'b01; // legal branches
+    assign JRFunctD         = Funct3D == 3'b000;
+    assign PFunctD          = Funct3D == 3'b000 & RdD == 5'b0;
+    assign CSRFunctD        = Funct3D[1:0] != 2'b00;
+    assign IWValidFunct3D   = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b101;
+  end else begin : legalcheck2
+    assign IFunctD = 1'b1; // Don't bother to separate out shift decoding
+    assign RFunctD = ~Funct7D[0]; // Not a multiply
+    assign MFunctD = Funct7D[0] & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
+    assign LFunctD = 1'b1; // don't bother to check Funct3 for loads
+    assign FLSFunctD = 1'b1; // don't bother to check Func3 for floating-point loads/stores
+    assign FenceFunctD = 1'b1; // don't bother to check fields for fences
+    assign CMOFunctD = 1'b1; // don't bother to check fields for CMO instructions
+    assign AFunctD = 1'b1; // don't bother to check fields for atomics
+    assign AMOFunctD = 1'b1; // don't bother to check Funct7 for AMO operations
+    assign RWFunctD = 1'b1; // don't bother to check fields for RW instructions
+    assign MWFunctD = 1'b1; // don't bother to check fields for MW instructions
+    assign SFunctD = 1'b1; // don't bother to check Funct3 for stores
+    assign BFunctD = 1'b1; // don't bother to check Funct3 for branches
+    assign JRFunctD = 1'b1; // don't bother to check Funct3 for jalrs
+    assign PFunctD = 1'b1; // don't bother to check fields for privileged instructions
+    assign CSRFunctD = 1'b1; // don't bother to check Funct3 for CSR operations
+    assign IWValidFunct3D = 1'b1;
+  end
 
   // H-extension virtual-machine load/store strict decoding
   logic HLVHSVLoadD;
@@ -333,7 +358,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   // bit manipulation Configuration Block
   if (P.ZBS_SUPPORTED  | P.ZBA_SUPPORTED  | P.ZBB_SUPPORTED  | P.ZBC_SUPPORTED |
       P.ZBKB_SUPPORTED | P.ZBKC_SUPPORTED | P.ZBKX_SUPPORTED | P.ZKNE_SUPPORTED |
-      P.ZKND_SUPPORTED | P.ZKNH_SUPPORTED) begin: bitmanipi
+      P.ZKND_SUPPORTED | P.ZKNH_SUPPORTED) begin : bitmanipi
     logic IllegalBitmanipInstrD;          // Unrecognized B instruction
     logic BRegWriteD;                     // Indicates if it is a R type BMU instruction in decode stage
     logic BW64D;                          // Indicates if it is a W type BMU instruction in decode stage
@@ -357,7 +382,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign ALUSrcBD = BaseALUSrcBD | BALUSrcBD;
     assign SubArithD = BaseSubArithD | BSubArithD; // TRUE If BMU or R-type instruction involves inverted operand
 
-  end else begin: bitmanipi
+  end else begin : bitmanipi
     assign PreALUSelectD = ALUOpD ? Funct3D : 3'b000; // add for address generation when not doing ALU operation
     assign sltD = (Funct3D == 3'b010);
     assign IllegalBaseInstrD = ControlsD[0] | IllegalERegAdrD ;
@@ -374,7 +399,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign BMUActiveE = 1'b0;
   end
 
-  if (P.ZICOND_SUPPORTED) begin: Zicond
+  if (P.ZICOND_SUPPORTED) begin : Zicond
     logic  SomeCZeroD; // instruction is czero.*
     assign SomeCZeroD = FunctCZeroD & (OpD == 7'b0110011);
     assign CZeroD = {SomeCZeroD & (Funct3D == 3'b111), SomeCZeroD & (Funct3D == 3'b101)}; // {czero.nez, czero.eqz}
@@ -387,12 +412,12 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   // Fences
   // Ordinary fence is presently a nop
   // fence.i flushes the D$ and invalidates the I$ if Zifencei is supported and I$ is implemented
-  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED)) begin:fencei
+  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED)) begin : fencei
     logic FenceID;
     assign FenceID = FenceXD & (Funct3D == 3'b001); // is it a FENCE.I instruction?
     assign InvalidateICacheD = FenceID;
     assign FlushDCacheD = FenceID;
-  end else begin:fencei
+  end else begin : fencei
     assign InvalidateICacheD = 1'b0;
     assign FlushDCacheD = 1'b0;
   end
@@ -404,8 +429,9 @@ module controller import cvw::*;  #(parameter cvw_t P) (
       CMOpD[3] = (InstrD[31:20] == 12'd4); // cbo.zero
     end
     if ((P.ZICBOM_SUPPORTED) & CMOD) begin
-      CMOpD[2] = (InstrD[31:20] == 12'd2); // cbo.clean
-      CMOpD[1] = (InstrD[31:20] == 12'd1) | ((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
+      // A flush is a clean followed by an invalidate, so cbo.inval downgraded by xenvcfg.CBIE = 01 takes the flush path
+      CMOpD[2] = (InstrD[31:20] == 12'd2) | ((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
+      CMOpD[1] = (InstrD[31:20] == 12'd1); // cbo.clean
       CMOpD[0] = (InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b11); // cbo.inval
     end
   end

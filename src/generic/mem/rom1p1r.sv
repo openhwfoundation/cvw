@@ -6,7 +6,7 @@
 // Purpose: Single-ported ROM
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -56,7 +56,7 @@ module rom1p1r #(parameter ADDR_WIDTH = 8, DATA_WIDTH = 32, PRELOAD_ENABLED = 0)
       if (DATA_WIDTH == 64) begin
         `ifdef VERILATOR
             // because Verilator doesn't automatically accept $WALLY from shell
-            string       WALLY_DIR = getenvval("WALLY");
+            static string WALLY_DIR = getenvval("WALLY");
             $readmemh({WALLY_DIR,"/fpga/src/boot.mem"}, ROM, 0);  // load boot ROM for FPGA
         `else
             $readmemh({"$WALLY/fpga/src/boot.mem"}, ROM, 0);  // load boot ROM for FPGA

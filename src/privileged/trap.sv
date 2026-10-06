@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -107,8 +107,8 @@ module trap import cvw::*;  #(parameter cvw_t P) (
                        ((PrivilegeModeW == P.U_MODE) | (PrivilegeModeW == P.S_MODE));
   end
   // Trap target one-hots.
-  // With H: select M/HS/VS trap entry. Without H: TrapToHSM/TrapToVSM are tied low,
-  // and TrapToM marks only non-delegated traps (delegated traps are S traps via DelegateM).
+  // With H: select M/HS/VS trap entry. Without H: TrapToVSM is tied low, a delegated trap is an
+  // S-mode trap (TrapToHSM), and TrapToM marks the traps that are not delegated.
   if (P.H_SUPPORTED) begin: trapto_vs_h
     /* verilator lint_off WIDTHTRUNC */
     assign HidelegHitM   = (CauseM < 16) ? HIDELEG_REGW[CauseM] : 1'b0;
@@ -123,8 +123,8 @@ module trap import cvw::*;  #(parameter cvw_t P) (
     assign HedelegHitM   = 1'b0;
     assign DelegateToVSM = 1'b0;
     assign TrapToVSM     = 1'b0;
-    assign TrapToHSM     = 1'b0;
-    assign TrapToM       = TrapM & ~DelegateM; // TrapToM is not consumed in non-H paths, but keep it semantically correct for observability/future reuse.
+    assign TrapToHSM     = TrapM & DelegateM;
+    assign TrapToM       = TrapM & ~DelegateM;
   end
 
   ///////////////////////////////////////////
@@ -162,9 +162,13 @@ module trap import cvw::*;  #(parameter cvw_t P) (
     else if (ValidIntsM[11])                                  CauseM = 5'd11; // Machine External Int
     else if (ValidIntsM[3])                                   CauseM = 5'd3;  // Machine Sw Int
     else if (ValidIntsM[7])                                   CauseM = 5'd7;  // Machine Timer Int
-    else if (ValidIntsM[9])                                   CauseM = 5'd9;  // Supervisor External Int
-    else if (ValidIntsM[1])                                   CauseM = 5'd1;  // Supervisor Sw Int
-    else if (ValidIntsM[5])                                   CauseM = 5'd5;  // Supervisor Timer Int
+    // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
+    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                CauseM = 5'd9;  // not delegated Supervisor External Int
+    else if (~MIDELEG_REGW[1] & ValidIntsM[1])                CauseM = 5'd1;  // not delegated Supervisor Sw Int
+    else if (~MIDELEG_REGW[5] & ValidIntsM[5])                CauseM = 5'd5;  // not delegated Supervisor Timer Int
+    else if (ValidIntsM[9])                                   CauseM = 5'd9;  // delegated Supervisor External Int
+    else if (ValidIntsM[1])                                   CauseM = 5'd1;  // delegated Supervisor Sw Int
+    else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int
     else if (P.H_SUPPORTED & ValidIntsM[12])                  CauseM = 5'd12; // Supervisor Guest External Int
     else if (P.H_SUPPORTED & ValidIntsM[10])                  CauseM = 5'd10; // Virtual Supervisor External Int
     else if (P.H_SUPPORTED & ValidIntsM[2])                   CauseM = 5'd2;  // Virtual Supervisor Software Int

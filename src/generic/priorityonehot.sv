@@ -17,7 +17,7 @@
 //        out 00000000000100000
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
@@ -42,7 +42,7 @@ module priorityonehot #(parameter N = 8) (
   genvar i;
 
   assign y[0] = a[0];
-  for (i=1; i<N; i++) begin:poh
+  for (i=1; i<N; i++) begin : poh
     assign y[i] = a[i] & ~|a[i-1:0];
   end
 

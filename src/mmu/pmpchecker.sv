@@ -12,7 +12,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -61,7 +61,7 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   logic                            MatchingR, MatchingW, MatchingX, MatchingL;
 
 
-  if (P.PMP_ENTRIES > 0) begin: pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
+  if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
       .PhysicalAddress,
       .Size,

@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -46,7 +46,7 @@ module subcachelineread #(parameter LINELEN, WORDLEN,
   else            assign ReadDataLinePad = ReadDataLine;
 
   genvar index;
-  for (index = 0; index < WORDSPERLINE; index++) begin:readdatalinesetsmux
+  for (index = 0; index < WORDSPERLINE; index++) begin : readdatalinesetsmux
     assign ReadDataLineSets[index] = ReadDataLinePad[(index*MUXINTERVAL)+WORDLEN-1 : (index*MUXINTERVAL)];
   end
 

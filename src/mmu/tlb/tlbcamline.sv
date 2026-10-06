@@ -12,7 +12,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -41,7 +41,8 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   input  logic                  PTE_G,
   input  logic                  PTE_NAPOT,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
   input  logic [2:0]            PageTypeWriteVal,
-  input  logic                  TLBFlush,   // Flush this line (set valid to 0)
+  input  logic                  TLBFlush,     // Flush this line (set valid to 0)
+  input  logic                  TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
   output logic [2:0]            PageTypeRead,
   output logic                  Match
 );
@@ -81,21 +82,21 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   assign Query1 = VPN[2*SEGMENT_BITS-1:SEGMENT_BITS];
   assign Match1 = (Query1 == Key1) | (PageType > 3'd1); // always match for gigapage or larger
 
-  if (P.SV39_SUPPORTED) begin: segment2
+  if (P.SV39_SUPPORTED) begin : segment2
     logic [SEGMENT_BITS-1:0] Key2, Query2;
     assign Key2   = Key[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
     assign Query2 = VPN[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
     assign Match2 = (Query2 == Key2) | (PageType > 3'd2);  // always match for terapage or larger
   end else assign Match2 = 1'b1;
 
-  if (P.SV48_SUPPORTED) begin: segment3
+  if (P.SV48_SUPPORTED) begin : segment3
     logic [SEGMENT_BITS-1:0] Key3, Query3;
     assign Key3   = Key[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
     assign Query3 = VPN[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
     assign Match3 = (Query3 == Key3) | (PageType > 3'd3) | SV39Mode; // always match in SV39 mode or for petapage
   end else assign Match3 = 1'b1;
 
-  if (P.SV57_SUPPORTED) begin: segment4
+  if (P.SV57_SUPPORTED) begin : segment4
     logic [SEGMENT_BITS-1:0] Key4, Query4;
     assign Key4   = Key[5*SEGMENT_BITS-1:4*SEGMENT_BITS];
     assign Query4 = VPN[5*SEGMENT_BITS-1:4*SEGMENT_BITS];
@@ -109,7 +110,10 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   assign PageTypeRead = PageType & {3{Match}};
 
   // On a write, set the valid bit high and update the stored key.
-  // On a flush, zero the valid bit and leave the key unchanged.
-  flopenr #(1) validbitflop(clk, reset, WriteEnable | TLBFlush, ~TLBFlush, Valid);
+  // On a flush, zero the valid bit and leave the key unchanged, unless the entry is global (G=1)
+  // and the flush is ASID-specific (TLBFlushAll=0): global mappings survive an ASID-scoped sfence.vma.
+  logic ShouldFlush;
+  assign ShouldFlush = TLBFlush & (~PTE_G | TLBFlushAll);
+  flopenr #(1) validbitflop(clk, reset, WriteEnable | ShouldFlush, ~ShouldFlush, Valid);
   flopenr #(KEY_BITS) keyflop(clk, reset, WriteEnable, {SATP_ASID, VPN}, Key);
 endmodule

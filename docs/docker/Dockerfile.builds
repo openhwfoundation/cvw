@@ -21,15 +21,6 @@ RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
     make install && cd ${RISCV} && \
     rm -rf ${RISCV}/riscv-gnu-toolchain
 
-# elf2hex
-RUN git clone https://github.com/sifive/elf2hex.git && \
-    cd elf2hex && \
-    autoreconf -i && \
-    ./configure --target=riscv64-unknown-elf --prefix=${RISCV} && \
-    make && \
-    make install && cd ${RISCV} && \
-    rm -rf ${RISCV}/elf2hex
-
 # QEMU
 RUN git clone --recursive https://github.com/qemu/qemu && \
     cd qemu && \
@@ -73,7 +64,7 @@ RUN git clone https://github.com/buildroot/buildroot.git && \
     # generate files for buildroot regression
     mkdir -p ${RISCV}/linux-testvectors && \
     cd /opt/riscv/testvector-generation && \
-    curl https://raw.githubusercontent.com/openhwgroup/cvw/main/linux/devicetree/wally-virt.dts --output ${RISCV}/buildroot/output/images/wally-virt.dts && \
+    curl https://raw.githubusercontent.com/openhwfoundation/cvw/main/linux/devicetree/wally-virt.dts --output ${RISCV}/buildroot/output/images/wally-virt.dts && \
     dtc -I dts -O dtb ${RISCV}/buildroot/output/images/wally-virt.dts > ${RISCV}/buildroot/output/images/wally-virt.dtb && \
     make && ./genInitMem.sh && \
     chmod -R a+rw ${RISCV}/linux-testvectors && \

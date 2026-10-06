@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -33,7 +33,7 @@ module bitreverse #(parameter WIDTH=32) (
   output logic [WIDTH-1:0] RevA);
 
   genvar i;
-  for (i=0; i<WIDTH;i++) begin:loop
+  for (i=0; i<WIDTH;i++) begin : loop
     assign RevA[WIDTH-i-1] = A[i];
   end
 endmodule

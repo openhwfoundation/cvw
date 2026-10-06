@@ -1,13 +1,14 @@
 ///////////////////////////////////////////
-// hptwAccessFault.S
+// nonleafpbmtfault.S
 //
 // Written: Rose Thompson rose@rosethompson.net
 //
-// Purpose: Force the HPTW to walk a page table with non-leaf non-zero PBMT bits.  This will generate
-// a load or store/amo page fault based on the original access type.
+// Purpose: Force the HPTW to walk page tables with non-leaf PTEs that have nonzero bits in 63:54:
+// N (63), each PBMT bit (62, 61), and each reserved bit (60:54) individually.  Each generates a
+// load or store/amo page fault based on the original access type.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 //
@@ -50,6 +51,28 @@ main:
     add t0, t0, t2
     sw t1, 0(t0)      # valid virtual address, valid physical address, but invalid PBMT in middle of page table.
 
+    li t0, 0x8040000000
+    lw t1, 0(t0)      # walk hits non-leaf PTE with N bit (63) set: load page fault
+    sw t1, 0(t0)      # same PTE: store/amo page fault
+
+    li t0, 0x80C0000000
+    lw t1, 0(t0)      # non-leaf PTE with PBMT bit 61 set: load page fault
+    li t0, 0x8100000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 60 set: load page fault
+    li t0, 0x8140000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 59 set: load page fault
+    li t0, 0x8180000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 58 set: load page fault
+    li t0, 0x81C0000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 57 set: load page fault
+    li t0, 0x8200000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 56 set: load page fault
+    li t0, 0x8240000000
+    lw t1, 0(t0)      # non-leaf PTE with reserved bit 55 set: load page fault
+
+    li t0, 0x80200000
+    lw t1, 0(t0)      # walk hits non-leaf PTE with reserved bit (54) set: load page fault
+
     fence.I
 
 finished:
@@ -64,13 +87,21 @@ pagetable:
     .8byte 0x20004401
 
 .align 12
-    .8byte 0x4000004020004801
-    .8byte 0x0000000020004801
-    .8byte 0x0000000020004801
+    .8byte 0x4000004020004801   # idx0: non-leaf with PBMT bit 62 set: faults
+    .8byte 0x8000000020004801   # idx1: non-leaf with N bit (63) set: faults
+    .8byte 0x0000000020004801   # idx2: valid non-leaf (used by code/data mappings)
+    .8byte 0x2000000020004801   # idx3: non-leaf with PBMT bit 61 set: faults
+    .8byte 0x1000000020004801   # idx4: non-leaf with reserved bit 60 set: faults
+    .8byte 0x0800000020004801   # idx5: non-leaf with reserved bit 59 set: faults
+    .8byte 0x0400000020004801   # idx6: non-leaf with reserved bit 58 set: faults
+    .8byte 0x0200000020004801   # idx7: non-leaf with reserved bit 57 set: faults
+    .8byte 0x0100000020004801   # idx8: non-leaf with reserved bit 56 set: faults
+    .8byte 0x0080000020004801   # idx9: non-leaf with reserved bit 55 set: faults
 
 
 .align 12
     .8byte 0x0000000020004C01
+    .8byte 0x0040000020004C01   # non-leaf with reserved bit (54) set: faults
 
 .align 12
     #80000000

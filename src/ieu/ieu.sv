@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -46,7 +46,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE,  // ALU src inputs before the mux choosing between them and PCE to put in srcA/B
   output logic [4:0]        RdE,                             // Destination register
   output logic              MDUActiveE,                      // Mul/Div instruction being executed
-  output logic [3:0]        CMOpM,                           // 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  output logic [3:0]        CMOpM,                           // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic              IFUPrefetchE,                    // instruction prefetch
   output logic              LSUPrefetchM,                    // datata prefetch
   // Memory stage signals

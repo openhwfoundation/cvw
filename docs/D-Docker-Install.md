@@ -134,16 +134,6 @@ imafc-ilp32f--;rv32imafdc-ilp32d--;rv64i-lp64--;rv64ic-lp64--;rv64iac-lp64--;rv6
     make --jobs && \
     make install
 
-# elf2hex
-ENV PATH=$RISCV/riscv-gnu-toolchain/bin:$PATH
-WORKDIR /opt/riscv
-RUN git clone https://github.com/sifive/elf2hex.git && \
-  cd elf2hex && \
-  autoreconf -i && \
-  ./configure --target=riscv64-unknown-elf --prefix=$RISCV && \
-  make && \
-  make install
-
 # QEMU
 WORKDIR /opt/riscv
 RUN git clone --recurse-submodules https://github.com/qemu/qemu && \

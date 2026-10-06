@@ -1,9 +1,7 @@
 TARGET = aes128
-ELF2HEX = riscv64-unknown-elf-elf2hex
-
 $(TARGET).objdump: $(TARGET)
 	riscv64-unknown-elf-objdump -d $(TARGET) > $(TARGET).objdump
-	$(ELF2HEX) --bit-width 32 --input $(TARGET) --output $(TARGET).memfile
+	elf2hex $(TARGET) $(TARGET).memfile
 
 
 $(TARGET): $(TARGET).S Makefile

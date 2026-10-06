@@ -12,7 +12,7 @@
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -65,7 +65,7 @@ module ram1p1rwe import cvw::* ; #(parameter USE_SRAM=0, DEPTH=64, WIDTH=44) (
     //////////////////////////////////////////////////////////////////////////////
     // READ first SRAM model
     //////////////////////////////////////////////////////////////////////////////
-  end else begin: ram
+  end else begin : ram
     // Vivado is not implementing this as block ram for some reason.
     // The version with byte write enables it correctly infers block ram.
 

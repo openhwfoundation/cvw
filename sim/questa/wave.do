@@ -383,7 +383,6 @@ add wave -noupdate -expand -group lsu -expand -group dcache -group {Cache SRAM r
 add wave -noupdate -expand -group lsu -expand -group dcache -group {Cache SRAM read} -group way3 {/testbench/dut/core/lsu/bus/dcache/dcache/CacheWays[3]/ReadTag}
 add wave -noupdate -expand -group lsu -expand -group dcache -group {Cache SRAM read} -group way3 {/testbench/dut/core/lsu/bus/dcache/dcache/CacheWays[3]/TagWay}
 add wave -noupdate -expand -group lsu -group dtlb /testbench/dut/core/lsu/dmmu/dmmu/tlb/tlb/VAdr
-add wave -noupdate -expand -group lsu -group dtlb /testbench/dut/core/lsu/dmmu/dmmu/tlb/tlb/tlbcontrol/EffectivePrivilegeMode
 add wave -noupdate -expand -group lsu -group dtlb /testbench/dut/core/lsu/dmmu/dmmu/tlb/tlb/PTE
 add wave -noupdate -expand -group lsu -group dtlb /testbench/dut/core/lsu/dmmu/dmmu/tlb/tlb/HitPageType
 add wave -noupdate -expand -group lsu -group dtlb /testbench/dut/core/lsu/dmmu/dmmu/tlb/tlb/tlbcontrol/Translate
@@ -432,7 +431,7 @@ add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /tes
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/LoadAccessFaultM
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/StoreAmoAccessFaultM
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/HPTWInstrAccessFault
-add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/PBMTFaultM
+add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/NonLeafReservedFaultM
 add wave -noupdate -group {WriteBack stage} /testbench/InstrW
 add wave -noupdate -group {WriteBack stage} /testbench/InstrWName
 add wave -noupdate -group {WriteBack stage} /testbench/dut/core/priv/priv/pmd/wfiW

@@ -11,7 +11,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -33,7 +33,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              CSRSWriteM, STrapM,
   input  logic [11:0]       CSRAdrM,
-  input  logic [P.XLEN-1:0] NextEPCM, NextTvalM, SSTATUS_REGW,
+  input  logic [P.XLEN-1:0] NextEPCM, NextXtvalM, SSTATUS_REGW,
   input  logic [5:0]        NextCauseM,
   input  logic              STATUS_TVM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
@@ -67,6 +67,9 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   localparam STIMECMPH  = 12'h15D;
   localparam SATP       = 12'h180;
   // Constants
+  // scounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
+  localparam COUNTEREN_MASK = (P.ZICNTR_SUPPORTED ? 32'h00000007 : 32'h0) |
+                              (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
 
   logic                    WriteSTVECM;
   logic                    WriteSSCRATCHM, WriteSEPCM;
@@ -93,26 +96,29 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
                            (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
                            (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
                            (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57); // Only change Satp if the mode is supported
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalSatpModeM & P.SV39_SUPPORTED;
+    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalSatpModeM;
   end else  // RV32
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & P.SV32_SUPPORTED;
+    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM);
   assign WriteSCOUNTERENM = CSRSWriteM & (CSRAdrM == SCOUNTEREN);
   assign WriteSENVCFGM    = CSRSWriteM & (CSRAdrM == SENVCFG);
   assign WriteSTIMECMPM   = CSRSWriteM & (CSRAdrM == STIMECMP) & STCE;
   assign WriteSTIMECMPHM  = CSRSWriteM & (CSRAdrM == STIMECMPH) & STCE & (P.XLEN == 32);
 
   // CSRs
-  assign TVECWriteValM = CSRWriteValM[0] ? {CSRWriteValM[P.XLEN-1:6], 6'b000001} : {CSRWriteValM[P.XLEN-1:2], 2'b00}; // could share this with MTVEC, but reduces to 4-bit AND to mask bits [5:2]
+  // MODE is WARL; a hart that does not vector must not read back Vectored, so only accept MODE=1 when vectoring is supported
+  assign TVECWriteValM = (CSRWriteValM[0] & P.VECTORED_INTERRUPTS_SUPPORTED) ? {CSRWriteValM[P.XLEN-1:6], 6'b000001} : {CSRWriteValM[P.XLEN-1:2], 2'b00}; // could share this with MTVEC, but reduces to 4-bit AND to mask bits [5:2]
   flopenr #(P.XLEN) STVECreg(clk, reset, WriteSTVECM, TVECWriteValM, STVEC_REGW);
   flopenr #(P.XLEN) SSCRATCHreg(clk, reset, WriteSSCRATCHM, CSRWriteValM, SSCRATCH_REGW);
   flopenr #(P.XLEN) SEPCreg(clk, reset, WriteSEPCM, NextEPCM, SEPC_REGW);
   flopenr #(P.XLEN) SCAUSEreg(clk, reset, WriteSCAUSEM, {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}, SCAUSE_REGW);
-  flopenr #(P.XLEN) STVALreg(clk, reset, WriteSTVALM, NextTvalM, STVAL_REGW);
+  flopenr #(P.XLEN) STVALreg(clk, reset, WriteSTVALM, NextXtvalM, STVAL_REGW);
   if (P.VIRTMEM_SUPPORTED)
     flopenr #(P.XLEN) SATPreg(clk, reset, WriteSATPM, CSRWriteValM, SATP_REGW);
   else
     assign SATP_REGW = '0; // hardwire to zero if virtual memory not supported
-  flopenr #(32)   SCOUNTERENreg(clk, reset, WriteSCOUNTERENM, CSRWriteValM[31:0], SCOUNTEREN_REGW);
+  if (P.ZICNTR_SUPPORTED) // SCOUNTEREN read-only zero if Zicntr is not supported
+    flopenr #(32)   SCOUNTERENreg(clk, reset, WriteSCOUNTERENM, CSRWriteValM[31:0] & COUNTEREN_MASK, SCOUNTEREN_REGW);
+  else assign SCOUNTEREN_REGW = '0;
   if (P.SSTC_SUPPORTED) begin : sstc
     if (P.XLEN == 64) begin : sstc64
       flopenr #(P.XLEN) STIMECMPreg(clk, reset, WriteSTIMECMPM, CSRWriteValM, STIMECMP_REGW);
@@ -143,7 +149,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) SENVCFGreg(clk, reset, WriteSENVCFGM, SENVCFG_WriteValM, SENVCFG_REGW);
 
   // CSR Reads
-  always_comb begin:csrr
+  always_comb begin : csrr
     CSRSReadValM = '0;
     IllegalCSRSAccessM = 1'b0;
     case (CSRAdrM)
@@ -155,7 +161,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
       SEPC:      CSRSReadValM = SEPC_REGW;
       SCAUSE:    CSRSReadValM = SCAUSE_REGW;
       STVAL:     CSRSReadValM = STVAL_REGW;
-      SATP:      if (P.VIRTMEM_SUPPORTED & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM)) CSRSReadValM = SATP_REGW;
+      SATP:      if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
                  else IllegalCSRSAccessM = 1'b1;
       SCOUNTEREN:CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
       SENVCFG:   CSRSReadValM = SENVCFG_REGW;

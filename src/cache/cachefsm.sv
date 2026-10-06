@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -34,13 +34,14 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   // hazard and privilege unit
   input  logic       Stall,             // Stall the cache, preventing new accesses. In-flight access finished but does not return to READY
   input  logic       FlushStage,        // Pipeline flush of second stage (prevent writes and bus operations)
+  input  logic       InvalidateFlushStage, // Pipeline flush of second stage (prevent writes and bus operations)
   output logic       CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
   output logic       CacheStall,        // Cache stalls pipeline during multicycle operation
   // inputs from IEU
   input  logic [1:0] CacheRW,           // [1] Read, [0] Write
   input  logic       FlushCache,        // Flush all dirty lines back to memory
   input  logic       InvalidateCache,   // Clear all valid bits
-  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.flush; 0100: cbo.clean; 1000: cbo.zero
+  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.clean; 0100: cbo.flush; 1000: cbo.zero
   // Bus controls
   input  logic       CacheBusAck,       // Bus operation completed
   output logic [1:0] CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
@@ -94,8 +95,8 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign AnyMiss = (CacheRW[0] | CacheRW[1]) & ~Hit & ~InvalidateCache; // exclusion-tag: cache AnyMiss
   assign AnyUpdateHit = (CacheRW[0]) & Hit;                            // exclusion-tag: icache storeAMO1
   assign AnyHit = AnyUpdateHit | (CacheRW[1] & Hit);                  // exclusion-tag: icache AnyUpdateHit
-  assign CMOZeroNoEviction = CMOpM[3] & ~LineDirty;   // (hit or miss) with no writeback store zeros now
-  assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | CMOpM[3] & LineDirty;
+  assign CMOZeroNoEviction = CMOpM[3] & (Hit | ~LineDirty);   // (hit or miss) with no writeback store zeros now
+  assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | (CMOpM[3] & ~Hit & LineDirty);
 
   assign FlushFlag = FlushAdrFlag & FlushWayFlag;
 
@@ -115,10 +116,11 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   always_comb begin
     NextState = STATE_ACCESS;
     case (CurrState)                                                                                        // exclusion-tag: icache state-case
-      STATE_ACCESS:           if(InvalidateCache)                               NextState = STATE_ACCESS;     // exclusion-tag: dcache InvalidateCheck
+      STATE_ACCESS:           if(InvalidateCache & ~InvalidateFlushStage)                               NextState = STATE_ACCESS;     // exclusion-tag: dcache InvalidateCheck
                              else if(FlushCache & ~READ_ONLY_CACHE)            NextState = STATE_FLUSH;     // exclusion-tag: icache FLUSHStatement
                              else if(AnyMiss & (READ_ONLY_CACHE | ~LineDirty)) NextState = STATE_FETCH;     // exclusion-tag: icache FETCHStatement
                              else if((AnyMiss | CMOWriteback) & ~READ_ONLY_CACHE) NextState = STATE_WRITEBACK; // exclusion-tag: icache WRITEBACKStatement
+                             else if((|CMOpM) & ~CMOWriteback)               NextState = STATE_ADDRESS_SETUP; // any CMO without dirty writeback: stall and re-read SRAM next cycle
                              else                                              NextState = STATE_ACCESS;
       STATE_FETCH:           if(CacheBusAck)                                   NextState = STATE_WRITE_LINE;
                              else                                              NextState = STATE_FETCH;
@@ -143,7 +145,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
 
   // com back to CPU
   assign CacheCommitted = (CurrState != STATE_ACCESS) & ~(READ_ONLY_CACHE & (CurrState == STATE_ADDRESS_SETUP));
-  assign StallConditions =  FlushCache | AnyMiss | CMOWriteback;     // exclusion-tag: icache FlushCache
+  assign StallConditions =  FlushCache | AnyMiss | (|CMOpM);                            // exclusion-tag: icache FlushCache
   assign CacheStall = (CurrState == STATE_ACCESS & StallConditions) | // exclusion-tag: icache StallStates
                       (CurrState == STATE_FETCH) |
                       (CurrState == STATE_WRITEBACK) |

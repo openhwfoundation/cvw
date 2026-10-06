@@ -12,7 +12,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 import argparse
+import fcntl
+import hashlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -152,46 +155,183 @@ def createDirs(sim: str):
         (WALLY / "sim" / sim / d).mkdir(parents=True, exist_ok=True)
 
 
+def buildHash(*components):
+    """Compute an 8-char hash from compile-time parameters for the workdir suffix."""
+    combined = " ".join(" ".join(str(c) for c in components).split())
+    return hashlib.md5(combined.encode()).hexdigest()[:8] if combined else ""
+
+
+def compileLock(sim_dir, lockname):
+    """Context manager that acquires an exclusive flock for compilation serialization."""
+    lockdir = WALLY / "sim" / sim_dir / "wkdir"
+    lockdir.mkdir(parents=True, exist_ok=True)
+    lockfile = lockdir / f".{lockname}.lock"
+
+    class _Lock:
+        def __enter__(self):
+            self._f = open(lockfile, "w")
+            fcntl.flock(self._f, fcntl.LOCK_EX)
+            return self
+
+        def __exit__(self, *exc):
+            fcntl.flock(self._f, fcntl.LOCK_UN)
+            self._f.close()
+
+    return _Lock()
+
+
+def isDesignUpToDate(target):
+    """Check if a compiled design target is newer than all source/config files.
+    Returns True if the target exists and is newer than all dependencies."""
+    if not target.exists():
+        return False
+    target_mtime = target.stat().st_mtime
+    for ext in ("*.sv", "*.v", "*.svh", "*.vh"):
+        for dep in WALLY.rglob(ext):
+            if dep.stat().st_mtime > target_mtime:
+                return False
+    return True
+
+
+def targetMtime(target):
+    return target.stat().st_mtime if target.exists() else None
+
+
+def checkCompiled(target, sim):
+    """Report an error if compilation did not leave a design behind."""
+    if not target.exists():
+        print(f"Error: {sim} compiled design not found: {target}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def runSim(args, flags, prefix):
     if args.sim == "questa":
-        runQuesta(args, flags, prefix)
+        return runQuesta(args, flags, prefix)
     elif args.sim == "verilator":
-        runVerilator(args)
+        return runVerilator(args)
     elif args.sim == "vcs":
-        runVCS(args, flags, prefix)
+        return runVCS(args, flags, prefix)
+    print(f"Error: unknown simulator {args.sim}", file=sys.stderr)
+    return 1
 
 
 def runQuesta(args, flags, prefix):
     # Force Questa to use 64-bit mode, sometimes it defaults to 32-bit even on 64-bit machines
     prefix = "MTI_VCO_MODE=64 " + prefix
-    if args.args:
-        args.args = rf"--args \"{args.args}\""
-    if args.params:
-        args.params = rf"--params \"{args.params}\""
-    if args.define:
-        args.define = rf"--define \"{args.define}\""
-    cmd = f"do wally.do {args.config} {args.testsuite} {args.tb} {args.args} {args.params} {args.define} {flags}"
-    cmd = f'cd $WALLY/sim/questa; {prefix} vsim {"-c" if not args.gui else ""} -do "{cmd}"'
-    print(f"Running Questa with command: {cmd}")
-    os.system(cmd)
+    sim_dir = "$WALLY/sim/questa"
+
+    # Compute build hash from all compile-time parameters (flags, params, defines)
+    bhash = buildHash(flags, args.params, args.define)
+    wkdir = f"wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
+
+    # Build compile-time flag arguments
+    compile_flags = flags
+    if args.params.strip():
+        compile_flags += rf" --params \"{args.params}\""
+    if args.define.strip():
+        compile_flags += rf" --define \"{args.define}\""
+
+    # Phase 1: Compile (only once per config/flags/params/defines combo)
+    print(f"Running Questa on {args.config} {args.testsuite}")
+    wkdir_path = WALLY / "sim" / "questa" / wkdir
+    target = wkdir_path / "testbenchopt"
+    target_mtime = targetMtime(target)
+    needs_compile = target_mtime is None or not isDesignUpToDate(target)
+    with compileLock("questa", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
+        current_mtime = targetMtime(target)
+        if needs_compile and current_mtime == target_mtime:
+            compile_cmd = f'do wally-compile.do {args.config} {args.tb} {wkdir} {compile_flags}'
+            compile_cmd = f'cd {sim_dir}; {prefix} vsim -c -do "{compile_cmd}"'
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: Questa compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(target, "Questa"):
+        return 1
+
+    # Phase 2: Run the simulation
+    run_flags = flags
+    if args.args.strip():
+        run_flags += rf" --args \"{args.args}\""
+    run_cmd = f'do wally-run.do {args.config} {args.testsuite} {args.tb} {wkdir} {run_flags}'
+    run_cmd = f'cd {sim_dir}; {prefix} vsim {"-c" if not args.gui else ""} -do "{run_cmd}"'
+    return subprocess.run(run_cmd, shell=True).returncode
 
 
 def runVerilator(args):
     print(f"Running Verilator on {args.config} {args.testsuite}")
-    os.system(f'make -C {WALLY}/sim/verilator WALLYCONF={args.config} TEST={args.testsuite} TESTBENCH={args.tb} PLUS_ARGS="{args.args}" PARAM_ARGS="{args.params}" DEFINE_ARGS="{args.define}"')
+    sim_dir = WALLY / "sim" / "verilator"
+    bhash = buildHash(args.params, args.define)
+    workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
+    binary = workdir / f"V{args.tb}"
+
+    # Phase 1: Compile (only once per config/params/defines combo)
+    compile_cmd = (
+        f'make -C {sim_dir}'
+        f' WALLYCONF={args.config}'
+        f' TESTBENCH={args.tb}'
+        f' PARAM_ARGS="{args.params}"'
+        f' DEFINE_ARGS="{args.define}"'
+        f' BUILD_HASH="{bhash}"'
+    )
+    target_mtime = targetMtime(binary)
+    needs_compile = target_mtime is None or not isDesignUpToDate(binary)
+    with compileLock("verilator", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
+        current_mtime = targetMtime(binary)
+        if needs_compile and current_mtime == target_mtime:
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: Verilator compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(binary, "Verilator"):
+        return 1
+
+    # Phase 2: Run the simulation (parallel safe)
+    # Run from sim/verilator/ so relative paths (e.g. logs/buildroot_uart.out) resolve correctly
+    (sim_dir / "logs").mkdir(parents=True, exist_ok=True)
+    runtime_args = ""
+    if args.tb == "testbench":
+        runtime_args += f" +TEST={args.testsuite}"
+    if args.args.strip():
+        runtime_args += f" {args.args.strip()}"
+    return subprocess.run(f"cd {sim_dir} && {binary}{runtime_args}", shell=True).returncode
 
 
 def runVCS(args, flags, prefix):
     print(f"Running VCS on {args.config} {args.testsuite}")
-    if args.args:
-        args.args = f'--args "{args.args}"'
-    if args.params:
-        args.params = f'--params "{args.params}"'
-    if args.define:
-        args.define = f'--define "{args.define}"'
-    cmd = f"cd $WALLY/sim/vcs; {prefix} ./run_vcs {args.config} {args.testsuite} --tb {args.tb} {args.args} {args.params} {args.define} {flags}"
-    print(cmd)
-    os.system(cmd)
+    sim_dir = "$WALLY/sim/vcs"
+    bhash = buildHash(flags, args.params, args.define)
+    wkdir = f"{WALLY}/sim/vcs/wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
+    binary = Path(wkdir) / "sim_out"
+
+    # Build compile-time flag arguments (flags already contains --lockstep, --breker, etc. from prepSim)
+    compile_flags = f"--tb {args.tb} {flags}"
+    if args.params.strip():
+        compile_flags += f' --params "{args.params}"'
+    if args.define.strip():
+        compile_flags += f' --define "{args.define}"'
+
+    # Phase 1: Compile (only once per config/flags/params/defines combo)
+    target_mtime = targetMtime(binary)
+    needs_compile = target_mtime is None or not isDesignUpToDate(binary)
+    with compileLock("vcs", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
+        current_mtime = targetMtime(binary)
+        if needs_compile and current_mtime == target_mtime:
+            compile_cmd = f'cd {sim_dir}; {prefix} ./run_vcs compile {args.config} {args.testsuite} --wkdir {wkdir} {compile_flags}'
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: VCS compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(binary, "VCS"):
+        return 1
+
+    # Phase 2: Run the simulation
+    run_flags = f"--tb {args.tb} {flags}"
+    if args.args.strip():
+        run_flags += f' --args "{args.args}"'
+    run_cmd = f'cd {sim_dir}; {prefix} ./run_vcs run {args.config} {args.testsuite} --wkdir {wkdir} {run_flags}'
+    return subprocess.run(run_cmd, shell=True).returncode
 
 
 def main(args):

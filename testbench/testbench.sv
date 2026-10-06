@@ -88,6 +88,8 @@ module testbench;
   // Variables that can be overwritten with $value$plusargs at start of simulation
   string       TEST, ElfFile, sim_log_prefix;
   integer      INSTR_LIMIT;
+  string       UART_LOG_FILE;
+  integer      UART_LOG;
 
   // DUT signals
   logic [P.AHBW-1:0]    HRDATAEXT;
@@ -112,6 +114,7 @@ module testbench;
   logic        SDCIn;
   logic [3:0]  SDCCS;
   logic        SDCCLK;
+  logic [3:0]  PWMGPIO;
 
   logic        HREADY;
   logic        HSELEXT;
@@ -150,6 +153,10 @@ module testbench;
     if (!$value$plusargs("sim_log_prefix=%s", sim_log_prefix)) begin
         sim_log_prefix = "";  // Assign default value if not passed
     end
+    if (!$value$plusargs("UART_LOG=%d", UART_LOG))
+      UART_LOG = (TEST == "buildroot"); // Default to true for buildroot test, false otherwise
+    if (!$value$plusargs("UART_LOG_FILE=%s", UART_LOG_FILE))
+      UART_LOG_FILE = {"logs/", TEST, "_uart.out"};
     //$display("TEST = %s ElfFile = %s", TEST, ElfFile);
 
     if (ElfFile != "none") begin // If Elf File passed in, check its bit width
@@ -220,6 +227,10 @@ module testbench;
         "arch64pmp":     if (P.PMP_ENTRIES > 0)   tests = arch64pmp;
         "arch64vm_sv39": if (P.SV39_SUPPORTED)    tests = arch64vm_sv39;
         "arch64vm_sv48": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48;
+        "arch64vm_sv48_a": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_a;
+        "arch64vm_sv48_b": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_b;
+        "arch64vm_sv39_isolate":     if (P.SV39_SUPPORTED) tests = arch64vm_sv39_isolate;
+        "arch64vm_sv48_mxr_isolate": if (P.SV48_SUPPORTED) tests = arch64vm_sv48_mxr_isolate;
         "arch64vm_sv57": if (P.SV57_SUPPORTED)    tests = arch64vm_sv57;
       endcase
     end else begin // RV32
@@ -247,6 +258,7 @@ module testbench;
         "wally32a_lrsc":     if (P.ZALRSC_SUPPORTED)        tests = wally32a_lrsc;
         "wally32priv":                            tests = wally32priv;
         "wally32periph":                          tests = wally32periph;
+        "wally32periph_imc":                      tests = wally32periph_imc;
         "ahb32" :                                 tests = ahb32;
         "embench":                                tests = embench;
         "coremark":                               tests = coremark;
@@ -310,7 +322,7 @@ module testbench;
   logic        CopyRAM;
 
   string  signame, elffilename, memfilename, bootmemfilename, uartoutfilename, pathname;
-  integer begin_signature_addr, end_signature_addr, signature_size;
+  integer begin_signature_addr, end_signature_addr, signature_size, selfcheck_record_addr;
   integer uartoutfile;
 
 
@@ -382,6 +394,7 @@ module testbench;
     begin_signature_addr = ProgramAddrLabelArray["begin_signature"];
     end_signature_addr = ProgramAddrLabelArray["sig_end_canary"];
     signature_size = end_signature_addr - begin_signature_addr;
+    selfcheck_record_addr = ProgramAddrLabelArray["selfcheck_record"]; // nonzero for self-checking tests
   end
   logic EcallFaultM;
   if (P.ZICSR_SUPPORTED)
@@ -409,8 +422,6 @@ module testbench;
         memfilename = {RISCV_DIR, "/linux-testvectors/ram.bin"};
         elffilename = "buildroot";
         bootmemfilename = {RISCV_DIR, "/linux-testvectors/bootmem.bin"};
-        uartoutfilename = {"logs/", TEST, "_uart.out"};
-        uartoutfile = $fopen(uartoutfilename, "w"); // delete UART output file
         ProgramAddrMapFile = {RISCV_DIR, "/buildroot/output/images/disassembly/vmlinux.objdump.addr"};
         ProgramLabelMapFile = {RISCV_DIR, "/buildroot/output/images/disassembly/vmlinux.objdump.lab"};
       end else if(TEST == "fpga") begin
@@ -433,10 +444,16 @@ module testbench;
       // the addr of each label and fill the array. To expand, add more elements to this array
       // and initialize them to zero (also initialize them to zero at the start of the next test)
       updateProgramAddrLabelArray(ProgramAddrMapFile, ProgramLabelMapFile, memfilename, WALLY_DIR, ProgramAddrLabelArray);
+      // Open UART log file if enabled (buildroot defaults to on, override with +UART_LOG=1)
+      if (UART_LOG) begin
+        uartoutfilename = UART_LOG_FILE;
+        uartoutfile = $fopen(uartoutfilename, "w");
+      end else
+        uartoutfile = 0;
     end
     if(Validate) begin
       if (PrevPCZero) totalerrors = totalerrors + 1; //  error if PC is stuck at zero
-      if (TEST == "buildroot")
+      if (uartoutfile)
         $fclose(uartoutfile);
       if (TEST == "embench") begin
         // Writes contents of begin_signature to .sim.output file
@@ -464,7 +481,8 @@ module testbench;
         `elsif FCOV
           $display("Functional coverage test complete.");
         `else
-          $display("Single Elf file tests are not signatured verified.");
+          if (selfcheck_record_addr != 0) CheckSelfCheck(ElfFile, selfcheck_record_addr, errors);
+          else $display("Single Elf file tests are not signatured verified.");
         `endif
 `ifdef QUESTA
         $stop;  // if this is changed to $finish for Questa, wally-batch.do does not go to the next step to run coverage, and wally.do terminates without allowing GUI debug
@@ -472,12 +490,13 @@ module testbench;
         $finish;
 `endif
       end else begin
-        // for tests with no self checking mechanism, read .signature.output file and compare to check for errors
+        // self-checking tests record their own result; for other tests, read .signature.output file and compare to check for errors
         // clear signature to prevent contamination from previous tests
         if (!begin_signature_addr)
           $display("begin_signature addr not found in %s", ProgramLabelMapFile);
         else if (TEST != "embench") begin
-          CheckSignature(pathname, tests[test], riscofTest, begin_signature_addr, errors);
+          if (selfcheck_record_addr != 0) CheckSelfCheck(tests[test], selfcheck_record_addr, errors);
+          else CheckSignature(pathname, tests[test], riscofTest, begin_signature_addr, errors);
           if(errors > 0) totalerrors = totalerrors + 1;
         end
       end
@@ -588,6 +607,13 @@ module testbench;
         for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
           testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.uncoregen.uncore.ram.ram.memory.ram.RAM[ShadowIndex - BaseIndex];
         end
+        if (selfcheck_record_addr != 0) begin // also copy the result record of a self-checking test
+          StartIndex = selfcheck_record_addr >> LogXLEN;
+          EndIndex = StartIndex + 7;
+          for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
+            testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.uncoregen.uncore.ram.ram.memory.ram.RAM[ShadowIndex - BaseIndex];
+          end
+        end
       end
     end
   end
@@ -603,6 +629,13 @@ module testbench;
         BaseIndex = P.UNCORE_RAM_BASE >> LogXLEN;
         for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
           testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.core.lsu.dtim.dtim.ram.ram.RAM[ShadowIndex - BaseIndex];
+        end
+        if (selfcheck_record_addr != 0) begin // also copy the result record of a self-checking test
+          StartIndex = selfcheck_record_addr >> LogXLEN;
+          EndIndex = StartIndex + 7;
+          for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
+            testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.core.lsu.dtim.dtim.ram.ram.RAM[ShadowIndex - BaseIndex];
+          end
         end
       end
     end
@@ -655,7 +688,7 @@ module testbench;
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO);
 
   // generate clock to sequence tests
   always begin
@@ -707,6 +740,9 @@ module testbench;
                 InstrFName, InstrDName, InstrEName, InstrMName, InstrWName);
 
   // watch for problems such as lockup, reading uninitialized memory, bad configs
+`ifdef MEMPIPE_PROBE
+  `include "mempipeprobe.svh"
+`endif
   watchdog #(P.XLEN, 1000000) watchdog(.clk, .reset, .TEST);  // check if PCW is stuck
   ramxdetector #(P.XLEN, P.LLEN) ramxdetector(clk, dut.core.lsu.MemRWM[1], dut.core.lsu.LSULoadAccessFaultM, dut.core.lsu.ReadDataM,
                                       dut.core.ifu.PCM, InstrM, dut.core.lsu.IEUAdrM, dut.core.lsu.StallW, InstrMName);
@@ -721,10 +757,10 @@ module testbench;
             .clk(clk), .ProgramAddrMapFile(ProgramAddrMapFile), .ProgramLabelMapFile(ProgramLabelMapFile));
   end
 
-  // Append UART output to file for tests
+  // Optionally log UART output to file (always on for buildroot, enable with +UART_LOG=1)
   if (P.UART_SUPPORTED) begin: uart_logger
     always @(posedge clk) begin
-      if (TEST == "buildroot") begin
+      if (uartoutfile) begin
         if (~dut.uncoregen.uncore.uartgen.uart.MEMWb & dut.uncoregen.uncore.uartgen.uart.uartPC.A == 3'b000 & ~dut.uncoregen.uncore.uartgen.uart.uartPC.DLAB) begin
           $fwrite(uartoutfile, "%c", dut.uncoregen.uncore.uartgen.uart.uartPC.Din); // append characters one at a time so we see a consistent log appearing during the run
           $fflush(uartoutfile);
@@ -757,16 +793,17 @@ module testbench;
 
   DCacheFlushFSM #(P) DCacheFlushFSM(.clk, .start(DCacheFlushStart), .done(DCacheFlushDone));
 
-  if(P.ZICSR_SUPPORTED) begin
+  // The privileged unit, and with it minstret, only exists when ZICSR is supported
+  if (P.ZICSR_SUPPORTED) begin : instrlimit
     logic [P.XLEN-1:0] Minstret;
-    assign Minstret = testbench.dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2];
+    assign Minstret = testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
     always @(negedge clk) begin
       if (INSTR_LIMIT > 0) begin
         if((Minstret != 0) & (Minstret % 'd100000 == 0)) $display("Reached %d instructions", Minstret);
         if((Minstret == INSTR_LIMIT) & (INSTR_LIMIT!=0)) begin $finish; end
       end
     end
-end
+  end
 
 // RVVI trace for functional coverage and lockstep
 `ifdef ENABLE_RVVI_TRACE
@@ -949,9 +986,9 @@ end
       always @(dut.core.priv.priv.csr.csri.MIP_REGW[5])   void'(rvvi.net_push("STimerInterrupt",    dut.core.priv.priv.csr.csri.MIP_REGW[5]));
       always @(dut.core.priv.priv.csr.csri.MIP_REGW[9])   void'(rvvi.net_push("SExternalInterrupt", dut.core.priv.priv.csr.csri.MIP_REGW[9]));
       // when ImperasDV is updated, restore the MIP-based logic commented out below and remove the ValidIntsM-based logic
-      // See Fixed https://github.com/openhwgroup/cvw-arch-verif/issues/670
+      // See Fixed https://github.com/openhwfoundation/cvw-arch-verif/issues/670
       //always @(dut.core.priv.priv.csr.csri.MIP_REGW[1])   void'(rvvi.net_push("SSWInterrupt",       dut.core.priv.priv.csr.csri.MIP_REGW[1]));
-      always @(dut.core.priv.priv.trap.ValidIntsM[1])   void'(rvvi.net_push("SSWInterrupt",       dut.core.priv.priv.trap.ValidIntsM[1])); // dh 6/29/25 temporarily use ValidInts until Synopsys fixes level sensitive  https://github.com/openhwgroup/cvw-arch-verif/issues/670
+      always @(dut.core.priv.priv.trap.ValidIntsM[1])   void'(rvvi.net_push("SSWInterrupt",       dut.core.priv.priv.trap.ValidIntsM[1])); // dh 6/29/25 temporarily use ValidInts until Synopsys fixes level sensitive  https://github.com/openhwfoundation/cvw-arch-verif/issues/670
     end
     if (P.H_SUPPORTED & (P.GEILEN > 0)) begin
       always @(dut.HGEIPIn[1])
@@ -1050,6 +1087,44 @@ end
     else $display("%s succeeded.  Brilliant!!!", TestName);
   endtask
 
+  // Report the result of a self-checking test.  Such a test embeds its expected signature, compares
+  // each entry as it is written, and leaves the outcome in selfcheck_record (XLEN-sized entries):
+  //   0: status (0 = did not finish, 1 = passed, 2 = entry mismatch, 3 = wrong number of entries)
+  //   1: entry index    2: entry address    3: expected value    4: actual value
+  task automatic CheckSelfCheck;
+    input string  TestName;
+    input integer selfcheck_record_addr;
+    output integer errors;
+    logic [P.XLEN-1:0] status, index, adr, expected, actual;
+    integer recadr;
+    recadr = $unsigned(selfcheck_record_addr) / (P.XLEN/8); // $unsigned because integer is signed and RAM addresses have bit 31 set
+    status   = testbench.DCacheFlushFSM.ShadowRAM[recadr];
+    index    = testbench.DCacheFlushFSM.ShadowRAM[recadr+1];
+    adr      = testbench.DCacheFlushFSM.ShadowRAM[recadr+2];
+    expected = testbench.DCacheFlushFSM.ShadowRAM[recadr+3];
+    actual   = testbench.DCacheFlushFSM.ShadowRAM[recadr+4];
+    errors = 0;
+    case (status)
+      1: $display("%s succeeded.  Brilliant!!!", TestName);
+      2: begin
+        errors = 1;
+        $display("  Error on test %s result %0d: adr = %h sim (D$) %h signature = %h", TestName, index, adr, actual, expected);
+      end
+      3: begin
+        errors = 1;
+        $display("  Error on test %s: wrote %0d signature entries but expected %0d (next adr = %h)", TestName, actual, expected, adr);
+      end
+      default: begin
+        errors = 1;
+        $display("  Error on test %s: halted without completing its self-check (status = %h)", TestName, status);
+      end
+    endcase
+    if (errors) begin
+      $display("%s failed with %d errors. :(", TestName, errors);
+      $stop; // if this is changed to $finish, wally-batch.do does not get to the next step to run coverage
+    end
+  endtask
+
 `ifdef PMP_COVERAGE
 test_pmp_coverage #(P) pmp_inst(clk);
 `endif
@@ -1081,6 +1156,7 @@ task automatic updateProgramAddrLabelArray;
     ProgramAddrLabelArray["begin_signature"] = 0;
     ProgramAddrLabelArray["tohost"] = 0;
     ProgramAddrLabelArray["sig_end_canary"] = 0;
+    ProgramAddrLabelArray["selfcheck_record"] = 0;
     while (!$feof(ProgramLabelMapFP)) begin
       string label, adrstr;
       integer returncode;

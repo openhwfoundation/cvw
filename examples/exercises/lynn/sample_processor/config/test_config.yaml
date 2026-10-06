@@ -8,3 +8,4 @@ ref_model_type: sail # sail or spike
 udb_config: lynn-rv32I.yaml
 linker_script: link.ld
 dut_include_dir: . # Directory containing DUT specific rvmodel_macros.h header
+include_priv_tests: False

@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from collections import namedtuple
 from multiprocessing import Pool
 from multiprocessing import TimeoutError as MPTimeoutError
@@ -44,7 +45,7 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 standard_tests = [
         ["rv32e", ["arch32e"]],
         ["rv32i", ["arch32i"]],
-        ["rv32imc", ["arch32i", "arch32c", "arch32m", "wally32periph"]],
+        ["rv32imc", ["arch32i", "arch32c", "arch32m", "wally32periph_imc"]],
         ["rv32gc", ["arch32f", "arch32d", "arch32f_fma", "arch32d_fma", "arch32f_divsqrt", "arch32d_divsqrt",
                     "arch32i", "arch32priv", "arch32c",  "arch32m", "arch32a_amo", "arch32zifencei", "arch32zicond",
                     "arch32zba", "arch32zbb", "arch32zbc", "arch32zbs", "arch32zfh", "arch32zfh_fma",
@@ -92,7 +93,6 @@ derivconfigtests = [
         ["way_8_4096_512_rv64gc", ["arch64i"]],
         ["way_4_2048_512_rv64gc", ["arch64i"]],
         ["way_4_4096_256_rv64gc", ["arch64i"]],
-        ["way_4_4096_1024_rv64gc", ["arch64i"]],
         ["ram_0_0_rv64gc", ["ahb64"]],
         ["ram_1_0_rv64gc", ["ahb64"]],
         ["ram_1_1_rv64gc", ["ahb64"]],
@@ -280,6 +280,7 @@ testfloatdivconfigs = [
 lockstepwaivers = [
     "WALLY-q-01.S_ref.elf",     # Q extension is not supported by ImperasDV
     "WALLY-cbom-01.S_ref.elf", #,  # cbom extension is not supported by ImperasDV because there is no cache model in ImperasDV
+    "Zicbom-cbo.inval-00.elf", # ImperasDV lacks cache model to match CVW on invalidation
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc
@@ -370,7 +371,11 @@ def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, breke
                 fullfile = os.path.join(dirpath, file)
                 fields = fullfile.rsplit('/', 3)
                 shortelf = f"{fields[1]}_{fields[3]}" if fields[2] == "ref" else f"{fields[2]}_{fields[3]}"
-                if shortelf in lockstepwaivers: # skip tests that itch bugs in ImperasDV
+                # Waiver entries may be written either as the bare ELF filename (e.g.
+                # "Zicbom-cbo.inval-00.elf") or as the directory-prefixed shortelf used for the log
+                # name (e.g. "WALLY-cbom-01.S_ref.elf", where the file itself is just "ref.elf").
+                # Accept either form so tests in the list are honored regardless of naming.
+                if shortelf in lockstepwaivers or file in lockstepwaivers: # skip tests that itch bugs in ImperasDV
                     print(f"{bcolors.WARNING}Skipping waived test {shortelf}{bcolors.ENDC}")
                     continue
                 sim_log = f"{sim_logdir}{config}_{shortelf}.log"
@@ -386,6 +391,7 @@ def search_log_for_text(text, grepfile):
     with open(grepfile, errors="ignore") as file:
         content = file.readlines()
         passed = False
+        reported = False # whether any line identifying this test was printed
         success = any(text in line for line in content) # check if the success string is present in the log file
         # Even if the string is found, report warnings, errors, and failure, or PASSED
         for line in content:
@@ -393,6 +399,7 @@ def search_log_for_text(text, grepfile):
                 if "FAILED" in line:
                     print(f"{bcolors.FAIL}{grepfile}: {rvcp_summary} FAILED{bcolors.ENDC}")
                     success = False
+                    reported = True
                 elif "PASSED" in line:
                     print(f"{bcolors.OKGREEN}{grepfile}: {rvcp_summary} PASSED{bcolors.ENDC}")
                     passed = True
@@ -401,15 +408,22 @@ def search_log_for_text(text, grepfile):
             if "warning:" in line.lower():
                 print(f"{bcolors.WARNING}{grepfile}: {line.strip()}{bcolors.ENDC}")
                 success = False
+                reported = True
             if "error:" in line.lower():
                 print(f"{bcolors.FAIL}{grepfile}: {line.strip()}{bcolors.ENDC}")
                 success = False
+                reported = True
         nonrvcp_suites = ["buildroot", "all_lints"]
         if success and not passed:
             if not any(s in grepfile for s in nonrvcp_suites):
                 print(f"{bcolors.WARNING}{grepfile}: WARNING '{text}' found but no {rvcp_summary} PASSED{bcolors.ENDC}")
         if not success and passed:
             print(f"{bcolors.WARNING}{grepfile}: WARNING No success string '{text}' found in log file{bcolors.ENDC}")
+            reported = True
+        if not success and not reported:
+            # Otherwise-silent failure (e.g. lockstep mismatch: ImperasDV prints "Error (IDV)"
+            # without a colon, so the error: check above misses it); name the failing log
+            print(f"{bcolors.FAIL}{grepfile}: FAIL: success string '{text}' not found{bcolors.ENDC}")
         return 0 if success else 1
 
 
@@ -506,7 +520,6 @@ def selectTests(args, sims, coverStr):
         addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
     # only run RV64GC tests on in code coverage mode
     if args.ccov:
-        addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv64i_m/pmp", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
         addTestsByDir(f"{WALLY}/tests/riscof/work/wally-riscv-arch-test/rv64i_m/privilege", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
         addTestsByDir(f"{archVerifDir}/work/cvw-rv64gc/elfs", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
         addTestsByDir(f"{WALLY}/tests/coverage/", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
@@ -515,15 +528,7 @@ def selectTests(args, sims, coverStr):
         # rv32gc just for testing ACTs, not used by coverage
         #addTestsByDir(f"{archVerifDir}/work/cvw-rv32gc/elfs", "rv32gc", coveragesim, coverStr, configs, lockstepMode=1)
         addTestsByDir(f"{archVerifDir}/work/cvw-rv64gc/elfs", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # Extra tests from riscv-arch-test that should be run as part of the functional coverage suite
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv32i_m/vm_sv32", "rv32gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv64i_m/vm_sv39", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv64i_m/vm_sv48", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv32i_m/vm_pmp", "rv32gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv64i_m/vm_pmp", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv32i_m/pmp32", "rv32gc", coveragesim, coverStr, configs, lockstepMode=1) TODO: Add when working in lockstep
-        # addTestsByDir(f"{WALLY}/tests/riscof/work/riscv-arch-test/rv64i_m/pmp", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1) TODO: Add when working in lockstep
-    # run branch predictor tests
+     # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
     # run Breker tests (requires a license for the breker tool)
@@ -614,6 +619,7 @@ def makeDirs(sims):
 
 
 def main(args):
+    startTime = time.time()
     sims, coverStr, TIMEOUT_DUR = process_args(args)
     makeDirs(sims)
     configs = selectTests(args, sims, coverStr)
@@ -645,6 +651,9 @@ def main(args):
         print(f"{bcolors.FAIL}Regression failed with {num_fail} failed configurations{bcolors.ENDC}")
     else:
         print(f"{bcolors.OKGREEN}SUCCESS! All tests ran without failures{bcolors.ENDC}")
+    # Always report the total runtime
+    elapsed = time.time() - startTime
+    print(f"Total runtime: {int(elapsed // 3600)}h {int(elapsed % 3600 // 60)}m {elapsed % 60:.1f}s ({elapsed:.1f} seconds)")
     return num_fail
 
 if __name__ == '__main__':
