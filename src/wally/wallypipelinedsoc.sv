@@ -64,7 +64,9 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   output logic                SDCCmd,           // SDC CMD         from   SPI DO
   output logic [3:0]          SDCCS,            // SDC Card Detect from   SPI CS
   output logic                SDCCLK,           // SDC Clock       from   SPI Clock
-  output logic [3:0]          PWMGPIO           // PWM GPIO output
+  output logic [3:0]          PWMGPIO,          // PWM GPIO output
+  input  logic                tck, tms, tdi,
+  output logic                tdo
 );
 
   // Uncore signals
@@ -74,14 +76,60 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   logic [63:0]                MTIME_CLINT;      // from CLINT to CSRs
   logic                       MExtInt,SExtInt;  // from PLIC
 
+  // Debug signals
+  logic [6:0]                 DMIADDR;
+  logic [31:0]                DMIDATA;
+  logic [1:0]                 DMIOP;
+  logic                       DMIREADY;
+  logic                       DMIVALID;
+
+  logic [31:0]                DMIRSPDATA;
+  logic [1:0]                 DMIRSPOP;
+  logic                       DMIRSPREADY;
+  logic                       DMIRSPVALID;
+
+  logic                       DebugNDMReset;
+  logic                       DebugHaltReq;
+  logic                       DebugResumeReq;
+  logic                       DebugMode;
+  // logic                       DebugGPREnable;
+  // logic                       DebugCSREnable;
+  // logic                       DebugFPREnable;
+  // logic [P.LLEN-1:0]          DebugRegRDATA;
+  // logic [P.LLEN-1:0]          DebugRegWDATA;
+  // logic [11:0]                DebugRegAddr;
+  // logic                       DebugRegWrite;
+  logic                       DebugHaveReset;
+  logic                       DebugHaveResetAck;
+  logic                       DebugResetHaltReq;
+
+  // Debug APB interface
+  logic                       PCLK, PRESETn;
+  logic                       PENABLE;
+  logic                       PSELRegister;
+  logic                       PSELMemory;
+  logic                       PWRITE;
+  logic [P.XLEN/8-1:0]        PSTRB;
+  logic [P.LLEN-1:0]          PWDATA;
+  logic [P.PA_BITS-1:0]       PADDR;
+  //Completer signals
+  logic                       PREADY;
+  logic [P.LLEN-1:0]          PRDATA;
+  logic                       PSLVERR;
+
   // synchronize reset to SOC clock domain
   synchronizer resetsync(.clk, .d(reset_ext), .q(reset));
 
   // instantiate processor and internal memories
-  wallypipelinedcore #(P) core(.clk, .reset,
+  wallypipelinedcore #(P) core(.clk, .reset(reset | DebugNDMReset),
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt, .MTIME_CLINT,
     .HRDATA, .HREADY, .HRESP, .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB,
-    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall
+    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall,
+    .DebugMode, .DebugHaltReq, .DebugResumeReq,
+    .DebugHaveReset, .DebugHaveResetAck, .DebugResetHaltReq,
+    .PCLK, .PRESETn,
+    .PENABLE, .PSELRegister, .PWRITE, .PWDATA, .PADDR(PADDR[15:0]),
+    .PREADY, .PRDATA, .PSLVERR
    );
 
   // instantiate uncore if a bus interface exists
@@ -96,5 +144,39 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
             MTIME_CLINT, GPIOOUT, GPIOEN, UARTSout, SPIOut, SPICS, SPICLK, SDCCmd, SDCCS, SDCCLK, PWMGPIO} = '0;
   end
 
+  if (P.DEBUG_SUPPORTED) begin : debug
+    dtm #(P) dtm(.clk, .reset, .tck, .tms, .tdi, .tdo,
+      .DMIADDR, .DMIDATA, .DMIOP, .DMIREADY, .DMIVALID,
+      .DMIRSPDATA, .DMIRSPOP, .DMIRSPREADY, .DMIRSPVALID);
+
+    debug #(P) debug(.clk, .reset, .DebugNDMReset, .DebugHaltReq, .DebugResumeReq, .DebugMode,
+      .DMIADDR, .DMIDATA, .DMIOP, .DMIREADY, .DMIVALID,
+      .DMIRSPDATA, .DMIRSPOP, .DMIRSPREADY, .DMIRSPVALID,
+      .PCLK, .PRESETn, .PENABLE, .PSELRegister, .PSELMemory,
+      .PWRITE, .PWDATA, .PSTRB, .PADDR, .PREADY, .PRDATA, .PSLVERR,
+      .DebugHaveReset, .DebugHaveResetAck, .DebugResetHaltReq);
+  end else begin
+    assign tdo = 1'bz;
+    // assign DebugGPREnable = 0;
+    // assign DebugCSREnable = 0;
+    // assign DebugFPREnable = 0;
+    // assign DebugRegWDATA = '0;
+    // assign DebugRegAddr = '0;
+    // assign DebugRegWrite = 0;
+    assign PCLK = '0;
+    assign PRESETn = '0;
+    assign PENABLE = '0;
+    assign PSELRegister = '0;
+    assign PSELMemory = '0;
+    assign PWRITE = '0;
+    assign PWDATA = '0;
+    assign PSTRB = '0;
+    assign PADDR = '0;
+    assign DebugHaltReq = 0;
+    assign DebugResumeReq = 0;
+    assign DebugNDMReset = 0;
+    assign DebugHaveResetAck = 0;
+    assign DebugResetHaltReq = 0;
+  end
 
 endmodule

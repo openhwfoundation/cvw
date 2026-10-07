@@ -32,6 +32,10 @@
 `define COVERAGE "5"
 `define BUILDROOT "6"
 `define PERIPH "7"
+`define DEBUGELFS "8"
+`define DEBUGTV "9"
+`define DEBUG32ELFS "10"
+`define DEBUG32TV "11"
 
 string tvpaths[] = '{
   "../../tests/riscof/work/riscv-arch-test/",
@@ -41,7 +45,11 @@ string tvpaths[] = '{
   "../../tests/custom/work/",
   "../../tests/coverage/",
   "",                          // buildroot: paths come from RISCV_DIR
-  "../../tests/periph/"
+  "../../tests/periph/",
+  "../../tests/debug/build/",
+  "../../tests/debug/build/testvectors/",
+  "../../tests/debug/build32/",
+  "../../tests/debug/build32/testvectors/"
 };
 
 string coverage64gc[] = '{
@@ -4141,3 +4149,91 @@ string ahb32[] = '{
   `RISCVARCHTEST,
   "rv32i_m/F/src/fadd_b11-01.S"
 };
+
+string wally32debug[] = '{
+  `DEBUG32ELFS,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv"
+};
+
+string wally32debug_jtag[] = '{
+  `DEBUG32TV,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv"
+};
+
+string wally64debug[] = '{
+  `DEBUGELFS,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv",
+  "WALLY-debug-pipeline-state"
+};
+
+string wally64debug_jtag[] = '{
+  `DEBUGTV,
+  "WALLY-debug-01",
+  "WALLY-debug-02",
+  "WALLY-debug-dmactive",
+  "WALLY-debug-03",
+  "WALLY-debug-fpu",
+  "WALLY-debug-gcd",
+  "WALLY-debug-ebreak",
+  "WALLY-debug-step-loop",
+  "WALLY-debug-step-jump",
+  "WALLY-debug-committed",
+  "WALLY-debug-ex1",
+  "WALLY-debug-ex2",
+  "WALLY-debug-ex3",
+  "WALLY-debug-ex4",
+  "WALLY-debug-prv",
+  "WALLY-debug-pipeline-state"
+};
+
+// string wally64debug[] = '{
+//   `DEBUGELFS,
+//   "WALLY-debug-fpu"
+// };
+
+// string wally64debug_jtag[] = '{
+//   `DEBUGTV,
+//   "WALLY-debug-fpu"
+// };

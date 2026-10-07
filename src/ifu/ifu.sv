@@ -101,7 +101,10 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
   output logic                 InstrAccessFaultF,                        // Instruction access fault
   output logic                 ICacheAccess,                             // Report I$ read to performance counters
-  output logic                 ICacheMiss                                // Report I$ miss to performance counters
+  output logic                 ICacheMiss,                               // Report I$ miss to performance counters
+  input  logic                 DebugUseDPC,
+  output logic [P.XLEN-1:0]    NextValidPCE,
+  input  logic [P.XLEN-1:0]    DPC
 );
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
@@ -116,7 +119,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]           PCSpillNextF;                             // Next PCF after possible + 2 to handle spill
   logic [P.XLEN-1:2]           PCPlus4F;                                 // PCPlus4F is always PCF + 4.  Fancy way to compute PCPlus2or4F
   logic [P.XLEN-1:0]           PCD;                                      // Decode stage instruction address
-  logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after  csr write or fence
+  //logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after  csr write or fence
   logic [P.XLEN-1:0]           PCF;                                      // Fetch stage instruction address
   logic [P.PA_BITS-1:0]        PCPF;                                     // Physical address after address translation
   logic [P.XLEN+1:0]           PCFExt;
@@ -362,8 +365,17 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(NextValidPCE), .s(CSRWriteFenceM),.y(PC2NextF));
   else assign PC2NextF = PC1NextF;
 
+  logic [P.XLEN-1:0] DebugPCNextF;
+
   mux3 #(P.XLEN) pcmux3(PC2NextF, EPCM, TrapVectorM, {TrapM, RetM}, UnalignedPCNextF);
-  mux2 #(P.XLEN) pcresetmux({UnalignedPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
+
+  if (P.DEBUG_SUPPORTED) begin
+    mux2 #(P.XLEN) pcmuxdebug(UnalignedPCNextF, DPC, DebugUseDPC, DebugPCNextF);
+  end else begin
+    assign DebugPCNextF = UnalignedPCNextF;
+  end
+
+  mux2 #(P.XLEN) pcresetmux({DebugPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
   flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF);
 
   // pcadder

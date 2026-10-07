@@ -72,8 +72,14 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] CSRReadValW,             // CSR read result
   input  logic [P.XLEN-1:0] MDUResultW,              // MDU (Multiply/divide unit) result
   input  logic [P.XLEN-1:0] FIntDivResultW,          // FPU's integer divide result
-  input  logic [4:0]        RdW                      // Destination register
-   // Hazard Unit signals
+  input  logic [4:0]        RdW,                     // Destination register
+  // Debug abstract register r/w signals
+  input  logic              DebugMode,
+  input  logic              DebugGPREnable,
+  output logic [P.XLEN-1:0] DebugR1D,
+  input  logic [P.XLEN-1:0] DebugRegWDATA,
+  input  logic [11:0]       DebugRegAddr,
+  input  logic              DebugRegWrite
 );
 
   // Fetch stage signals
@@ -96,8 +102,29 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, signle-cycle FPU op, or 2-cycle FCVT float to int
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
+  // Debug mux signals
+  logic [4:0]        Rs1, Rd;
+  logic              RegWrite;
+  logic [P.XLEN-1:0] Result;
+
+  // Debug Spec muxing of regfile inputs
+  if (P.DEBUG_SUPPORTED) begin
+    mux2 #(5) rfreadaddrmux (Rs1D, DebugRegAddr[4:0], DebugGPREnable, Rs1);
+    mux2 #(5) rfwriteaddrmux (RdW, DebugRegAddr[4:0], DebugGPREnable, Rd);
+    mux2 #(P.XLEN) rfwdatamux (ResultW, DebugRegWDATA, DebugGPREnable, Result);
+    assign RegWrite = DebugMode & DebugRegWrite & DebugGPREnable | RegWriteW;
+    // Return regfile read to Debug Module
+    assign DebugR1D = R1D;
+  end else begin
+    assign Rs1 = Rs1D;
+    assign Rd = RdW;
+    assign Result = ResultW;
+    assign RegWrite = RegWriteW;
+    assign DebugR1D = '0;
+  end
+
   // Decode stage
-  regfile #(P.XLEN, P.E_SUPPORTED) regf(clk, reset, RegWriteW, Rs1D, Rs2D, RdW, ResultW, R1D, R2D);
+  regfile #(P.XLEN, P.E_SUPPORTED) regf(clk, reset, RegWrite, Rs1, Rs2D, Rd, Result, R1D, R2D);
   extend #(P)        ext(.InstrD(InstrD[31:7]), .ImmSrcD, .ImmExtD);
 
   // Execute stage pipeline register and logic

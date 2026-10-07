@@ -91,6 +91,9 @@ module testbench;
   string       UART_LOG_FILE;
   integer      UART_LOG;
 
+  // Debugger signals
+  logic        tck, tms, tdi, tdo;
+
   // DUT signals
   logic [P.AHBW-1:0]    HRDATAEXT;
   logic                 HREADYEXT, HRESPEXT;
@@ -131,6 +134,7 @@ module testbench;
   string tests[];
   logic DCacheFlushDone, DCacheFlushStart;
   logic riscofTest;
+  logic debugTest;
   logic Validate;
   logic SelectTest;
   logic TestComplete;
@@ -140,6 +144,10 @@ module testbench;
   integer elfFD;
   byte header[0:4];
   byte readBytes;
+
+  // Debugger tests
+  string debugger_tests[];
+  string debugfile;
 
   initial begin
     // look for arguments passed to simulation, or use defaults
@@ -153,6 +161,15 @@ module testbench;
     if (!$value$plusargs("sim_log_prefix=%s", sim_log_prefix)) begin
         sim_log_prefix = "";  // Assign default value if not passed
     end
+
+
+    // For single elf testing with Debug testvector files
+    if (!$value$plusargs("DEBUGFILE=%s", debugfile)) begin
+      debugfile = "none";
+    end else begin
+      $display("Debug file: %s", debugfile);
+    end
+
     if (!$value$plusargs("UART_LOG=%d", UART_LOG))
       UART_LOG = (TEST == "buildroot"); // Default to true for buildroot test, false otherwise
     if (!$value$plusargs("UART_LOG_FILE=%s", UART_LOG_FILE))
@@ -225,6 +242,12 @@ module testbench;
         "arch64zkne":    if (P.ZKNE_SUPPORTED)    tests = arch64zkne;
         "arch64zknh":    if (P.ZKNH_SUPPORTED)    tests = arch64zknh;
         "arch64pmp":     if (P.PMP_ENTRIES > 0)   tests = arch64pmp;
+        "wally64debug": begin
+          if (P.DEBUG_SUPPORTED) begin
+            tests = wally64debug;
+            debugger_tests = wally64debug_jtag;
+          end
+        end
         "arch64vm_sv39": if (P.SV39_SUPPORTED)    tests = arch64vm_sv39;
         "arch64vm_sv48": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48;
         "arch64vm_sv48_a": if (P.SV48_SUPPORTED)    tests = arch64vm_sv48_a;
@@ -282,7 +305,14 @@ module testbench;
         "arch32zkne":    if (P.ZKNE_SUPPORTED)    tests = arch32zkne;
         "arch32zknh":    if (P.ZKNH_SUPPORTED)    tests = arch32zknh;
         "arch32pmp":     if (P.PMP_ENTRIES > 0)   tests = arch32pmp;
-        "arch32vm_sv32": if (P.SV32_SUPPORTED)    tests = arch32vm_sv32;
+
+        "arch32vm_sv32": if (P.VIRTMEM_SUPPORTED) tests = arch32vm_sv32;
+        "wally32debug": begin
+          if (P.DEBUG_SUPPORTED) begin
+            tests = wally32debug;
+            debugger_tests = wally32debug_jtag;
+          end
+        end
       endcase
     end
     if (tests.size() == 0 & ElfFile == "none") begin
@@ -325,6 +355,8 @@ module testbench;
   integer begin_signature_addr, end_signature_addr, signature_size, selfcheck_record_addr;
   integer uartoutfile;
 
+  string  debugger_filename;
+
 
   assign ResetThreshold = 3'd5;
 
@@ -343,6 +375,7 @@ module testbench;
     // riscof tests have a different signature, tests[0] == "0" refers to RiscvArchTests
     // and tests[0] == "1" refers to WallyRiscvArchTests
     riscofTest = tests[0] == "0" | tests[0] == "1";
+    debugTest = tests[0] == "8" | "10";
     pathname = tvpaths[tests[0].atoi()];
 
     case(CurrState)
@@ -434,6 +467,15 @@ module testbench;
         memfilename = {ElfFile, ".memfile"};
         ProgramAddrMapFile = {ElfFile, ".objdump.addr"};
         ProgramLabelMapFile = {ElfFile, ".objdump.lab"};
+        if (debugfile != "none") begin
+          debugger_filename = {"../../", debugfile};
+        end
+      end else if (debugTest) begin
+        elffilename = {pathname, tests[test], ".elf"};
+        memfilename = {pathname, tests[test], ".elf.memfile"};
+        ProgramAddrMapFile = {pathname, tests[test], ".elf.objdump.addr"};
+        ProgramLabelMapFile = {pathname, tests[test], ".elf.objdump.lab"};
+        debugger_filename = {tvpaths[debugger_tests[0].atoi()], debugger_tests[test], ".tv"};
       end else begin
         elffilename = {pathname, tests[test], ".elf"};
         memfilename = {pathname, tests[test], ".elf.memfile"};
@@ -684,11 +726,20 @@ module testbench;
 
   end
 
+  if (P.DEBUG_SUPPORTED) begin
+    debugger #(P) debugger(.clk, .reset, .tck, .tms, .tdi, .tdo, .filename(debugger_filename));
+  end else begin
+    assign tck = 1;
+    assign tdi = 0;
+    assign tms = 0;
+  end
+
   wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO);
+    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO,
+    .tck, .tms, .tdi, .tdo);
 
   // generate clock to sequence tests
   always begin
@@ -780,8 +831,13 @@ module testbench;
   // PCM is not valid for configurations without ZICSR or branch predictor
   flopenr #(P.XLEN) PCMReg(clk, reset, ~dut.core.StallM, dut.core.PCE, PCM);
   always @(posedge clk) begin
-    TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
-       ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
+    if (P.DEBUG_SUPPORTED) begin
+      TestComplete <= ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW");
+    end else begin
+      TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) | ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW");
+    end
+    // TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
+    //      ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
     //   (functionName.PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero));
     if (reset) PrevPCZero <= 0;
     else if (dut.core.InstrValidM) PrevPCZero <= (PCM == 0 & dut.core.ifu.InstrM == 0);
@@ -842,6 +898,8 @@ module testbench;
     #1;
     IDV_MAX_ERRORS = 3;
     elffilename = ElfFile;
+    debugger_filename = {"../../", debugfile};
+    $display("%s", debugger_filename);
 
     // Initialize REF (do this before initializing the DUT)
     if (!rvviVersionCheck(RVVI_API_VERSION)) begin
