@@ -278,6 +278,9 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
 
     if(P.ICACHE_SUPPORTED) begin : icache
       localparam            LLENPOVERAHBW = P.LLEN / P.AHBW; // Number of AHB beats in a LLEN word. AHBW cannot be larger than LLEN. (implementation limitation)
+      localparam            LINEBYTELEN = P.ICACHE_LINELENINBITS/8;            // Line length in bytes
+      localparam            OFFSETLEN = $clog2(LINEBYTELEN);    // Number of bits in offset field
+      localparam            SETLEN = $clog2(P.ICACHE_WAYSIZEINBYTES*8/LINELEN);          // Number of set bits
       logic [P.PA_BITS-1:0] ICacheBusAdr;
       logic                 ICacheBusAck;
       logic [1:0]           CacheBusRW, BusRW, CacheRWF;
@@ -286,6 +289,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
       assign CacheRWF = ~ITLBMissF & CacheableF & ~SelIROM & ~IFUFaultF ? IFURWF : '0;
       cache #(.P(P), .PA_BITS(P.PA_BITS), .LINELEN(P.ICACHE_LINELENINBITS),
               .NUMSETS(P.ICACHE_WAYSIZEINBYTES*8/P.ICACHE_LINELENINBITS),
+              .OFFSETLEN(OFFSETLEN), .SETLEN(SETLEN),
               .NUMWAYS(P.ICACHE_NUMWAYS), .LOGBWPL(AHBWLOGBWPL), .WORDLEN(32), .MUXINTERVAL(16), .READ_ONLY_CACHE(1))
       icache(.clk, .reset, .FlushStage(FlushD), .Stall(GatedStallD),
              .FetchBuffer, .CacheBusAck(ICacheBusAck),
@@ -298,7 +302,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
              .WriteData('0),
              .CacheRW(CacheRWF),
              .FlushCache('0),
-             .NextSet(PCSpillNextF[11:0]),
+             .NextSet(PCSpillNextF[OFFSETLEN+SETLEN-1:0]),
              .PAdr(PCPF),
              .CacheCommitted(CacheCommittedF), .InvalidateCache(InvalidateICacheM), .InvalidateFlushStage(FlushW), .CMOpM('0));
 

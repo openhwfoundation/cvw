@@ -1526,3 +1526,126 @@ ZICCLSM_SUPPORTED 1
 # New rv64gc config for cache simulation purposes
 # Ensures we do not override the rv64gc wkdir/logs/etc between cache and regular runs
 derive cache_rv64gc rv64gc
+
+# Various cache ways without VM
+derive rv32gc_novm_cache_1way_16KB_128Bline  rv32gc
+SV32_SUPPORTED         0
+SVINVAL_SUPPORTED      0
+SVADU_SUPPORTED        0
+DCACHE_NUMWAYS         32'd1
+DCACHE_WAYSIZEINBYTES  32'd16384
+DCACHE_LINELENINBITS   32'd128
+ICACHE_NUMWAYS         32'd1
+ICACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_LINELENINBITS   32'd128
+
+derive rv32gc_novm_cache_1way_16KB_256Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_16KB_512Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_1way_32KB_128Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd32768
+ICACHE_WAYSIZEINBYTES  32'd32768
+
+derive rv32gc_novm_cache_1way_32KB_256Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_32KB_512Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_1way_64KB_128Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd65536
+ICACHE_WAYSIZEINBYTES  32'd65536
+
+
+derive rv32gc_novm_cache_1way_64KB_256Bline  rv32gc_novm_cache_1way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_64KB_512Bline  rv32gc_novm_cache_1way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_16KB_128Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_NUMWAYS         32'd2
+DCACHE_WAYSIZEINBYTES  32'd8192
+ICACHE_NUMWAYS         32'd2
+ICACHE_WAYSIZEINBYTES  32'd8192
+
+derive rv32gc_novm_cache_2way_16KB_256Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_16KB_512Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_32KB_128Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_WAYSIZEINBYTES  32'd16384
+
+derive rv32gc_novm_cache_2way_32KB_256Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_32KB_512Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_64KB_128Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd32768
+ICACHE_WAYSIZEINBYTES  32'd32768
+
+derive rv32gc_novm_cache_2way_64KB_256Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_64KB_512Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_16KB_128Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_NUMWAYS         32'd4
+DCACHE_WAYSIZEINBYTES  32'd4096
+DCACHE_LINELENINBITS   32'd128
+ICACHE_NUMWAYS         32'd4
+ICACHE_WAYSIZEINBYTES  32'd4096
+ICACHE_LINELENINBITS   32'd128
+
+derive rv32gc_novm_cache_4way_16KB_256Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_16KB_512Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_32KB_128Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd8192
+ICACHE_WAYSIZEINBYTES  32'd8192
+
+derive rv32gc_novm_cache_4way_32KB_256Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_32KB_512Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_64KB_128Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_WAYSIZEINBYTES  32'd16384
+
+derive rv32gc_novm_cache_4way_64KB_256Bline  rv32gc_novm_cache_4way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_64KB_512Bline  rv32gc_novm_cache_4way_64KB_256Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
