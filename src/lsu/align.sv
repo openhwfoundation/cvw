@@ -113,11 +113,12 @@ module align import cvw::*;  #(parameter cvw_t P) (
       // coverage on
       default: AccessByteOffsetM = '0;                                        // shouldn't happen
     endcase
-    case (Funct3M[1:0])
-      2'b00: PotentialSpillM = 1'b0; // byte access
-      2'b01: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
-      2'b10: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:2] == '1; // word access
-      2'b11: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:3] == '1; // double access
+    case (Funct3M & {FpLoadStoreM, 2'b11})
+      3'b000: PotentialSpillM = 1'b0; // byte access
+      3'b001: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
+      3'b010: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:2] == '1; // word access
+      3'b011: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:3] == '1; // double access
+      3'b100: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:4] == '1; // quad access
       default: PotentialSpillM = 1'b0;
     endcase
   end
