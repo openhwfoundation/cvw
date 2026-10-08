@@ -41,16 +41,6 @@ fi
 
 
 # Packages are grouped by which tool requires them. If multiple tools need a package, it is included in each tool's list.
-GENERAL_PACKAGES=()
-GNU_PACKAGES=()
-QEMU_PACKAGES=()
-SPIKE_PACKAGES=()
-WHISPER_PACKAGES=()
-SAIL_PACKAGES=()
-VERILATOR_PACKAGES=()
-BUILDROOT_PACKAGES=()
-VIVADO_PACKAGES=()
-
 # Packages that are constant across distros
 GENERAL_PACKAGES+=(rsync git tar unzip gzip bzip2 gcc make dialog mutt) # TODO: check what needs dialog
 GNU_PACKAGES+=(autoconf automake gawk bison flex texinfo gperf libtool patchutils bc)
