@@ -10,7 +10,7 @@
 ## Documentation:
 
 # A component of the CORE-V-WALLY configurable RISC-V project.
-# https://github.com/openhwgroup/cvw
+# https://github.com/openhwfoundation/cvw
 
 # Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 #
@@ -46,14 +46,18 @@ arch_list = [
     "rv32im_zicsr",
     "rv32imc_zicsr",
     "rv32im_zicsr_zba_zbb_zbs",
+    "rv32im_zicsr_zba_zbb_zbc_zbs",
     "rv32gc",
     "rv32gc_zba_zbb_zbs",
+    "rv32gc_zba_zbb_zbc_zbs",
     "rv64i_zicsr",
     "rv64im_zicsr",
     "rv64imc_zicsr",
     "rv64im_zicsr_zba_zbb_zbs",
+    "rv64im_zicsr_zba_zbb_zbc_zbs",
     "rv64gc",
-    "rv64gc_zba_zbb_zbs"
+    "rv64gc_zba_zbb_zbs",
+    "rv64gc_zba_zbb_zbc_zbs"
 ]
 
 # Define regular expressions to match the desired fields

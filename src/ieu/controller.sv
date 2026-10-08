@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -67,7 +67,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   output logic        BMUActiveE,              // Bit manipulation instruction being executed
   output logic [1:0]  CZeroE,                  // {czero.nez, czero.eqz} instructions active
   output logic        MDUActiveE,              // Mul/Div instruction being executed
-  output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic        IFUPrefetchE,            // instruction prefetch
   output logic        LSUPrefetchM,            // data prefetch
   output logic [1:0]  ForwardAE, ForwardBE,    // Select signals for forwarding multiplexers
@@ -152,7 +152,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]  PreALUSelectD;                  // ALU Output selection mux control (before possible Zicond logic)
   logic [2:0]  ALUSelectD;                     // ALU Output selection mux control
   logic        IWValidFunct3D;                 // Detects if Funct3 is valid for IW instructions
-  logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
   logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
@@ -194,9 +194,9 @@ module controller import cvw::*;  #(parameter cvw_t P) (
                               (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
     assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) &
-                              ((P.ZICBOZ_SUPPORTED & InstrD[31:20] == 12'd4 & ENVCFG_CBE[3]) |
-                               (P.ZICBOM_SUPPORTED & ((InstrD[31:20] == 12'd0 & (ENVCFG_CBE[1:0] != 2'b00))) |
-                                                      (InstrD[31:20] == 12'd1 | InstrD[31:20] == 12'd2) & ENVCFG_CBE[2]));
+                              ((P.ZICBOZ_SUPPORTED & (InstrD[31:20] == 12'd4) & ENVCFG_CBE[3]) |
+                               (P.ZICBOM_SUPPORTED & (((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01 | ENVCFG_CBE[1:0] == 2'b11)) |
+                                                      ((InstrD[31:20] == 12'd1 | InstrD[31:20] == 12'd2) & ENVCFG_CBE[2]))));
     assign AFunctD          = (Funct3D == 3'b010) | (P.XLEN == 64 & Funct3D == 3'b011);
     assign AMOFunctD        = (InstrD[31:27] == 5'b00001) |
                               (InstrD[31:27] == 5'b00000) |
@@ -389,8 +389,9 @@ module controller import cvw::*;  #(parameter cvw_t P) (
       CMOpD[3] = (InstrD[31:20] == 12'd4); // cbo.zero
     end
     if ((P.ZICBOM_SUPPORTED) & CMOD) begin
-      CMOpD[2] = (InstrD[31:20] == 12'd2); // cbo.clean
-      CMOpD[1] = (InstrD[31:20] == 12'd1) | ((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
+      // A flush is a clean followed by an invalidate, so cbo.inval downgraded by xenvcfg.CBIE = 01 takes the flush path
+      CMOpD[2] = (InstrD[31:20] == 12'd2) | ((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
+      CMOpD[1] = (InstrD[31:20] == 12'd1); // cbo.clean
       CMOpD[0] = (InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b11); // cbo.inval
     end
   end

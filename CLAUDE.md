@@ -71,7 +71,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 - `config/` — Configuration files per target (`rv64gc`, `rv32gc`, `rv32i`, etc.)
 - `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
-- `tests/` — Test suites (`riscof/`, `coverage/`, `fp/`, `custom/`)
+- `tests/` — Test suites (`riscof/`, `coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests built without RISCOF)
 - `addins/` — Git submodules (riscv-arch-test, sail-riscv, riscv-dv, embench, etc.)
 - `bin/` — Scripts (`wsim`, `regression-wally`, `lint-wally`, `derivgen.pl`, etc.)
 - `fpga/` — FPGA-specific files
@@ -120,7 +120,8 @@ Lockstep mode runs Wally in lock-step against ImperasDV (commercial) or the RISC
 
 Test suites referenced in `testbench/tests.vh`:
 - `arch32i`/`arch64gc` etc. — RISC-V Arch Tests (built via `make riscof`)
-- `wally32priv`/`wally64priv` — Wally-specific privileged/peripheral tests
+- `wally32priv`/`wally64priv` — Wally-specific privileged tests
+- `wally32periph`/`wally64periph` (and `wally32periph_imc`) — Self-checking peripheral tests: one source per test in `tests/periph/src/`, built for both widths into `tests/periph/rv32/` and `rv64/` by `make periph`; each embeds its expected signature and checks every entry as it is written
 - `coverage64gc` — Coverage-targeted tests for each unit
 - `buildroot` — Linux boot test
 

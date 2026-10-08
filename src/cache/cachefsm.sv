@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -41,7 +41,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   input  logic [1:0] CacheRW,           // [1] Read, [0] Write
   input  logic       FlushCache,        // Flush all dirty lines back to memory
   input  logic       InvalidateCache,   // Clear all valid bits
-  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.flush; 0100: cbo.clean; 1000: cbo.zero
+  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.clean; 0100: cbo.flush; 1000: cbo.zero
   // Bus controls
   input  logic       CacheBusAck,       // Bus operation completed
   output logic [1:0] CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
@@ -95,8 +95,8 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign AnyMiss = (CacheRW[0] | CacheRW[1]) & ~Hit & ~InvalidateCache; // exclusion-tag: cache AnyMiss
   assign AnyUpdateHit = (CacheRW[0]) & Hit;                            // exclusion-tag: icache storeAMO1
   assign AnyHit = AnyUpdateHit | (CacheRW[1] & Hit);                  // exclusion-tag: icache AnyUpdateHit
-  assign CMOZeroNoEviction = CMOpM[3] & ~LineDirty;   // (hit or miss) with no writeback store zeros now
-  assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | CMOpM[3] & LineDirty;
+  assign CMOZeroNoEviction = CMOpM[3] & (Hit | ~LineDirty);   // (hit or miss) with no writeback store zeros now
+  assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | (CMOpM[3] & ~Hit & LineDirty);
 
   assign FlushFlag = FlushAdrFlag & FlushWayFlag;
 

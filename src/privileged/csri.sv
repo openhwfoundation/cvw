@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -40,7 +40,7 @@ module csri import cvw::*;  #(parameter cvw_t P) (
   output logic [11:0]       MIP_REGW_writeable // only SEIP, STIP, SSIP are actually writeable; the rest are hardwired to 0
 );
 
-  logic [11:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK;
+  logic [11:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK, SIE_WRITE_MASK;
   logic                     WriteMIPM, WriteMIEM, WriteSIPM, WriteSIEM;
   logic                     STIP;
 
@@ -69,10 +69,12 @@ module csri import cvw::*;  #(parameter cvw_t P) (
     end
     assign SIP_WRITE_MASK = 12'h002 & MIDELEG_REGW; // SSIP is writeable in SIP (privileged 20210108-draft 4.1.3)
     assign MIE_WRITE_MASK = 12'hAAA;
+    assign SIE_WRITE_MASK = 12'h222 & MIDELEG_REGW; // Delegated supervisor interrupts are writable in SIE
   end else begin : mask
     assign MIP_WRITE_MASK = 12'h000;
     assign SIP_WRITE_MASK = 12'h000;
     assign MIE_WRITE_MASK = 12'h888;
+    assign SIE_WRITE_MASK = 12'h000;
     assign STIP = '0;
   end
   always_ff @(posedge clk)
@@ -82,7 +84,7 @@ module csri import cvw::*;  #(parameter cvw_t P) (
   always_ff @(posedge clk)
     if (reset)          MIE_REGW <= 12'b0;
     else if (WriteMIEM) MIE_REGW <= (CSRWriteValM[11:0] & MIE_WRITE_MASK); // MIE controls M and S fields
-    else if (WriteSIEM) MIE_REGW <= (CSRWriteValM[11:0] & 12'h222 & MIDELEG_REGW) | (MIE_REGW & 12'h888); // only S fields
+    else if (WriteSIEM) MIE_REGW <= (CSRWriteValM[11:0] & SIE_WRITE_MASK) | (MIE_REGW & ~SIE_WRITE_MASK); // only S fields
 
   assign MIP_REGW = {MExtInt,   1'b0, SExtInt|MIP_REGW_writeable[9],  1'b0,
                      MTimerInt, 1'b0, STIP,                           1'b0,

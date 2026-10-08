@@ -12,7 +12,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -70,6 +70,7 @@ module tlb import cvw::*;  #(parameter cvw_t P,
   input  logic [2:0]               PageTypeWriteVal,
   input  logic                     TLBWrite,
   input  logic                     TLBFlush,
+  input  logic                     TLBFlushAll,      // Flush global (G=1) entries too
   output logic [P.PA_BITS-1:0]     TLBPAdr,
   output logic                     TLBMiss,
   output logic                     Translate,
@@ -121,7 +122,7 @@ module tlb import cvw::*;  #(parameter cvw_t P,
 
   tlblru #(TLB_ENTRIES) lru(.clk, .reset, .TLBWrite, .Matches, .TLBHit, .WriteEnables);
   tlbcam #(P, TLB_ENTRIES, P.VPN_BITS + P.ASID_BITS, P.VPN_SEGMENT_BITS)
-    tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
+    tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .TLBFlushAll, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
            .SATP_ASID, .Matches, .HitPageType, .CAMHit);
   tlbram #(P, TLB_ENTRIES) tlbram(.clk, .reset, .PTE, .Matches, .WriteEnables, .PPN, .PTEAccessBits, .PTE_Gs, .PTE_NAPOTs);
 

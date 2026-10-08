@@ -431,7 +431,7 @@ add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /tes
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/LoadAccessFaultM
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/StoreAmoAccessFaultM
 add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/HPTWInstrAccessFault
-add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/PBMTFaultM
+add wave -noupdate -expand -group lsu -group ptwalker -expand -group faults /testbench/dut/core/lsu/hptw/hptw/NonLeafReservedFaultM
 add wave -noupdate -group {WriteBack stage} /testbench/InstrW
 add wave -noupdate -group {WriteBack stage} /testbench/InstrWName
 add wave -noupdate -group {WriteBack stage} /testbench/dut/core/priv/priv/pmd/wfiW

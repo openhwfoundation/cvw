@@ -64,7 +64,7 @@ RUN git clone https://github.com/buildroot/buildroot.git && \
     # generate files for buildroot regression
     mkdir -p ${RISCV}/linux-testvectors && \
     cd /opt/riscv/testvector-generation && \
-    curl https://raw.githubusercontent.com/openhwgroup/cvw/main/linux/devicetree/wally-virt.dts --output ${RISCV}/buildroot/output/images/wally-virt.dts && \
+    curl https://raw.githubusercontent.com/openhwfoundation/cvw/main/linux/devicetree/wally-virt.dts --output ${RISCV}/buildroot/output/images/wally-virt.dts && \
     dtc -I dts -O dtb ${RISCV}/buildroot/output/images/wally-virt.dts > ${RISCV}/buildroot/output/images/wally-virt.dtb && \
     make && ./genInitMem.sh && \
     chmod -R a+rw ${RISCV}/linux-testvectors && \

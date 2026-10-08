@@ -9,7 +9,7 @@
 //          Prediction made during the fetch stage and corrected in the execution stage.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -216,7 +216,7 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
     assign BTAWrongM = BPBTAWrongM & PCSrcM;
 
   end else begin
-    assign {BTAWrongM, RASPredPCWrongM} = 0;
+    assign {BTAWrongM, RASPredPCWrongM, BPDirWrongM} = 0;
   end
 
   assign IClassM = {CallM, ReturnM, JumpM, BranchM};

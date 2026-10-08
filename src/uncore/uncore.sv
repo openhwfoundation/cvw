@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -61,30 +61,32 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   input  logic                 SDCIn,
   output logic                 SDCCmd,
   output logic [3:0]           SDCCS,
-  output logic                 SDCCLK
+  output logic                 SDCCLK,
+  output logic [3:0]           PWMGPIO
 );
 
   logic [P.XLEN-1:0]           HREADRam, HREADSDC;
 
-  logic [11:0]                 HSELRegions;
-  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART,HSELSDC, HSELSPI;
-  logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID;
+  logic [12:0]                 HSELRegions;
+  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART,HSELSDC, HSELSPI, HSELPWM;
+  logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
   logic                        HRESPRam,  HRESPSDC;
   logic                        HREADYRam, HRESPSDCD;
   logic [P.XLEN-1:0]           HREADBootRom;
   logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
   logic                        HSELNoneD;
   logic                        UARTIntr,GPIOIntr, SPIIntr;
+  logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
   logic                        SDCIntM;
 
   logic                        PCLK, PRESETn, PWRITE, PENABLE;
-  logic [5:0]                  PSEL;
+  logic [6:0]                  PSEL;
   logic [31:0]                 PADDR;
   logic [P.XLEN-1:0]           PWDATA;
   logic [P.XLEN/8-1:0]         PSTRB;
   /* verilator lint_off UNDRIVEN */ // undriven in rv32e configuration
-  logic [5:0]                  PREADY;
-  logic [5:0][P.XLEN-1:0]      PRDATA;
+  logic [6:0]                  PREADY;
+  logic [6:0][P.XLEN-1:0]      PRDATA;
   /* verilator lint_on UNDRIVEN */
   logic [P.XLEN-1:0]           HREADBRIDGE;
   logic                        HRESPBRIDGE, HREADYBRIDGE, HSELBRIDGE, HSELBRIDGED;
@@ -98,14 +100,14 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   adrdecs #(P) adrdecs(HADDR, 1'b1, 1'b1, 1'b1, HSIZE[1:0], HSELRegions);
 
   // unswizzle HSEL signals
-  assign {HSELSPI, HSELSDC, HSELPLIC, HSELUART, HSELGPIO, HSELCLINT, HSELRam, HSELBootRom, HSELEXT, HSELIROM, HSELDTIM} = HSELRegions[11:1];
+  assign {HSELPWM, HSELSPI, HSELSDC, HSELPLIC, HSELUART, HSELGPIO, HSELCLINT, HSELRam, HSELBootRom, HSELEXT, HSELIROM, HSELDTIM} = HSELRegions[12:1];
 
   // AHB -> APB bridge
-  ahbapbbridge #(P, 6) ahbapbbridge (
-    .HCLK, .HRESETn, .HSEL({HSELSDC, HSELSPI, HSELUART, HSELPLIC, HSELCLINT, HSELGPIO}), .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HTRANS, .HREADY,
+  ahbapbbridge #(P, 7) ahbapbbridge (
+    .HCLK, .HRESETn, .HSEL({HSELPWM, HSELSDC, HSELSPI, HSELUART, HSELPLIC, HSELCLINT, HSELGPIO}), .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HTRANS, .HREADY,
     .HRDATA(HREADBRIDGE), .HRESP(HRESPBRIDGE), .HREADYOUT(HREADYBRIDGE),
     .PCLK, .PRESETn, .PSEL, .PWRITE, .PENABLE, .PADDR, .PWDATA, .PSTRB, .PREADY, .PRDATA);
-  assign HSELBRIDGE = HSELGPIO | HSELCLINT | HSELPLIC | HSELUART | HSELSPI | HSELSDC; // if any of the bridge signals are selected
+  assign HSELBRIDGE = HSELGPIO | HSELCLINT | HSELPLIC | HSELUART | HSELSPI | HSELSDC | HSELPWM; // if any of the bridge signals are selected
 
   // on-chip RAM
   if (P.UNCORE_RAM_SUPPORTED) begin : ram
@@ -131,7 +133,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
 
   if (P.PLIC_SUPPORTED == 1) begin : plic
     plic_apb #(P) plic(.PCLK, .PRESETn, .PSEL(PSEL[2]), .PADDR(PADDR[27:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
-      .PRDATA(PRDATA[2]), .PREADY(PREADY[2]), .UARTIntr, .GPIOIntr, .SDCIntr, .SPIIntr, .MExtInt, .SExtInt);
+      .PRDATA(PRDATA[2]), .PREADY(PREADY[2]), .UARTIntr, .GPIOIntr, .SDCIntr, .SPIIntr, .PWMIntr, .MExtInt, .SExtInt);
   end else begin : plic
     assign MExtInt = 1'b0;
     assign SExtInt = 1'b0;
@@ -141,7 +143,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
     gpio_apb #(P) gpio(
       .PCLK, .PRESETn, .PSEL(PSEL[0]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[0]), .PREADY(PREADY[0]),
-      .iof0(), .iof1(), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
+      .iof0({28'b0, PWMGPIO[3:0]}), .iof1(), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
   end else begin : gpio
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
@@ -175,6 +177,14 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
     assign SDCCmd = '0; assign SDCCS = 4'b0; assign SDCIntr = 1'b0; assign SDCCLK = 1'b0;
   end
 
+  if (P.PWM_SUPPORTED == 1) begin : pwm
+    pwm_apb #(P) pwm(
+      .PCLK, .PRESETn, .PSEL(PSEL[6]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
+      .PREADY(PREADY[6]), .PRDATA(PRDATA[6]),
+      .PWMIntr, .PWMGPIO);
+  end else begin : pwm
+    assign PWMIntr = '0; assign PWMGPIO = '0;
+  end
 
   // AHB Read Multiplexer
   assign HRDATA = ({P.XLEN{HSELRamD}} & HREADRam) |
@@ -198,8 +208,8 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   // takes more than 1 cycle to respond it needs to hold on to the old select until the
   // device is ready.  Hence this register must be selectively enabled by HREADY.
   // However on reset None must be selected.
-  flopenl #(12) hseldelayreg(HCLK, ~HRESETn, HREADY, HSELRegions, 12'b1,
-    {HSELSPID, HSELSDCD, HSELPLICD, HSELUARTD, HSELGPIOD, HSELCLINTD,
+  flopenl #(13) hseldelayreg(HCLK, ~HRESETn, HREADY, HSELRegions, 13'b1,
+    {HSELPWMD, HSELSPID, HSELSDCD, HSELPLICD, HSELUARTD, HSELGPIOD, HSELCLINTD,
       HSELRamD, HSELBootRomD, HSELEXTD, HSELIROMD, HSELDTIMD, HSELNoneD});
   flopenr #(1) hselbridgedelayreg(HCLK, ~HRESETn, HREADY, HSELBRIDGE, HSELBRIDGED);
 endmodule

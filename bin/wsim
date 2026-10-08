@@ -15,6 +15,7 @@ import argparse
 import fcntl
 import hashlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -196,13 +197,23 @@ def targetMtime(target):
     return target.stat().st_mtime if target.exists() else None
 
 
+def checkCompiled(target, sim):
+    """Report an error if compilation did not leave a design behind."""
+    if not target.exists():
+        print(f"Error: {sim} compiled design not found: {target}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def runSim(args, flags, prefix):
     if args.sim == "questa":
-        runQuesta(args, flags, prefix)
+        return runQuesta(args, flags, prefix)
     elif args.sim == "verilator":
-        runVerilator(args)
+        return runVerilator(args)
     elif args.sim == "vcs":
-        runVCS(args, flags, prefix)
+        return runVCS(args, flags, prefix)
+    print(f"Error: unknown simulator {args.sim}", file=sys.stderr)
+    return 1
 
 
 def runQuesta(args, flags, prefix):
@@ -232,8 +243,12 @@ def runQuesta(args, flags, prefix):
         if needs_compile and current_mtime == target_mtime:
             compile_cmd = f'do wally-compile.do {args.config} {args.tb} {wkdir} {compile_flags}'
             compile_cmd = f'cd {sim_dir}; {prefix} vsim -c -do "{compile_cmd}"'
-            if os.system(compile_cmd):
-                return
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: Questa compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(target, "Questa"):
+        return 1
 
     # Phase 2: Run the simulation
     run_flags = flags
@@ -241,7 +256,7 @@ def runQuesta(args, flags, prefix):
         run_flags += rf" --args \"{args.args}\""
     run_cmd = f'do wally-run.do {args.config} {args.testsuite} {args.tb} {wkdir} {run_flags}'
     run_cmd = f'cd {sim_dir}; {prefix} vsim {"-c" if not args.gui else ""} -do "{run_cmd}"'
-    os.system(run_cmd)
+    return subprocess.run(run_cmd, shell=True).returncode
 
 
 def runVerilator(args):
@@ -265,8 +280,12 @@ def runVerilator(args):
     with compileLock("verilator", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(binary)
         if needs_compile and current_mtime == target_mtime:
-            if os.system(compile_cmd):
-                return
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: Verilator compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(binary, "Verilator"):
+        return 1
 
     # Phase 2: Run the simulation (parallel safe)
     # Run from sim/verilator/ so relative paths (e.g. logs/buildroot_uart.out) resolve correctly
@@ -276,7 +295,7 @@ def runVerilator(args):
         runtime_args += f" +TEST={args.testsuite}"
     if args.args.strip():
         runtime_args += f" {args.args.strip()}"
-    os.system(f"cd {sim_dir} && {binary}{runtime_args}")
+    return subprocess.run(f"cd {sim_dir} && {binary}{runtime_args}", shell=True).returncode
 
 
 def runVCS(args, flags, prefix):
@@ -300,15 +319,19 @@ def runVCS(args, flags, prefix):
         current_mtime = targetMtime(binary)
         if needs_compile and current_mtime == target_mtime:
             compile_cmd = f'cd {sim_dir}; {prefix} ./run_vcs compile {args.config} {args.testsuite} --wkdir {wkdir} {compile_flags}'
-            if os.system(compile_cmd):
-                return
+            rc = subprocess.run(compile_cmd, shell=True).returncode
+            if rc:
+                print(f"Error: VCS compilation failed for {args.config} {args.tb}", file=sys.stderr)
+                return rc
+    if checkCompiled(binary, "VCS"):
+        return 1
 
     # Phase 2: Run the simulation
     run_flags = f"--tb {args.tb} {flags}"
     if args.args.strip():
         run_flags += f' --args "{args.args}"'
     run_cmd = f'cd {sim_dir}; {prefix} ./run_vcs run {args.config} {args.testsuite} --wkdir {wkdir} {run_flags}'
-    os.system(run_cmd)
+    return subprocess.run(run_cmd, shell=True).returncode
 
 
 def main(args):

@@ -642,7 +642,7 @@ def main():
     parser = argparse.ArgumentParser(description="Nightly Verification Testing for WALLY.")
 
     parser.add_argument("--path", default="nightly", help='specify the path for where the nightly repositories will be cloned ex: "nightly-runs')
-    parser.add_argument("--repository", default="https://github.com/openhwgroup/cvw", help="specify which github repository you want to clone")
+    parser.add_argument("--repository", default="https://github.com/openhwfoundation/cvw", help="specify which github repository you want to clone")
     parser.add_argument("--target", default="", help="types of tests you can make are: all, wally-riscv-arch-test, no")
     parser.add_argument("--tests", default="nightly", help="types of tests you can run are: nightly, test, test_lint")
     parser.add_argument("--send_email", default="", nargs="+", help='What emails to send test results to. Example: "[email1],[email2],..."')

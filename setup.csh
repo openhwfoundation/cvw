@@ -37,6 +37,6 @@ if ( -e "${RISCV}"/site-setup.csh ) then
     source $RISCV/site-setup.csh
 else
     echo "site-setup.csh not found in \$RISCV directory. Rerun wally-toolchain-install.sh to automatically download it."
-fi
+endif
 
 echo "setup done"

@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -41,7 +41,8 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   output logic         IllegalInstrFaultM,                  // Illegal instruction
   output logic         EcallFaultM, BreakpointFaultM,       // Ecall or breakpoint; must retire, so don't flush it when the trap occurs
   output logic         sretM, mretM, RetM,                  // return instructions
-  output logic         wfiM, wfiW, sfencevmaM               // wfi / sfence.vma / sinval.vma instructions
+  output logic         wfiM, wfiW, sfencevmaM,              // wfi / sfence.vma / sinval.vma instructions
+  output logic         sfencevmaAllM                        // sfence.vma with rs2=x0: flush all TLB entries including global
 );
 
   logic                rs1zeroM, rdzeroM;                   // rs1 / rd field = 0
@@ -82,6 +83,9 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   assign sfencevmaM = PrivilegedM & P.VIRTMEM_SUPPORTED &
                       ((PrivilegeModeW == P.M_MODE & (vmaM | fenceinvalM)) |
                        (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM  | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+  // rs2 (InstrM[24:20]) = x0 means flush all ASIDs including global mappings; rs2 != x0 is ASID-specific
+  // and must preserve global (G=1) entries (RISC-V Privileged spec sfence.vma semantics).
+  assign sfencevmaAllM = sfencevmaM & ~|InstrM[24:20];
 
   ///////////////////////////////////////////
   // WFI timeout Privileged Spec 3.1.6.5

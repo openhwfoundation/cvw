@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -163,7 +163,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   // Dirty bits
-  if (!READ_ONLY_CACHE) begin : dirty
+  if (!READ_ONLY_CACHE) begin : dirtyarray
     always_ff @(posedge clk) begin
       // reset is optional.  Consider merging with TAG array in the future.
       //if (reset) DirtyBits <= {NUMSETS{1'b0}};

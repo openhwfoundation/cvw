@@ -890,6 +890,7 @@ trap_handler_end_\MODE\(): // place to jump to so we can skip the trap handler a
     .equ PLIC_INTPRI_GPIO, 0x0C00000C       # GPIO is interrupt 3
     .equ PLIC_INTPRI_UART, 0x0C000028       # UART is interrupt 10
     .equ PLIC_INTPRI_SPI,  0x0C000018       # SPI in interrupt 6
+    .equ PLIC_INTPRI_PWM,  0x0C00001C       # PWM in interrupt 42
     .equ PLIC_INTPENDING0, 0x0C001000       # intPending0 register
     .equ PLIC_INTEN00,     0x0C002000       # interrupt enables for context 0 (machine mode) sources 31:1
     .equ PLIC_INTEN10,     0x0C002080       # interrupt enables for context 1 (supervisor mode) sources 31:1
@@ -903,6 +904,7 @@ trap_handler_end_\MODE\(): // place to jump to so we can skip the trap handler a
     .8byte PLIC_INTPRI_GPIO, 7, write32_test # Set GPIO to high priority
     .8byte PLIC_INTPRI_UART, 7, write32_test # Set UART to high priority
     .8byte PLIC_INTPRI_SPI,  7, write32_test # Set SPI to high priority
+    .8byte PLIC_INTPRI_PWM, 7, write32_test # Set PWM to high priority
     .8byte PLIC_INTEN00, 0xFFFFFFFF, write32_test # Enable all interrupt sources for machine mode
     .8byte PLIC_INTEN10, 0x00000000, write32_test # Disable all interrupt sources for supervisor mode
 .endm
@@ -1078,6 +1080,12 @@ claim_m_plic_interrupts: // clears one non-pending PLIC interrupt
     sw t3, 0(t2)
     sw t4, -4(sp)
     addi sp, sp, -4
+    li t2, 0x0C00001C // PWM priority
+    li t3, 7
+    lw t4, 0(t2)
+    sw t3, 0(t2)
+    sw t4, -4(sp)
+    addi sp, sp, -4
     li t2, 0x0C002000
     li t3, 0x0C200004
     li t4, 0xFFF
@@ -1089,13 +1097,16 @@ claim_m_plic_interrupts: // clears one non-pending PLIC interrupt
     li t2, 0x0C00000C // GPIO priority
     li t3, 0x0C000028 // UART priority
     li t6, 0x0C000018 // SPI priority
-    lw a4, 8(sp) // load stored GPIO prioroty
-    lw t4, 4(sp) // load stored UART priority
-    lw t5, 0(sp) // load stored SPI priority
-    addi sp, sp, 12 // restore stack pointer
+    li a5, 0x0C00001C // PWM priority
+    lw a4, 12(sp) // load stored GPIO prioroty
     sw a4, 0(t2)
-    sw t4, 0(t3)
-    sw t5, 0(t6)
+    lw a4, 8(sp) // load stored UART priority
+    sw a4, 0(t3)
+    lw a4, 4(sp) // load stored SPI priority
+    sw a4, 0(t6)
+    lw a4, 0(sp) // load stored PWM priority
+    sw a4, 0(a5)
+    addi sp, sp, 16 // restore stack pointer
     j test_loop
 
 claim_s_plic_interrupts: // clears one non-pending PLIC interrupt
@@ -1208,6 +1219,96 @@ spi_burst_send: //function for loading multiple frames at once to test delays wi
     srli t2, t2, 8
     sw t2, 0(t3)
     j test_loop
+
+pwm_cycle_wait: //counts number of pwm cycles
+    rdcycle a4 //read starting cycle into a4
+    li t2, 0x10020000 // pwm start address
+    lw t3, 32(t2) //load comp0 into t3
+    lw t6, 0(t2)   //load scale factor into t6
+    andi t6, t6, 0x0000000F
+    add t6, t6, t4 // create total shift for end wait time by adding shift factor and log2(numcycles)
+    sll t3, t3, t6 //shift compare by (scale factor + )
+    add t2, t3, a4 //find estimated end time
+    li t4, 0x1006002C // load gpio rise_ip address
+    li t5, 0x0
+    li t6, 0xFFFFFFFF
+    lw t3, 0(t4)
+
+pwm_cycle_branch:
+    rdcycle t3 //read current cycle num
+    bgt t3, t2, pwm_over //if cycle over estimated end time, end
+    lw t3, 0(t4) //load GPIO 0-3 high_ip
+    bgtz t3, pwm_cycle_increment
+    j pwm_cycle_branch
+
+pwm_cycle_increment:
+    addi t5, t5, 0x1
+    j pwm_wait_half
+
+pwm_wait_half:
+    sw t6, 0(t4) // clear high_ip
+    lw t3, 0(t4) //load high_ip
+    bgtz t3, pwm_wait_half //wait for pwm cycle to end
+    j pwm_cycle_branch
+
+pwm_over: //resets pwm enables and clears interrupt registers
+    li t2, 0x10020000
+    li t3, 0x00000000
+    sw t3, 0(t2) //clear pwm config
+    sw t3, 8(t2) //set pwm count to 0
+    sw t6, 0(t4) // clear high_ip
+    sd t5, 0(t1) //store num of cycles
+    addi t1, t1, 8
+    addi a6, a6, 8
+    j test_loop
+
+pwm_dumb_over: //resets pwm enables and clears interrupt registers
+    li t2, 0x10020000
+    li t3, 0x00000000
+    sw t3, 0(t2) //clear pwm config
+    sw t3, 8(t2) //set pwm count to 0
+    j test_loop
+
+pwm_cycle_wait_center: //function for waiting t4 pwm cycles for inspection tests when in center mode
+    rdcycle a4 //read starting cycle into t4
+    li t2, 0x10020000 // pwm start address
+    li t3, 0xFFFF //load max count (centered)
+    lw t6, 0(t2)   //load scale factor into t6
+    andi t6, t6, 0x0000000F
+    add t6, t6, t4 // create total shift for end wait time by adding shift factor and log2(numcycles)
+    sll t3, t3, t6 //shift compare by (scale factor + )
+    add t2, t3, a4 //find estimated end time
+    li t4, 0x1006002C // load gpio rise_ip address
+    li t5, 0x0
+    li t6, 0xFFFFFFFF
+    lw t3, 0(t4)
+    j pwm_cycle_branch
+
+pwm_dumb_wait: // waits an estimated 8 pwm cycles from timer and scale
+    rdcycle t5 //read starting cycle into t4
+    li t2, 0x10020000 // comp0 register
+    lw t3, 32(t2) //load comp0 into t3
+    lw t6, 0(t2)   //load scale factor into t6
+    andi t6, t6, 0x0000000F
+    add t6, t6, t4 // create total shift for end wait time by adding shift factor and log2(numcycles)
+    sll t3, t3, t6 //shift compare by (scale factor + )
+    add t5, t3, t5 //find estimated end time
+
+pwm_dumb_cycle:
+    rdcycle t4
+    bgt t4, t5, pwm_dumb_over
+    j pwm_dumb_cycle
+
+pwm_dumb_wait_center:
+    rdcycle t5
+    li t2, 0x10020000 // comp0 register
+    li t3, 0xFFFF //center technique requires max compare time
+    lw t6, 0(t2)   //load scale factor into t6
+    andi t6, t6, 0x0000000F
+    add t6, t6, t4 // create total shift for end wait time by adding shift factor and log2(numcycles)
+    sll t3, t3, t6 //shift compare by (scale factor + )
+    add t5, t3, t5 //find estimated end time
+    j pwm_dumb_cycle
 
 goto_s_mode:
     // return to address in t3,

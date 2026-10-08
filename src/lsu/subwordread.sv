@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -44,6 +44,7 @@ module subwordread import cvw::*;  #(parameter cvw_t P) (
   logic [15:0]              HalfwordM;
   logic [31:0]              WordM;
   logic [63:0]              DblWordM;
+  logic [P.LLEN-1:0]        DblWordExtM;
 
   // invert lsbs of address to select appropriate subword for big endian
   if (P.BIGENDIAN_SUPPORTED) assign PAdrSwapM = PAdrM[ADRBITS-1:0] ^ {ADRBITS{BigEndianM}};
@@ -58,14 +59,17 @@ module subwordread import cvw::*;  #(parameter cvw_t P) (
   mux2 #(16) halfwordmux(WordM[15:0], WordM[31:16], PAdrSwapM[1], HalfwordM);
   mux2 #(8)  bytemux(HalfwordM[7:0], HalfwordM[15:8], PAdrSwapM[0], ByteM);
 
+  // ld/fld sign extension/NaN boxing, in a generate so RV32 does not elaborate a negative replication
+  if (P.LLEN >= 64) assign DblWordExtM = {{P.LLEN-64{DblWordM[63]|FpLoadStoreM}}, DblWordM[63:0]};
+  else              assign DblWordExtM = ReadDataWordMuxM; // shouldn't happen
+
   // sign extension/ NaN boxing
   always_comb
     case(Funct3M)
       3'b000:  ReadDataM = {{(P.LLEN-8){ByteM[7]}}, ByteM};                                                     // lb
       3'b001:  ReadDataM = {{P.LLEN-16{HalfwordM[15]|FpLoadStoreM}}, HalfwordM[15:0]};                          // lh/flh
       3'b010:  ReadDataM = {{P.LLEN-32{WordM[31]|FpLoadStoreM}}, WordM[31:0]};                                  // lw/flw
-      3'b011:  if (P.LLEN >= 64) ReadDataM = {{P.LLEN-64{DblWordM[63]|FpLoadStoreM}}, DblWordM[63:0]};          // ld/fld
-               else ReadDataM = ReadDataWordMuxM;                                                               // shouldn't happen
+      3'b011:  ReadDataM = DblWordExtM;                                                                         // ld/fld
       3'b100:  if (P.LLEN == 128) ReadDataM = FpLoadStoreM ? ReadDataWordMuxM : {{P.LLEN-8{1'b0}}, ByteM[7:0]}; // lbu/flq
                else ReadDataM = {{P.LLEN-8{1'b0}}, ByteM[7:0]};                                                 // lbu
       3'b101:  ReadDataM = {{P.LLEN-16{1'b0}}, HalfwordM[15:0]};                                                // lhu

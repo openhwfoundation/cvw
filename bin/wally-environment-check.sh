@@ -9,7 +9,7 @@
 ## Purpose: Check for compatible Linux distribution and set variables accordingly
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 ##
@@ -19,7 +19,7 @@
 ## except in compliance with the License, or, at your option, the Apache License version 2.0. You
 ## may obtain a copy of the License at
 ##
-## https:##solderpad.org/licenses/SHL-2.1/
+## https://solderpad.org/licenses/SHL-2.1/
 ##
 ## Unless required by applicable law or agreed to in writing, any work distributed under the
 ## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -120,12 +120,12 @@ elif [[ "$ID" == debian || "$ID_LIKE" == *debian* ]]; then
             "is $PRETTY_NAME. The regular Debian install will be attempted, but there may be issues."
     fi
     export DEBIAN_VERSION="$VERSION_ID"
-    if (( DEBIAN_VERSION < 11 )); then
-        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 11, 12, and 13. You have version $VERSION. Please upgrade to a supported version of Debian."
+    if (( DEBIAN_VERSION < 12 )); then
+        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 12 and 13. You have version $VERSION. Please upgrade to a supported version of Debian."
         exit 1
     fi
     if (( DEBIAN_VERSION > 13 )); then
-        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 11, 12, and 13. You have a newer version ($VERSION). The installation for Debian 13 will be attempted, but there may be issues."
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 12 and 13. You have a newer version ($VERSION). The installation for Debian 13 will be attempted, but there may be issues."
     fi
 elif [[ "$ID" == opensuse-leap || "$ID" == sles || "$ID_LIKE" == *suse* ]]; then
     export FAMILY=suse

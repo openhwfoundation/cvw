@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -45,8 +45,8 @@ module mul #(parameter XLEN) (
   //     PA = (A' * B[XLEN-1])
   //     PB = (B' * A[XLEN-1])
   //     PP = A[XLEN-1] * B[XLEN-1]
-  // Signed * Signed     = P' + (-PA - PB)*2^(XLEN-1) + PP*2^(2XLEN-2)
-  // Signed * Unsigned   = P' + ( PA - PB)*2^(XLEN-1) - PP*2^(2XLEN-2)
+  // Signed * Signed     = P' + (-PB - PA)*2^(XLEN-1) + PP*2^(2XLEN-2)
+  // Signed * Unsigned   = P' + ( PB - PA)*2^(XLEN-1) - PP*2^(2XLEN-2)
   // Unsigned * Unsigned = P' + ( PA + PB)*2^(XLEN-1) + PP*2^(2XLEN-2)
 
   logic [XLEN-1:0]    Aprime, Bprime;                       // lower bits of source A and B
@@ -54,7 +54,7 @@ module mul #(parameter XLEN) (
   logic [XLEN-2:0]    PA, PB;                               // product of msb and lsbs
   logic               PP;                                   // product of msbs
   logic [XLEN*2-1:0]  PP1E, PP2E, PP3E, PP4E;               // partial products
-  logic [XLEN*2-1:0]  PP1M, PP2M, PP3M, PP4M;               // registered partial proudcts
+  logic [XLEN*2-1:0]  PP1M, PP2M, PP3M, PP4M;               // registered partial products
 
   //////////////////////////////
   // Execute Stage: Compute partial products

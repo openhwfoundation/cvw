@@ -22,7 +22,7 @@ add wave -group {PostProc} -noupdate /testbench_fp/postprocess/flags/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/normshift/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/shiftcorrection/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/resultsign/*
-add wave -group {PostProc} -noupdate /testbench_fp/postprocess/round/*
+add wave -group {PostProc} -noupdate /testbench_fp/postprocess/rounder/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/fmashiftcalc/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/divshiftcalc/*
 add wave -group {PostProc} -noupdate /testbench_fp/postprocess/cvtshiftcalc/*

@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
@@ -36,7 +36,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              CSRReadM, CSRWriteM,                            // Read or write CSRs
   input  logic [P.XLEN-1:0] SrcAM,                                          // GPR register to write
   input  logic [31:0]       InstrM,                                         // Instruction
-  input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
+  input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
@@ -94,6 +94,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   // control outputs
   output logic              RetM, TrapM,                                    // return instruction, or trap
   output logic              sfencevmaM,                                     // sfence.vma instruction
+  output logic              sfencevmaAllM,                                  // sfence.vma with rs2=x0: flush all TLB entries including global
   input  logic              InvalidateICacheM,                              // fence instruction
   output logic              BigEndianM,                                     // Use big endian in current privilege mode
   // Fault outputs
@@ -130,7 +131,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   privdec #(P) pmd(.clk, .reset, .StallW, .FlushW, .InstrM(InstrM[31:7]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM,
     .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .TrapM, .IllegalInstrFaultM,
-    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM);
+    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM, .sfencevmaAllM);
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,

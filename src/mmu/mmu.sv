@@ -9,7 +9,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -44,7 +44,8 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic [P.XLEN-1:0]    PTE,                // page table entry
   input  logic [2:0]           PageTypeWriteVal,   // page type
   input  logic                 TLBWrite,           // write TLB entry
-  input  logic                 TLBFlush,           // Invalidate all TLB entries
+  input  logic                 TLBFlush,           // Invalidate all TLB entries (ASID-specific preserves global)
+  input  logic                 TLBFlushAll,        // Flush global (G=1) entries too; when 0, G=1 entries are preserved
   output logic [P.PA_BITS-1:0] PhysicalAddress,    // PAdr when no translation, or translated VAdr (TLBPAdr) when there is translation
   output logic                 TLBMiss,            // Miss TLB
   output logic                 Cacheable,          // PMA indicates memory address is cacheable
@@ -74,9 +75,9 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        TLBPageFault;             // Page fault from TLB
   logic                        ReadNoAmoAccessM;         // Read that is not part of atomic operation causes Load faults.  Otherwise StoreAmo faults
   logic [1:0]                  PBMemoryType;             // PBMT field of PTE during TLB hit, or 00 otherwise
-  logic                        AtomicMisalignedCausesAccessFaultM; // Misaligned atomics are not handled by hardware even with ZICCLSM, so it throws an access fault instead of misaligned with ZICCLSM
+  logic                        MisalignedCausesAccessFaultM; // Misaligned access throws an access fault instead of a misaligned fault
   logic [1:0]                  EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
-  logic                        MisalignedAllowedM;       // System can throw misaligned if ZICCLSM is not supported, or access is uncachable and TLB has found the entry.
+  logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
 
   // Get Effective Privilege Mode
   // for DLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
@@ -94,7 +95,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .VAdr(VAdr[P.XLEN-1:0]), .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
           .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM,
           .DisableTranslation, .PTE, .PageTypeWriteVal,
-          .TLBWrite, .TLBFlush, .TLBPAdr, .TLBMiss,
+          .TLBWrite, .TLBFlush, .TLBFlushAll, .TLBPAdr, .TLBMiss,
           .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
   end else begin : tlb // just pass address through as physical
     assign Translate    = 1'b0;
@@ -145,19 +146,21 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
   // When ZICCLSM_SUPPORTED, misaligned uncachable accesses are lower priority than page and access faults, so must wait for TLB to resolve
   // When ZICCLSM is not supported, misaligned accesses always fault, with higher priority than access or page fault
-  assign MisalignedAllowedM       = ~P.ZICCLSM_SUPPORTED | (~Cacheable & ~TLBMiss); // should a misaligned access fault?
-  assign LoadMisalignedFaultM     = DataMisalignedM & ReadNoAmoAccessM & MisalignedAllowedM;
-  assign StoreAmoMisalignedFaultM = DataMisalignedM & WriteAccessM & MisalignedAllowedM; // Store and AMO both assert WriteAccess
+  assign MisalignedFaultAllowedM  = ~P.ZICCLSM_SUPPORTED | (~Cacheable & ~TLBMiss & Idempotent); // should a misaligned access fault?
+  assign LoadMisalignedFaultM     = DataMisalignedM & ReadNoAmoAccessM & MisalignedFaultAllowedM;
+  assign StoreAmoMisalignedFaultM = DataMisalignedM & WriteAccessM & MisalignedFaultAllowedM; // Store and AMO both assert WriteAccess
 
-  // a misaligned Atomic causes an access fault rather than a misaligned fault if a misaligned load/store is handled in hardware
-  // this is subtle - see privileged spec 3.6.3.3
-  assign AtomicMisalignedCausesAccessFaultM = DataMisalignedM & AtomicAccessM & (P.ZICCLSM_SUPPORTED & Cacheable);
+  // A misaligned access causes an access fault rather than a misaligned fault when a misaligned load/store is
+  // handled in hardware and either the access is atomic (never handled in hardware; see privileged spec 3.6.3.3)
+  // or the region is non-idempotent, where the spec recommends an access fault so software does not emulate the
+  // access with multiple smaller accesses that could have side effects
+  assign MisalignedCausesAccessFaultM = DataMisalignedM & P.ZICCLSM_SUPPORTED & ((AtomicAccessM & Cacheable) | ~Idempotent);
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.
   assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss;
-  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | AtomicMisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss;
-  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | AtomicMisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss;
+  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss;
+  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss;
 
   // Specify which type of page fault is occurring
   assign InstrPageFaultF    = TLBPageFault & ExecuteAccessF;

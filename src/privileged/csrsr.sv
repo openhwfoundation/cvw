@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -145,7 +145,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
       STATUS_SUM_INT  <= 1'b0;
       STATUS_MPRV_INT <= 1'b0; // Per Priv 3.3
       STATUS_FS_INT   <= 2'b00; // leave floating-point off until activated, even if F_SUPPORTED
-      STATUS_MPP      <= 2'b00;
+      STATUS_MPP      <= P.U_SUPPORTED ? P.U_MODE : P.M_MODE;
       STATUS_SPP      <= 1'b0;
       STATUS_MPIE     <= 1'b0;
       STATUS_SPIE     <= 1'b0;

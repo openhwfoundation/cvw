@@ -8,7 +8,7 @@
 //           PC, branch prediction, instruction cache
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -62,7 +62,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  logic                 RetM, TrapM,                              // return instruction, or trap
   output logic [31:0]          InstrD,                                   // The decoded instruction in Decode stage
   output logic [31:0]          InstrM,                                   // The decoded instruction in Memory stage
-  output logic [31:0]          InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
+  output logic [31:0]          InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   output logic [P.XLEN-1:0]    PCM,                                      // Memory stage instruction address
   output logic [P.XLEN-1:0]    PCSpillM,                                 // Memory stage instruction address
   // branch predictor
@@ -91,7 +91,12 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  logic                 ENVCFG_PBMTE,                             // Page-based memory types enabled
   input  logic                 ENVCFG_ADUE,                              // HPTW A/D Update enable
   input  logic                 sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
-  output logic                 ITLBMissOrUpdateAF,                       // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
+  input  logic                 sfencevmaAllM,                            // sfence.vma with rs2=x0: flush all TLB entries including global
+  output logic                 ITLBMissOrUpdateAF,                       // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit (masked while a walk fault is held)
+  input  logic                 HPTWInstrAccessFaultF,                    // HPTW access fault while walking for the fetch (one-cycle pulse from the walker)
+  input  logic                 HPTWInstrPageFaultF,                      // HPTW page fault while walking for the fetch (one-cycle pulse from the walker)
+  output logic                 HPTWInstrAccessFaultHeldF,                // HPTW access fault for the current fetch, held until the fetch advances
+  output logic                 HPTWInstrPageFaultHeldF,                  // HPTW page fault for the current fetch, held until the fetch advances
   input  var logic [7:0]       PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],     // PMP configuration from privileged unit
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
   output logic                 InstrAccessFaultF,                        // Instruction access fault
@@ -142,6 +147,10 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic [31:0]                 ShiftUncachedInstr;
   logic                        ITLBMissF;
   logic                        InstrUpdateAF;                            // ITLB hit needs to update dirty or access bits
+  logic                        IFUFaultF;                                // Fetch failed the PMA or PMP check, so it must not access the cache or bus
+  logic                        ITLBMissOrUpdateRawF;                     // ITLB miss or A update needed, before masking by a held walk fault
+  logic                        ITLBWalkFaultF;                           // The walk for the current fetch faulted (held or this cycle)
+  logic                        InstrPageFaultRawF, InstrAccessFaultRawF; // Faults on the half of the fetch currently being translated
 
   assign PCFExt = {2'b00, PCSpillF};
 
@@ -153,9 +162,14 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     logic [P.XLEN-1:0] PCSpillD, PCSpillE;
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
+    logic              FirstHalfFaultF;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF,  .CacheableF,
-      .IFUCacheBusStallF, .ITLBMissOrUpdateAF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF, .PostSpillInstrRawF, .CompressedF);
-    flopenr #(1) SpillDReg(clk, reset, ~StallD, SelSpillF, SelSpillD);
+      .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
+      .IFUCacheBusStallF, .ITLBMissOrUpdateAF(ITLBMissOrUpdateRawF), .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
+      .InstrPageFaultSpillF(InstrPageFaultF), .InstrAccessFaultSpillF(InstrAccessFaultF), .FirstHalfFaultF,
+      .PostSpillInstrRawF, .CompressedF);
+    // A fault on the first half is reported at PCM, not PCM+2, so clear the spill flag that adds the +2 in xtval
+    flopenr #(1) SpillDReg(clk, reset, ~StallD, SelSpillF & ~FirstHalfFaultF, SelSpillD);
     flopenr #(1) SpillEReg(clk, reset, ~StallE, SelSpillD, SelSpillE);
     flopenr #(1) SpillMReg(clk, reset, ~StallM, SelSpillE, SelSpillM);
     assign PCIncrM = PCM + 'd2;
@@ -167,6 +181,8 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign PostSpillInstrRawF = InstrRawF;
     assign {SelSpillNextF, CompressedF} = '0;
     assign PCSpillM = PCM;
+    assign InstrPageFaultF = InstrPageFaultRawF;
+    assign InstrAccessFaultF = InstrAccessFaultRawF;
   end
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -182,9 +198,10 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     // But we're still in the stalled sfence instruction, so if itlbflushf == sfencevmaM, tlbflush would never drop and
     // the tlbwrite would never take place after the pagetable walk. by adding in ~StallMQ, we are able to drop itlbflush
     // after a cycle AND pulse it for another cycle on any further back-to-back sfences.
-    logic StallMQ, TLBFlush;
+    logic StallMQ, TLBFlush, TLBFlushAll;
     flopr #(1) StallMReg(.clk, .reset, .d(StallM), .q(StallMQ));
     assign TLBFlush = sfencevmaM & ~StallMQ;
+    assign TLBFlushAll = sfencevmaAllM & ~StallMQ;
 
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
@@ -194,25 +211,45 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
          .PTE(PTE),
          .PageTypeWriteVal(PageType),
          .TLBWrite(ITLBWriteF),
-         .TLBFlush,
+         .TLBFlush, .TLBFlushAll,
          .PhysicalAddress(PCPF),
          .TLBMiss(ITLBMissF),
          .Cacheable(CacheableF), .Idempotent(), .SelTIM(SelIROM),
-         .InstrAccessFaultF, .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
-         .InstrPageFaultF, .LoadPageFaultM(), .StoreAmoPageFaultM(),
+         .InstrAccessFaultF(InstrAccessFaultRawF), .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
+         .InstrPageFaultF(InstrPageFaultRawF), .LoadPageFaultM(), .StoreAmoPageFaultM(),
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0),.ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
          .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW);
 
-     assign ITLBMissOrUpdateAF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
+     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
+
+    // Hold a page table walk fault for the current fetch (issues #1538, #1766).
+    // A walk that faults (access fault on a page table entry address, or reserved bits in a non-leaf PTE) writes
+    // nothing into the ITLB, so the miss would re-request a walk every cycle.  The walker reports the fault as a
+    // one-cycle pulse; remember it until the fetch advances (PCF changes), present it to the pipeline as a level,
+    // suppress further walk requests, and do not fetch.
+    logic [1:0] ITLBWalkFaultHeldF; // {access fault, page fault}
+    always_ff @(posedge clk)
+      if (reset | ~StallF) ITLBWalkFaultHeldF <= 2'b00;
+      else                 ITLBWalkFaultHeldF <= ITLBWalkFaultHeldF | {HPTWInstrAccessFaultF, HPTWInstrPageFaultF};
+    assign HPTWInstrAccessFaultHeldF = ITLBWalkFaultHeldF[1] | HPTWInstrAccessFaultF;
+    assign HPTWInstrPageFaultHeldF   = ITLBWalkFaultHeldF[0] | HPTWInstrPageFaultF;
+    assign ITLBWalkFaultF = HPTWInstrAccessFaultHeldF | HPTWInstrPageFaultHeldF;
+    assign ITLBMissOrUpdateAF = ITLBMissOrUpdateRawF & ~ITLBWalkFaultF;
   end else begin
-    assign {ITLBMissF, InstrAccessFaultF, InstrPageFaultF, InstrUpdateAF} = '0;
+    assign {ITLBMissF, InstrAccessFaultRawF, InstrPageFaultRawF, InstrUpdateAF} = '0;
     assign PCPF = PCFExt[P.PA_BITS-1:0];
     assign CacheableF = 1'b1;
     assign SelIROM = '0;
-    assign ITLBMissOrUpdateAF = '0;
+    assign {ITLBMissOrUpdateRawF, ITLBMissOrUpdateAF, ITLBWalkFaultF} = '0;
+    assign {HPTWInstrAccessFaultHeldF, HPTWInstrPageFaultHeldF} = {HPTWInstrAccessFaultF, HPTWInstrPageFaultF};
   end
+
+  // A fetch that has already failed the PMA or PMP check traps in the Memory stage, so it must not
+  // start a bus transfer or a cache line fill.  Gating the cache as well as the bus keeps a line
+  // that the hart may not execute from being filled into the I$.
+  assign IFUFaultF = InstrAccessFaultF | InstrPageFaultF | ITLBWalkFaultF;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Memory
@@ -245,8 +282,8 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
       logic                 ICacheBusAck;
       logic [1:0]           CacheBusRW, BusRW, CacheRWF;
 
-      assign BusRW = ~ITLBMissF & ~CacheableF & ~SelIROM ? IFURWF : '0;
-      assign CacheRWF = ~ITLBMissF & CacheableF & ~SelIROM ? IFURWF : '0;
+      assign BusRW = ~ITLBMissF & ~CacheableF & ~SelIROM & ~IFUFaultF ? IFURWF : '0;
+      assign CacheRWF = ~ITLBMissF & CacheableF & ~SelIROM & ~IFUFaultF ? IFURWF : '0;
       cache #(.P(P), .PA_BITS(P.PA_BITS), .LINELEN(P.ICACHE_LINELENINBITS),
               .NUMSETS(P.ICACHE_WAYSIZEINBYTES*8/P.ICACHE_LINELENINBITS),
               .NUMWAYS(P.ICACHE_NUMWAYS), .LOGBWPL(AHBWLOGBWPL), .WORDLEN(32), .MUXINTERVAL(16), .READ_ONLY_CACHE(1))
@@ -269,7 +306,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
       ahbcacheinterface(.HCLK(clk), .HRESETn(~reset),
             .HRDATA,
             .Flush(FlushD), .CacheBusRW, .BusCMOZero(1'b0), .HSIZE(IFUHSIZE), .HBURST(IFUHBURST), .HTRANS(IFUHTRANS), .HWSTRB(),
-            .Funct3(3'b010), .HADDR(IFUHADDR), .HREADY(IFUHREADY), .HWRITE(IFUHWRITE), .CacheBusAdr(ICacheBusAdr),
+            .Size(3'b010), .HADDR(IFUHADDR), .HREADY(IFUHREADY), .HWRITE(IFUHWRITE), .CacheBusAdr(ICacheBusAdr),
             .BeatCount(), .Cacheable(CacheableF), .SelBusBeat(), .WriteDataM('0), .BusAtomic('0),
             .CacheBusAck(ICacheBusAck), .HWDATA(), .CacheableOrFlushCacheM(1'b0), .CacheReadDataWordM('0),
             .FetchBuffer, .PAdr(PCPF),
@@ -281,7 +318,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     end else begin : passthrough
       assign IFUHADDR = PCPF;
       logic [1:0] BusRW;
-      assign BusRW = ~ITLBMissF & ~SelIROM ? IFURWF : 0;
+      assign BusRW = ~ITLBMissF & ~SelIROM & ~IFUFaultF ? IFURWF : 0;
       assign IFUHSIZE = 3'b010;
 
       ahbinterface #(P.XLEN, 1'b0) ahbinterface(.HCLK(clk), .Flush(FlushD), .HRESETn(~reset), .HREADY(IFUHREADY),
@@ -309,7 +346,10 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   end
 
   assign IFUCacheBusStallF = ICacheStallF | BusStall;
-  assign IFUStallF = IFUCacheBusStallF | SelSpillNextF;
+  // The fetch side owns the stall for an unresolved ITLB miss / A update: the pipeline holds until the walker
+  // has filled the ITLB (the walker may defer the request while the LSU has a memory access in flight).  A
+  // fetch whose walk faulted does not stall; it proceeds carrying the held fault.
+  assign IFUStallF = IFUCacheBusStallF | SelSpillNextF | ITLBMissOrUpdateAF;
   assign GatedStallD = StallD & ~SelSpillNextF;
 
   flopenl #(32) AlignedInstrRawDFlop(clk, reset | FlushD, ~StallD, PostSpillInstrRawF, nop, InstrRawD);
@@ -403,7 +443,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Spec 3.1.14
   // Traps: Can’t happen.  The bottom two bits of MTVEC are ignored so the trap always is to a multiple of 4.  See 3.1.7 of the privileged spec.
   assign InstrMisalignedFaultE = (IEUAdrE[1] & ~P.ZCA_SUPPORTED) & PCSrcE;
-  flopenr #(1) InstrMisalignedReg(clk, reset, ~StallM, InstrMisalignedFaultE, InstrMisalignedFaultM);
+  flopenrc #(1) InstrMisalignedReg(clk, reset, FlushM, ~StallM, InstrMisalignedFaultE, InstrMisalignedFaultM);
 
   // Instruction and PC pipeline registers flush to NOP, not zero
   mux2    #(32)     FlushInstrEMux(InstrD, nop, FlushE, NextInstrD);
@@ -431,7 +471,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign PCLinkE = PCE + 'd4;
   end
 
-  // pipeline original compressed instruction in case it is needed for MTVAL on an illegal instruction exception
+  // pipeline original compressed instruction in case it is needed for XTVAL on an illegal instruction exception
   if (P.ZICSR_SUPPORTED & P.ZCA_SUPPORTED | 1) begin
     logic CompressedM; // instruction is compressed
     flopenrc #(16) InstrRawEReg(clk, reset, FlushE, ~StallE, InstrRawD[15:0], InstrRawE);

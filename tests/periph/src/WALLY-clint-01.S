@@ -21,9 +21,7 @@
 // OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ///////////////////////////////////////////
 
-#include "WALLY-TEST-LIB-32.h"
-RVTEST_ISA("RV32I_Zicsr_Zifencei")
-RVTEST_CASE(0,"//check ISA:=regex(.*32.*);check ISA:=regex(.*I.*); def Drvtest_mtrap_routine=True;def TEST_CASE_1=True;def NO_SAIL=True;",clint)
+#include "WALLY-TEST-LIB.h"
 
 INIT_TESTS
 
@@ -37,7 +35,7 @@ END_TESTS
 
 TEST_STACK_AND_DATA
 
-.align 2
+.align REGSHIFT
 test_cases:
 # ---------------------------------------------------------------------------------------------
 # Test Contents
@@ -45,9 +43,9 @@ test_cases:
 #   Here is where the actual tests are held, or rather, what the actual tests do.
 #   each entry consists of 3 values that will be read in as follows:
 #
-#   '.4byte [x28 Value], [x29 Value], [x30 value]'
+#   'WORD [x28 Value], [x29 Value], [x30 value]'
 #                     or
-#   '.4byte [address], [value], [test type]'
+#   'WORD [address], [value], [test type]'
 #
 #   The encoding for x30 test type values can be found in the test handler in the framework file
 #
@@ -64,32 +62,53 @@ test_cases:
 
 # =========== Verify verifiable registers reset to zero ===========
 
-.4byte msip, 0x00000000, read32_test    # msip reset to zero
+WORD msip, 0x00000000, read32_test    # msip reset to zero
 
 # =========== msip tests ===========
 
-.4byte msip, 0xFFFFFFFE, write32_test   # write to invalid bits of msip
-.4byte 0x0, 0x00000000, readmip_test    # msip bit should be zero
-.4byte msip, 0x00000001, write32_test   # set msip to one
-.4byte 0x0, 0x00000008, readmip_test    # msip bit is set
-.4byte msip, 0x00000000, write32_test   # set msip to zero
-.4byte 0x0, 0x00000000, readmip_test    # msip bit is released
+WORD msip, 0xFFFFFFFE, write32_test   # write to invalid bits of msip
+WORD 0x0, 0x00000000, readmip_test    # msip bit should be zero
+WORD msip, 0x00000001, write32_test   # set msip to one
+WORD 0x0, 0x00000008, readmip_test    # msip bit is set
+WORD msip, 0x00000000, write32_test   # set msip to zero
+WORD 0x0, 0x00000000, readmip_test    # msip bit is released
 
 # =========== mtime write tests ===========
 
-.4byte mtime, 0x00000000, write32_test  # test we can write to mtime
-.4byte mtimeh, 0x00000000, write32_test # test we can write to mtimeh
-.4byte 0x0,0x00000000, readmip_test     # mtip bit should be zero
+WORD mtime, 0x00000000, write32_test  # test we can write to mtime
+WORD mtimeh, 0x00000000, write32_test # test we can write to mtimeh
+WORD 0x0,0x00000000, readmip_test     # mtip bit should be zero
 
 # =========== mtimecmp tests ===========
 
-.4byte mtimecmp, 0xFFFFFFFF, write32_test   # verify mtimecmp is writable
-.4byte mtimecmph, 0xA5A5A5A5, write32_test  # verify mtimecmph is writable
-.4byte mtimecmp, 0xFFFFFFFF, read32_test    # read back value written to mtimecmp
-.4byte mtimecmph, 0xA5A5A5A5, read32_test   # read back value written to mtimecmph
-.4byte mtime, 0xFFFFFFFF, write32_test      # write to mtime
-.4byte 0x0, 0x00000000, readmip_test        # mtip should still be zero
-.4byte mtimeh, 0xA5A5A5A6, write32_test     # cause mtip to go high by making mtime > mtimecmp
-.4byte 0x0, 0x00000080, readmip_test        # mtip should be set
+WORD mtimecmp, 0xFFFFFFFF, write32_test   # verify mtimecmp is writable
+WORD mtimecmph, 0xA5A5A5A5, write32_test  # verify mtimecmph is writable
+WORD mtimecmp, 0xFFFFFFFF, read32_test    # read back value written to mtimecmp
+WORD mtimecmph, 0xA5A5A5A5, read32_test   # read back value written to mtimecmph
+WORD mtime, 0xFFFFFFFF, write32_test      # write to mtime
+WORD 0x0, 0x00000000, readmip_test        # mtip should still be zero
+WORD mtimeh, 0xA5A5A5A6, write32_test     # cause mtip to go high by making mtime > mtimecmp
+WORD 0x0, 0x00000080, readmip_test        # mtip should be set
 
-.4byte 0x0, 0x0, terminate_test # terminate tests
+WORD 0x0, 0x0, terminate_test # terminate tests
+
+// ---------------------------------------------------------------------------------------------
+// Expected signature
+//
+//   One entry per signature write, in order (XLEN bits each; SEXT32 marks values that are sign extended on RV64).  SIG_NEXT in WALLY-TEST-LIB.h checks each
+//   entry as soon as it is written; a mismatch halts the test and reports the entry index below.
+// ---------------------------------------------------------------------------------------------
+
+.align REGSHIFT
+expected_signature:
+WORD 0x00000000 // 0: msip zero on reset
+WORD 0x00000000 // 1: mip is zero
+WORD 0x00000008 // 2: mip msip bit is set
+WORD 0x00000000 // 3: mip msip bit is reset
+WORD 0x00000000 // 4: mip mtip bit is reset
+WORD SEXT32(0xFFFFFFFF) // 5: mtimecmp is same as written value
+WORD SEXT32(0xA5A5A5A5) // 6: mtimecmph is same as written value
+WORD 0x00000000 // 7: mip mtip is zero
+WORD 0x00000080 // 8: mip mtip is set
+WORD 0x0000000B // 9: ecall from test termination in M mode
+expected_signature_end:

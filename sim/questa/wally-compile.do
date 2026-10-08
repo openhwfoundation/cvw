@@ -116,7 +116,11 @@ vlib ${WKDIR}
 # "Extra checking for conflicts with always_comb done at vopt time"
 # because vsim will run vopt
 set INC_DIRS "+incdir+${CONFIG}/${CFG} +incdir+${CONFIG}/deriv/${CFG} +incdir+${CONFIG}/shared"
-set SOURCES "${SRC}/cvw.sv ${TB}/${TESTBENCH}.sv ${TB}/common/*.sv ${SRC}/*/*.sv ${SRC}/*/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv"
+set SOURCES "${SRC}/cvw.sv ${TB}/${TESTBENCH}.sv ${TB}/common/*.sv ${SRC}/*/*.sv ${SRC}/*/*/*.sv"
+# Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
+if {[lsearch -exact $ExpandedParamArgs "-GRVVI_SYNTH_SUPPORTED=1"] >= 0} {
+    append SOURCES " ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv"
+}
 vlog -permissive -lint -work ${WKDIR} {*}${INC_DIRS} {*}${DefineArgs} {*}${lockstepvlog} {*}${FCvlog} {*}${brekervlog} {*}${SOURCES} -suppress 2282,2583,7053,7063,2596,13286,2605,2250
 
 # Elaborate the design

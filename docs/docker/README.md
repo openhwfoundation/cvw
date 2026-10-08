@@ -261,7 +261,7 @@ There are at least two ways to solve this problem:
 
 ## Old Dockerfile Analysis
 
-> Refer to https://github.com/openhwgroup/cvw/blob/91919150a94ccf8e750cf7c9eec1c400efaef7f5/docs/Dockerfile
+> Refer to https://github.com/openhwfoundation/cvw/blob/91919150a94ccf8e750cf7c9eec1c400efaef7f5/docs/Dockerfile
 
 There are stages in the old Dockerfile:
 

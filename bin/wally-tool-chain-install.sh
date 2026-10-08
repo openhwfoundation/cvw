@@ -9,7 +9,7 @@
 ## Purpose: Open source tool chain installation script
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 ##
@@ -19,7 +19,7 @@
 ## except in compliance with the License, or, at your option, the Apache License version 2.0. You
 ## may obtain a copy of the License at
 ##
-## https:##solderpad.org/licenses/SHL-2.1/
+## https://solderpad.org/licenses/SHL-2.1/
 ##
 ## Unless required by applicable law or agreed to in writing, any work distributed under the
 ## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -88,11 +88,11 @@ source "$WALLY"/bin/installation/spike-install.sh
 
 # Whisper (https://github.com/tenstorrent/whisper)
 # Whisper is a RISC-V instruction set simulator (ISS) developed by Tenstorrent.
-# The boost libraries (needed for Whisper) do not compile correctly on Debian 11 or Ubuntu 20.04
-if (( DEBIAN_VERSION != 11 )) && (( UBUNTU_VERSION != 20 )); then
+# The boost libraries (needed for Whisper) do not compile correctly on Ubuntu 20.04
+if (( UBUNTU_VERSION != 20 )); then
     source "$WALLY"/bin/installation/whisper-install.sh
 else
-    echo -e "${WARNING_COLOR}Skipping Whisper installation due to incompatible Boost libraries on Debian 11 or Ubuntu 20.04.${ENDC}"
+    echo -e "${WARNING_COLOR}Skipping Whisper installation due to incompatible Boost libraries on Ubuntu 20.04.${ENDC}"
 fi
 
 
@@ -133,8 +133,8 @@ section_header "Downloading Site Setup Script"
 STATUS="site-setup_scripts"
 cd "$RISCV"
 if [ ! -e "${RISCV}"/site-setup.sh ]; then
-    wget -nv --retry-connrefused $retry_on_host_error https://raw.githubusercontent.com/openhwgroup/cvw/main/site-setup.sh
-    wget -nv --retry-connrefused $retry_on_host_error https://raw.githubusercontent.com/openhwgroup/cvw/main/site-setup.csh
+    wget -nv --retry-connrefused $retry_on_host_error https://raw.githubusercontent.com/openhwfoundation/cvw/main/site-setup.sh
+    wget -nv --retry-connrefused $retry_on_host_error https://raw.githubusercontent.com/openhwfoundation/cvw/main/site-setup.csh
     echo -e "${SUCCESS_COLOR}Site setup script successfully downloaded!${ENDC}"
     echo -e "${WARNING_COLOR}Make sure to edit the environment variables in $RISCV/site-setup.sh (or .csh) to point to your installation of EDA tools and license files.${ENDC}"
 else

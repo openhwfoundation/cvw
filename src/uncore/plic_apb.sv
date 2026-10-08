@@ -14,7 +14,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -51,6 +51,7 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
   output logic [P.XLEN-1:0]   PRDATA,
   output logic                PREADY,
   input  logic                UARTIntr,GPIOIntr, SPIIntr, SDCIntr,
+  input  logic [3:0]          PWMIntr,                        // one source per PWM comparator
   output logic                MExtInt, SExtInt
 );
 
@@ -177,8 +178,11 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
     requests = {P.PLIC_NUM_SRC{1'b0}};
     if(P.PLIC_GPIO_ID != 0) requests[P.PLIC_GPIO_ID] = GPIOIntr;
     if(P.PLIC_UART_ID != 0) requests[P.PLIC_UART_ID] = UARTIntr;
-    if(P.PLIC_SPI_ID != 0) requests[P.PLIC_SPI_ID] = SPIIntr;
+    if(P.PLIC_SPI_ID != 0)  requests[P.PLIC_SPI_ID]  = SPIIntr;
     if(P.PLIC_SDC_ID !=0)   requests[P.PLIC_SDC_ID]  = SDCIntr;
+    // the four PWM comparators occupy a contiguous block starting at PLIC_PWM_ID
+    if(P.PLIC_PWM_ID != 0)
+      for(int i=0; i<4; i++) requests[P.PLIC_PWM_ID+i] = PWMIntr[i];
   end
 
   // pending interrupt request

@@ -14,7 +14,7 @@
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -98,7 +98,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=64, WIDTH=44, PRE
         if (WIDTH == 64) begin
           `ifdef VERILATOR
             // because Verilator doesn't automatically accept $WALLY from shell
-            string       WALLY_DIR = getenvval("WALLY");
+            static string WALLY_DIR = getenvval("WALLY");
             $readmemh({WALLY_DIR,"/fpga/src/data.mem"}, RAM, 0);  // load boot RAM for FPGA
           `else
             $readmemh({"$WALLY/fpga/src/data.mem"}, RAM, 0);  // load boot RAM for FPGA

@@ -9,7 +9,7 @@
 ## Purpose: Verilator installation script
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 ##
@@ -19,7 +19,7 @@
 ## except in compliance with the License, or, at your option, the Apache License version 2.0. You
 ## may obtain a copy of the License at
 ##
-## https:##solderpad.org/licenses/SHL-2.1/
+## https://solderpad.org/licenses/SHL-2.1/
 ##
 ## Unless required by applicable law or agreed to in writing, any work distributed under the
 ## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -39,7 +39,9 @@ if [ -z "$FAMILY" ]; then
 fi
 
 # Mold needed for Verilator, not available in all package managers.
-if (( UBUNTU_VERSION == 20  || DEBIAN_VERSION == 11 )) || (( SUSE_VERSION < 160 )); then
+# Only SUSE sets SUSE_VERSION, so the version comparison needs a lower bound to
+# avoid matching every other distro, where an unset version reads as 0.
+if (( UBUNTU_VERSION == 20 || (SUSE_VERSION > 0 && SUSE_VERSION < 160) )); then
     STATUS="mold"
     if [ ! -e "$RISCV"/bin/mold ]; then
         section_header "Installing mold"

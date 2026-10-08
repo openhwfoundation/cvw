@@ -42,13 +42,17 @@ def parseArgs():
     parser.add_argument("--breker", "-b", help="Run Breker test", action="store_true")
     return parser.parse_args()
 
-def generateFileList(testbench):
+def generateFileList(testbench, params):
     rtlsrc_cmd = f'find {srcdir} -name "*.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x64.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_128x64.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x32.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_2048x64.sv"'
     rtlsrc_files = runFindCommand(rtlsrc_cmd)
     tbcommon_cmd = f'find {tbdir}/common -name "*.sv"'
     tbcommon_files = runFindCommand(tbcommon_cmd)
     tb_file = f"{tbdir}/{testbench}.sv"
-    return f"{tb_file} {rtlsrc_files} {tbcommon_files}"
+    # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
+    ethernet_files = ""
+    if "RVVI_SYNTH_SUPPORTED=1" in params.split():
+        ethernet_files = f"{WALLY}/addins/verilog-ethernet/*/*.sv {WALLY}/addins/verilog-ethernet/*/*/*/*.sv"
+    return f"{tb_file} {rtlsrc_files} {tbcommon_files} {ethernet_files}"
 
 def getCompileOptions(wkdir, args):
     """Build compile-time options for VCS."""
@@ -100,7 +104,7 @@ def compileDesign(wkdir, args):
     """Compile the design with VCS."""
     os.makedirs(wkdir, exist_ok=True)
     os.makedirs(logdir, exist_ok=True)
-    rtlFiles = generateFileList(args.tb)
+    rtlFiles = generateFileList(args.tb, args.params)
     compileOptions = getCompileOptions(wkdir, args)
     includePath = f"+incdir+{cfgdir}/{args.config} +incdir+{cfgdir}/deriv/{args.config} +incdir+{cfgdir}/shared +incdir+$WALLY/tests +incdir+{tbdir} +incdir+{srcdir}"
     vcsStandardFlags = "+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF -suppress +warn -sverilog +vc -Mupdate -line -full64 -lca -ntb_opts sensitive_dyn"

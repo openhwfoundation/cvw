@@ -22,10 +22,8 @@
 ///////////////////////////////////////////
 
 
-#include "WALLY-TEST-LIB-32.h"
+#include "WALLY-TEST-LIB.h"
 
-RVTEST_ISA("RV32I_Zicsr_Zifencei")
-RVTEST_CASE(0,"//check ISA:=regex(.*32.*);check ISA:=regex(.*I.*); def Drvtest_mtrap_routine=True;def TEST_CASE_1=True;def NO_SAIL=True;",uart-timeout)
 
 .equ UART, 0x10000000
 .equ UART_RBR, (UART)
@@ -68,15 +66,13 @@ wait_for_timeout_loop:
 no_interrupt:
     li t2, 0xbad // interrupt not taken. write bad value to the output
     sw t2, 0(t1)
-    addi t1, t1, 4
-    addi a6, a6, 4
+    SIG_NEXT
     j end_of_section
 
 interrupt_success:
     li t2, 0x600d // interrupt successfully taken after some time. write good value to the output.
     sw t2, 0(t1)
-    addi t1, t1, 4
-    addi a6, a6, 4
+    SIG_NEXT
     j end_of_section
 
 end_of_section: // end of this test
@@ -105,3 +101,15 @@ TEST_STACK_AND_DATA
 #         // completed
 #         sw s1, 0(s0) // tells the plic the isr is done.
 #         mret
+
+// ---------------------------------------------------------------------------------------------
+// Expected signature
+//
+//   One entry per signature write, in order (XLEN bits each; SEXT32 marks values that are sign extended on RV64).  SIG_NEXT in WALLY-TEST-LIB.h checks each
+//   entry as soon as it is written; a mismatch halts the test and reports the entry index below.
+// ---------------------------------------------------------------------------------------------
+
+.align REGSHIFT
+expected_signature:
+WORD 0x0000600D // 0: good value indicating the interrupt was correctly taken
+expected_signature_end:

@@ -7,7 +7,7 @@
 // Purpose: Perform OR across a 2-dimensional array of inputs to produce a 1-D array of outputs
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //

@@ -60,10 +60,6 @@ jobs:
             imageFamily: debian
             os: ubuntu-24.04-arm
           # Debian Installations
-          - name: debian-11
-            image: debian:11
-            imageFamily: debian
-            os: ubuntu-latest
           - name: debian-12
             image: debian:12
             imageFamily: debian

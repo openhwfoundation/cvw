@@ -21,8 +21,11 @@ VERILATOR_FLAGS = --assert --no-trace-top --stats
 VERILATOR_DIR = ${WALLY}/sim/verilator
 INCLUDE_PATH  = "-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
 SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
-                ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv \
-                ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv
+                ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv
+# Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
+ifneq ($(findstring RVVI_SYNTH_SUPPORTED=1,$(PARAM_ARGS)),)
+    SOURCES += ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv
+endif
 
 # Convert PARAM_ARGS entries (e.g. "MAKE_VCD=1") into verilator -G flags (e.g. "-GMAKE_VCD=1")
 EXPANDED_PARAM_ARGS := $(patsubst %,-G%,$(PARAM_ARGS))

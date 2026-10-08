@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -37,19 +37,19 @@ module zbb #(parameter WIDTH=32) (
   input  logic [2:0]       ZBBSelect,    // ZBB Result select signal
   output logic [WIDTH-1:0] ZBBResult);   // ZBB result
 
-  logic lt;                              // lt given signed/unsigned
+  logic LessThan;                        // lt given signed/unsigned
   logic [WIDTH-1:0] CntResult;           // count result
   logic [WIDTH-1:0] MinMaxResult;        // min, max result
   logic [WIDTH-1:0] ByteResult;          // byte results
   logic [WIDTH-1:0] ExtResult;           // sign/zero extend results
 
-  mux2 #(1) ltmux(LT, LTU, BUnsigned , lt);
+  mux2 #(1) ltmux(LT, LTU, BUnsigned , LessThan);
   cnt #(WIDTH) cnt(.A, .RevA, .B(B[1:0]), .W64, .CntResult);
   byteop #(WIDTH) bu(.A, .ByteSelect(B[0]), .ByteResult);
   ext #(WIDTH) ext(.A(A[15:0]), .ExtSelect({~B[2], {B[2] & B[0]}}), .ExtResult);
 
   // ZBBSelect[2] differentiates between min(u) vs max(u) instruction
-  mux2 #(WIDTH) minmaxmux(B, A, ZBBSelect[2]^lt, MinMaxResult);
+  mux2 #(WIDTH) minmaxmux(B, A, ZBBSelect[2]^LessThan, MinMaxResult);
 
   // ZBB Result select mux
   mux4 #(WIDTH) zbbresultmux(CntResult, ExtResult, ByteResult, MinMaxResult, ZBBSelect[1:0], ZBBResult);

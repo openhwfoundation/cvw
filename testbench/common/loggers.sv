@@ -53,7 +53,8 @@ module loggers import cvw::*; #(parameter cvw_t P,
     logic             StartSampleFirst;
     logic             StartSampleDelayed, BeginDelayed;
     logic             EndSampleFirst;
-    logic [P.XLEN-1:0] InitialHPMCOUNTERH[P.COUNTERS-1:0];
+    logic [63:0]       EventCount[31:0];
+    logic [63:0]       InitialEventCount[31:0];
     logic              EndSampleDelayed;
 
     string  HPMCnames[] = '{"Mcycle",
@@ -148,16 +149,23 @@ module loggers import cvw::*; #(parameter cvw_t P,
     assign BeginSample = StartSampleFirst & ~BeginDelayed;
 
 
+    // Count the counter events directly. The hpmcounters only count events that software
+    // has enabled in mhpmevent, and the benchmarks do not enable them.
+    always_ff @(posedge clk)
+      for (int i = 0; i < 32; i++)
+        if (reset) EventCount[i] <= '0;
+        else       EventCount[i] <= EventCount[i] + {63'b0, dut.core.priv.priv.csr.counters.CounterEvent[i]};
+
     always @(negedge clk) begin
       if(StartSample) begin
         for(HPMCindex = 0; HPMCindex < 32; HPMCindex += 1) begin
-          InitialHPMCOUNTERH[HPMCindex] <= dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[HPMCindex];
+          InitialEventCount[HPMCindex] <= EventCount[HPMCindex];
         end
       end
       if(EndSample) begin
         for(HPMCindex = 0; HPMCindex < HPMCnames.size(); HPMCindex += 1) begin
           // unlikely to have more than 10M in any counter.
-          $display("Cnt[%2d] = %7d %s", HPMCindex, dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[HPMCindex] - InitialHPMCOUNTERH[HPMCindex], HPMCnames[HPMCindex]);
+          $display("Cnt[%2d] = %7d %s", HPMCindex, EventCount[HPMCindex] - InitialEventCount[HPMCindex], HPMCnames[HPMCindex]);
         end
       end
     end

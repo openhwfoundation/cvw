@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
@@ -39,7 +39,7 @@ module cache import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]             CacheRW,           // [1] Read, [0] Write
   input  logic                   FlushCache,        // Flush all dirty lines back to memory
   input  logic                   InvalidateCache,   // Clear all valid bits
-  input  logic [3:0]             CMOpM,              // 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
+  input  logic [3:0]             CMOpM,              // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   input  logic [11:0]            NextSet,           // Virtual address, but we only use the lower 12 bits.
   input  logic [PA_BITS-1:0]     PAdr,              // Physical address
   input  logic [(WORDLEN-1)/8:0] ByteMask,          // Which bytes to write (D$ only)

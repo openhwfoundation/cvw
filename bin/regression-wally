@@ -45,7 +45,7 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 standard_tests = [
         ["rv32e", ["arch32e"]],
         ["rv32i", ["arch32i"]],
-        ["rv32imc", ["arch32i", "arch32c", "arch32m", "wally32periph"]],
+        ["rv32imc", ["arch32i", "arch32c", "arch32m", "wally32periph_imc"]],
         ["rv32gc", ["arch32f", "arch32d", "arch32f_fma", "arch32d_fma", "arch32f_divsqrt", "arch32d_divsqrt",
                     "arch32i", "arch32priv", "arch32c",  "arch32m", "arch32a_amo", "arch32zifencei", "arch32zicond",
                     "arch32zba", "arch32zbb", "arch32zbc", "arch32zbs", "arch32zfh", "arch32zfh_fma",
