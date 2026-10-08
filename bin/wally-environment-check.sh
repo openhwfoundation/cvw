@@ -154,7 +154,7 @@ elif [[ "$ID" == fedora ]]; then
     export FAMILY=fedora
     export FEDORA_VERSION="${VERSION_ID%%.*}" # Get major version number
     if (( FEDORA_VERSION > 44 || FEDORA_VERSION < 44 )); then
-        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Fedora 44. You have a newer version ($VERSION). The installation for Fedora 44 will be attempted, but there may be issues."
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Fedora 44. You have a different version ($VERSION). The installation for Fedora 44 will be attempted, but there may be issues."
     fi
 else
     printf "${FAIL_COLOR}%s%s%s\n${ENDC}" "The Wally installation script is currently only compatible with Ubuntu, Debian, SUSE, Red Hat family " \
