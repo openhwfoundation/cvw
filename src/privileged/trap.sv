@@ -27,25 +27,25 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module trap import cvw::*;  #(parameter cvw_t P) (
-  input  logic                 reset,
-  input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM,
-  input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
-  input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM,
-  input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // various trap sources
-  input  logic                 wfiM, wfiW,                                      // wait for interrupt instruction
-  input  logic [1:0]           PrivilegeModeW,                                  // current privilege mode
-  input  logic [11:0]          MIP_REGW, MIE_REGW, MIDELEG_REGW,                // interrupt pending, enabled, and delegate CSRs
-  input  logic [15:0]          MEDELEG_REGW,                                    // exception delegation SR
-  input  logic                 STATUS_MIE, STATUS_SIE,                          // machine/supervisor interrupt enables
-  input  logic                 InstrValidM,                                     // current instruction is valid, not flushed
-  input  logic                 CommittedM, CommittedF,                          // LSU/IFU has committed to a bus operation that can't be interrupted
+module trap import cvw::*; #(parameter cvw_t P) (
+  input  logic                 reset,                                           // Reset
+  input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM, // Instruction trap sources
+  input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM, // Trap sources: breakpoint, misaligned load and store/AMO
+  input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM, // Trap sources: access faults, ecall, instruction page fault
+  input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // Load and store/AMO page faults
+  input  logic                 wfiM, wfiW,                                      // wfi instruction in Memory, Writeback stages
+  input  logic [1:0]           PrivilegeModeW,                                  // Current privilege mode
+  input  logic [11:0]          MIP_REGW, MIE_REGW, MIDELEG_REGW,                // mip, mie, and mideleg CSRs
+  input  logic [15:0]          MEDELEG_REGW,                                    // medeleg CSR
+  input  logic                 STATUS_MIE, STATUS_SIE,                          // mstatus.MIE, SIE: machine and supervisor interrupt enables
+  input  logic                 InstrValidM,                                     // Instruction in Memory stage is valid
+  input  logic                 CommittedM, CommittedF,                          // LSU and IFU have started operations that must not be interrupted
   output logic                 TrapM,                                           // Trap is occurring
   output logic                 InterruptM,                                      // Interrupt is occurring
-  output logic                 ExceptionM,                                      // exception is occurring
+  output logic                 ExceptionM,                                      // Exception is occurring
   output logic                 IntPendingM,                                     // Interrupt is pending, might occur if enabled
-  output logic                 DelegateM,                                       // Delegate trap to supervisor handler
-  output logic [4:0]           CauseM                                           // trap cause
+  output logic                 DelegateM,                                       // Trap delegated to supervisor mode
+  output logic [4:0]           CauseM                                           // Trap cause
 );
 
   logic                        MIntGlobalEnM, SIntGlobalEnM;                    // Global interrupt enables
@@ -56,7 +56,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
   // interrupt if any sources are pending
-  // & with a M stage valid bit to avoid interrupts from interrupt a nonexistent flushed instruction (in the M stage)
+  // & with a M stage valid bit to avoid interrupting a nonexistent flushed instruction (in the M stage)
   // & with ~CommittedM to make sure MEPC isn't chosen so as to rerun the same instr twice
   ///////////////////////////////////////////
 
@@ -70,7 +70,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW); // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
   // wfiW is to support possible but unlikely back to back wfi instructions. wfiM would be high in the M stage, while also in the W stage.
   assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseM[3:0]]) &
-                     (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
+                         (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
 
   ///////////////////////////////////////////
   // Trigger Traps
@@ -106,21 +106,21 @@ module trap import cvw::*;  #(parameter cvw_t P) (
     else if (ValidIntsM[9])                                   CauseM = 5'd9;  // delegated Supervisor External Int
     else if (ValidIntsM[1])                                   CauseM = 5'd1;  // delegated Supervisor Sw Int
     else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int
-    else if (BothInstrPageFaultM)                             CauseM = 5'd12;
-    else if (BothInstrAccessFaultM)                           CauseM = 5'd1;
-    else if (IllegalInstrFaultM)                              CauseM = 5'd2;
+    else if (BothInstrPageFaultM)                             CauseM = 5'd12; // Instruction page fault
+    else if (BothInstrAccessFaultM)                           CauseM = 5'd1;  // Instruction access fault
+    else if (IllegalInstrFaultM)                              CauseM = 5'd2;  // Illegal instruction
     // coverage off
     // Misaligned instructions cannot occur in rv64gc
-    else if (InstrMisalignedFaultM)                           CauseM = 5'd0;
+    else if (InstrMisalignedFaultM)                           CauseM = 5'd0;  // Instruction address misaligned
     // coverage on
-    else if (BreakpointFaultM)                                CauseM = 5'd3;
-    else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW};
+    else if (BreakpointFaultM)                                CauseM = 5'd3;  // Breakpoint
+    else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW}; // Ecall: 8 from U, 9 from S, 11 from M
     else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED) CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
-    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;
-    else if (StoreAmoPageFaultM)                              CauseM = 5'd15;
-    else if (LoadPageFaultM)                                  CauseM = 5'd13;
-    else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;
-    else if (LoadAccessFaultM)                                CauseM = 5'd5;
+    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;  // Load address misaligned
+    else if (StoreAmoPageFaultM)                              CauseM = 5'd15; // Store/AMO page fault
+    else if (LoadPageFaultM)                                  CauseM = 5'd13; // Load page fault
+    else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;  // Store/AMO access fault
+    else if (LoadAccessFaultM)                                CauseM = 5'd5;  // Load access fault
     else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)  CauseM = 5'd6; // See priority in Privileged Spec 3.1.15
     else if (LoadMisalignedFaultM & P.ZICCLSM_SUPPORTED)      CauseM = 5'd4;
     else                                                      CauseM = 5'd0;

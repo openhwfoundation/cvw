@@ -26,11 +26,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aessbox8(
-  input  logic [7:0] a,
-  output logic [7:0] y
+  input  logic [7:0] a, // Input
+  output logic [7:0] y  // Output
 );
 
-  // case statement to lookup the value in the rijndael table
+  // Rijndael S-box lookup table
   always_comb
   case(a)
     8'h00 : y = 8'h63;

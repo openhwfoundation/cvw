@@ -31,8 +31,8 @@
 ///////////////////////////////////////////
 
 module prioritythermometer #(parameter N = 8) (
-  input  logic  [N-1:0] a,
-  output logic  [N-1:0] y
+  input  logic  [N-1:0] a,   // Input
+  output logic  [N-1:0] y    // 1s in all bits below the least significant 1 of a
 );
 
   // Carefully crafted so design compiler will synthesize into a fast tree structure

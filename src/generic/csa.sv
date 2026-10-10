@@ -25,10 +25,10 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csa #(parameter N=16) (
-  input  logic [N-1:0] x, y, z,
-  input  logic         cin,
-  output logic [N-1:0] s, c
+module csa #(parameter N = 16) (
+  input  logic [N-1:0] x, y, z, // Inputs
+  input  logic         cin,     // Carry in
+  output logic [N-1:0] s, c     // Sum and carry
 );
 
   // This block adds x, y, z, and cin to produce

@@ -26,30 +26,30 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ahbapbbridge import cvw::*;  #(parameter cvw_t P,
-                                      parameter PERIPHS = 2) (
-  input  logic                 HCLK, HRESETn,
-  input  logic [PERIPHS-1:0]   HSEL,
-  input  logic [P.PA_BITS-1:0] HADDR,
-  input  logic [P.XLEN-1:0]    HWDATA,
-  input  logic [P.XLEN/8-1:0]  HWSTRB,
-  input  logic                 HWRITE,
-  input  logic [1:0]           HTRANS,
-  input  logic                 HREADY,
+module ahbapbbridge import cvw::*; #(parameter cvw_t P,
+                                     parameter PERIPHS = 2) (
+  input  logic                 HCLK, HRESETn,    // AHB clock and reset (active low)
+  input  logic [PERIPHS-1:0]   HSEL,             // AHB subordinate select
+  input  logic [P.PA_BITS-1:0] HADDR,            // AHB address
+  input  logic [P.XLEN-1:0]    HWDATA,           // AHB write data
+  input  logic [P.XLEN/8-1:0]  HWSTRB,           // AHB byte write enables
+  input  logic                 HWRITE,           // AHB write (1) or read (0)
+  input  logic [1:0]           HTRANS,           // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  input  logic                 HREADY,           // AHB ready
 //  input  logic [3:0]        HPROT, // not used
-  output logic [P.XLEN-1:0]    HRDATA,
-  output logic                 HRESP, HREADYOUT,
-  output logic                 PCLK, PRESETn,
-  output logic [PERIPHS-1:0]   PSEL,
-  output logic                 PWRITE,
-  output logic                 PENABLE,
-  output logic [31:0]          PADDR,
-  output logic [P.XLEN-1:0]    PWDATA,
+  output logic [P.XLEN-1:0]    HRDATA,           // AHB read data
+  output logic                 HRESP, HREADYOUT, // AHB response and ready from subordinate
+  output logic                 PCLK, PRESETn,    // APB clock and reset (active low)
+  output logic [PERIPHS-1:0]   PSEL,             // APB peripheral select
+  output logic                 PWRITE,           // APB write (1) or read (0)
+  output logic                 PENABLE,          // APB enable (access phase)
+  output logic [31:0]          PADDR,            // APB address
+  output logic [P.XLEN-1:0]    PWDATA,           // APB write data
 //  output logic [2:0]        PPROT, // not used
-  output logic [P.XLEN/8-1:0]  PSTRB,
+  output logic [P.XLEN/8-1:0]  PSTRB,            // APB byte write strobes
 //  output logic              PWAKEUP // not used
-  input  logic [PERIPHS-1:0]   PREADY,
-  input  var   [PERIPHS-1:0][P.XLEN-1:0] PRDATA
+  input  logic [PERIPHS-1:0]   PREADY,           // APB ready
+  input  var   [PERIPHS-1:0][P.XLEN-1:0] PRDATA  // APB read data
 );
 
   logic                       initTrans, initTransSel, initTransSelD;
@@ -91,14 +91,14 @@ module ahbapbbridge import cvw::*;  #(parameter cvw_t P,
     // default: no peripheral selected: read 0, indicate ready during access phase so bus doesn't hang
     HRDATA = '0;
     PREADYOUT = 1'b1;
-    for (i=0; i<PERIPHS; i++)  begin
+    for (i = 0; i < PERIPHS; i++) begin
       if (PSEL[i]) begin // highest numbered peripheral has priority, but multiple PSEL should never be asserted
-          HRDATA = PRDATA[i];
-          PREADYOUT = PREADY[i];
+        HRDATA = PRDATA[i];
+        PREADYOUT = PREADY[i];
       end
     end
   end
-assign HREADYOUT = PREADYOUT & ~initTransSelD; // don't raise HREADYOUT before access phase
+  assign HREADYOUT = PREADYOUT & ~initTransSelD; // don't raise HREADYOUT before access phase
 
   // resp logic
   assign HRESP = 1'b0; // bridge never indicates errors

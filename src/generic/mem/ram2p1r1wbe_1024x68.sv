@@ -26,25 +26,25 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ram2p1r1wbe_1024x68(
-  input  logic          CLKA,
-  input  logic          CLKB,
-  input  logic          CEBA,
-  input  logic          CEBB,
-  input  logic          WEBA,
-  input  logic          WEBB,
-  input  logic [9:0]    AA,
-  input  logic [9:0]    AB,
-  input  logic [67:0]   DA,
-  input  logic [67:0]   DB,
-  input  logic [67:0]   BWEBA,
-  input  logic [67:0]   BWEBB,
-  output logic [67:0]   QA,
-  output logic [67:0]   QB
+  input  logic          CLKA,  // SRAM port A clock
+  input  logic          CLKB,  // SRAM port B clock
+  input  logic          CEBA,  // SRAM port A chip enable (active low)
+  input  logic          CEBB,  // SRAM port B chip enable (active low)
+  input  logic          WEBA,  // SRAM port A write enable (active low)
+  input  logic          WEBB,  // SRAM port B write enable (active low)
+  input  logic [9:0]    AA,    // SRAM port A address
+  input  logic [9:0]    AB,    // SRAM port B address
+  input  logic [67:0]   DA,    // SRAM port A write data
+  input  logic [67:0]   DB,    // SRAM port B write data
+  input  logic [67:0]   BWEBA, // SRAM port A bit write enables (active low)
+  input  logic [67:0]   BWEBB, // SRAM port B bit write enables (active low)
+  output logic [67:0]   QA,    // SRAM port A read data
+  output logic [67:0]   QB     // SRAM port B read data
 );
 
-   // replace "generic1024x68RAM" with "TSDN..1024X68.." module from your memory vendor
-   //generic1024x68RAM sramIP (.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
-   //         .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
+  // replace "generic1024x68RAM" with "TSDN..1024X68.." module from your memory vendor
+  // generic1024x68RAM sramIP (.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
+  //          .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
   TSDN28HPCPA1024X68M4MW sramIP(.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
     .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
 

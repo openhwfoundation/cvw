@@ -31,26 +31,26 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spill import cvw::*;  #(parameter cvw_t P) (
-  input logic               clk,
-  input logic               reset,
-  input logic               StallF, FlushD,
-  input logic [P.XLEN-1:0]  PCF,               // 2 byte aligned PC in Fetch stage
-  input logic [P.XLEN-1:2]  PCPlus4F,          // PCF + 4
-  input logic [P.XLEN-1:0]  PCNextF,           // The next PCF
-  input logic [31:0]        InstrRawF,         // Instruction from the IROM, I$, or bus. Used to check if the instruction if compressed
-  input logic               IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
-  input logic               ITLBMissOrUpdateAF, // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
-  input logic               CacheableF,        // Is the instruction from the cache?
-  input logic               InstrPageFaultF,   // Page fault on the half currently being fetched
-  input logic               InstrAccessFaultF, // Access fault on the half currently being fetched
+  input  logic              clk,               // Clock
+  input  logic              reset,             // Reset
+  input  logic              StallF, FlushD,    // Stall Fetch stage, flush Decode stage
+  input  logic [P.XLEN-1:0] PCF,               // PC in Fetch stage
+  input  logic [P.XLEN-1:2] PCPlus4F,          // PCF + 4
+  input  logic [P.XLEN-1:0] PCNextF,           // Next PC to fetch
+  input  logic [31:0]       InstrRawF,         // Instruction from the IROM, I$, or bus. Used to check if the instruction is compressed
+  input  logic              IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
+  input  logic              ITLBMissOrUpdateAF, // ITLB miss or access bit update requires an HPTW walk
+  input  logic              CacheableF,        // Instruction fetch is cacheable
+  input  logic              InstrPageFaultF,   // Instruction page fault in Fetch stage
+  input  logic              InstrAccessFaultF, // Instruction access fault in Fetch stage
   output logic [P.XLEN-1:0] PCSpillNextF,      // The next PCF for one of the two memory addresses of the spill
-  output logic [P.XLEN-1:0] PCSpillF,          // PCF for one of the two memory addresses of the spill
+  output logic [P.XLEN-1:0] PCSpillF,          // PCF, or PCF + 2 for the second half of a spilled fetch
   output logic              SelSpillNextF,     // During the transition between the two spill operations, the IFU should stall the pipeline
   output logic              SelSpillF,         // Select incremented PC on a spill
   output logic              InstrPageFaultSpillF,   // Page fault on either half of the spilled fetch
   output logic              InstrAccessFaultSpillF, // Access fault on either half of the spilled fetch
   output logic              FirstHalfFaultF,   // The first half of the spilled fetch faulted, so it is the portion to report in xtval
-  output logic [31:0]       PostSpillInstrRawF,// The final 32 bit instruction after merging the two spilled fetches into 1 instruction
+  output logic [31:0]       PostSpillInstrRawF, // Fetched 32-bit instruction after merging the two halves of a spill
   output logic              CompressedF);      // The fetched instruction is compressed
 
   // Spill threshold occurs when all the cache offset PC bits are 1 (except [0]).  Without a cache this is just PCF[1]
@@ -101,7 +101,7 @@ module spill import cvw::*;  #(parameter cvw_t P) (
     case (CurrState)
       STATE_READY: if (TakeSpillF)                NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
-      STATE_SPILL: if(StallF)                     NextState = STATE_SPILL;
+      STATE_SPILL: if (StallF)                    NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
       default:                                    NextState = STATE_READY;
     endcase
@@ -131,10 +131,10 @@ module spill import cvw::*;  #(parameter cvw_t P) (
   // merge together
   mux2 #(32) postspillmux(InstrRawF, {InstrRawF[15:0], InstrFirstHalfF}, SelSpillF, PostSpillInstrRawF);
 
-  // Need to use always comb to avoid pessimistic x propagation if PostSpillInstrRawF is x
+  // Need to use always_comb to avoid pessimistic x propagation if PostSpillInstrRawF is x
   always_comb
-  if (PostSpillInstrRawF[1:0] != 2'b11) CompressedF = 1'b1;
-  else CompressedF = 1'b0;
+    if (PostSpillInstrRawF[1:0] != 2'b11) CompressedF = 1'b1;
+    else CompressedF = 1'b0;
   assign EarlyCompressedF = ~(&InstrRawF[1:0]);
 
 endmodule

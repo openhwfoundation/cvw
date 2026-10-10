@@ -30,21 +30,21 @@
 
 module alu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] A, B,        // Operands
-  input  logic              W64, UW64,   // W64/.uw-type instruction
+  input  logic              W64, UW64,   // RV64 W-type and .uw-type instruction
   input  logic              SubArith,    // Subtraction or arithmetic shift
   input  logic [2:0]        ALUSelect,   // ALU mux select signal
-  input  logic [3:0]        BSelect,     // Binary encoding of if it's a ZBA_ZBB_ZBC_ZBS instruction
-  input  logic [3:0]        ZBBSelect,   // ZBB mux select signal
-  input  logic [2:0]        Funct3,      // For BMU decoding
-  input  logic [6:0]        Funct7,      // For ZKNE and ZKND computation
-  input  logic [4:0]        Rs2E,        // For ZKNE and ZKND computation
+  input  logic [3:0]        BSelect,     // BMU result select (binary encoded; see bitmanipalu)
+  input  logic [3:0]        ZBBSelect,   // Zbb result select
+  input  logic [2:0]        Funct3,      // funct3 field of instruction
+  input  logic [6:0]        Funct7,      // funct7 field of instruction
+  input  logic [4:0]        Rs2E,        // rs2 field of instruction in Execute stage
   input  logic [2:0]        BALUControl, // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActive,   // Bit manipulation instruction being executed
   input  logic [1:0]        CZero,       // {czero.nez, czero.eqz} instructions active
   output logic [P.XLEN-1:0] ALUResult,   // ALU result
   output logic [P.XLEN-1:0] Sum);        // Sum of operands
 
-  // CondInvB = ~B when subtracting, B otherwise. Shift = shift result. SLT/U = result of a slt/u instruction.
+  // CondMaskInvB = ~CondMaskB when subtracting, CondMaskB otherwise. Shift = shift result.
   // FullResult = ALU result before adjusting for a RV64 w-suffix instruction.
   logic [P.XLEN-1:0] CondMaskInvB, Shift, FullResult, PreALUResult;               // Intermediate Signals
   logic [P.XLEN-1:0] CondMaskB;                                                   // Result of B mask select mux
@@ -63,7 +63,7 @@ module alu import cvw::*; #(parameter cvw_t P) (
 
   // Zicond block conditionally zeros B
   if (P.ZICOND_SUPPORTED) begin : zicond
-    logic  BZero;
+    logic BZero;
 
     assign BZero = (B == 0); // check if rs2 = 0
     // Create a signal that is 0 when czero.* instruction should clear result
@@ -82,7 +82,7 @@ module alu import cvw::*; #(parameter cvw_t P) (
   // Condition code flags are based on subtraction output Sum = A-B.
   // Overflow occurs when the numbers being subtracted have the opposite sign
   // and the result has the opposite sign of A.
-  // LT is simplified from Overflow = Asign & Bsign & Asign & Neg; LT = Neg ^ Overflow
+  // LT = Neg ^ Overflow, with Overflow = (Asign ^ Bsign) & (Asign ^ Neg), simplifies to the expression below
   assign Neg  = Sum[P.XLEN-1];
   assign Asign = A[P.XLEN-1];
   assign Bsign = B[P.XLEN-1];
@@ -98,7 +98,7 @@ module alu import cvw::*; #(parameter cvw_t P) (
       3'b010: FullResult = {{(P.XLEN-1){1'b0}}, LT};       // slt
       3'b011: FullResult = {{(P.XLEN-1){1'b0}}, LTU};      // sltu
       3'b100: FullResult = A ^ CondMaskInvB;               // xor, xnor, binv
-      3'b101: FullResult = (P.ZBS_SUPPORTED) ? {{(P.XLEN-1){1'b0}},{|(AndResult)}} : Shift; // bext (or IEU shift when BMU not supported)
+      3'b101: FullResult = (P.ZBS_SUPPORTED) ? {{(P.XLEN-1){1'b0}}, {|(AndResult)}} : Shift; // bext (or IEU shift when BMU not supported)
       3'b110: FullResult = A | CondMaskInvB;               // or, orn, bset
       3'b111: FullResult = AndResult;                      // and, bclr, czero.*
     endcase
@@ -113,7 +113,7 @@ module alu import cvw::*; #(parameter cvw_t P) (
       P.ZKND_SUPPORTED | P.ZKNE_SUPPORTED | P.ZKNH_SUPPORTED) begin : bitmanipalu
     bitmanipalu #(P) balu(
       .A, .B, .W64, .UW64, .BSelect, .ZBBSelect, .BMUActive,
-      .Funct3, .Funct7, .Rs2E, .LT,.LTU, .BALUControl, .PreALUResult, .FullResult,
+      .Funct3, .Funct7, .Rs2E, .LT, .LTU, .BALUControl, .PreALUResult, .FullResult,
       .CondMaskB, .CondShiftA, .ALUResult);
   end else begin
     assign ALUResult = PreALUResult;

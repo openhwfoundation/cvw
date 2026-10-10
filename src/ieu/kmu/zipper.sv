@@ -26,9 +26,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zipper #(parameter WIDTH=64) (
-  input  logic [WIDTH-1:0] A,
-  input  logic             ZipSelect,
-  output logic [WIDTH-1:0] ZipResult
+  input  logic [WIDTH-1:0] A,         // Operand
+  input  logic             ZipSelect, // Zip operation select: 1 unzip, 0 zip
+  output logic [WIDTH-1:0] ZipResult  // zip or unzip result
 );
 
   logic [WIDTH-1:0]       zip, unzip;

@@ -28,12 +28,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fclassify import cvw::*;  #(parameter cvw_t P) (
-  input  logic                Xs,         // sign bit
-  input  logic                XNaN,       // is NaN
-  input  logic                XSNaN,      // is signaling NaN
-  input  logic                XSubnorm,   // is Subnormal
-  input  logic                XZero,      // is zero
-  input  logic                XInf,       // is infinity
+  input  logic                Xs,         // X sign
+  input  logic                XNaN,       // X is a NaN
+  input  logic                XSNaN,      // X is a signaling NaN
+  input  logic                XSubnorm,   // X is subnormal
+  input  logic                XZero,      // X is zero
+  input  logic                XInf,       // X is infinity
   output logic [P.XLEN-1:0]   ClassRes    // classify result
 );
 
@@ -42,15 +42,15 @@ module fclassify import cvw::*;  #(parameter cvw_t P) (
   logic XNorm;                            // is the input normal
 
   // determine the sub categories
-  assign XNorm= ~(XNaN | XInf| XSubnorm| XZero);
-  assign PInf = ~Xs&XInf;
-  assign NInf = Xs&XInf;
-  assign PNorm = ~Xs&XNorm;
-  assign NNorm = Xs&XNorm;
-  assign PSubnorm = ~Xs&XSubnorm;
-  assign NSubnorm = Xs&XSubnorm;
-  assign PZero = ~Xs&XZero;
-  assign NZero = Xs&XZero;
+  assign XNorm = ~(XNaN | XInf | XSubnorm | XZero);
+  assign PInf = ~Xs & XInf;
+  assign NInf = Xs & XInf;
+  assign PNorm = ~Xs & XNorm;
+  assign NNorm = Xs & XNorm;
+  assign PSubnorm = ~Xs & XSubnorm;
+  assign NSubnorm = Xs & XSubnorm;
+  assign PZero = ~Xs & XZero;
+  assign NZero = Xs & XZero;
 
   // determine sub category and combine into the result
   //  bit 0 - -Inf
@@ -63,6 +63,6 @@ module fclassify import cvw::*;  #(parameter cvw_t P) (
   //  bit 7 - +Inf
   //  bit 8 - signaling NaN
   //  bit 9 - quiet NaN
-  assign ClassRes = {{P.XLEN-10{1'b0}}, XNaN&~XSNaN, XSNaN, PInf, PNorm, PSubnorm, PZero, NZero, NSubnorm, NNorm, NInf};
+  assign ClassRes = {{P.XLEN-10{1'b0}}, XNaN & ~XSNaN, XSNaN, PInf, PNorm, PSubnorm, PZero, NZero, NSubnorm, NNorm, NInf};
 
 endmodule

@@ -27,15 +27,15 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module rom_ahb import cvw::*;  #(parameter cvw_t P,
-                                 parameter RANGE = 65535, PRELOAD = 0) (
-  input  logic                 HCLK, HRESETn,
-  input  logic                 HSELRom,
-  input  logic [P.PA_BITS-1:0] HADDR,
-  input  logic                 HREADY,
-  input  logic [1:0]           HTRANS,
-  output logic [P.XLEN-1:0]    HREADRom,
-  output logic                 HRESPRom, HREADYRom
+module rom_ahb import cvw::*; #(parameter cvw_t P,
+                                parameter RANGE = 65535, PRELOAD = 0) (
+  input  logic                 HCLK, HRESETn,      // AHB clock and reset (active low)
+  input  logic                 HSELRom,            // AHB select for ROM
+  input  logic [P.PA_BITS-1:0] HADDR,              // AHB address
+  input  logic                 HREADY,             // AHB ready
+  input  logic [1:0]           HTRANS,             // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  output logic [P.XLEN-1:0]    HREADRom,           // AHB read data from ROM
+  output logic                 HRESPRom, HREADYRom // AHB response and ready from ROM
 );
 
   localparam ADDR_WIDTH = $clog2(RANGE/8);

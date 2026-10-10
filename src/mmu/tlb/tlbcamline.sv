@@ -32,22 +32,22 @@
 
 module tlbcamline import cvw::*;  #(parameter cvw_t P,
                                     parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
-  input  logic                  clk, reset,
-  input  logic [P.VPN_BITS-1:0]  VPN, // The requested page number to compare against the key
-  input  logic [P.ASID_BITS-1:0] SATP_ASID,
-  input  logic                  SV39Mode,
-  input  logic                  SV48Mode,
-  input  logic                  WriteEnable,  // Write a new entry to this line
-  input  logic                  PTE_G,
-  input  logic                  PTE_NAPOT,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
-  input  logic [2:0]            PageTypeWriteVal,
-  input  logic                  TLBFlush,     // Flush this line (set valid to 0)
-  input  logic                  TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
-  output logic [2:0]            PageTypeRead,
-  output logic                  Match
+  input  logic                   clk, reset,       // Clock and reset
+  input  logic [P.VPN_BITS-1:0]  VPN,              // Virtual page number
+  input  logic [P.ASID_BITS-1:0] SATP_ASID,        // satp.ASID
+  input  logic                   SV39Mode,         // Translation mode is Sv39
+  input  logic                   SV48Mode,         // Translation mode is Sv48
+  input  logic                   WriteEnable,      // Write a new entry to this line
+  input  logic                   PTE_G,            // Global bit of PTE
+  input  logic                   PTE_NAPOT,        // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic [2:0]             PageTypeWriteVal, // Page type to write to TLB
+  input  logic                   TLBFlush,         // Invalidate TLB entries (ASID-specific flush preserves global entries)
+  input  logic                   TLBFlushAll,      // Flush global (G = 1) entries too
+  output logic [2:0]             PageTypeRead,     // Page type of this TLB entry
+  output logic                   Match             // Address matches this entry
 );
 
-  // PageTypeRead is a key for a tera, giga, mega, or kilopage.
+  // PageTypeRead is a key for a peta, tera, giga, mega, or kilopage.
   // PageType == 3'b000 --> kilopage
   // PageType == 3'b001 --> megapage
   // PageType == 3'b010 --> gigapage

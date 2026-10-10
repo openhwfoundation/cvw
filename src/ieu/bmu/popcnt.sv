@@ -27,7 +27,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module popcnt #(parameter WIDTH = 32) (
-  input  logic [WIDTH-1:0]        num,    // number to count total ones
+  input  logic [WIDTH-1:0]        num,    // Number to count the ones of
   output logic [$clog2(WIDTH):0]  PopCnt  // the total number of ones
 );
 
@@ -35,7 +35,7 @@ module popcnt #(parameter WIDTH = 32) (
 
   always_comb begin
     sum = '0;
-    for (int i=0;i<WIDTH;i++) begin : loop
+    for (int i=0; i<WIDTH; i++) begin : loop
       sum = (num[i]) ? sum + 1 : sum;
     end
   end

@@ -26,23 +26,25 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvmixcolumns32(
-   input  logic [31:0] a,
-   output logic [31:0] y
+  input  logic [31:0] a, // Input
+  output logic [31:0] y  // Output
 );
 
-   logic [7:0] a0, a1, a2, a3, temp;
-   logic [10:0] xor0, xor1, xor2, xor3;
+  logic [7:0] a0, a1, a2, a3, temp;
+  logic [10:0] xor0, xor1, xor2, xor3;
 
-   assign {a0, a1, a2, a3} = a;
-   assign temp = a0 ^ a1 ^ a2 ^ a3;
+  assign {a0, a1, a2, a3} = a;
+  assign temp = a0 ^ a1 ^ a2 ^ a3;
 
-   assign xor0 = {temp, 3'b0} ^ {1'b0, a3^a1, 2'b0} ^ {2'b0, a3^a2, 1'b0} ^ {3'b0, temp} ^ {3'b0, a3};
-   assign xor1 = {temp, 3'b0} ^ {1'b0, a2^a0, 2'b0} ^ {2'b0, a2^a1, 1'b0} ^ {3'b0, temp} ^ {3'b0, a2};
-   assign xor2 = {temp, 3'b0} ^ {1'b0, a1^a3, 2'b0} ^ {2'b0, a1^a0, 1'b0} ^ {3'b0, temp} ^ {3'b0, a1};
-   assign xor3 = {temp, 3'b0} ^ {1'b0, a0^a2, 2'b0} ^ {2'b0, a0^a3, 1'b0} ^ {3'b0, temp} ^ {3'b0, a0};
+  // Each xorN is the unreduced (11-bit) InvMixColumns sum {0e, 0b, 0d, 09} * column for output byte N,
+  // where multiplying by x^k is a left shift by k; galoismultinverse8 reduces it
+  assign xor0 = {temp, 3'b0} ^ {1'b0, a3 ^ a1, 2'b0} ^ {2'b0, a3 ^ a2, 1'b0} ^ {3'b0, temp} ^ {3'b0, a3};
+  assign xor1 = {temp, 3'b0} ^ {1'b0, a2 ^ a0, 2'b0} ^ {2'b0, a2 ^ a1, 1'b0} ^ {3'b0, temp} ^ {3'b0, a2};
+  assign xor2 = {temp, 3'b0} ^ {1'b0, a1 ^ a3, 2'b0} ^ {2'b0, a1 ^ a0, 1'b0} ^ {3'b0, temp} ^ {3'b0, a1};
+  assign xor3 = {temp, 3'b0} ^ {1'b0, a0 ^ a2, 2'b0} ^ {2'b0, a0 ^ a3, 1'b0} ^ {3'b0, temp} ^ {3'b0, a0};
 
-   galoismultinverse8 gm0 (xor0, y[7:0]);
-   galoismultinverse8 gm1 (xor1, y[15:8]);
-   galoismultinverse8 gm2 (xor2, y[23:16]);
-   galoismultinverse8 gm3 (xor3, y[31:24]);
+  galoismultinverse8 gm0 (xor0, y[7:0]);
+  galoismultinverse8 gm1 (xor1, y[15:8]);
+  galoismultinverse8 gm2 (xor2, y[23:16]);
+  galoismultinverse8 gm3 (xor3, y[31:24]);
 endmodule

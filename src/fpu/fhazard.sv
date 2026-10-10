@@ -28,14 +28,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fhazard(
-  input  logic [4:0]  Adr1D, Adr2D, Adr3D,                // read data addresses
-  input  logic [4:0]  Adr1E, Adr2E, Adr3E,                // read data addresses
-  input  logic        FRegWriteE, FRegWriteM, FRegWriteW, // is the fp register being written to
-  input  logic [4:0]  RdE, RdM, RdW,                      // the address being written to
-  input  logic [1:0]  FResSelM,                           // the result being selected
-  input  logic        XEnD, YEnD, ZEnD,                   // are the inputs needed
-  output logic        FPUStallD,                          // stall the decode stage
-  output logic [1:0]  ForwardXE, ForwardYE, ForwardZE     // select a forwarded value
+  input  logic [4:0]  Adr1D, Adr2D, Adr3D,                // FP source register addresses in Decode stage
+  input  logic [4:0]  Adr1E, Adr2E, Adr3E,                // FP source register addresses in Execute stage
+  input  logic        FRegWriteE, FRegWriteM, FRegWriteW, // FP register write enable in Execute, Memory, Writeback stages
+  input  logic [4:0]  RdE, RdM, RdW,                      // Destination register in Execute, Memory, Writeback stages
+  input  logic [1:0]  FResSelM,                           // FPU result select in Memory stage
+  input  logic        XEnD, YEnD, ZEnD,                   // X, Y, Z inputs used in Decode stage
+  output logic        FPUStallD,                          // FPU stalls Decode stage
+  output logic [1:0]  ForwardXE, ForwardYE, ForwardZE     // Forwarding select for X, Y, Z inputs
 );
 
   logic MatchDE; // is a value needed in decode stage being worked on in execute stage
@@ -52,23 +52,23 @@ module fhazard(
 
     // if the needed value is in the memory stage - input 1
     if ((Adr1E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardXE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there (FResSel = 00, PreFpResM)
+      if (FResSelM == 2'b00) ForwardXE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr1E == RdW) & FRegWriteW) ForwardXE = 2'b01; // choose FResult64W
+    end else if ((Adr1E == RdW) & FRegWriteW) ForwardXE = 2'b01; // choose FResultW
 
     // if the needed value is in the memory stage - input 2
     if ((Adr2E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardYE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardYE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr2E == RdW) & FRegWriteW) ForwardYE = 2'b01; // choose FResult64W
+    end else if ((Adr2E == RdW) & FRegWriteW) ForwardYE = 2'b01; // choose FResultW
 
     // if the needed value is in the memory stage - input 3
     if ((Adr3E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardZE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardZE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr3E == RdW) & FRegWriteW) ForwardZE = 2'b01; // choose FResult64W
+    end else if ((Adr3E == RdW) & FRegWriteW) ForwardZE = 2'b01; // choose FResultW
   end
 endmodule

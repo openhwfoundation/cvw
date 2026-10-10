@@ -28,27 +28,26 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fregfile #(parameter FLEN) (
-  input logic              clk, reset,
+  input logic              clk, reset,      // Clock and reset
   input logic              we4,             // write enable
-  input logic [4:0]        a1, a2, a3, a4,  // addresses
+  input logic [4:0]        a1, a2, a3, a4,  // Source registers to read (a1, a2, a3), destination register to write (a4)
   input logic [FLEN-1:0]   wd4,             // write data
-  output logic [FLEN-1:0]  rd1, rd2, rd3    // read data
+  output logic [FLEN-1:0]  rd1, rd2, rd3    // Read data for ports 1, 2, and 3
 );
 
-   logic [FLEN-1:0] rf[31:0];
-   integer i;
+  logic [FLEN-1:0] rf[31:0];
+  integer i;
 
-   // three ported register file
-   // read three ports combinationally (A1/RD1, A2/RD2, A3/RD3)
-   // write fourth port on rising edge of clock (A4/WD4/WE4)
-   // write occurs on falling edge of clock
+  // four-ported register file
+  // read three ports combinationally (A1/RD1, A2/RD2, A3/RD3)
+  // write fourth port on falling edge of clock (A4/WD4/WE4)
 
-   always_ff @(negedge clk) // or posedge reset)
-     if (reset) for(i=0; i<32; i++) rf[i] <= '0;
-     else if (we4) rf[a4] <= wd4;
+  always_ff @(negedge clk)
+    if (reset) for (i = 0; i < 32; i++) rf[i] <= '0;
+    else if (we4) rf[a4] <= wd4;
 
-   assign rd1 = rf[a1];
-   assign rd2 = rf[a2];
-   assign rd3 = rf[a3];
+  assign rd1 = rf[a1];
+  assign rd2 = rf[a2];
+  assign rd3 = rf[a3];
 
-endmodule // regfile
+endmodule // fregfile

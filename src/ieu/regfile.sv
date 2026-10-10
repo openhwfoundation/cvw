@@ -29,11 +29,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module regfile #(parameter XLEN, E_SUPPORTED) (
-  input  logic             clk, reset,
+  input  logic             clk, reset,          // Clock and reset
   input  logic             we3,                 // Write enable
   input  logic [4:0]       a1, a2, a3,          // Source registers to read (a1, a2), destination register to write (a3)
   input  logic [XLEN-1:0]  wd3,                 // Write data for port 3
-  output logic [XLEN-1:0]  rd1, rd2);           // Read data for ports 1, 2
+  output logic [XLEN-1:0]  rd1, rd2);           // Read data for ports 1 and 2
 
   localparam NUMREGS = E_SUPPORTED ? 16 : 32;   // only 16 registers in E mode
 
@@ -42,16 +42,15 @@ module regfile #(parameter XLEN, E_SUPPORTED) (
 
   // Three ported register file
   // Read two ports combinationally (a1/rd1, a2/rd2)
-  // Write third port on rising edge of clock (a3/wd3/we3)
-  // Write occurs on falling edge of clock
+  // Write third port on falling edge of clock (a3/wd3/we3)
   // Register 0 hardwired to 0
 
   // reset is intended for simulation only, not synthesis
   // can logic be adjusted to not need resettable registers?
 
   always_ff @(negedge clk)
-    if (reset) for(i=1; i<NUMREGS; i++) rf[i] <= '0;
-    else       if (we3)                 rf[a3] <= wd3;
+    if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;
+    else       if (we3)                  rf[a3] <= wd3;
 
   assign rd1 = (a1 != 0) ? rf[a1] : 0;
   assign rd2 = (a2 != 0) ? rf[a2] : 0;

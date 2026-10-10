@@ -28,23 +28,23 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fma import cvw::*;  #(parameter cvw_t P) (
-  input  logic                         Xs, Ys, Zs,             // input's signs
-  input  logic [P.NE-1:0]              Xe, Ye, Ze,             // input's biased exponents in B(NE.0) format
-  input  logic [P.NF:0]                Xm, Ym, Zm,             // input's significands in U(0.NF) format
-  input  logic                         XZero, YZero, ZZero,    // is the input zero
-  input  logic [2:0]                   OpCtrl,                 // operation control
-  output logic                         ASticky,                // sticky bit that is calculated during alignment
-  output logic [P.FMALEN-1:0]          Sm,                     // the positive sum's significand
-  output logic                         InvA,                   // Was A inverted for effective subtraction (P-A or -P+A)
-  output logic                         As,                     // the aligned addend's sign (modified Z sign for other operations)
-  output logic                         Ps,                     // the product's sign
-  output logic                         Ss,                     // the sum's sign
-  output logic [P.NE+1:0]              Se,                     // the sum's exponent
-  output logic [$clog2(P.FMALEN+1)-1:0] SCnt                    // normalization shift count
+  input  logic                         Xs, Ys, Zs,             // X, Y, Z signs
+  input  logic [P.NE-1:0]              Xe, Ye, Ze,             // X, Y, Z biased exponents (B(NE.0))
+  input  logic [P.NF:0]                Xm, Ym, Zm,             // X, Y, Z significands (U1.NF)
+  input  logic                         XZero, YZero, ZZero,    // X, Y, Z are zero
+  input  logic [2:0]                   OpCtrl,                 // FPU operation control
+  output logic                         ASticky,                // Sticky bit from the aligned addend
+  output logic [P.FMALEN-1:0]          Sm,                     // Positive sum significand
+  output logic                         InvA,                   // Invert addend for effective subtraction
+  output logic                         As,                     // Aligned addend sign (Z sign adjusted for the operation)
+  output logic                         Ps,                     // Product sign
+  output logic                         Ss,                     // Sum sign
+  output logic [P.NE+1:0]              Se,                     // Sum exponent
+  output logic [$clog2(P.FMALEN+1)-1:0] SCnt                    // Normalization shift count
 );
 
   //  OpCtrl:
-  //    Fma: {not multiply-add?, negate prod?, negate Z?}
+  //    Fma: {not multiply-add?, negate prod? (multiply-add) or add/sub? (otherwise), negate Z?}
   //        000 - fmadd
   //        001 - fmsub
   //        010 - fnmsub
@@ -62,7 +62,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
 
   ///////////////////////////////////////////////////////////////////////////////
   // Calculate the product
-  //      - When multipliying two fp numbers, add the exponents
+  //      - When multiplying two fp numbers, add the exponents
   //      - Subtract the bias (XExp + YExp has two biases, one from each exponent)
   //      - If the product is zero then kill the exponent
   //      - Multiply the mantissas
@@ -71,7 +71,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
   // calculate the product's exponent
   fmaexpadd #(P) expadd(.Xe, .Ye, .XZero, .YZero, .Pe);
 
-  // multiplication of the mantissa's
+  // multiplication of the mantissas
   fmamult #(P) mult(.Xm, .Ym, .Pm);
 
   // calculate the signs and take the operation into account
@@ -89,6 +89,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
 
   fmaadd #(P) add(.Am, .Pm, .Ze, .Pe, .Ps, .KillProd, .ASticky, .AmInv, .PmKilled, .InvA, .Sm, .Se, .Ss);
 
+  // LZA carry-in matches the +1 of the adder's two's complement negation of A (see fmaadd)
   fmalza #(P.FMALEN, P.NF) lza(.A(AmInv), .Pm(PmKilled), .Cin(InvA & (~ASticky | KillProd)), .sub(InvA), .SCnt);
 
 endmodule

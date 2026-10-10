@@ -28,19 +28,21 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtuotfc4 import cvw::*;  #(parameter cvw_t P) (
-  input  logic [3:0]     udigit,
-  input  logic [P.DIVb:0] U, UM,          // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer
-  input  logic [P.DIVb:0] C,              // Q1.DIVb
-  output logic [P.DIVb:0] UNext, UMNext   // U1.DIVb
+  input  logic [3:0]      udigit,         // Radix-4 result digit, one-hot {2, 1, -1, -2}; 0 if none hot
+  input  logic [P.DIVb:0] U, UM,          // Partial result and partial result minus 1 ulp (U1.DIVb); UM starts negative, but still gives the right answer
+  input  logic [P.DIVb:0] C,              // Digit position marker (Q1.DIVb)
+  output logic [P.DIVb:0] UNext, UMNext   // Next partial result and next partial result minus 1 ulp (U1.DIVb)
 );
   //  The on-the-fly converter transfers the square root
   //  bits to the quotient as they come.
   //  Use this otfc for division and square root.
 
+  // C is a thermometer code; K is its lowest 1, the lsb of the current radix-4 digit.
+  // OR-ing K, 2K, or 3K into U or UM writes a digit value of 1, 2, or 3.
   logic [P.DIVb:0] K1, K2, K3;            // U1.DIVb
-  assign K1 = (C&~(C << 1));        // K
-  assign K2 = ((C << 1)&~(C << 2)); // 2K
-  assign K3 = (C & ~(C << 2));      // 3K
+  assign K1 = (C & ~(C << 1));          // K
+  assign K2 = ((C << 1) & ~(C << 2));   // 2K
+  assign K3 = (C & ~(C << 2));          // 3K
 
   always_comb begin
     if (udigit[3]) begin            // +2

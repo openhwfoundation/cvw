@@ -25,8 +25,8 @@
 ///////////////////////////////////////////
 
 module decoder #(parameter BINARY_BITS = 3) (
-  input  logic [BINARY_BITS-1:0]      binary,
-  output logic [(2**BINARY_BITS)-1:0] onehot
+  input  logic [BINARY_BITS-1:0]      binary, // Binary input
+  output logic [(2**BINARY_BITS)-1:0] onehot  // One-hot output
 );
 
   assign onehot = 1 << binary;

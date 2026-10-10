@@ -28,17 +28,17 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module div import cvw::*;  #(parameter cvw_t P) (
-  input  logic              clk,
-  input  logic              reset,
-  input  logic              StallM,
-  input  logic              FlushE,
-  input  logic              IntDivE,                        // integer division/remainder instruction of any type
+  input  logic              clk,                            // Clock
+  input  logic              reset,                          // Reset
+  input  logic              StallM,                         // Stall Memory stage
+  input  logic              FlushE,                         // Flush Execute stage
+  input  logic              IntDivE,                        // Integer divide or remainder instruction in Execute stage
   input  logic              DivSignedE,                     // signed division
-  input  logic              W64E,                           // W-type instructions (divw, divuw, remw, remuw)
-  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // Forwarding mux outputs for Source A and B
-  output logic              DivBusyE,                       // Divide is busy - stall pipeline
-  output logic [P.XLEN-1:0] QuotM, RemM                     // Quotient and remainder outputs
- );
+  input  logic              W64E,                           // RV64 W-type instruction in Execute stage
+  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  output logic              DivBusyE,                       // Integer divider busy
+  output logic [P.XLEN-1:0] QuotM, RemM                     // Quotient and remainder
+);
 
   localparam STEPBITS = $clog2(P.XLEN/P.IDIV_BITSPERCYCLE); // Number of steps
 
@@ -49,10 +49,10 @@ module div import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]   XQ[P.IDIV_BITSPERCYCLE:0];           // dividend/quotient for each of k steps
   logic [P.XLEN-1:0]   WNext, XQNext;                       // initialized W and XQ going into registers
   logic [P.XLEN-1:0]   DinE, XinE;                          // divisor & dividend, possibly truncated to 32 bits
-  logic [P.XLEN-1:0]   DnE;                                 // DnE = ~DinE
-  logic [P.XLEN-1:0]   DAbsBE;                              // absolute value of D
-  logic [P.XLEN-1:0]   DAbsB;                               // registered absolute value of D, constant during division
-  logic [P.XLEN-1:0]   XnE;                                 // DXnE = ~XinE
+  logic [P.XLEN-1:0]   DnE;                                 // DnE = -DinE
+  logic [P.XLEN-1:0]   DAbsBE;                              // negated absolute value of D (-|D|), for subtraction
+  logic [P.XLEN-1:0]   DAbsB;                               // registered -|D|, constant during division
+  logic [P.XLEN-1:0]   XnE;                                 // XnE = -XinE
   logic [P.XLEN-1:0]   XInitE;                              // |X|, or original X for divide by 0
   logic [P.XLEN-1:0]   WnM, XQnM;                           // negated residual W and quotient XQ for postprocessing sign correction
   logic [STEPBITS:0]   step;                                // division step
@@ -72,11 +72,11 @@ module div import cvw::*;  #(parameter cvw_t P) (
   // Handle sign extension for W-type instructions
   if (P.XLEN == 64) begin : rv64 // RV64 has W-type instructions
     mux2 #(P.XLEN) xinmux(ForwardedSrcAE, {ForwardedSrcAE[31:0], 32'b0}, W64E, XinE);
-    mux2 #(P.XLEN) dinmux(ForwardedSrcBE, {{32{ForwardedSrcBE[31]&DivSignedE}}, ForwardedSrcBE[31:0]}, W64E, DinE);
+    mux2 #(P.XLEN) dinmux(ForwardedSrcBE, {{32{ForwardedSrcBE[31] & DivSignedE}}, ForwardedSrcBE[31:0]}, W64E, DinE);
   end else begin // RV32 has no W-type instructions
     assign XinE = ForwardedSrcAE;
     assign DinE = ForwardedSrcBE;
-    end
+  end
 
   // Extract sign bits and check for division by zero
   assign SignDE = DivSignedE & DinE[P.XLEN-1];
@@ -86,7 +86,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
 
   // Take absolute value for signed operations, and negate D to handle subtraction in divider stages
   neg #(P.XLEN) negd(DinE, DnE);
-  mux2 #(P.XLEN) dabsmux(DnE, DinE, SignDE, DAbsBE);  // take absolute value for signed operations, and negate for subtraction setp
+  mux2 #(P.XLEN) dabsmux(DnE, DinE, SignDE, DAbsBE);  // take absolute value for signed operations, and negate for subtraction step
   neg #(P.XLEN) negx(XinE, XnE);
   mux3 #(P.XLEN) xabsmux(XinE, XnE, ForwardedSrcAE, {Div0E, SignXE}, XInitE);  // take absolute value for signed operations, or keep original value for divide by 0
 
@@ -105,7 +105,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
 
   // one copy of divstep for each bit produced per cycle
   genvar i;
-  for (i=0; i<P.IDIV_BITSPERCYCLE; i = i+1)
+  for (i = 0; i < P.IDIV_BITSPERCYCLE; i = i + 1)
     divstep #(P.XLEN) divstep(W[i], XQ[i], DAbsB, W[i+1], XQ[i+1]);
 
   //////////////////////////////
@@ -114,7 +114,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
 
   flopen #(3) Div0eMReg(clk, DivStartE, {Div0E, NegQE, SignXE}, {Div0M, NegQM, NegWM});
 
-  // On final setp of signed operations, negate outputs as needed to get correct sign
+  // On final step of signed operations, negate outputs as needed to get correct sign
   neg #(P.XLEN) qneg(XQ[0], XQnM);
   neg #(P.XLEN) wneg(W[0], WnM);
   // Select appropriate output: normal, negated, or for divide by zero
@@ -125,18 +125,18 @@ module div import cvw::*;  #(parameter cvw_t P) (
   // Divider FSM to sequence Busy and Done
   //////////////////////////////
 
- always_ff @(posedge clk)
+  always_ff @(posedge clk)
     if (reset | FlushE) begin
-        state <= IDLE;
+      state <= IDLE;
     end else if (DivStartE) begin
-        step <= 1;
-        if (Div0E) state <= DONE;
-        else       state <= BUSY;
+      step <= 1;
+      if (Div0E) state <= DONE;
+      else       state <= BUSY;
     end else if (state == BUSY) begin // pause one cycle at beginning of signed operations for absolute value
-        if (step[STEPBITS] | (P.XLEN==64) & W64E & step[STEPBITS-1]) begin // complete in half the time for W-type instructions
-            state <= DONE;
-        end
-        step <= step + 1;
+      if (step[STEPBITS] | (P.XLEN == 64) & W64E & step[STEPBITS-1]) begin // complete in half the time for W-type instructions
+        state <= DONE;
+      end
+      step <= step + 1;
     end else if (state == DONE) begin
       if (StallM) state <= DONE;
       else        state <= IDLE;
