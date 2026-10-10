@@ -33,7 +33,7 @@ module zbb #(parameter WIDTH=32) (
   input  logic             W64,          // Indicates word operation
   input  logic             LT,           // lt flag
   input  logic             LTU,          // ltu flag
-  input  logic             BUnsigned,      // max/min (signed) flag
+  input  logic             BUnsigned,    // maxu/minu (unsigned comparison)
   input  logic [2:0]       ZBBSelect,    // ZBB Result select signal
   output logic [WIDTH-1:0] ZBBResult);   // ZBB result
 
@@ -43,13 +43,13 @@ module zbb #(parameter WIDTH=32) (
   logic [WIDTH-1:0] ByteResult;          // byte results
   logic [WIDTH-1:0] ExtResult;           // sign/zero extend results
 
-  mux2 #(1) ltmux(LT, LTU, BUnsigned , LessThan);
+  mux2 #(1) ltmux(LT, LTU, BUnsigned, LessThan);
   cnt #(WIDTH) cnt(.A, .RevA, .B(B[1:0]), .W64, .CntResult);
   byteop #(WIDTH) bu(.A, .ByteSelect(B[0]), .ByteResult);
   ext #(WIDTH) ext(.A(A[15:0]), .ExtSelect({~B[2], {B[2] & B[0]}}), .ExtResult);
 
-  // ZBBSelect[2] differentiates between min(u) vs max(u) instruction
-  mux2 #(WIDTH) minmaxmux(B, A, ZBBSelect[2]^LessThan, MinMaxResult);
+  // ZBBSelect[2] is 1 for max(u), 0 for min(u): choose A for max when A >= B or for min when A < B
+  mux2 #(WIDTH) minmaxmux(B, A, ZBBSelect[2] ^ LessThan, MinMaxResult);
 
   // ZBB Result select mux
   mux4 #(WIDTH) zbbresultmux(CntResult, ExtResult, ByteResult, MinMaxResult, ZBBSelect[1:0], ZBBResult);

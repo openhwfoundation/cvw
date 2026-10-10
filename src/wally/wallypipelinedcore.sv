@@ -28,31 +28,31 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
-   input  logic                  clk, reset,
-   // Privileged
-   input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
-   input  logic [63:0]           MTIME_CLINT,
-   // Bus Interface
-   input  logic [P.AHBW-1:0]     HRDATA,
-   input  logic                  HREADY, HRESP,
-   output logic                  HCLK, HRESETn,
-   output logic [P.PA_BITS-1:0]  HADDR,
-   output logic [P.AHBW-1:0]     HWDATA,
-   output logic [P.XLEN/8-1:0]   HWSTRB,
-   output logic                  HWRITE,
-   output logic [2:0]            HSIZE,
-   output logic [2:0]            HBURST,
-   output logic [3:0]            HPROT,
-   output logic [1:0]            HTRANS,
-   output logic                  HMASTLOCK,
-   input  logic                  ExternalStall
+  input  logic                  clk, reset,
+  // Privileged
+  input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
+  input  logic [63:0]           MTIME_CLINT,
+  // Bus Interface
+  input  logic [P.AHBW-1:0]     HRDATA,
+  input  logic                  HREADY, HRESP,
+  output logic                  HCLK, HRESETn,
+  output logic [P.PA_BITS-1:0]  HADDR,
+  output logic [P.AHBW-1:0]     HWDATA,
+  output logic [P.XLEN/8-1:0]   HWSTRB,
+  output logic                  HWRITE,
+  output logic [2:0]            HSIZE,
+  output logic [2:0]            HBURST,
+  output logic [3:0]            HPROT,
+  output logic [1:0]            HTRANS,
+  output logic                  HMASTLOCK,
+  input  logic                  ExternalStall
 );
 
   logic                          StallF, StallD, StallE, StallM, StallW;
   logic                          FlushD, FlushE, FlushM, FlushW;
   logic                          TrapM, RetM;
 
-  //  signals that must connect through DP
+  // signals that must connect through DP
   logic                          IntDivE, W64E;
   logic                          CSRReadM, CSRWriteM, PrivilegedM;
   logic [1:0]                    AtomicM;
@@ -182,7 +182,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .IFUStallF, .IFUHBURST, .IFUHTRANS, .IFUHSIZE, .IFUHREADY, .IFUHWRITE,
     .ICacheAccess, .ICacheMiss,
     // Execute
-    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE,  .BPWrongM,
+    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
     .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
@@ -194,32 +194,32 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .sfencevmaAllM, .ITLBMissOrUpdateAF,
     .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .HPTWInstrAccessFaultHeldF, .HPTWInstrPageFaultHeldF,
     // pmp/pma (inside mmu) signals.
-    .PMPCFG_ARRAY_REGW,  .PMPADDR_ARRAY_REGW, .InstrAccessFaultF);
+    .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .InstrAccessFaultF);
 
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
-     // Decode Stage interface
-     .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
-     // Execute Stage interface
-     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .IntDivE, .W64E,
-     .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
-     // Memory stage interface
-     .SquashSCW,  // from LSU
-     .MemRWE,     // read/write control goes to LSU
-     .MemRWM,     // read/write control goes to LSU
-     .AtomicM,    // atomic control goes to LSU
-     .WriteDataM, // Write data to LSU
-     .Funct3M,    // size and signedness to LSU
-     .SrcAM,      // to privilege and fpu
-     .RdE, .RdM, .FIntResM, .FlushDCacheM,
-     .BranchD, .BranchE, .JumpD, .JumpE,
-     // Writeback stage
-     .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]),
-     .InstrValidM, .InstrValidE, .InstrValidD, .FCvtIntResW, .FCvtIntW,
-     // hazards
-     .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-     .StructuralStallD, .LoadStallD, .StoreStallD, .PCSrcE,
-     .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM);
+    // Decode Stage interface
+    .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    // Execute Stage interface
+    .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .IntDivE, .W64E,
+    .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
+    // Memory stage interface
+    .SquashSCW,  // from LSU
+    .MemRWE,     // read/write control goes to LSU
+    .MemRWM,     // read/write control goes to LSU
+    .AtomicM,    // atomic control goes to LSU
+    .WriteDataM, // Write data to LSU
+    .Funct3M,    // size and signedness to LSU
+    .SrcAM,      // to privilege and fpu
+    .RdE, .RdM, .FIntResM, .FlushDCacheM,
+    .BranchD, .BranchE, .JumpD, .JumpE,
+    // Writeback stage
+    .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]),
+    .InstrValidM, .InstrValidE, .InstrValidD, .FCvtIntResW, .FCvtIntW,
+    // hazards
+    .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
+    .StructuralStallD, .LoadStallD, .StoreStallD, .PCSrcE,
+    .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM);
 
   lsu #(P) lsu(
     .clk, .reset, .StallM, .FlushM, .StallW, .FlushW,
@@ -229,7 +229,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .FpLoadStoreM, .FWriteDataM, .IEUAdrE, .IEUAdrM, .WriteDataM,
     .ReadDataW, .FlushDCacheM, .CMOpM, .LSUPrefetchM,
     // connected to ahb (all stay the same)
-    .LSUHADDR,  .HRDATA, .LSUHWDATA, .LSUHWSTRB, .LSUHSIZE,
+    .LSUHADDR, .HRDATA, .LSUHWDATA, .LSUHWSTRB, .LSUHSIZE,
     .LSUHBURST, .LSUHTRANS, .LSUHWRITE, .LSUHREADY,
     // connect to csr or privilege and stay the same.
     .PrivilegeModeW, .BigEndianM, // connects to csr
@@ -258,7 +258,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .LSUStallM);
 
   if (P.BUS_SUPPORTED) begin : ebu
-    ebu #(P) ebu(// IFU connections
+    ebu #(P) ebu(
       .clk, .reset,
       // IFU interface
       .IFUHADDR, .IFUHBURST, .IFUHTRANS, .IFUHREADY, .IFUHSIZE,

@@ -32,7 +32,7 @@ module mul #(parameter XLEN) (
   input  logic                StallM, FlushM,
   input  logic [XLEN-1:0]     ForwardedSrcAE, ForwardedSrcBE, // source A and B from after Forwarding mux
   input  logic [2:0]          Funct3E,                        // type of multiply
-  output logic [XLEN*2-1:0]   ProdM                           // double-widthproduct
+  output logic [XLEN*2-1:0]   ProdM                           // double-width product
 );
 
   // Number systems
@@ -42,8 +42,8 @@ module mul #(parameter XLEN) (
 
   // Multiplication: A*B
   // Let P' = A' * B'
-  //     PA = (A' * B[XLEN-1])
-  //     PB = (B' * A[XLEN-1])
+  //     PA = (B' * A[XLEN-1])
+  //     PB = (A' * B[XLEN-1])
   //     PP = A[XLEN-1] * B[XLEN-1]
   // Signed * Signed     = P' + (-PB - PA)*2^(XLEN-1) + PP*2^(2XLEN-2)
   // Signed * Unsigned   = P' + ( PB - PA)*2^(XLEN-1) - PP*2^(2XLEN-2)
@@ -74,13 +74,15 @@ module mul #(parameter XLEN) (
   // Select partial products, handling signed multiplication
   assign PP2E = {2'b00, (MULH | MULHSU) ? ~PA : PA, {(XLEN-1){1'b0}}};
   assign PP3E = {2'b00, (MULH) ? ~PB : PB, {(XLEN-1){1'b0}}};
+  // PP4E holds the +/-PP term plus constants (bits 2*XLEN-1 and XLEN or XLEN-1) that complete the
+  // two's complement negation of the inverted PA/PB terms, modulo 2^(2*XLEN)
   always_comb
-  if (MULH)        PP4E = {1'b1, PP, {(XLEN-3){1'b0}}, 1'b1, {(XLEN){1'b0}}};
-  else if (MULHSU) PP4E = {1'b1, ~PP, {(XLEN-2){1'b0}}, 1'b1, {(XLEN-1){1'b0}}};
-  else             PP4E = {1'b0, PP, {(XLEN*2-2){1'b0}}};
+    if (MULH)        PP4E = {1'b1, PP, {(XLEN-3){1'b0}}, 1'b1, {(XLEN){1'b0}}};
+    else if (MULHSU) PP4E = {1'b1, ~PP, {(XLEN-2){1'b0}}, 1'b1, {(XLEN-1){1'b0}}};
+    else             PP4E = {1'b0, PP, {(XLEN*2-2){1'b0}}};
 
   //////////////////////////////
-  // Memory Stage: Sum partial proudcts
+  // Memory Stage: Sum partial products
   //////////////////////////////
 
   flopenrc #(XLEN*2) PP1Reg(clk, reset, FlushM, ~StallM, PP1E, PP1M);
@@ -90,4 +92,4 @@ module mul #(parameter XLEN) (
 
   // add up partial products; this multi-input add implies CSAs and a final CPA
   assign ProdM = PP1M + PP2M + PP3M + PP4M; //ForwardedSrcAE * ForwardedSrcBE;
- endmodule
+endmodule

@@ -28,10 +28,10 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privdec import cvw::*;  #(parameter cvw_t P) (
+module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         clk, reset,
   input  logic         StallW, FlushW,
-  input  logic [31:7 ] InstrM,                              // privileged instruction function field
+  input  logic [31:7]  InstrM,                              // privileged instruction function field
   input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
   input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
@@ -82,7 +82,7 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // all of sinval.vma, sfence.w.inval, sfence.inval.ir are treated as sfence.vma
   assign sfencevmaM = PrivilegedM & P.VIRTMEM_SUPPORTED &
                       ((PrivilegeModeW == P.M_MODE & (vmaM | fenceinvalM)) |
-                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM  | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
   // rs2 (InstrM[24:20]) = x0 means flush all ASIDs including global mappings; rs2 != x0 is ASID-specific
   // and must preserve global (G=1) entries (RISC-V Privileged spec sfence.vma semantics).
   assign sfencevmaAllM = sfencevmaM & ~|InstrM[24:20];
@@ -96,14 +96,14 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
     logic                       WFICountEn, WFICountRst;
     // Clear counter when reset or when trap is taken
     assign WFICountRst = reset | TrapM;
-    // Stop incrementing the counter once reach the timeout limit
+    // Stop incrementing the counter once it reaches the timeout limit
     assign WFICountEn = ~WFITimeoutM;
     assign WFICountPlus1 = wfiM ? WFICount + 1 : '0; // Count while WFI
     flopenr #(P.WFI_TIMEOUT_BIT+1) wficountreg(clk, WFICountRst, WFICountEn, WFICountPlus1, WFICount);
-  // coverage off -item e 1 -fecexprrow 1
-  // WFI Timeout trap will not occur when STATUS_TW is low while in supervisor mode, so the system gets stuck waiting for an interrupt and triggers a watchdog timeout.
+    // coverage off -item e 1 -fecexprrow 1
+    // WFI Timeout trap will not occur when STATUS_TW is low while in supervisor mode, so the system gets stuck waiting for an interrupt and triggers a watchdog timeout.
     assign WFITimeoutM = ((STATUS_TW & PrivilegeModeW != P.M_MODE) | (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) & WFICount[P.WFI_TIMEOUT_BIT];
-  // coverage on
+    // coverage on
   end else assign WFITimeoutM = 1'b0;
 
   flopenrc #(1) wfiWReg(clk, reset, FlushW, ~StallW, wfiM, wfiW);
@@ -119,7 +119,7 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // Fault on illegal instructions
   ///////////////////////////////////////////
 
-  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM|mretM|ecallM|ebreakM|wfiM|sfencevmaM);
+  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
   assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM |
                               WFITimeoutM;
 endmodule

@@ -37,7 +37,7 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   input  logic                 ExecuteAccessF, // Execute access
   input  logic                 WriteAccessM,   // Write access
   input  logic                 ReadAccessM,    // Read access
-  input  logic [1:0]           PBMemoryType,     // PBMT field of PTE during TLB hit, or 00 otherwise
+  input  logic [1:0]           PBMemoryType,   // PBMT field of PTE during TLB hit, or 00 otherwise
   output logic                 Cacheable, Idempotent, SelTIM,
   output logic                 PMAInstrAccessFaultF,
   output logic                 PMALoadAccessFaultM,
@@ -56,13 +56,14 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   assign AccessRX  = ReadAccessM | ExecuteAccessF;
 
   // Determine which region of physical memory (if any) is being accessed
+  // SelRegions: 0 none, 1 DTIM, 2 IROM, 3 EXT_MEM, 4 BOOTROM, 5 UNCORE_RAM, 6 CLINT, 7 GPIO, 8 UART, 9 PLIC, 10 SDC, 11 SPI, 12 PWM
   adrdecs #(P) adrdecs(PhysicalAddress, AccessRW, AccessRX, AccessRWXC, Size, SelRegions);
 
   // Only non-core RAM/ROM memory regions are cacheable. PBMT can override cacheable; NC and IO are uncachable
   assign CacheableRegion = SelRegions[3] | SelRegions[4] | SelRegions[5];  // exclusion-tag: unused-cacheable
   assign Cacheable = (PBMemoryType == 2'b00) ? CacheableRegion : 1'b0;
 
-  // Nonidemdempotent means access could have side effect and must not be done speculatively or redundantly
+  // Non-idempotent means access could have side effect and must not be done speculatively or redundantly
   // I/O is nonidempotent.  PBMT can override PMA; NC is idempotent and IO is non-idempotent
   assign IdempotentRegion = SelRegions[1] | SelRegions[2] | SelRegions[3] | SelRegions[4] | SelRegions[5];
   assign Idempotent = (PBMemoryType == 2'b00) ? IdempotentRegion : (PBMemoryType == 2'b01);

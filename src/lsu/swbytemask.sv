@@ -28,15 +28,16 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module swbytemask #(parameter WORDLEN, EXTEND = 0)(
-  input logic  [2:0]                   Size,
-  input logic  [$clog2(WORDLEN/8)-1:0] Adr,
+module swbytemask #(parameter WORDLEN, EXTEND = 0) (
+  input  logic [2:0]                   Size,
+  input  logic [$clog2(WORDLEN/8)-1:0] Adr,
   output logic [WORDLEN/8-1:0]         ByteMask,
   output logic [WORDLEN/8-1:0]         ByteMaskExtended
 );
 
-  if(EXTEND) begin
+  if (EXTEND) begin
     logic [WORDLEN*2/8-1:0]              ExtendedByteMask;
+    // 2^(2^Size) - 1 has one bit set per byte accessed; shift it to the byte address.
     // 'd2 means 2, but stops Design Compiler from complaining about signed to unsigned conversion
     assign ExtendedByteMask = (('d2**('d2**Size))-'d1) << Adr;
     assign ByteMask = ExtendedByteMask[WORDLEN/8-1:0];

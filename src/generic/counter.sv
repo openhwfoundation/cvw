@@ -25,7 +25,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module counter #(parameter WIDTH=8) (
+module counter #(parameter WIDTH = 8) (
   input  logic             clk, reset, en,
   output logic [WIDTH-1:0] q
 );

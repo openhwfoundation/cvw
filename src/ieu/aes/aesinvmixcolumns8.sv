@@ -26,22 +26,22 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvmixcolumns8(
-   input  logic [7:0] a,
-   output logic [31:0] y
+  input  logic [7:0]  a,
+  output logic [31:0] y
 );
 
-   logic [10:0] t, x0, x1, x2, x3;
+  logic [10:0] t, x0, x1, x2, x3;
 
-   // aes32d operates on shifted versions of the input
-   assign t  = {a, 3'b0} ^ {3'b0, a};
-   assign x0 = {a, 3'b0} ^ {1'b0, a, 2'b0} ^ {2'b0, a, 1'b0};
-   assign x1 = t;
-   assign x2 = t ^ {1'b0, a, 2'b0};
-   assign x3 = t ^ {2'b0, a, 1'b0};
+  // InvMixColumns of a column whose only nonzero byte is a: bytes 0-3 are 0e*a, 09*a, 0d*a, 0b*a,
+  // unreduced (x^k is a left shift by k); zknde32 rotates the result into position
+  assign t  = {a, 3'b0} ^ {3'b0, a};
+  assign x0 = {a, 3'b0} ^ {1'b0, a, 2'b0} ^ {2'b0, a, 1'b0};
+  assign x1 = t;
+  assign x2 = t ^ {1'b0, a, 2'b0};
+  assign x3 = t ^ {2'b0, a, 1'b0};
 
-   galoismultinverse8 gm0 (x0, y[7:0]);
-   galoismultinverse8 gm1 (x1, y[15:8]);
-   galoismultinverse8 gm2 (x2, y[23:16]);
-   galoismultinverse8 gm3 (x3, y[31:24]);
-
- endmodule
+  galoismultinverse8 gm0 (x0, y[7:0]);
+  galoismultinverse8 gm1 (x1, y[15:8]);
+  galoismultinverse8 gm2 (x2, y[23:16]);
+  galoismultinverse8 gm3 (x3, y[31:24]);
+endmodule

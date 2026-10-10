@@ -60,7 +60,6 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]                      SizeBytesMinus1;
   logic                            MatchingR, MatchingW, MatchingX, MatchingL;
 
-
   if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
       .PhysicalAddress,
@@ -84,11 +83,12 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   // Only enforce PMP checking for effective S and U modes (accounting for mstatus.MPRV) or in Machine mode when L bit is set in selected region
   assign EnforcePMP = (EffectivePrivilegeModeW != P.M_MODE) | MatchingL;
 
-  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR ; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
-  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[3] & ~MatchingW ;          // exclusion-tag: immu-pmpcboz
+  // CMOpM[2:0] = cbo.inval/clean/flush (Zicbom) need R; CMOpM[3] = cbo.zero (Zicboz) needs W
+  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
+  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[3] & ~MatchingW;           // exclusion-tag: immu-pmpcboz
   assign PMPCMOAccessFault      = PMPCBOZAccessFault | PMPCBOMAccessFault;              // exclusion-tag: immu-pmpcboaccess
 
-  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX ;
-  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW)  | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
+  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX;
+  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW) | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
   assign PMPLoadAccessFaultM      = EnforcePMP & ReadAccessM & ~WriteAccessM & ~MatchingR;
- endmodule
+endmodule

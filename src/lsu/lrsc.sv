@@ -58,7 +58,7 @@ module lrsc import cvw::*;  #(parameter cvw_t P) (
   assign LSURWM = SquashSCM ? 2'b00 : PreLSURWM;
   always_comb begin // ReservationValidM (next value of valid reservation)
     if (lrM) ReservationValidM = 1'b1;  // set valid on load reserve
-  // if we implement multiple harts invalidate reservation if another hart stores to this reservation.
+    // if we implement multiple harts invalidate reservation if another hart stores to this reservation.
     else if (scM) ReservationValidM = 1'b0; // clear valid on store to same address or any sc
     else ReservationValidM = ReservationValidW; // otherwise don't change valid
   end

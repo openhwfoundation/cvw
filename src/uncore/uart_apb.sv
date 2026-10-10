@@ -50,7 +50,7 @@ module uart_apb import cvw::*; #(parameter cvw_t P) (
 
   assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
   assign memread  = ~PWRITE & PENABLE & PSEL;
-  assign PREADY   = 1'b1; // CLINT never takes >1 cycle to respond
+  assign PREADY   = 1'b1; // UART never takes >1 cycle to respond
   assign entry    = PADDR[2:0];
   assign MEMRb    = ~memread;
   assign MEMWb    = ~memwrite;
@@ -72,6 +72,6 @@ module uart_apb import cvw::*; #(parameter cvw_t P) (
     // E1A Driver
     .SIN, .DSRb, .DCDb, .CTSb, .RIb,
     .SOUT, .RTSb, .DTRb, .OUT1b, .OUT2b
-);
+  );
 
 endmodule

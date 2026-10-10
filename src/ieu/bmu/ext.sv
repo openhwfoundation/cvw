@@ -30,14 +30,14 @@
 
 module ext #(parameter WIDTH = 32) (
   input  logic [15:0]      A,            // Operand to extend
-  input  logic [1:0]       ExtSelect,    // B[2], B[0] of immediate
+  input  logic [1:0]       ExtSelect,    // {~B[2], B[2] & B[0]}: 00 sext.b, 01 sext.h, 10 zext.h
   output logic [WIDTH-1:0] ExtResult);   // Extend Result
 
   logic [WIDTH-1:0] sexthResult, zexthResult, sextbResult;
 
-  assign sexthResult = {{(WIDTH-16){A[15]}},A[15:0]};
-  assign zexthResult = {{(WIDTH-16){1'b0}},A[15:0]};
-  assign sextbResult = {{(WIDTH-8){A[7]}},A[7:0]};
+  assign sexthResult = {{(WIDTH-16){A[15]}}, A[15:0]};
+  assign zexthResult = {{(WIDTH-16){1'b0}}, A[15:0]};
+  assign sextbResult = {{(WIDTH-8){A[7]}}, A[7:0]};
 
   mux3 #(WIDTH) extmux(sextbResult, sexthResult, zexthResult, ExtSelect, ExtResult);
 endmodule

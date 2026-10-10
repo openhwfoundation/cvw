@@ -38,10 +38,10 @@ module controllerinput #(
 )(
   input  logic                HCLK,
   input  logic                HRESETn,
-  input  logic                Save,     // Two or more managers requesting (HTRANS != 00) at the same time.  Save the non-granted manager inputs
-  input  logic                Restore,  // Restore a saved manager inputs when it is finally granted
-  input  logic                Disable,  // Suppress HREADY to the non-granted manager
-  output logic                Request,  // This manager is making a request
+  input  logic                Save,      // Two or more managers requesting (HTRANS != 00) at the same time.  Save the non-granted manager inputs
+  input  logic                Restore,   // Restore the saved manager inputs when it is finally granted
+  input  logic                Disable,   // Suppress HREADY to the non-granted manager
+  output logic                Request,   // This manager is making a request
   // controller input
   input  logic [1:0]          HTRANSIn,  // Manager input. AHB transaction type, 00: IDLE, 10 NON_SEQ, 11 SEQ
   input  logic                HWRITEIn,  // Manager input. AHB 0: Read operation 1: Write operation

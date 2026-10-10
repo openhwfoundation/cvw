@@ -30,13 +30,13 @@
 
 module byteop #(parameter WIDTH=32) (
   input  logic [WIDTH-1:0] A,             // Operands
-  input  logic             ByteSelect,    // LSB of Immediate
+  input  logic             ByteSelect,    // LSB of immediate: 1 for orc.b, 0 for rev8
   output logic [WIDTH-1:0] ByteResult);   // rev8, orcb result
 
   logic [WIDTH-1:0] OrcBResult, Rev8Result;
   genvar i;
 
-  for (i=0;i<WIDTH;i+=8) begin : byteloop
+  for (i=0; i<WIDTH; i+=8) begin : byteloop
     assign OrcBResult[i+7:i] = {8{|A[i+7:i]}};
     assign Rev8Result[WIDTH-i-1:WIDTH-i-8] = A[i+7:i];
   end

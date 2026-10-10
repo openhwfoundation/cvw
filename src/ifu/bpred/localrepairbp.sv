@@ -28,20 +28,19 @@
 
 module localrepairbp import cvw::*; #(parameter cvw_t P,
                                       parameter XLEN,
-                       parameter m = 6, // 2^m = number of local history branches
-                       parameter k = 10) ( // number of past branches stored
-  input logic             clk,
-  input logic             reset,
-  input logic             StallF, StallD, StallE, StallM, StallW,
-  input logic             FlushD, FlushE, FlushM, FlushW,
+                                      parameter m = 6, // 2^m = number of local history branches
+                                      parameter k = 10) ( // number of past branches stored
+  input  logic            clk,
+  input  logic            reset,
+  input  logic            StallF, StallD, StallE, StallM, StallW,
+  input  logic            FlushD, FlushE, FlushM, FlushW,
   output logic [1:0]      BPDirD,
   output logic            BPDirWrongE,
   // update
-  input logic [XLEN-1:0] PCNextF, PCE, PCM,
-  input logic             BranchD, BranchE, BranchM, PCSrcE
+  input  logic [XLEN-1:0] PCNextF, PCE, PCM,
+  input  logic            BranchD, BranchE, BranchM, PCSrcE
 );
 
-  //logic [1:0]             BPDirD, BPDirE;
   logic [1:0]             BPDirE;
   logic [1:0]             BPDirM;
   logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
@@ -51,13 +50,12 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
   logic                   PCSrcM;
   logic [2**m-1:0][k-1:0] LHRArray;
   logic [m-1:0]           IndexLHRNextF, IndexLHRM;
-  logic [XLEN-1:0]       PCW;
+  logic [XLEN-1:0]        PCW;
 
   logic [k-1:0]           LHRCommittedF, LHRSpeculativeF;
   logic [m-1:0]           IndexLHRD;
   logic [k-1:0]           LHRNextE;
   logic                   SpeculativeFlushedF;
-
 
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**k), .WIDTH(2)) PHT(.clk(clk),
     .ce1(~StallD), .ce2(~StallW & ~FlushW),
@@ -68,20 +66,18 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
     .we2(BranchM),
     .bwe2(1'b1));
 
-  //flopenrc #(2) PredictionRegD(clk, reset,  FlushD, ~StallD, BPDirF, BPDirD);
-  flopenrc #(2) PredictionRegE(clk, reset,  FlushE, ~StallE, BPDirD, BPDirE);
-  flopenrc #(2) PredictionRegM(clk, reset,  FlushM, ~StallM, BPDirE, BPDirM);
+  flopenrc #(2) PredictionRegE(clk, reset, FlushE, ~StallE, BPDirD, BPDirE);
+  flopenrc #(2) PredictionRegM(clk, reset, FlushM, ~StallM, BPDirE, BPDirM);
 
   satCounter2 BPDirUpdateE(.BrDir(PCSrcE), .OldState(BPDirM), .NewState(NewBPDirM));
-  //flopenrc #(2) NewPredictionRegM(clk, reset,  FlushM, ~StallM, NewBPDirE, NewBPDirM);
-  flopenrc #(2) NewPredictionRegW(clk, reset,  FlushW, ~StallW, NewBPDirM, NewBPDirW);
+  flopenrc #(2) NewPredictionRegW(clk, reset, FlushW, ~StallW, NewBPDirM, NewBPDirW);
 
   assign BPDirWrongE = PCSrcE != BPDirM[1] & BranchE;
 
   // This is the main difference between global and local history basic implementations. In global,
   // the ghr wraps back into itself directly without
   // being pipelined.  I.E. GHR is not read in F and then pipelined to M where it is updated.  Instead
-  // GHR is both read and update in M.  GHR is still pipelined so that the PHT is updated with the correct
+  // GHR is both read and updated in M.  GHR is still pipelined so that the PHT is updated with the correct
   // GHR.  Local history in contrast must pipeline the specific history register read during F and then update
   // that same one in M.  This implementation does not forward if a branch matches in the D, E, or M stages.
   assign LHRNextW = BranchM ? {PCSrcM, LHRW[k-1:1]} : LHRW;
@@ -112,21 +108,18 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
     .bwe2('1));
   // RT: TODO active research: replace with small CAM, quantify benefit
   logic [2**m-1:0]        FlushedBits;
-  always_ff @(posedge clk) begin // Valid bit array,
+  always_ff @(posedge clk) begin // speculative history flushed bit array
     SpeculativeFlushedF <= FlushedBits[IndexLHRNextF];
-    if (reset | FlushD) FlushedBits        <= '1;
-    if(BranchD & ~StallE & ~FlushE) begin
+    if (reset | FlushD) FlushedBits <= '1;
+    if (BranchD & ~StallE & ~FlushE) begin
       FlushedBits[IndexLHRD] <= 1'b0;
     end
   end
 
-  //assign SpeculativeFlushedF = '1;
   mux2 #(k) LHRMux(LHRSpeculativeF, LHRCommittedF, SpeculativeFlushedF, LHRF);
 
   flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
 
-  //flopenrc #(k) LHRFReg(clk, reset, FlushD, ~StallF, LHRNextF, LHRF);
-  //assign LHRF = LHRNextF;
   flopenrc #(k) LHRDReg(clk, reset, FlushD, ~StallD, LHRF, LHRD);
   flopenrc #(k) LHREReg(clk, reset, FlushE, ~StallE, LHRD, LHRE);
   flopenrc #(k) LHRMReg(clk, reset, FlushM, ~StallM, LHRE, LHRM);

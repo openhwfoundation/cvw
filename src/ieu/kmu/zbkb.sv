@@ -33,13 +33,13 @@ module zbkb #(parameter WIDTH=32) (
   output logic [WIDTH-1:0]   ZBKBResult
 );
 
-  logic [WIDTH-1:0]         Brev8Result;  // rev8, brev8
-  logic [WIDTH-1:0]         PackResult;   // pack, packh, packw (RB64 only)
+  logic [WIDTH-1:0]         Brev8Result;  // brev8
+  logic [WIDTH-1:0]         PackResult;   // pack, packh, packw (RV64 only)
   logic [WIDTH-1:0]         ZipResult;    // zip, unzip
 
   // brev8 just uses wires
   genvar i, j;
-  for (i=0;i<WIDTH/8;i=i+1)
+  for (i=0; i<WIDTH/8; i=i+1)
     for (j=0; j<8; j=j+1)
       assign Brev8Result[i*8+j] = A[i*8+7-j];
 

@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module trap import cvw::*;  #(parameter cvw_t P) (
+module trap import cvw::*; #(parameter cvw_t P) (
   input  logic                 reset,
   input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM,
   input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
@@ -56,7 +56,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
   // interrupt if any sources are pending
-  // & with a M stage valid bit to avoid interrupts from interrupt a nonexistent flushed instruction (in the M stage)
+  // & with a M stage valid bit to avoid interrupting a nonexistent flushed instruction (in the M stage)
   // & with ~CommittedM to make sure MEPC isn't chosen so as to rerun the same instr twice
   ///////////////////////////////////////////
 
@@ -70,7 +70,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW); // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
   // wfiW is to support possible but unlikely back to back wfi instructions. wfiM would be high in the M stage, while also in the W stage.
   assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseM[3:0]]) &
-                     (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
+                         (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
 
   ///////////////////////////////////////////
   // Trigger Traps
@@ -106,21 +106,21 @@ module trap import cvw::*;  #(parameter cvw_t P) (
     else if (ValidIntsM[9])                                   CauseM = 5'd9;  // delegated Supervisor External Int
     else if (ValidIntsM[1])                                   CauseM = 5'd1;  // delegated Supervisor Sw Int
     else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int
-    else if (BothInstrPageFaultM)                             CauseM = 5'd12;
-    else if (BothInstrAccessFaultM)                           CauseM = 5'd1;
-    else if (IllegalInstrFaultM)                              CauseM = 5'd2;
+    else if (BothInstrPageFaultM)                             CauseM = 5'd12; // Instruction page fault
+    else if (BothInstrAccessFaultM)                           CauseM = 5'd1;  // Instruction access fault
+    else if (IllegalInstrFaultM)                              CauseM = 5'd2;  // Illegal instruction
     // coverage off
     // Misaligned instructions cannot occur in rv64gc
-    else if (InstrMisalignedFaultM)                           CauseM = 5'd0;
+    else if (InstrMisalignedFaultM)                           CauseM = 5'd0;  // Instruction address misaligned
     // coverage on
-    else if (BreakpointFaultM)                                CauseM = 5'd3;
-    else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW};
+    else if (BreakpointFaultM)                                CauseM = 5'd3;  // Breakpoint
+    else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW}; // Ecall: 8 from U, 9 from S, 11 from M
     else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED) CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
-    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;
-    else if (StoreAmoPageFaultM)                              CauseM = 5'd15;
-    else if (LoadPageFaultM)                                  CauseM = 5'd13;
-    else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;
-    else if (LoadAccessFaultM)                                CauseM = 5'd5;
+    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;  // Load address misaligned
+    else if (StoreAmoPageFaultM)                              CauseM = 5'd15; // Store/AMO page fault
+    else if (LoadPageFaultM)                                  CauseM = 5'd13; // Load page fault
+    else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;  // Store/AMO access fault
+    else if (LoadAccessFaultM)                                CauseM = 5'd5;  // Load access fault
     else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)  CauseM = 5'd6; // See priority in Privileged Spec 3.1.15
     else if (LoadMisalignedFaultM & P.ZICCLSM_SUPPORTED)      CauseM = 5'd4;
     else                                                      CauseM = 5'd0;

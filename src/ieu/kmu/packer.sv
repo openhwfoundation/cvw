@@ -47,6 +47,7 @@ module packer #(parameter WIDTH=32) (
   assign PackH = {{(WIDTH-16){1'b0}}, highhalfh, lowhalfh};
   assign PackW = (WIDTH == 64) ? {{(WIDTH-32){highhalfw[15]}}, highhalfw, lowhalfw} : Pack;  // not implemented for RV32; treat as Pack to simplify logic in result mux
 
+  // PackSelect = {packw, Funct3[1:0]}; packh has Funct3 = 111, pack has Funct3 = 100
   always_comb
     if      (PackSelect[1:0] == 2'b11) PackResult = PackH;
     else if (PackSelect[2]   == 1'b0)  PackResult = Pack;

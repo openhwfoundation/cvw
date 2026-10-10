@@ -29,20 +29,20 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module atomic import cvw::*;  #(parameter cvw_t P) (
-  input logic                 clk,
-  input logic                 reset,
-  input logic                 StallW,
-  input logic [P.XLEN-1:0]    ReadDataM,      // LSU ReadData XLEN because FPU does not issue atomic memory operation from FPU registers
-  input logic [P.XLEN-1:0]    IHWriteDataM,   // LSU WriteData XLEN because FPU does not issue atomic memory operation from FPU registers
-  input logic [P.PA_BITS-1:0] PAdrM,          // Physical memory address
-  input logic [6:0]           LSUFunct7M,     // AMO alu operation gated by HPTW
-  input logic [2:0]           LSUFunct3M,     // IEU or HPTW memory operation size
-  input logic [1:0]           LSUAtomicM,     // 10: AMO operation, select AMOResultM as the writedata output, 01: LR/SC operation
-  input logic [1:0]           PreLSURWM,      // IEU or HPTW Read/Write signal
-  input logic                 LSUFlushW,  // On FlushM or TLB miss ignore memory operation
-  output logic [P.XLEN-1:0]   IMAWriteDataM,  // IEU, HPTW, or AMO write data
-  output logic                SquashSCW,      // Store conditional failed disable write to GPR
-  output logic [1:0]          LSURWM          // IEU or HPTW Read/Write signal gated by LR/SC
+  input  logic                 clk,
+  input  logic                 reset,
+  input  logic                 StallW,
+  input  logic [P.XLEN-1:0]    ReadDataM,      // LSU ReadData XLEN because FPU does not issue atomic memory operation from FPU registers
+  input  logic [P.XLEN-1:0]    IHWriteDataM,   // LSU WriteData XLEN because FPU does not issue atomic memory operation from FPU registers
+  input  logic [P.PA_BITS-1:0] PAdrM,          // Physical memory address
+  input  logic [6:0]           LSUFunct7M,     // AMO alu operation gated by HPTW
+  input  logic [2:0]           LSUFunct3M,     // IEU or HPTW memory operation size
+  input  logic [1:0]           LSUAtomicM,     // 10: AMO operation, select AMOResultM as the writedata output, 01: LR/SC operation
+  input  logic [1:0]           PreLSURWM,      // IEU or HPTW Read/Write signal
+  input  logic                 LSUFlushW,      // On FlushM or TLB miss ignore memory operation
+  output logic [P.XLEN-1:0]    IMAWriteDataM,  // IEU, HPTW, or AMO write data
+  output logic                 SquashSCW,      // Store conditional failed disable write to GPR
+  output logic [1:0]           LSURWM          // IEU or HPTW Read/Write signal gated by LR/SC
 );
 
   logic [P.XLEN-1:0]          AMOResultM;

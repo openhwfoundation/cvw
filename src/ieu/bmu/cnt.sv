@@ -30,24 +30,24 @@
 
 module cnt #(parameter WIDTH = 32) (
   input  logic [WIDTH-1:0] A, RevA,    // Operands
-  input  logic [1:0]       B,          // Last 2 bits of immediate
+  input  logic [1:0]       B,          // Low 2 bits of immediate: 00 clz, 01 ctz, 10 cpop
   input  logic             W64,        // Indicates word operation
   output logic [WIDTH-1:0] CntResult   // count result
 );
 
-  //count instructions
+  // count instructions
   logic [WIDTH-1:0] czResult;        // count zeros result
   logic [WIDTH-1:0] cpopResult;      // population count result
   logic [WIDTH-1:0] lzcA, popcntA;
 
-  //only in rv64
-  if (WIDTH==64) begin
-    //clz input select mux
-    mux4 #(WIDTH) lzcmux64(A, {A[31:0],{32{1'b1}}}, RevA, {RevA[63:32],{32{1'b1}}}, {B[0],W64}, lzcA);
-    //cpop select mux
+  // only in rv64
+  if (WIDTH == 64) begin
+    // clz input select: clz (A), clzw ({A[31:0], 1s}), ctz (RevA), ctzw ({RevA[63:32], 1s}); padding with 1s caps the count at 32
+    mux4 #(WIDTH) lzcmux64(A, {A[31:0], {32{1'b1}}}, RevA, {RevA[63:32], {32{1'b1}}}, {B[0], W64}, lzcA);
+    // cpop select mux
     mux2 #(WIDTH) popcntmux64(A, {{32{1'b0}}, A[31:0]}, W64, popcntA);
   end
-  //rv32
+  // rv32
   else begin
     assign popcntA = A;
     mux2 #(WIDTH) lzcmux32(A, RevA, B[0], lzcA);

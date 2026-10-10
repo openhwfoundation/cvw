@@ -33,7 +33,7 @@
 
 // WIDTH is number of bits in one "word" of the memory, DEPTH is number of such words
 
-module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) (
+module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 1024, WIDTH = 68) (
   input  logic                     clk,
   input  logic                     ce1, ce2,
   input  logic [$clog2(DEPTH)-1:0] ra1,
@@ -120,12 +120,12 @@ module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) 
     // Write divided into part for bytes and part for extra msbs
     // coverage off
     //   when byte write enables are tied high, the last IF is always taken
-    if(WIDTH >= 8) begin
+    if (WIDTH >= 8) begin
       integer i;
       always @(posedge clk)
         if (ce2 & we2)
-          for(i = 0; i < WIDTH/8; i++)
-            if(bwe2[i]) RAM[wa2][i*8 +: 8] <= wd2[i*8 +: 8];
+          for (i = 0; i < WIDTH/8; i++)
+            if (bwe2[i]) RAM[wa2][i*8 +: 8] <= wd2[i*8 +: 8];
     end
     // coverage on
 

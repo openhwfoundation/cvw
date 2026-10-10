@@ -32,13 +32,13 @@
 
 // WIDTH is number of bits in one "word" of the memory, DEPTH is number of such words
 
-module ram1p1rwe import cvw::* ; #(parameter USE_SRAM=0, DEPTH=64, WIDTH=44) (
-  input logic                     clk,
-  input logic                     ce,
-  input logic [$clog2(DEPTH)-1:0] addr,
-  input logic [WIDTH-1:0]         din,
-  input logic                     we,
-  output logic [WIDTH-1:0]        dout
+module ram1p1rwe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 44) (
+  input  logic                     clk,
+  input  logic                     ce,
+  input  logic [$clog2(DEPTH)-1:0] addr,
+  input  logic [WIDTH-1:0]         din,
+  input  logic                     we,
+  output logic [WIDTH-1:0]         dout
 );
 
   //////////////////////////////////////////////////////////////////////////////
@@ -67,7 +67,7 @@ module ram1p1rwe import cvw::* ; #(parameter USE_SRAM=0, DEPTH=64, WIDTH=44) (
     //////////////////////////////////////////////////////////////////////////////
   end else begin : ram
     // Vivado is not implementing this as block ram for some reason.
-    // The version with byte write enables it correctly infers block ram.
+    // The version with byte write enables correctly infers block ram.
 
     bit [WIDTH-1:0]               RAM[DEPTH-1:0];
 

@@ -32,13 +32,13 @@ module privpiperegs (
   input  logic         StallD, StallE, StallM,
   input  logic         FlushD, FlushE, FlushM,
   input  logic         InstrPageFaultF, InstrAccessFaultF,  // instruction faults
-  input  logic         HPTWInstrAccessFaultF,               // hptw fault during instruction page fetch
-  input  logic         HPTWInstrPageFaultF,                 // hptw fault during instruction page fetch
+  input  logic         HPTWInstrAccessFaultF,               // hptw access fault during instruction page fetch
+  input  logic         HPTWInstrPageFaultF,                 // hptw page fault during instruction page fetch
   input  logic         IllegalIEUFPUInstrD,                 // illegal IEU instruction decoded
   output logic         InstrPageFaultM, InstrAccessFaultM,  // delayed instruction faults
   output logic         IllegalIEUFPUInstrM,                 // delayed illegal IEU instruction
-  output logic         HPTWInstrAccessFaultM,               // hptw fault during instruction page fetch
-  output logic         HPTWInstrPageFaultM                  // hptw fault during instruction page fetch
+  output logic         HPTWInstrAccessFaultM,               // hptw access fault during instruction page fetch
+  output logic         HPTWInstrPageFaultM                  // hptw page fault during instruction page fetch
 );
 
   // Delayed fault signals

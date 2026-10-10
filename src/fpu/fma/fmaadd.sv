@@ -30,7 +30,7 @@
 module fmaadd import cvw::*;  #(parameter cvw_t P) (
   input  logic [3*P.NF+5:0]    Am,         // aligned addend's mantissa for addition in U(NF+5.2NF+1)
   input  logic [P.NE-1:0]      Ze,         // exponent of Z
-  input  logic                 Ps,         // the product sign and the alligend addeded's sign (Modified Z sign for other operations)
+  input  logic                 Ps,         // the product's sign
   input  logic [P.NE+1:0]      Pe,         // product's exponent
   input  logic [2*P.NF+1:0]    Pm,         // the product's mantissa
   input  logic                 InvA,       // invert the aligned addend
@@ -52,7 +52,7 @@ module fmaadd import cvw::*;  #(parameter cvw_t P) (
 
   // Choose an inverted or non-inverted addend.  Put carry into adder/LZA for addition
   assign AmInv = InvA ? ~Am : Am;
-  // Kill the product if the product is too small to effect the addition (determined in fma1.sv)
+  // Kill the product if the product is too small to affect the addition (determined in fmaalign.sv)
   assign PmKilled = KillProd ? 0 : Pm;
   // Do the addition
   //      - calculate a positive and negative sum in parallel
@@ -62,8 +62,8 @@ module fmaadd import cvw::*;  #(parameter cvw_t P) (
   //      addend - prod where product is killed (and not exactly zero) then don't add +1 from negation
   //          ie ~(InvA&ASticky&KillProd)&InvA = (~ASticky|~KillProd)&InvA
   //          in this case this result is only ever selected when InvA=1 so we can remove &InvA
-  assign {NegSum, PreSum} = {{P.NF+3{1'b0}}, PmKilled, 2'b0} + {InvA, AmInv} + {{3*P.NF+5{1'b0}}, (~ASticky|KillProd)&InvA};
-  assign NegPreSum = Am + {{P.NF+2{1'b1}}, ~PmKilled, 2'b0} + {(3*P.NF+3)'(0), ~ASticky|~KillProd, 2'b0};
+  assign {NegSum, PreSum} = {{P.NF+3{1'b0}}, PmKilled, 2'b0} + {InvA, AmInv} + {{3*P.NF+5{1'b0}}, (~ASticky | KillProd) & InvA};
+  assign NegPreSum = Am + {{P.NF+2{1'b1}}, ~PmKilled, 2'b0} + {(3*P.NF+3)'(0), ~ASticky | ~KillProd, 2'b0};
 
   // Choose the positive sum and accompanying LZA result.
   assign Sm = NegSum ? NegPreSum : PreSum;
@@ -71,6 +71,6 @@ module fmaadd import cvw::*;  #(parameter cvw_t P) (
   //  if p - z is the Sum negative
   //  if -p + z is the Sum positive
   //  if -p - z then the Sum is negative
-  assign Ss = NegSum^Ps;
+  assign Ss = NegSum ^ Ps;
   assign Se = KillProd ? {2'b0, Ze} : Pe;
 endmodule

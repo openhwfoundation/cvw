@@ -32,7 +32,7 @@ module roundsign(
   input logic         Ys,     // y sign
   input logic         CvtCs,  // convert result sign
   input logic         FmaSs,  // fma sum sign
-  input logic         Sqrt,   // sqrt oppertion? (when using divsqrt unit)
+  input logic         Sqrt,   // sqrt operation? (when using divsqrt unit)
   input logic         FmaOp,  // is fma operation
   input logic         DivOp,  // is divsqrt operation
   input logic         CvtOp,  // is cvt operation
@@ -42,9 +42,9 @@ module roundsign(
   logic               Qs;     // divsqrt result sign
 
   // calculate divsqrt sign
-  assign Qs = Xs^(Ys&~Sqrt);
+  assign Qs = Xs ^ (Ys & ~Sqrt);
 
   // Select sign for rounding calculation
-  assign Ms = (FmaSs&FmaOp) | (CvtCs&CvtOp) | (Qs&DivOp);
+  assign Ms = (FmaSs & FmaOp) | (CvtCs & CvtOp) | (Qs & DivOp);
 
 endmodule

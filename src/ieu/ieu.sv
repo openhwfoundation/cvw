@@ -34,7 +34,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]        STATUS_FS,                       // is FPU enabled?
   input  logic [3:0]        ENVCFG_CBE,                      // Cache block operation enables
   input  logic              IllegalIEUFPUInstrD,             // Illegal instruction
-  output logic              IllegalBaseInstrD,               // Illegal I-type instruction, or illegal RV32 access to upper 16 registers
+  output logic              IllegalBaseInstrD,               // Illegal base integer instruction, or illegal RV32E access to upper 16 registers
   // Execute stage signals
   input  logic [P.XLEN-1:0] PCE,                             // PC
   input  logic [P.XLEN-1:0] PCLinkE,                         // PC + 4
@@ -48,7 +48,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic              MDUActiveE,                      // Mul/Div instruction being executed
   output logic [3:0]        CMOpM,                           // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic              IFUPrefetchE,                    // instruction prefetch
-  output logic              LSUPrefetchM,                    // datata prefetch
+  output logic              LSUPrefetchM,                    // data prefetch
   // Memory stage signals
   input  logic              SquashSCW,                       // Squash store conditional, from LSU
   output logic [1:0]        MemRWE,                          // Read/write control goes to LSU
@@ -64,7 +64,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic              BranchD, BranchE,
   output logic              JumpD, JumpE,
   // Writeback stage signals
-  input  logic [P.XLEN-1:0] FIntDivResultW,                  // Integer divide result from FPU fdivsqrt)
+  input  logic [P.XLEN-1:0] FIntDivResultW,                  // Integer divide result from FPU (fdivsqrt)
   input  logic [P.XLEN-1:0] CSRReadValW,                     // CSR read value,
   input  logic [P.XLEN-1:0] MDUResultW,                      // multiply/divide unit result
   input  logic [P.XLEN-1:0] FCvtIntResW,                     // FPU's float to int conversion result
@@ -77,7 +77,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic              StructuralStallD,                // IEU detects structural hazard in Decode stage
   output logic              LoadStallD,                      // Structural stalls for load, sent to performance counters
   output logic              StoreStallD,                     // load after store hazard
-  output logic              CSRReadM, CSRWriteM, PrivilegedM,// CSR read, CSR write, is privileged instruction
+  output logic              CSRReadM, CSRWriteM, PrivilegedM, // CSR read, CSR write, is privileged instruction
   output logic              CSRWriteFenceM                   // CSR write or fence instruction needs to flush subsequent instructions
 );
 
@@ -89,7 +89,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   logic [2:0] ALUSelectE;                                    // ALU select mux signal
   logic       FWriteIntM;                                    // FPU writing to integer register file
   logic       IntDivW;                                       // Integer divide instruction
-  logic [3:0] BSelectE;                                      // Indicates if ZBA_ZBB_ZBC_ZBS instruction in one-hot encoding
+  logic [3:0] BSelectE;                                      // BMU result select (binary encoded; see bitmanipalu)
   logic [3:0] ZBBSelectE;                                    // ZBB Result Select Signal in Execute Stage
   logic [2:0] BALUControlE;                                  // ALU Control signals for B instructions in Execute Stage
   logic       SubArithE;                                     // Subtraction or arithmetic shift
@@ -109,7 +109,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   controller #(P) c(
     .clk, .reset, .StallD, .FlushD, .InstrD, .STATUS_FS, .ENVCFG_CBE, .ImmSrcD,
     .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
-    .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D,  .Rs2E,
+    .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D, .Rs2E,
     .StallE, .FlushE, .FlagsE, .FWriteIntE,
     .PCSrcE, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE,
     .Funct3E, .Funct7E, .IntDivE, .W64E, .UW64E, .SubArithE, .BranchD, .BranchE, .JumpD, .JumpE,

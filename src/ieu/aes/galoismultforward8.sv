@@ -26,12 +26,13 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module galoismultforward8(
-   input  logic [7:0] a,
-   output logic [7:0] y
+  input  logic [7:0] a,
+  output logic [7:0] y
 );
 
-   logic [7:0] leftshift;
+  logic [7:0] leftshift;
 
-   assign leftshift = {a[6:0], 1'b0};
-   assign y = a[7] ? (leftshift ^ 8'b00011011) : leftshift;
+  assign leftshift = {a[6:0], 1'b0};
+  // Multiply by x in GF(2^8): shift left and reduce by the AES polynomial (0x1B) if bit 7 overflows
+  assign y = a[7] ? (leftshift ^ 8'b00011011) : leftshift;
 endmodule

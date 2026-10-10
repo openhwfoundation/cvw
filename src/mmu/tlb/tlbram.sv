@@ -46,7 +46,7 @@ module tlbram import cvw::*;  #(parameter cvw_t P,
 
   // RAM implemented with array of flops and AND/OR read logic
   tlbramline #(P) tlbramline[TLB_ENTRIES-1:0]
-     (.clk, .reset, .re(Matches), .we(WriteEnables),
+    (.clk, .reset, .re(Matches), .we(WriteEnables),
       .d(PTE), .q(RamRead), .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs));
   or_rows #(TLB_ENTRIES, P.XLEN) PTEOr(RamRead, PageTableEntry);
 

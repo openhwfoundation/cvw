@@ -42,7 +42,7 @@ module aes64ks1i(
   assign SboxKIn = finalround ? rs1[63:32] : rs1Rotate;  // Don't rotate on the last round
 
   // Share sbox with encryption in zknde64.  This module just sends value to shared sbox and gets result back
-  // send out value as SboxKIn, get back subsittuted result as Sbox0Out
+  // send out value as SboxKIn, get back substituted result as Sbox0Out
 
   assign result[31:0]  = Sbox0Out ^ rcon;
   assign result[63:32] = Sbox0Out ^ rcon;

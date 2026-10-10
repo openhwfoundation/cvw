@@ -50,17 +50,17 @@
  *                         RSW(2) -- for OS
  */
 
-// The TLB will have 2**ENTRY_BITS total entries
+// The TLB has TLB_ENTRIES entries
 module tlb import cvw::*;  #(parameter cvw_t P,
                              parameter TLB_ENTRIES = 8, ITLB = 0) (
-  input logic                      clk, reset,
+  input  logic                     clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
-  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
+  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processor, accounting for mstatus.MPRV
   input  logic                     ReadAccess,
   input  logic                     WriteAccess,
   input  logic [3:0]               CMOpM,
@@ -93,13 +93,13 @@ module tlb import cvw::*;  #(parameter cvw_t P,
   logic                           Misaligned;
   logic                           MegapageMisaligned;
   logic                           PTE_N;         // NAPOT page table entry
-  logic                           NAPOT4;        // pte.ppn[3:0] = 1000, indicating 64 KiB continuous NAPOT region
+  logic                           NAPOT4;        // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
 
-  if(P.XLEN == 32) begin
+  if (P.XLEN == 32) begin
     assign MegapageMisaligned = |(PPN[9:0]); // must have zero PPN0
     assign Misaligned = (HitPageType == 3'b001) & MegapageMisaligned;
   end else begin // 64-bit
-    logic  GigapageMisaligned, TerapageMisaligned, PetapageMisaligned;
+    logic GigapageMisaligned, TerapageMisaligned, PetapageMisaligned;
     assign PetapageMisaligned = |(PPN[35:0]) & P.SV57_SUPPORTED;  // must have zero PPN3, PPN2, PPN1, PPN0
     assign TerapageMisaligned = |(PPN[26:0]) & P.SV48_SUPPORTED;  // must have zero PPN2, PPN1, PPN0
     assign GigapageMisaligned = |(PPN[17:0]);                     // must have zero PPN1 and PPN0

@@ -32,7 +32,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrm  import cvw::*;  #(parameter cvw_t P) (
+module csrm import cvw::*; #(parameter cvw_t P) (
   input  logic                     clk, reset,
   input  logic                     UngatedCSRMWriteM, CSRMWriteM, MTrapM,
   input  logic [11:0]              CSRAdrM,
@@ -101,6 +101,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   /* verilator lint_off UNUSEDPARAM */
   // Constants
   localparam ZERO = {(P.XLEN){1'b0}};
+  // Delegable exceptions: causes 0-9, 12, 13, 15.  Cause 11 (ecall from M-mode) cannot be delegated and 10, 14 are reserved.
   // when compressed instructions are supported, there can't be misaligned instructions
   localparam MEDELEG_MASK  = P.ZCA_SUPPORTED ? 16'hB3FE : 16'hB3FF;
   localparam MIDELEG_MASK  = 12'h222; // we choose to not make machine interrupts delegable
@@ -111,7 +112,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
                               (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
   localparam Gm1 = P.PMP_G > 0 ? P.PMP_G - 1 : 0; // max(G-1, 0)
 
- // There are PMP_ENTRIES = 0, 16, or 64 PMPADDR registers, each of which has its own flop
+  // There are PMP_ENTRIES = 0, 16, or 64 PMPADDR registers, each of which has its own flop
   genvar i;
   if (P.PMP_ENTRIES > 0) begin : pmp
     logic [P.PMP_ENTRIES-1:0] WritePMPCFGM;
@@ -121,7 +122,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
     logic [1:0]               CSRPMPWRLegalizedWriteValM[P.PMP_ENTRIES-1:0];
     logic [1:0]               CSRPMPALegalizedWriteValM[P.PMP_ENTRIES-1:0];
     logic [P.PMP_ENTRIES-1:0] ADDRLocked, CFGLocked;
-    for(i=0; i<P.PMP_ENTRIES; i++) begin : pmp
+    for (i = 0; i < P.PMP_ENTRIES; i++) begin : pmp
       // when the lock bit is set, don't allow writes to the PMPCFG or PMPADDR
       // also, when the lock bit of the next entry is set and the next entry is TOR, don't allow writes to this entry PMPADDR
       assign CFGLocked[i] = PMPCFG_ARRAY_REGW[i][7];
@@ -133,16 +134,18 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
       assign WritePMPADDRM[i] = (CSRMWriteM & (CSRAdrM == (PMPADDR0+i))) & ~ADDRLocked[i];
       // PMPADDR_ARRAY_PREGRAIN_REGW flip-flops hold all the bits even though all but G-1 lsbs can be controlled by PMP mode and granularity
       flopenr #(P.PA_BITS-2) PMPADDRreg(clk, reset, WritePMPADDRM[i], CSRWriteValM[P.PA_BITS-3:0], PMPADDR_ARRAY_PREGRAIN_REGW[i]);
-      if (P.XLEN==64) begin
+      // RV64 packs 8 entries into each even-numbered pmpcfg CSR (pmpcfg0, pmpcfg2, ...); RV32 packs 4 into each pmpcfg CSR
+      if (P.XLEN == 64) begin
         assign WritePMPCFGM[i] = (CSRMWriteM & (CSRAdrM == (PMPCFG0+2*(i/8)))) & ~CFGLocked[i];
         assign CSRPMPWriteValM[i] = CSRWriteValM[(i%8)*8+7:(i%8)*8];
       end else begin
-        assign WritePMPCFGM[i]  = (CSRMWriteM & (CSRAdrM == (PMPCFG0+i/4))) & ~CFGLocked[i];
+        assign WritePMPCFGM[i] = (CSRMWriteM & (CSRAdrM == (PMPCFG0+i/4))) & ~CFGLocked[i];
         assign CSRPMPWriteValM[i] = CSRWriteValM[(i%4)*8+7:(i%4)*8];
       end
 
       assign CSRPMPALegalizedWriteValM[i] = ((P.PMP_G > 0) & (CSRPMPWriteValM[i][4:3] == 2'b10)) ? PMPCFG_ARRAY_REGW[i][4:3] : CSRPMPWriteValM[i][4:3]; // WARL A field keeps its old value when attempting to write unselectable NA4 mode
       assign CSRPMPWRLegalizedWriteValM[i] = {(CSRPMPWriteValM[i][1] & CSRPMPWriteValM[i][0]), CSRPMPWriteValM[i][0]}; // legalize WR fields (reserved 10 written as 00)
+      // pmpcfg fields: {L, reserved 00, A, X, W, R}
       assign CSRPMPLegalizedWriteValM[i] = {CSRPMPWriteValM[i][7], 2'b00, CSRPMPALegalizedWriteValM[i], CSRPMPWriteValM[i][2], CSRPMPWRLegalizedWriteValM[i]};
       flopenr #(8) PMPCFGreg(clk, reset, WritePMPCFGM[i], CSRPMPLegalizedWriteValM[i], PMPCFG_ARRAY_REGW[i]);
     end
@@ -158,7 +161,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
 
   // Write machine Mode CSRs
   assign WriteMSTATUSM       = CSRMWriteM & (CSRAdrM == MSTATUS);
-  assign WriteMSTATUSHM      = CSRMWriteM & (CSRAdrM == MSTATUSH) & (P.XLEN==32);
+  assign WriteMSTATUSHM      = CSRMWriteM & (CSRAdrM == MSTATUSH) & (P.XLEN == 32);
   assign WriteMTVECM         = CSRMWriteM & (CSRAdrM == MTVEC);
   assign WriteMEDELEGM       = CSRMWriteM & (CSRAdrM == MEDELEG);
   assign WriteMIDELEGM       = CSRMWriteM & (CSRAdrM == MIDELEG);
@@ -215,7 +218,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
     end else begin // RV32 has high and low halves
       logic WriteMENVCFGHM;
       assign MENVCFG_PreWriteValM = {CSRWriteValM, CSRWriteValM};
-      assign WriteMENVCFGHM = CSRMWriteM & (CSRAdrM == MENVCFGH) & (P.XLEN==32);
+      assign WriteMENVCFGHM = CSRMWriteM & (CSRAdrM == MENVCFGH) & (P.XLEN == 32);
       flopenr #(P.XLEN) MENVCFGreg(clk, reset, WriteMENVCFGM, MENVCFG_WriteValM[31:0], MENVCFG_REGW[31:0]);
       flopenr #(P.XLEN) MENVCFGHreg(clk, reset, WriteMENVCFGHM, MENVCFG_WriteValM[63:32], MENVCFG_REGW[63:32]);
       assign MENVCFGH_REGW = MENVCFG_REGW[63:32];
@@ -226,7 +229,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   end
 
   // Grain alignment for PMPADDR read values.
-  for(i=0; i<P.PMP_ENTRIES; i++)
+  for (i = 0; i < P.PMP_ENTRIES; i++)
     always_comb begin
       logic [P.XLEN-1:0] pmpaddr;
       pmpaddr = {{(P.XLEN-(P.PA_BITS-2)){1'b0}}, PMPADDR_ARRAY_PREGRAIN_REGW[i]}; // raw value in PMP registers
@@ -243,15 +246,15 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
     IllegalCSRMAccessM = !(P.S_SUPPORTED) & (CSRAdrM == MEDELEG | CSRAdrM == MIDELEG); // trap on DELEG register access when no S or N-mode
     if ($unsigned(CSRAdrM) >= PMPADDR0 & $unsigned(CSRAdrM) < PMPADDR0 + P.PMP_ENTRIES)
       CSRMReadValM = {{(P.XLEN-(P.PA_BITS-2)){1'b0}}, PMPADDR_ARRAY_REGW[CSRAdrM - PMPADDR0]}; // read PMPADDR entry with lsbs aligned to grain based on NAPOT vs. TOR
-    else if ($unsigned(CSRAdrM) >= PMPCFG0 & $unsigned(CSRAdrM) < PMPCFG0 + P.PMP_ENTRIES/4 & (P.XLEN==32 | CSRAdrM[0] == 0)) begin
-      // only odd-numbered PMPCFG entries exist in RV64
-      if (P.XLEN==64) begin
+    else if ($unsigned(CSRAdrM) >= PMPCFG0 & $unsigned(CSRAdrM) < PMPCFG0 + P.PMP_ENTRIES/4 & (P.XLEN == 32 | CSRAdrM[0] == 0)) begin
+      // only even-numbered PMPCFG registers exist in RV64
+      if (P.XLEN == 64) begin
         entry = ({CSRAdrM[11:1], 1'b0} - PMPCFG0)*4; // disregard odd entries in RV64
-        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+7],PMPCFG_ARRAY_REGW[entry+6],PMPCFG_ARRAY_REGW[entry+5],PMPCFG_ARRAY_REGW[entry+4],
-                        PMPCFG_ARRAY_REGW[entry+3],PMPCFG_ARRAY_REGW[entry+2],PMPCFG_ARRAY_REGW[entry+1],PMPCFG_ARRAY_REGW[entry]};
+        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+7], PMPCFG_ARRAY_REGW[entry+6], PMPCFG_ARRAY_REGW[entry+5], PMPCFG_ARRAY_REGW[entry+4],
+                        PMPCFG_ARRAY_REGW[entry+3], PMPCFG_ARRAY_REGW[entry+2], PMPCFG_ARRAY_REGW[entry+1], PMPCFG_ARRAY_REGW[entry]};
       end else begin
         entry = (CSRAdrM - PMPCFG0)*4;
-        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+3],PMPCFG_ARRAY_REGW[entry+2],PMPCFG_ARRAY_REGW[entry+1],PMPCFG_ARRAY_REGW[entry]};
+        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+3], PMPCFG_ARRAY_REGW[entry+2], PMPCFG_ARRAY_REGW[entry+1], PMPCFG_ARRAY_REGW[entry]};
       end
     end
     else case (CSRAdrM)
@@ -262,7 +265,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
       MHARTID:       CSRMReadValM = MHARTID_REGW; // hardwired to 0
       MCONFIGPTR:    CSRMReadValM = '0; // hardwired to 0
       MSTATUS:       CSRMReadValM = MSTATUS_REGW;
-      MSTATUSH:      if (P.XLEN==32) CSRMReadValM = MSTATUSH_REGW;
+      MSTATUSH:      if (P.XLEN == 32) CSRMReadValM = MSTATUSH_REGW;
                      else IllegalCSRMAccessM = 1'b1;
       MTVEC:         CSRMReadValM = MTVEC_REGW;
       MEDELEG:       CSRMReadValM = {{(P.XLEN-16){1'b0}}, MEDELEG_REGW};
@@ -277,7 +280,7 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
                      else IllegalCSRMAccessM = 1'b1;
       MENVCFG:       if (P.U_SUPPORTED) CSRMReadValM = MENVCFG_REGW[P.XLEN-1:0];
                      else IllegalCSRMAccessM = 1'b1;
-      MENVCFGH:      if (P.U_SUPPORTED & P.XLEN==32) CSRMReadValM = MENVCFGH_REGW;
+      MENVCFGH:      if (P.U_SUPPORTED & P.XLEN == 32) CSRMReadValM = MENVCFGH_REGW;
                      else IllegalCSRMAccessM = 1'b1;
       MCOUNTINHIBIT: CSRMReadValM = {{(P.XLEN-32){1'b0}}, MCOUNTINHIBIT_REGW};
       default:       IllegalCSRMAccessM = 1'b1;

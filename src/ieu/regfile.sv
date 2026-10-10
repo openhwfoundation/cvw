@@ -42,16 +42,15 @@ module regfile #(parameter XLEN, E_SUPPORTED) (
 
   // Three ported register file
   // Read two ports combinationally (a1/rd1, a2/rd2)
-  // Write third port on rising edge of clock (a3/wd3/we3)
-  // Write occurs on falling edge of clock
+  // Write third port on falling edge of clock (a3/wd3/we3)
   // Register 0 hardwired to 0
 
   // reset is intended for simulation only, not synthesis
   // can logic be adjusted to not need resettable registers?
 
   always_ff @(negedge clk)
-    if (reset) for(i=1; i<NUMREGS; i++) rf[i] <= '0;
-    else       if (we3)                 rf[a3] <= wd3;
+    if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;
+    else       if (we3)                  rf[a3] <= wd3;
 
   assign rd1 = (a1 != 0) ? rf[a1] : 0;
   assign rd2 = (a2 != 0) ? rf[a2] : 0;

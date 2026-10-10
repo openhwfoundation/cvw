@@ -59,7 +59,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   // Writeback stage
   input  logic [4:0]           RdW,                                // which FP register to write to (from IEU)
   input  logic [P.FLEN-1:0]    ReadDataW,                          // Read data (from LSU)
-  output logic [P.XLEN-1:0]    FCvtIntResW,                        // convert result to to be written to integer register (to IEU)
+  output logic [P.XLEN-1:0]    FCvtIntResW,                        // convert result to be written to integer register (to IEU)
   output logic                 FCvtIntW,                           // select FCvtIntRes (to IEU)
   output logic [P.XLEN-1:0]    FIntDivResultW                      // Result from integer division (to IEU)
 );
@@ -71,8 +71,8 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   // control signals
   logic                        FRegWriteW;                         // FP register write enable
   logic [2:0]                  FrmE, FrmM;                         // FP rounding mode
-  logic [P.FMTBITS-1:0]        FmtE, FmtM;                         // FP precision 0-single 1-double
-  logic                        FDivStartE, IDivStartE;             // Start division or squareroot
+  logic [P.FMTBITS-1:0]        FmtE, FmtM;                         // FP format
+  logic                        FDivStartE, IDivStartE;             // Start division or square root
   logic                        FWriteIntM;                         // Write to integer register
   logic [1:0]                  ForwardXE, ForwardYE, ForwardZE;    // forwarding mux control signals
   logic [2:0]                  OpCtrlE, OpCtrlM;                   // Select which operation to do in each component
@@ -121,12 +121,12 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   logic [1:0]                  FmaZSelE;                           // Select Z = Y when adding or subtracting, 0 when multiplying
   logic [P.FMALEN-1:0]         SmE, SmM;                           // Sum significand
   logic                        FmaAStickyE, FmaAStickyM;           // FMA addend sticky bit output
-  logic [P.NE+1:0]             SeE,SeM;                            // Sum exponent
+  logic [P.NE+1:0]             SeE, SeM;                           // Sum exponent
   logic                        InvAE, InvAM;                       // Invert addend
   logic                        AsE, AsM;                           // Addend sign
   logic                        PsE, PsM;                           // Product sign
   logic                        SsE, SsM;                           // Sum sign
-  logic [$clog2(P.FMALEN+1)-1:0] SCntE, SCntM;                       // LZA sum leading zero count
+  logic [$clog2(P.FMALEN+1)-1:0] SCntE, SCntM;                     // LZA sum leading zero count
 
   // Cvt Signals
   logic [P.NE:0]               CeE, CeM;                           // convert intermediate exponent
@@ -138,7 +138,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]           FCvtIntResM;                        // fcvt integer result (for IEU)
 
   // divide signals
-  logic [P.DIVb:0]             UmM;                                // fdivsqrt signifcand
+  logic [P.DIVb:0]             UmM;                                // fdivsqrt significand
   logic [P.NE+1:0]             UeM;                                // fdivsqrt exponent
   logic                        DivStickyM;                         // fdivsqrt sticky bit
   logic                        FDivDoneE, IFDivStartE;             // fdivsqrt control signals
@@ -203,34 +203,37 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .FRegWriteE, .FRegWriteM, .FRegWriteW, .RdE, .RdM, .RdW, .FResSelM,
     .XEnD, .YEnD, .ZEnD, .FPUStallD, .ForwardXE, .ForwardYE, .ForwardZE);
 
-  // forwarding muxs
+  // forwarding muxes
   mux3  #(P.FLEN)  fxemux (FRD1E, FResultW, PreFpResM, ForwardXE, XE);
   mux3  #(P.FLEN)  fyemux (FRD2E, FResultW, PreFpResM, ForwardYE, PreYE);
   mux3  #(P.FLEN)  fzemux (FRD3E, FResultW, PreFpResM, ForwardZE, PreZE);
 
   // Select NAN-boxed value of Y = 1.0 in proper format for fma to add/subtract X*Y+Z
-  if(P.FPSIZES == 1) assign BoxedOneE = {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)};
-  else if(P.FPSIZES == 2)
-      mux2 #(P.FLEN) fonemux ({{P.FLEN-P.LEN1{1'b1}}, 2'b0, {P.NE1-1{1'b1}}, (P.NF1)'(0)}, {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)}, FmtE, BoxedOneE); // NaN boxing zeroes
-  else if(P.FPSIZES == 3 | P.FPSIZES == 4)
-      mux4 #(P.FLEN) fonemux ({{P.FLEN-P.S_LEN{1'b1}}, 2'b0, {P.S_NE-1{1'b1}}, (P.S_NF)'(0)},
-                              {{P.FLEN-P.D_LEN{1'b1}}, 2'b0, {P.D_NE-1{1'b1}}, (P.D_NF)'(0)},
-                              {{P.FLEN-P.H_LEN{1'b1}}, 2'b0, {P.H_NE-1{1'b1}}, (P.H_NF)'(0)},
-                              {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)}, FmtE, BoxedOneE); // NaN boxing zeroes
-  assign FmaAddSubE = OpCtrlE[2]&OpCtrlE[1]&(PostProcSelE==2'b10);
+  // 1.0 = sign 0, biased exponent 011...1, fraction 0
+  if (P.FPSIZES == 1) assign BoxedOneE = {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)};
+  else if (P.FPSIZES == 2)
+    mux2 #(P.FLEN) fonemux ({{P.FLEN-P.LEN1{1'b1}}, 2'b0, {P.NE1-1{1'b1}}, (P.NF1)'(0)}, {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)}, FmtE, BoxedOneE); // NaN-boxed 1.0
+  else if (P.FPSIZES == 3 | P.FPSIZES == 4)
+    mux4 #(P.FLEN) fonemux ({{P.FLEN-P.S_LEN{1'b1}}, 2'b0, {P.S_NE-1{1'b1}}, (P.S_NF)'(0)},
+                            {{P.FLEN-P.D_LEN{1'b1}}, 2'b0, {P.D_NE-1{1'b1}}, (P.D_NF)'(0)},
+                            {{P.FLEN-P.H_LEN{1'b1}}, 2'b0, {P.H_NE-1{1'b1}}, (P.H_NF)'(0)},
+                            {2'b0, {P.NE-1{1'b1}}, (P.NF)'(0)}, FmtE, BoxedOneE); // NaN-boxed 1.0
+  // fadd/fsub are OpCtrl 11x in the FMA unit
+  assign FmaAddSubE = OpCtrlE[2] & OpCtrlE[1] & (PostProcSelE == 2'b10);
   mux2  #(P.FLEN)  fyaddmux (PreYE, BoxedOneE, FmaAddSubE, YE); // Force Y to be 1 for add/subtract
 
   // Select NAN-boxed value of Z = 0.0 in proper format for FMA for multiply X*Y+Z
   // For add and subtract, Z comes from second source operand
-  if(P.FPSIZES == 1) assign BoxedZeroE = '0;
-  else if(P.FPSIZES == 2)
+  if (P.FPSIZES == 1) assign BoxedZeroE = '0;
+  else if (P.FPSIZES == 2)
     mux2 #(P.FLEN) fmulzeromux ({{P.FLEN-P.LEN1{1'b1}}, {P.LEN1{1'b0}}}, (P.FLEN)'(0), FmtE, BoxedZeroE); // NaN boxing zeroes
-  else if(P.FPSIZES == 3 | P.FPSIZES == 4)
+  else if (P.FPSIZES == 3 | P.FPSIZES == 4)
     mux4 #(P.FLEN) fmulzeromux ({{P.FLEN-P.S_LEN{1'b1}}, {P.S_LEN{1'b0}}},
                                 {{P.FLEN-P.D_LEN{1'b1}}, {P.D_LEN{1'b0}}},
                                 {{P.FLEN-P.H_LEN{1'b1}}, {P.H_LEN{1'b0}}},
                                 (P.FLEN)'(0), FmtE, BoxedZeroE); // NaN boxing zeroes
-  assign FmaZSelE = {OpCtrlE[2]&OpCtrlE[1], OpCtrlE[2]&~OpCtrlE[1]};
+  // Z select: 00 = Z for multiply-add (OpCtrl 0xx), 01 = 0 for fmul (10x), 10 = Y for fadd/fsub (11x)
+  assign FmaZSelE = {OpCtrlE[2] & OpCtrlE[1], OpCtrlE[2] & ~OpCtrlE[1]};
   mux3  #(P.FLEN)  fzmulmux (PreZE, BoxedZeroE, PreYE, FmaZSelE, ZE);
 
   // unpack unit: splits FP inputs into their parts and classifies SNaN, NaN, Subnorm, Norm, Zero, Infinity
@@ -295,15 +298,15 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   end
 
   // fmv.*.x: NaN Box SrcA to extend integer to requested FP size
-  if(P.FPSIZES == 1)
+  if (P.FPSIZES == 1)
     if (P.FLEN >= P.XLEN) assign PreIntSrcE = {{P.FLEN-P.XLEN{1'b1}}, ForwardedSrcAE};
     else                  assign PreIntSrcE = ForwardedSrcAE[P.FLEN-1:0];
-  else if(P.FPSIZES == 2)
+  else if (P.FPSIZES == 2)
     if (P.FLEN >= P.XLEN)
       mux2 #(P.FLEN) SrcAMux ({{P.FLEN-P.LEN1{1'b1}}, ForwardedSrcAE[P.LEN1-1:0]}, {{P.FLEN-P.XLEN{1'b1}}, ForwardedSrcAE}, FmtE, PreIntSrcE);
     else
       mux2 #(P.FLEN) SrcAMux ({{P.FLEN-P.LEN1{1'b1}}, ForwardedSrcAE[P.LEN1-1:0]}, ForwardedSrcAE[P.FLEN-1:0], FmtE, PreIntSrcE);
-  else if(P.FPSIZES == 3 | P.FPSIZES == 4) begin
+  else if (P.FPSIZES == 3 | P.FPSIZES == 4) begin
     localparam XD_LEN = P.D_LEN < P.XLEN ? P.D_LEN : P.XLEN; // shorter of D_LEN and XLEN
     mux3 #(P.FLEN) SrcAMux ({{P.FLEN-P.S_LEN{1'b1}}, ForwardedSrcAE[P.S_LEN-1:0]},
                             {{P.FLEN-XD_LEN{1'b1}}, ForwardedSrcAE[XD_LEN-1:0]},
@@ -316,31 +319,34 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
   else assign IntSrcE = PreIntSrcE;
 
   // select a result that may be written to the FP register
+  // select: 00 = sign injection (OpCtrl 000-010), 01 = fmv.*.x/fmvp (011), 10 = fmin/fmax (110/101), 11 = fli (111) or Zfa fround (100)
   mux4  #(P.FLEN) FResMux(SgnResE, IntSrcE, CmpFpResE, ZfaResE, {OpCtrlE[2], &OpCtrlE[1:0] | (OpCtrlE == 3'b100) & ZfaE}, PreFpResE);
-  assign PreNVE = CmpNVE&(OpCtrlE[2]|FWriteIntE) | FRoundNVE & (OpCtrlE == 3'b100) & ZfaE;
+  // invalid flag from fmin/fmax (OpCtrl[2]) or compares (write integer), or from Zfa fround
+  assign PreNVE = CmpNVE & (OpCtrlE[2] | FWriteIntE) | FRoundNVE & (OpCtrlE == 3'b100) & ZfaE;
   assign PreNXE = FRoundNXE & (OpCtrlE == 3'b100);
 
   // fmv.x.*: select the result that may be written to the integer register
-  if(P.FPSIZES == 1) begin
+  if (P.FPSIZES == 1) begin
     assign mvsgn = XE[P.FLEN-1];
     assign SgnExtXE = XE;
-  end else if(P.FPSIZES == 2) begin
-    mux2 #(1)      sgnmux (XE[P.LEN1-1], XE[P.FLEN-1],FmtE, mvsgn);
+  end else if (P.FPSIZES == 2) begin
+    mux2 #(1)      sgnmux (XE[P.LEN1-1], XE[P.FLEN-1], FmtE, mvsgn);
     mux2 #(P.FLEN) sgnextmux ({{P.FLEN-P.LEN1{mvsgn}}, XE[P.LEN1-1:0]}, XE, FmtE, SgnExtXE);
-  end else if(P.FPSIZES == 3 | P.FPSIZES == 4) begin
+  end else if (P.FPSIZES == 3 | P.FPSIZES == 4) begin
     mux4 #(1)      sgnmux (XE[P.S_LEN-1], XE[P.D_LEN-1], XE[P.H_LEN-1], XE[P.LLEN-1], FmtE, mvsgn);
     mux3 #(P.FLEN) sgnextmux ({{P.FLEN-P.S_LEN{mvsgn}}, XE[P.S_LEN-1:0]},
                               {{P.FLEN-P.D_LEN{mvsgn}}, XE[P.D_LEN-1:0]},
                               {{P.FLEN-P.H_LEN{mvsgn}}, XE[P.H_LEN-1:0]},
-                                FmtE, SgnExtXE); // Q not needed because there is no fmv.x.q
+                              FmtE, SgnExtXE); // Q not needed because there is no fmv.x.q
   end
 
   // sign extend to XLEN if necessary
   if (P.FLEN >= 2*P.XLEN)
     if (P.ZFA_SUPPORTED) assign IntSrcXE = ZfaE ? XE[2*P.XLEN-1:P.XLEN] : SgnExtXE[P.XLEN-1:0]; // either fmvh.x.* or fmv.x.*
-    else                                      assign IntSrcXE = SgnExtXE[P.XLEN-1:0];
+    else                 assign IntSrcXE = SgnExtXE[P.XLEN-1:0];
   else
     assign IntSrcXE = {{(P.XLEN-P.FLEN){mvsgn}}, SgnExtXE};
+  // FResSel 10 (fclass) -> 00, 11 (fmv.x.*) -> 01, 00 (compare) -> 10; fcvt-to-int results (01) are taken from FCvtIntResW instead
   mux3 #(P.XLEN) IntResMux (ClassResE, IntSrcXE, CmpIntResE, {~FResSelE[1], FResSelE[0]}, FIntResE);
 
   // E/M pipe registers
@@ -350,7 +356,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
 
   flopenrc #(P.NF+1) EMFpReg2 (clk, reset, FlushM, ~StallM, XmE, XmM);
   flopenrc #(P.NF+1) EMFpReg3 (clk, reset, FlushM, ~StallM, YmE, YmM);
-  flopenrc #(P.FLEN) EMFpReg4 (clk, reset, FlushM, ~StallM, {ZeE,ZmE}, {ZeM,ZmM});
+  flopenrc #(P.FLEN) EMFpReg4 (clk, reset, FlushM, ~StallM, {ZeE, ZmE}, {ZeM, ZmM});
   flopenrc #(P.XLEN) EMFpReg6 (clk, reset, FlushM, ~StallM, FIntResE, FIntResM);
   flopenrc #(P.FLEN) EMFpReg7 (clk, reset, FlushM, ~StallM, PreFpResE, PreFpResM);
   flopenr #(13) EMFpReg5 (clk, reset, ~StallUnpackedM,
@@ -374,11 +380,11 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .FmaASticky(FmaAStickyM), .XZero(XZeroM), .YZero(YZeroM), .XInf(XInfM), .YInf(YInfM), .DivUm(UmM), .FmaSs(SsM),
     .ZInf(ZInfM), .XNaN(XNaNM), .YNaN(YNaNM), .ZNaN(ZNaNM), .XSNaN(XSNaNM), .YSNaN(YSNaNM), .ZSNaN(ZSNaNM),
     .FmaSm(SmM), .DivUe(UeM), .FmaAs(AsM), .FmaPs(PsM), .OpCtrl(OpCtrlM), .FmaSCnt(SCntM), .FmaSe(SeM),
-    .CvtCe(CeM), .CvtResSubnormUf(CvtResSubnormUfM),.CvtShiftAmt(CvtShiftAmtM), .CvtCs(CsM),
+    .CvtCe(CeM), .CvtResSubnormUf(CvtResSubnormUfM), .CvtShiftAmt(CvtShiftAmtM), .CvtCs(CsM),
     .ToInt(FWriteIntM), .Zfa(ZfaM), .DivSticky(DivStickyM), .CvtLzcIn(CvtLzcInM), .IntZero(IntZeroM),
     .PostProcSel(PostProcSelM), .PostProcRes(PostProcResM), .PostProcFlg(PostProcFlgM), .FCvtIntRes(FCvtIntResM));
 
-  // FPU flag selection - to privileged
+  // FPU flag selection - to privileged.  FResSel = 01 selects postprocessed results and flags
   mux2  #(5)       FPUFlgMux({PreNVM, 3'b0, PreNXM}, PostProcFlgM, (FResSelM == 2'b01), SetFflagsM);
   mux2  #(P.FLEN)  FPUResMux(PreFpResM, PostProcResM, FResSelM[0], FpResM);
 

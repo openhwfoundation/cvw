@@ -39,9 +39,9 @@ module hazard (
   output logic FlushD, FlushE, FlushM, FlushW
 );
 
-  logic                                       StallFCause, StallDCause, StallECause, StallMCause, StallWCause;
-  logic                                       LatestUnstalledD, LatestUnstalledE, LatestUnstalledM, LatestUnstalledW;
-  logic                                       FlushDCause, FlushECause, FlushMCause, FlushWCause;
+  logic StallFCause, StallDCause, StallECause, StallMCause, StallWCause;
+  logic LatestUnstalledD, LatestUnstalledE, LatestUnstalledM, LatestUnstalledW;
+  logic FlushDCause, FlushECause, FlushMCause, FlushWCause;
 
   logic WFIStallM, WFIInterruptedM;
 
@@ -51,7 +51,7 @@ module hazard (
 
   // stalls and flushes
   // loads: stall for one cycle if the subsequent instruction depends on the load
-  // branches and jumps: flush the next two instructions if the branch is taken in EXE
+  // branches and jumps: flush the next two instructions if the branch is mispredicted in the Execute stage
   // CSR Writes: stall all instructions after the CSR until it completes, except that PC must change when branch is resolved
   //             this also applies to other privileged instructions such as M/S/URET, ECALL/EBREAK
   // Exceptions: flush entire pipeline
@@ -70,7 +70,7 @@ module hazard (
   //   However, an active division operation resides in the Execute stage, and when the BP incorrectly mispredicts the divide as a taken branch, the divide must still complete
   // When a WFI is interrupted and causes a trap, it flushes the rest of the pipeline but not the W stage, because the WFI needs to commit
   assign FlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE;
-  assign FlushECause = TrapM | RetM | CSRWriteFenceM |(BPWrongE & ~(DivBusyE | FDivBusyE));
+  assign FlushECause = TrapM | RetM | CSRWriteFenceM | (BPWrongE & ~(DivBusyE | FDivBusyE));
   assign FlushMCause = TrapM | RetM | CSRWriteFenceM;
   assign FlushWCause = TrapM & ~WFIInterruptedM;
 
@@ -81,7 +81,7 @@ module hazard (
   //    Even if the register gave clear priority over enable, various FSMs still need to disable the stall, so it's best to gate the stall here with flush
   //  The IFU and LSU stall the entire pipeline on a cache miss, bus access, or other long operation.
   //    The IFU stalls the entire pipeline rather than just Fetch to avoid complications with instructions later in the pipeline causing Exceptions
-  //    A trap could be asserted at the start of a IFU/LSU stall, and should flush the memory operation
+  //    A trap could be asserted at the start of an IFU/LSU stall, and should flush the memory operation
   assign StallFCause = 1'b0;
   assign StallDCause = (StructuralStallD | FPUStallD) & ~FlushDCause;
   assign StallECause = (DivBusyE | FDivBusyE) & ~FlushECause;

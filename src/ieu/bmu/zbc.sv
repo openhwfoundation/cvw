@@ -41,12 +41,13 @@ module zbc import cvw::*; #(parameter cvw_t P) (
 
   // choose X = A for clmul, Rev(A) << 1 for clmulh, Rev(A) for clmulr
   // unshifted Rev(A) source is only needed for clmulr in ZBC, not in ZBKC
+  // ~Funct3[1:0] maps clmulh (11) to 00, clmulr (10) to 01, clmul (01) to 10
   if (P.ZBC_SUPPORTED)
     mux3 #(P.XLEN) xmux({RevA[P.XLEN-2:0], {1'b0}}, RevA, A, ~Funct3[1:0], X);
   else
     mux2 #(P.XLEN) xmux(A, {RevA[P.XLEN-2:0], {1'b0}}, Funct3[1], X);
 
-  // choose X = B for clmul, Rev(B) for clmulH
+  // choose Y = B for clmul, Rev(B) for clmulh/clmulr
   mux2 #(P.XLEN) ymux(B, RevB, Funct3[1], Y);
 
   // carry free multiplier

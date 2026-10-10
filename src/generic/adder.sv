@@ -25,7 +25,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module adder #(parameter WIDTH=8) (
+module adder #(parameter WIDTH = 8) (
   input  logic [WIDTH-1:0] a, b,
   output logic [WIDTH-1:0] y
 );

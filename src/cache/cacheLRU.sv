@@ -36,10 +36,10 @@ module cacheLRU
   input  logic                CacheEn,         // Enable the cache memory arrays.  Disable hold read data constant
   input  logic [NUMWAYS-1:0]  HitWay,          // Which way is valid and matches PAdr's tag
   input  logic [NUMWAYS-1:0]  ValidWay,        // Which ways for a particular set are valid, ignores tag
-  input  logic [SETLEN-1:0]   CacheSetLRU,     // Cache address, the output of the address select mux, NextAdr, PAdr, or FlushAdr
+  input  logic [SETLEN-1:0]   CacheSetLRU,     // Cache set, the output of the address select mux: NextSet, PAdr, or FlushAdr
   input  logic [SETLEN-1:0]   PAdr,            // Physical address
   input  logic                LRUWriteEn,      // Update the LRU state
-  input  logic                SetValid,        // Set the dirty bit in the selected way and set
+  input  logic                SetValid,        // Line fill on a miss: update LRU with VictimWay rather than HitWay
   input  logic                InvalidateCache, // Clear all valid bits
   output logic [NUMWAYS-1:0]  VictimWay        // LRU selects a victim to evict
 );
@@ -58,12 +58,12 @@ module cacheLRU
   /* verilator lint_off UNOPTFLAT */
   // Rose: For some reason verilator does not like this.  I checked and it is not a circular path.
   logic [NUMWAYS-2:0]                  LRUUpdate;
-  logic [LOGNUMWAYS-1:0] Intermediate [NUMWAYS-2:0];
+  logic [LOGNUMWAYS-1:0]               Intermediate [NUMWAYS-2:0];
   /* verilator lint_on UNOPTFLAT */
 
-  logic [NUMWAYS-1:0] FirstZero;
-  logic [LOGNUMWAYS-1:0] FirstZeroWay;
-  logic [LOGNUMWAYS-1:0] VictimWayEnc;
+  logic [NUMWAYS-1:0]                  FirstZero;
+  logic [LOGNUMWAYS-1:0]               FirstZeroWay;
+  logic [LOGNUMWAYS-1:0]               VictimWayEnc;
 
   binencoder #(NUMWAYS) hitwayencoder(HitWay, HitWayEncoded);
 
@@ -75,7 +75,7 @@ module cacheLRU
   function integer log2 (integer value);
     int val;
     val = value;
-    for (log2 = 0; val > 0; log2 = log2+1)
+    for (log2 = 0; val > 0; log2 = log2 + 1)
       val = val >> 1;
     return log2;
   endfunction // log2
@@ -85,8 +85,8 @@ module cacheLRU
   mux2 #(LOGNUMWAYS) WayMuxEnc(HitWayEncoded, VictimWayEnc, SetValid, Way);
 
   // bit duplication
-  // expand HitWay as HitWay[3], {{2}{HitWay[2]}}, {{4}{HitWay[1]}, {{8{HitWay[0]}}, ...
-  for(row = 0; row < LOGNUMWAYS; row++) begin
+  // expand Way MSB first as {Way[3], {2{Way[2]}}, {4{Way[1]}}, {8{Way[0]}}} (16-way example)
+  for (row = 0; row < LOGNUMWAYS; row++) begin
     localparam integer DuplicationFactor = 2**(LOGNUMWAYS-row-1);
     localparam StartIndex = NUMWAYS-2 - DuplicationFactor + 1;
     localparam EndIndex = NUMWAYS-2 - 2 * DuplicationFactor + 2;
@@ -95,7 +95,7 @@ module cacheLRU
 
   genvar               node;
   assign LRUUpdate[NUMWAYS-2] = '1;
-  for(node = NUMWAYS-2; node >= NUMWAYS/2; node--) begin : enables
+  for (node = NUMWAYS-2; node >= NUMWAYS/2; node--) begin : enables
     localparam ctr = NUMWAYS - node - 1;
     localparam ctr_depth = log2(ctr);
     localparam lchild = node - ctr;
@@ -119,12 +119,12 @@ module cacheLRU
   if (NUMWAYS > 2) mux2 #(1) LRUMuxes[NUMWAYS-3:0](CurrLRU[NUMWAYS-3:0], ~WayExpanded[NUMWAYS-3:0], LRUUpdate[NUMWAYS-3:0], NextLRU[NUMWAYS-3:0]);
 
   // Compute next victim way.
-  for(node = NUMWAYS-2; node >= NUMWAYS/2; node--) begin
+  for (node = NUMWAYS-2; node >= NUMWAYS/2; node--) begin
     localparam t0 = 2*node - NUMWAYS;
     localparam t1 = t0 + 1;
     assign Intermediate[node] = CurrLRU[node] ? Intermediate[t0] : Intermediate[t1];
   end
-  for(node = NUMWAYS/2-1; node >= 0; node--) begin
+  for (node = NUMWAYS/2-1; node >= 0; node--) begin
     localparam int0 = (NUMWAYS/2-1-node)*2;
     localparam int1 = int0 + 1;
     assign Intermediate[node] = CurrLRU[node] ? int1[LOGNUMWAYS-1:0] : int0[LOGNUMWAYS-1:0];
@@ -135,7 +135,7 @@ module cacheLRU
   mux2 #(LOGNUMWAYS) VictimMux(FirstZeroWay, Intermediate[NUMWAYS-2], AllValid, VictimWayEnc);
   decoder #(LOGNUMWAYS) decoder (VictimWayEnc, VictimWay);
 
-  // LRU memory must be reset for Questa to run. The reset value does not matter but it is best to be deterministc.
+  // LRU memory must be reset for Questa to run. The reset value does not matter but it is best to be deterministic.
   always_ff @(posedge clk)
     if (reset | (InvalidateCache & ~InvalidateFlushStage))
       for (int set = 0; set < NUMSETS; set++) LRUMemory[set] <= '0; // exclusion-tag: initialize

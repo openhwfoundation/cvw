@@ -67,15 +67,15 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   output logic                    LoadMisalignedFaultM,                 // Load address misaligned fault
   output logic                    LoadAccessFaultM,                     // Load access fault (PMA)
   output logic                    HPTWInstrAccessFaultF,                // HPTW generated access fault during instruction fetch
-  output logic                    HPTWInstrPageFaultF,                  // HPTW generated access fault during instruction fetch
+  output logic                    HPTWInstrPageFaultF,                  // HPTW generated page fault during instruction fetch
   // cpu hazard unit (trap)
   output logic                    StoreAmoMisalignedFaultM,             // Store or AMO address misaligned fault
   output logic                    StoreAmoAccessFaultM,                 // Store or AMO access fault
   // connect to ahb
   output logic [P.PA_BITS-1:0]    LSUHADDR,                             // Bus address from LSU to EBU
-  input  logic [P.XLEN-1:0]       HRDATA,                               // Bus read data from LSU to EBU
+  input  logic [P.XLEN-1:0]       HRDATA,                               // Bus read data from EBU to LSU
   output logic [P.XLEN-1:0]       LSUHWDATA,                            // Bus write data from LSU to EBU
-  input  logic                    LSUHREADY,                            // Bus ready from LSU to EBU
+  input  logic                    LSUHREADY,                            // Bus ready from EBU to LSU
   output logic                    LSUHWRITE,                            // Bus write operation from LSU to EBU
   output logic [2:0]              LSUHSIZE,                             // Bus operation size from LSU to EBU
   output logic [2:0]              LSUHBURST,                            // Bus burst from LSU to EBU
@@ -97,7 +97,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0] // PMP address from privileged unit
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
-  localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accessess
+  localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses
 
   logic [P.XLEN+1:0]     IEUAdrExtM;                             // Memory stage address zero-extended to PA_BITS or XLEN whichever is longer
   logic [P.XLEN+1:0]     IEUAdrExtE;                             // Execution stage address zero-extended to PA_BITS or XLEN whichever is longer
@@ -136,7 +136,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]     IHWriteDataM;                           // IEU or HPTW write data
   logic [P.XLEN-1:0]     IMAWriteDataM;                          // IEU, HPTW, or AMO write data
   logic [P.LLEN-1:0]     IMAFWriteDataM;                         // IEU, HPTW, AMO, or FPU write data
-  logic [P.LLEN-1:0]     LittleEndianWriteDataM;                 // Ending-swapped write data
+  logic [P.LLEN-1:0]     LittleEndianWriteDataM;                 // Endian-swapped write data
   logic [P.LLEN-1:0]     LSUWriteDataM;                          // Final write data
   logic [(P.LLEN-1)/8:0] ByteMaskM;                              // Selects which bytes within a word to write
   logic [(P.LLEN-1)/8:0] ByteMaskExtendedM;                      // Selects which bytes within a word to write
@@ -156,7 +156,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   logic                  LSUFlushW;                              // HPTW or hazard unit flushes operation
   logic                  SelfFaultM;                             // M-stage access has its own fault; squash it
   logic                  SelDTIM;                                // Select DTIM rather than bus or D$
-  logic [P.XLEN-1:0]     WriteDataZM;
+  logic [P.XLEN-1:0]     WriteDataZM;                            // IEU write data, forced to zero for cbo.zero
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
 
@@ -166,7 +166,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
-  if(MISALIGN_SUPPORT) begin : ziccslm_align
+  if (MISALIGN_SUPPORT) begin : ziccslm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
     align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
@@ -188,18 +188,18 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign IEUAdrxTvalM = IEUAdrM;
   end
 
-    if(P.ZICBOZ_SUPPORTED) begin : cboz
-      assign WriteDataZM = LSUCMOpM[3] ? 0 : WriteDataM;
-   end else begin : cboz
-      assign WriteDataZM = WriteDataM;
-    end
+  if (P.ZICBOZ_SUPPORTED) begin : cboz
+    assign WriteDataZM = LSUCMOpM[3] ? 0 : WriteDataM;
+  end else begin : cboz
+    assign WriteDataZM = WriteDataM;
+  end
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // HPTW (only needed if VM supported)
-  // MMU include PMP and is needed if any privileged supported
+  // MMU includes PMP and is needed if any privileged supported
   /////////////////////////////////////////////////////////////////////////////////////////////
 
-  if(P.VIRTMEM_SUPPORTED) begin : hptw
+  if (P.VIRTMEM_SUPPORTED) begin : hptw
     hptw #(P) hptw(.clk, .reset, .MemRWM, .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
       .DTLBMissOrUpdateDAM, .DTLBWriteM,
       .FlushW, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
@@ -241,7 +241,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign {MemAccessInFlightM, MemAccessDoneM} = '0;
     assign ReadDataHoldM = '0;
     assign {HPTWInstrAccessFaultF, HPTWInstrPageFaultF} = '0;
-   end
+  end
 
   // CommittedM indicates the cache, bus, or HPTW are busy with a multiple cycle operation.
   // CommittedM is 1 after the first cycle and until the last cycle.  Partially completed memory
@@ -262,7 +262,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
   // MMU and misalignment fault logic required if privileged unit exists
   /////////////////////////////////////////////////////////////////////////////////////////////
-  if(P.ZICSR_SUPPORTED == 1) begin : dmmu
+  if (P.ZICSR_SUPPORTED == 1) begin : dmmu
     logic DisableTranslation;                             // During HPTW walk or D$ flush disable virtual memory address translation
     logic WriteAccessM;
     logic DataUpdateDAM;                                  // DTLB hit needs to update dirty or access bits
@@ -306,7 +306,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // Discard memory request on pipeline flush or when the access itself faults: TrapM waits for a committed
   // IFU fetch (~CommittedF, #412), so FlushW alone would let the faulting access proceed.  The walker's accesses are exempt.
   assign SelfFaultM = ~SelHPTW & (LSULoadPageFaultM | LSUStoreAmoPageFaultM | LSULoadAccessFaultM |
-                      LSUStoreAmoAccessFaultM | LoadMisalignedFaultM | StoreAmoMisalignedFaultM);
+                                 LSUStoreAmoAccessFaultM | LoadMisalignedFaultM | StoreAmoMisalignedFaultM);
   assign LSUFlushW = HPTWFlushW | FlushW | SelfFaultM;
 
   if (P.DTIM_SUPPORTED) begin : dtim
@@ -323,7 +323,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   end else
     assign DTIMReadDataWordM = '0;
   if (P.BUS_SUPPORTED) begin : bus
-    if(P.DCACHE_SUPPORTED) begin : dcache
+    if (P.DCACHE_SUPPORTED) begin : dcache
       localparam   LLENWORDSPERLINE = P.DCACHE_LINELENINBITS/P.LLEN;             // Number of LLEN words in cacheline
       localparam   LLENLOGBWPL = $clog2(LLENWORDSPERLINE);                       // Log2 of ^
       localparam   BEATSPERLINE = P.DCACHE_LINELENINBITS/P.AHBW;                 // Number of AHBW words (beats) in cacheline
@@ -341,27 +341,27 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
       logic [1:0]              BusRW;                                            // Uncached bus memory access
       logic                    CacheableOrFlushCacheM;                           // Memory address is cacheable or operation is a cache flush
       logic [1:0]              CacheRWM;                                         // Cache read (10), write (01), AMO (11)
-      logic                    FlushDCache;                                      // Suppress d cache flush if there is an ITLB miss.
+      logic                    FlushDCache;                                      // Suppress D$ flush during an HPTW walk
       logic                    BusCMOZero;
       logic [3:0]              CacheCMOpM;
       logic                    BusAtomic;
 
       // Each datapath is gated on the extension that needs it: cbo.zero to uncached memory on Zicboz,
       // the cache CMO port on either CBO extension, and uncached AMOs on Zaamo
-      if(P.ZICBOZ_SUPPORTED) assign BusCMOZero = LSUCMOpM[3] & ~CacheableM & ~HoldAccessM;
-      else                   assign BusCMOZero = 1'b0;
-      if(P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED) assign CacheCMOpM = (CacheableM & ~SelHPTW & ~HoldAccessM) ? CMOpM : '0;
-      else                                        assign CacheCMOpM = '0;
-      if(P.ZAAMO_SUPPORTED) assign BusAtomic = AtomicM[1] & ~CacheableM;
-      else                  assign BusAtomic = 1'b0;
+      if (P.ZICBOZ_SUPPORTED) assign BusCMOZero = LSUCMOpM[3] & ~CacheableM & ~HoldAccessM;
+      else                    assign BusCMOZero = 1'b0;
+      if (P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED) assign CacheCMOpM = (CacheableM & ~SelHPTW & ~HoldAccessM) ? CMOpM : '0;
+      else                                         assign CacheCMOpM = '0;
+      if (P.ZAAMO_SUPPORTED) assign BusAtomic = AtomicM[1] & ~CacheableM;
+      else                   assign BusAtomic = 1'b0;
       assign BusRW = (~CacheableM & ~SelDTIM & ~HoldAccessM) ? LSURWM : '0;
       assign CacheableOrFlushCacheM = CacheableM | FlushDCacheM;
       assign CacheRWM = (CacheableM & ~SelDTIM & ~HoldAccessM) ? LSURWM : '0;
       assign FlushDCache = FlushDCacheM & ~SelHPTW;                          // exclusion-tag: lsu FlushDCacheSelHPTW
 
-      localparam                     LINEBYTELEN = P.DCACHE_LINELENINBITS/8;            // Line length in bytes
-      localparam                     OFFSETLEN = $clog2(LINEBYTELEN);    // Number of bits in offset field
-      localparam                     SETLEN = $clog2(P.DCACHE_WAYSIZEINBYTES*8/LINELEN);          // Number of set bits
+      localparam                     LINEBYTELEN = P.DCACHE_LINELENINBITS/8;              // Line length in bytes
+      localparam                     OFFSETLEN = $clog2(LINEBYTELEN);                     // Number of bits in offset field
+      localparam                     SETLEN = $clog2(P.DCACHE_WAYSIZEINBYTES*8/LINELEN);  // Number of set bits
 
       cache #(.P(P), .PA_BITS(P.PA_BITS), .LINELEN(P.DCACHE_LINELENINBITS), .NUMSETS(P.DCACHE_WAYSIZEINBYTES*8/LINELEN),
               .OFFSETLEN(OFFSETLEN), .SETLEN(SETLEN),
@@ -377,7 +377,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
         .FetchBuffer, .CacheBusRW(CacheBusRW),
         .CacheBusAck(DCacheBusAck), .InvalidateCache(1'b0), .InvalidateFlushStage(LSUFlushW), .CMOpM(CacheCMOpM));
 
-      ahbcacheinterface #(.P(P), .BEATSPERLINE(BEATSPERLINE), .AHBWLOGBWPL(AHBWLOGBWPL), .LINELEN(LINELEN),  .LLENPOVERAHBW(LLENPOVERAHBW), .READ_ONLY_CACHE(0)) ahbcacheinterface(
+      ahbcacheinterface #(.P(P), .BEATSPERLINE(BEATSPERLINE), .AHBWLOGBWPL(AHBWLOGBWPL), .LINELEN(LINELEN), .LLENPOVERAHBW(LLENPOVERAHBW), .READ_ONLY_CACHE(0)) ahbcacheinterface(
         .HCLK(clk), .HRESETn(~reset), .Flush(LSUFlushW),
         .HRDATA, .HWDATA(LSUHWDATA), .HWSTRB(LSUHWSTRB),
         .HSIZE(LSUHSIZE), .HBURST(LSUHBURST), .HTRANS(LSUHTRANS), .HWRITE(LSUHWRITE), .HREADY(LSUHREADY),
@@ -403,8 +403,8 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
         .HWSTRB(LSUHWSTRB), .BusRW, .BusAtomic(AtomicM[1]), .ByteMask(ByteMaskM[P.XLEN/8-1:0]), .WriteData(LSUWriteDataM[P.XLEN-1:0]),
         .Stall(GatedStallW), .BusStall(LSUBusStallM), .BusCommitted(BusCommittedM), .FetchBuffer(FetchBuffer));
 
-    // Mux between the 2 sources of read data, 0: Bus, 1: DTIM
-      if(P.DTIM_SUPPORTED) mux2 #(P.XLEN) ReadDataMux2(FetchBuffer, DTIMReadDataWordM[P.XLEN-1:0], SelDTIM, ReadDataWordMuxM[P.XLEN-1:0]);
+      // Mux between the 2 sources of read data, 0: Bus, 1: DTIM
+      if (P.DTIM_SUPPORTED) mux2 #(P.XLEN) ReadDataMux2(FetchBuffer, DTIMReadDataWordM[P.XLEN-1:0], SelDTIM, ReadDataWordMuxM[P.XLEN-1:0]);
       else assign ReadDataWordMuxM[P.XLEN-1:0] = FetchBuffer[P.XLEN-1:0];
       assign LSUHBURST = 3'b0;
       assign {DCacheStallM, DCacheCommittedM, DCacheMiss, DCacheAccess, DCacheReadDataWordM} = '0;

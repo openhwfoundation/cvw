@@ -46,7 +46,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]        PrivilegeModeW,
   input  logic [P.XLEN-1:0] ReadDataM,              // page table entry from LSU
   input  logic [P.XLEN-1:0] WriteDataM,
-  input  logic              DCacheBusStallM,           // stall from LSU
+  input  logic              DCacheBusStallM,        // stall from LSU
   input  logic              MemAccessInFlightM,     // LSU has started (or performed and is holding) the M-stage memory access; do not pre-empt it
   input  logic              MemAccessDoneM,         // LSU has performed and captured the M-stage memory access; it will not be re-issued
   input  logic [2:0]        Funct3M,
@@ -193,14 +193,14 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   // in non-leaf PTEs")
   assign {PTE_U, Executable, Writable, Readable, Valid} = PTE[4:0];
   assign LeafPTE = Executable | Writable | Readable;
-  assign ValidPTE = Valid & ~(Writable & ~Readable);
+  assign ValidPTE = Valid & ~(Writable & ~Readable); // W = 1, R = 0 is a reserved encoding
   assign ValidLeafPTE = ValidPTE & LeafPTE;
   assign ValidNonLeafPTE = Valid & ~LeafPTE;
-  if(P.XLEN == 64) assign NonLeafReservedFaultM = ValidNonLeafPTE & (|PTE[63:54]);
+  if (P.XLEN == 64) assign NonLeafReservedFaultM = ValidNonLeafPTE & (|PTE[63:54]);
   else assign NonLeafReservedFaultM = 1'b0;
   assign DAUFaultM = ValidNonLeafPTE & (|PTE[7:6] | PTE[4]);
 
-  if(P.SVADU_SUPPORTED) begin : hptwwrites
+  if (P.SVADU_SUPPORTED) begin : hptwwrites
     logic                 ReadAccess, WriteAccess;
     logic                 InvalidRead, InvalidWrite, InvalidOp;
     logic                 UpperBitsUnequal, UpperBitsUnequalD;
@@ -227,6 +227,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign ReadAccess = MemRWM[1] | (|CMOpM[2:0]); // cbo.clean/flush/inval need R (or X with MXR), as in tlbcontrol
 
     assign EffectivePrivilegeMode = DTLBWalk ? (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW) : PrivilegeModeW; // DTLB uses MPP mode when MPRV is 1
+    // U-mode may only access user pages; S-mode may access user pages only for data with SUM = 1
     assign ImproperPrivilege = ((EffectivePrivilegeMode == P.U_MODE) & ~PTE_U) |
                                ((EffectivePrivilegeMode == P.S_MODE) & PTE_U & (~STATUS_SUM | ~DTLBWalk));
 
@@ -279,7 +280,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     endcase
 
   // HPTWAdr muxing
-  if (P.XLEN==32) begin // RV32
+  if (P.XLEN == 32) begin // RV32
     logic [9:0] VPN;
     logic [P.PPN_BITS-1:0] PPN;
     assign VPN = ((WalkerState == L1_ADR) | (WalkerState == L1_RD)) ? TranslationVAdr[31:22] : TranslationVAdr[21:12]; // select VPN field based on HPTW state
@@ -294,12 +295,12 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
         L4_ADR, L4_RD:  VPN = TranslationVAdr[56:48]; // Extracted top 9 bits for sv57
         L3_ADR, L3_RD:  VPN = TranslationVAdr[47:39];
         L2_ADR, L2_RD:  VPN = TranslationVAdr[38:30];
-        L1_ADR, L1_RD:   VPN = TranslationVAdr[29:21];
-        default:    VPN = TranslationVAdr[20:12];
+        L1_ADR, L1_RD:  VPN = TranslationVAdr[29:21];
+        default:        VPN = TranslationVAdr[20:12];
       endcase
-      assign PPN = ((P.SV57_SUPPORTED & SvMode == P.SV57 & (WalkerState == L4_ADR | WalkerState == L4_RD)) |
-                    (P.SV48_SUPPORTED & SvMode == P.SV48 & (WalkerState == L3_ADR | WalkerState == L3_RD)) |
-                    (SvMode == P.SV39 & (WalkerState == L2_ADR | WalkerState == L2_RD)) ) ? BasePageTablePPN : CurrentPPN;
+    assign PPN = ((P.SV57_SUPPORTED & SvMode == P.SV57 & (WalkerState == L4_ADR | WalkerState == L4_RD)) |
+                  (P.SV48_SUPPORTED & SvMode == P.SV48 & (WalkerState == L3_ADR | WalkerState == L3_RD)) |
+                  (SvMode == P.SV39 & (WalkerState == L2_ADR | WalkerState == L2_RD))) ? BasePageTablePPN : CurrentPPN;
     assign HPTWReadAdr = {PPN, VPN, 3'b000};
     assign HPTWSize = 3'b011;
   end
@@ -310,10 +311,10 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign MegapageMisaligned = |(CurrentPPN[9:0]); // must have zero PPN0
     assign Misaligned = (WalkerState == LEAF) & (PageType == 3'b001) & MegapageMisaligned;
   end else begin
-    logic  PetapageMisaligned, GigapageMisaligned, TerapageMisaligned;
+    logic PetapageMisaligned, GigapageMisaligned, TerapageMisaligned;
     assign InitialWalkerState = (P.SV57_SUPPORTED & SvMode == P.SV57) ? L4_ADR :
                                 (P.SV48_SUPPORTED & SvMode == P.SV48) ? L3_ADR :
-                                                                        L2_ADR ;
+                                                                        L2_ADR;
     assign PetapageMisaligned = P.SV57_SUPPORTED & |(CurrentPPN[35:0]); // Must have zero PPN3, PPN2, PPN1, PPN0
     assign TerapageMisaligned = P.SV48_SUPPORTED & |(CurrentPPN[26:0]); // Must have zero PPN2, PPN1, PPN0
     assign GigapageMisaligned =                    |(CurrentPPN[17:0]); // Must have zero PPN1 and PPN0
@@ -347,7 +348,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
       L2_RD:      if (HPTWFaultM)                                     NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                           NextWalkerState = L2_RD;
                   else                                                NextWalkerState = L1_ADR;
-      L1_ADR:     if  (HPTWFaultM)                                     NextWalkerState = FAULT;
+      L1_ADR:     if (HPTWFaultM)                                      NextWalkerState = FAULT;
                   else if (InitialWalkerState == L1_ADR | ValidNonLeafPTE) NextWalkerState = L1_RD; // First access in SV32
                   else                                                NextWalkerState = LEAF;
       L1_RD:      if (HPTWFaultM)                                     NextWalkerState = FAULT;
@@ -381,7 +382,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   // M-stage access runs after the walker returns to IDLE.
   assign HPTWStall = (WalkerState != IDLE) | AcceptReq;
 
-  // HTPW address/data/control muxing
+  // HPTW address/data/control muxing
 
   // In the last cycle of a walk (TLB write or FAULT) switch back to the original data virtual address so the
   // data cache reads the tag/data/valid/dirty/LRU state of the M-stage access's set (the set index lies within

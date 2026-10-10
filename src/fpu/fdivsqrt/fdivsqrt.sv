@@ -37,8 +37,8 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
   input  logic                 XInfE, YInfE,
   input  logic                 XZeroE, YZeroE,
   input  logic                 XNaNE, YNaNE,
-  input  logic [P.NE-2:0]      BiasE,                               // Bias of exponent
-  input  logic [P.LOGFLEN-1:0] NfE,                          // Number of fractional bits in selected format
+  input  logic [P.NE-2:0]      BiasE,                       // Bias of exponent
+  input  logic [P.LOGFLEN-1:0] NfE,                         // Number of fractional bits in selected format
   input  logic                 FDivStartE, IDivStartE,
   input  logic                 StallM,
   input  logic                 FlushE,
@@ -67,7 +67,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
 
   // Integer div/rem signals
   logic                        BZeroM;                       // Denominator is zero
-  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalizatoin shift amount
+  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalization shift amount
   logic                        ALTBM, AsM, BsM, W64M;        // Special handling for postprocessor
   logic [P.XLEN-1:0]           AM;                           // Original Numerator for postprocessor
   logic                        ISpecialCaseE;                // Integer div/remainder special cases
@@ -94,7 +94,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
     .clk, .reset, .StallM, .WS, .WC, .D, .FirstU, .FirstUM, .FirstC,
     .SqrtE, .SqrtM, .SpecialCaseM,
     .UmM, .WZeroE, .DivStickyM,
-    // Int-specific
+    // Int-specific; Funct3M[1] = 1 for REM/REMU, 0 for DIV/DIVU
     .IntNormShiftM, .ALTBM, .AsM, .BsM, .BZeroM, .W64M, .RemOpM(Funct3M[1]), .AM,
     .FIntDivResultM);
 endmodule

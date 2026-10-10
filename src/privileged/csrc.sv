@@ -28,7 +28,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrc  import cvw::*;  #(parameter cvw_t P) (
+module csrc import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              StallE, StallM,
   input  logic              FlushM,
@@ -62,7 +62,7 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
 );
 
   localparam MHPMCOUNTERBASE  = 12'hB00;
-  localparam MTIME            = 12'hB01;               // this is a memory-mapped register; no such CSR exists, and access should faul;
+  localparam MTIME            = 12'hB01;               // this is a memory-mapped register; no such CSR exists, and access should fault
   localparam MHPMCOUNTERHBASE = 12'hB80;
   localparam MTIMEH           = 12'hB81;               // this is a memory-mapped register; no such CSR exists, and access should fault
   localparam MHPMEVENTBASE    = 12'h323;
@@ -96,7 +96,7 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   flopenrc #(1) LoadStallEReg(.clk, .reset, .clear(1'b0), .en(~StallE), .d(LoadStallD), .q(LoadStallE));  // don't flush the load stall during a load stall.
   flopenrc #(1) LoadStallMReg(.clk, .reset, .clear(FlushM), .en(~StallM), .d(LoadStallE), .q(LoadStallM));
 
-  flopenrc #(1) StoreStallEReg(.clk, .reset, .clear(1'b0), .en(~StallE), .d(StoreStallD), .q(StoreStallE));  // don't flush the load stall during a load stall.
+  flopenrc #(1) StoreStallEReg(.clk, .reset, .clear(1'b0), .en(~StallE), .d(StoreStallD), .q(StoreStallE));  // don't flush the store stall during a store stall.
   flopenrc #(1) StoreStallMReg(.clk, .reset, .clear(FlushM), .en(~StallM), .d(StoreStallE), .q(StoreStallM));
 
   // Determine when to increment each counter
@@ -135,31 +135,31 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   end
 
   // Counter update and write logic
-  for (i = 0; i < P.COUNTERS; i = i+1) begin : cntr
-      assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i); // coverage tag: MTIME traps
-      assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0];
-      if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
-      else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
-      always_ff @(posedge clk)
-        if (reset) HPMCOUNTER_REGW[i][P.XLEN-1:0] <= '0;
-        else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
+  for (i = 0; i < P.COUNTERS; i = i + 1) begin : cntr
+    assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i); // coverage tag: MTIME traps
+    assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0];
+    if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
+    else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
+    always_ff @(posedge clk)
+      if (reset) HPMCOUNTER_REGW[i][P.XLEN-1:0] <= '0;
+      else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
 
-      if (P.XLEN==32) begin // write high and low separately
-        assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
-        assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
-        assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32];
-        always_ff @(posedge clk)
-            if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
-            else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
-      end else begin // XLEN=64; write entire register
-          assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]};
-          assign HPMCOUNTERH_REGW[i] = '0; // disregard for RV64
-      end
+    if (P.XLEN == 32) begin // write high and low separately
+      assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
+      assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
+      assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32];
+      always_ff @(posedge clk)
+        if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
+        else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
+    end else begin // XLEN=64; write entire register
+      assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]};
+      assign HPMCOUNTERH_REGW[i] = '0; // disregard for RV64
+    end
   end
 
   // hpmevent update and write logic
   if (P.COUNTERS > 3) begin : mhpmeventgen
-    for (i = 3; i < P.COUNTERS; i = i+1) begin : mhpmevent
+    for (i = 3; i < P.COUNTERS; i = i + 1) begin : mhpmevent
       assign WriteMHPMEVENTM[i] = CSRMWriteM & (CSRAdrM == MHPMEVENTBASE + i - 3);
       assign NextMHPMEVENTM[i] = WriteMHPMEVENTM[i] ? CSRWriteValM : MHPMEVENT_REGW[i];
       always_ff @(posedge clk)
@@ -178,58 +178,58 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
     CSRCReadValM = '0; // default value
     IllegalCSRCAccessM = 1'b0;
     if (PrivilegeModeW == P.M_MODE & (CSRAdrM >= MHPMEVENTBASE & CSRAdrM <= MHPMEVENTLAST)) begin
-        if (CSRAdrM < MHPMEVENTBASE+P.COUNTERS-3) CSRCReadValM = MHPMEVENT_REGW[CounterNumM];
-        else CSRCReadValM ='0; // unused event selectors are read-only zero
-      end
+      if (CSRAdrM < MHPMEVENTBASE+P.COUNTERS-3) CSRCReadValM = MHPMEVENT_REGW[CounterNumM];
+      else CSRCReadValM = '0; // unused event selectors are read-only zero
+    end
     else if (PrivilegeModeW == P.M_MODE |
       MCOUNTEREN_REGW[CounterNumM] & (!P.S_SUPPORTED | PrivilegeModeW == P.S_MODE | SCOUNTEREN_REGW[CounterNumM])) begin
-        // The branch conditions below guarantee CounterNumM < P.COUNTERS before it indexes the
-        // counter arrays, but Verilator sizes the index from the array bound, so it warns whenever
-        // P.COUNTERS < 32.  This region also covers the MTIME_CLINT reads, which Verilator does not
-        // realize happen only at one XLEN.
-        /* verilator lint_off WIDTH */
-        if (P.XLEN==64) begin // 64-bit counter reads
-          // Veri lator doesn't realize this only occurs for XLEN=64
-          if      (CSRAdrM == TIME & ~CSRWriteM)  CSRCReadValM = MTIME_CLINT; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
-          else if (CSRAdrM >= MHPMCOUNTERBASE & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
-                  CSRCReadValM = '0; // unused counters are read-only zero
-          else if (CSRAdrM >= HPMCOUNTERBASE  & CSRAdrM  < HPMCOUNTERBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED)  // read-only
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERBASE+3  & CSRAdrM  < HPMCOUNTERBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS  & CSRAdrM  < HPMCOUNTERBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
-                  CSRCReadValM = '0;
-          else IllegalCSRCAccessM = 1'b1;  // requested CSR doesn't exist
-        end else begin // 32-bit counter reads
-          // Veril ator doesn't realize this only occurs for XLEN=32
-          if      (CSRAdrM == TIME & ~CSRWriteM)  CSRCReadValM = MTIME_CLINT[31:0];// TIME register is a shadow of the memory-mapped MTIME from the CLINT
-          else if (CSRAdrM == TIMEH & ~CSRWriteM) CSRCReadValM = MTIME_CLINT[63:32];
-          else if (CSRAdrM >= MHPMCOUNTERBASE  & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
-                  CSRCReadValM = '0; // unused counters are read-only zero
-          else if (CSRAdrM >= HPMCOUNTERBASE   & CSRAdrM < HPMCOUNTERBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)    // read-only
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERBASE+3   & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
-                  CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS   & CSRAdrM < HPMCOUNTERBASE+32  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
-                  CSRCReadValM = '0; // unused counters are read-only zero
-          else if (CSRAdrM >= MHPMCOUNTERHBASE & CSRAdrM < MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM != MTIMEH)
-                  CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-          else if (CSRAdrM >= MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERHBASE+32)
-                  CSRCReadValM = '0; // unused counters are read-only zero
-          else if (CSRAdrM >= HPMCOUNTERHBASE   & CSRAdrM < HPMCOUNTERHBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)   // read-only
-                  CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERHBASE+3 & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
-                  CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-          else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
-                  CSRCReadValM = '0;
-          else    IllegalCSRCAccessM = 1'b1; // requested CSR doesn't exist
-        end
-        /* verilator lint_on WIDTH */
+      // The branch conditions below guarantee CounterNumM < P.COUNTERS before it indexes the
+      // counter arrays, but Verilator sizes the index from the array bound, so it warns whenever
+      // P.COUNTERS < 32.  This region also covers the MTIME_CLINT reads, which Verilator does not
+      // realize happen only at one XLEN.
+      /* verilator lint_off WIDTH */
+      if (P.XLEN == 64) begin // 64-bit counter reads
+        // Veri lator doesn't realize this only occurs for XLEN=64
+        if      (CSRAdrM == TIME & ~CSRWriteM)  CSRCReadValM = MTIME_CLINT; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
+        else if (CSRAdrM >= MHPMCOUNTERBASE & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
+                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= HPMCOUNTERBASE  & CSRAdrM  < HPMCOUNTERBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED)  // read-only
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERBASE+3  & CSRAdrM  < HPMCOUNTERBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS  & CSRAdrM  < HPMCOUNTERBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
+                CSRCReadValM = '0;
+        else IllegalCSRCAccessM = 1'b1;  // requested CSR doesn't exist
+      end else begin // 32-bit counter reads
+        // Veril ator doesn't realize this only occurs for XLEN=32
+        if      (CSRAdrM == TIME & ~CSRWriteM)  CSRCReadValM = MTIME_CLINT[31:0]; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
+        else if (CSRAdrM == TIMEH & ~CSRWriteM) CSRCReadValM = MTIME_CLINT[63:32];
+        else if (CSRAdrM >= MHPMCOUNTERBASE  & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
+                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= HPMCOUNTERBASE   & CSRAdrM < HPMCOUNTERBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)    // read-only
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERBASE+3   & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
+                CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS   & CSRAdrM < HPMCOUNTERBASE+32  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
+                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= MHPMCOUNTERHBASE & CSRAdrM < MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM != MTIMEH)
+                CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
+        else if (CSRAdrM >= MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERHBASE+32)
+                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= HPMCOUNTERHBASE   & CSRAdrM < HPMCOUNTERHBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)   // read-only
+                CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERHBASE+3 & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
+                CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
+        else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
+                CSRCReadValM = '0;
+        else    IllegalCSRCAccessM = 1'b1; // requested CSR doesn't exist
       end
+      /* verilator lint_on WIDTH */
+    end
     else IllegalCSRCAccessM = 1'b1; // no privileges for this csr
   end
 endmodule

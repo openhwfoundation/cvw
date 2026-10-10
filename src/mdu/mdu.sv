@@ -40,7 +40,7 @@ module mdu import cvw::*;  #(parameter cvw_t P) (
 );
 
   logic [P.XLEN*2-1:0]      ProdM;                          // double-width product from mul
-  logic [P.XLEN-1:0]        QuotM, RemM;                    // quotient and remainder from intdivrestoring
+  logic [P.XLEN-1:0]        QuotM, RemM;                    // quotient and remainder from divider
   logic [P.XLEN-1:0]        PrelimResultM;                  // selected result before W truncation
   logic [P.XLEN-1:0]        MDUResultM;                     // result after W truncation
   logic                     W64M;                           // W-type instruction
