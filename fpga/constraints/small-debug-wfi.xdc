@@ -76,7 +76,7 @@ connect_debug_port u_ila_0/probe10 [get_nets [list {wallypipelinedsoc/core/priv.
 create_debug_port u_ila_0 probe
 set_property port_width 1 [get_debug_ports u_ila_0/probe11]
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe11]
-connect_debug_port u_ila_0/probe11 [get_nets [list {wallypipelinedsoc/core/priv.priv/pmd/wfiW} ]]
+connect_debug_port u_ila_0/probe11 [get_nets [list {wallypipelinedsoc/core/priv.priv/pmd/WaitedM} ]]
 
 create_debug_port u_ila_0 probe
 set_property port_width 1 [get_debug_ports u_ila_0/probe12]
@@ -119,7 +119,7 @@ connect_debug_port u_ila_0/probe18 [get_nets [list {wallypipelinedsoc/uncoregen.
 create_debug_port u_ila_0 probe
 set_property port_width 1 [get_debug_ports u_ila_0/probe19]
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe19]
-connect_debug_port u_ila_0/probe19 [get_nets [list {wallypipelinedsoc/core/priv.priv/pmd/WFITimeoutM} ]]
+connect_debug_port u_ila_0/probe19 [get_nets [list {wallypipelinedsoc/core/priv.priv/pmd/TWTimeoutM} ]]
 
 create_debug_port u_ila_0 probe
 set_property port_width 12 [get_debug_ports u_ila_0/probe20]

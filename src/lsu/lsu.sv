@@ -48,6 +48,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   input  logic                    LSUPrefetchM,                         // Prefetch; presently unused
   output logic                    CommittedM,                           // Delay interrupts while memory operation in flight
   output logic                    SquashSCW,                            // Store conditional failed disable write to GPR
+  output logic                    ReservationValidW,                    // a reservation is held; Zawrs wrs only waits while this is set
   output logic                    DCacheMiss,                           // D cache miss for performance counters
   output logic                    DCacheAccess,                         // D cache memory access for performance counters
   // address and write data
@@ -430,9 +431,10 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   if (P.ZAAMO_SUPPORTED | P.ZALRSC_SUPPORTED) begin : atomic
     atomic #(P) atomic(.clk, .reset, .StallW, .ReadDataM(ReadDataM[P.XLEN-1:0]), .IHWriteDataM, .PAdrM, .CASMatchM,
       .LSUFunct7M, .LSUFunct3M, .LSUAtomicM, .PreLSURWM, .LSUFlushW,
-      .IMAWriteDataM, .SquashSCW, .LSURWM);
+      .IMAWriteDataM, .SquashSCW, .ReservationValidW, .LSURWM);
   end else begin : lrsc
     assign SquashSCW = 1'b0;
+    assign ReservationValidW = 1'b0;
     assign LSURWM = PreLSURWM;
     assign IMAWriteDataM = IHWriteDataM;
   end

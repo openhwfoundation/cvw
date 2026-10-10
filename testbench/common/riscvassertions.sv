@@ -55,5 +55,6 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.ZCMOP_SUPPORTED == 0) | (P.ZCA_SUPPORTED == 1)) else $fatal(1, "ZCMOP requires ZCA");
     assert ((P.ZABHA_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZABHA requires ZAAMO");
     assert ((P.ZACAS_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZACAS requires ZAAMO");
+    assert ((P.ZAWRS_SUPPORTED == 0) | (P.ZALRSC_SUPPORTED == 1)) else $fatal(1, "ZAWRS requires ZALRSC");
   end
 endmodule

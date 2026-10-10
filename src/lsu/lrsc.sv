@@ -38,7 +38,8 @@ module lrsc import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]           LSURWM,     // Memory operation after potential squash of SC
   input  logic [1:0]           LSUAtomicM, // Atomic memory operation
   input  logic [P.PA_BITS-1:0] PAdrM,      // Physical memory address
-  output logic                 SquashSCW   // Squash the store conditional by not allowing rf write
+  output logic                 SquashSCW,  // Squash the store conditional by not allowing rf write
+  output logic                 ReservationValidW // a reservation is held; Zawrs wrs only waits while this is set
 );
 
   // reservation set size is XLEN for Wally
@@ -47,7 +48,7 @@ module lrsc import cvw::*;  #(parameter cvw_t P) (
 
   // Handle atomic load reserved / store conditional
   logic [P.PA_BITS-1:RESERVATION_SET_ADDRESS_BITS]        ReservationPAdrW;
-  logic                        ReservationValidM, ReservationValidW;
+  logic                        ReservationValidM;
   logic                        lrM, scM, WriteAdrMatchM;
   logic                        SquashSCM;
 

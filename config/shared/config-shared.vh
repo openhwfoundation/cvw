@@ -121,6 +121,11 @@ localparam CVTLEN = (ZFA_SUPPORTED & D_SUPPORTED) ? `max(BASECVTLEN, 32'd84) : B
 // need the same wide load/store path that quad floats use
 localparam CASLEN = ZACAS_SUPPORTED ? XLEN*2 : XLEN;
 localparam LLEN = `max(`max($unsigned(FLEN), $unsigned(XLEN)), $unsigned(CASLEN));
+
+// One counter serves wfi, wrs.nto, and wrs.sto, so it must reach the largest threshold in use
+localparam WAIT_TIMEOUT_BIT = ZAWRS_SUPPORTED ?
+                              `max(WFI_TIMEOUT_BIT, `max(WRSNTO_TIMEOUT_BIT, WRSSTO_TIMEOUT_BIT)) :
+                              WFI_TIMEOUT_BIT;
 localparam LOGCVTLEN = $unsigned($clog2(CVTLEN+1));
 
 // size of FMA output in U(NF+4).(3NF+2) format

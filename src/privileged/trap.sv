@@ -33,7 +33,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
   input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM,
   input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // various trap sources
-  input  logic                 wfiM, wfiW,                                      // wait for interrupt instruction
+  input  logic                 WaitedM,                                         // wait instruction in M has waited: it retires before an interrupt
   input  logic [1:0]           PrivilegeModeW,                                  // current privilege mode
   input  logic [11:0]          MIP_REGW, MIE_REGW, MIDELEG_REGW,                // interrupt pending, enabled, and delegate CSRs
   input  logic [15:0]          MEDELEG_REGW,                                    // exception delegation SR
@@ -66,9 +66,11 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   assign IntPendingM   = |PendingIntsM;
   assign Committed     = CommittedM | CommittedF;
   assign EnabledIntsM  = (MIntGlobalEnM ? PendingIntsM & ~MIDELEG_REGW : '0) | (SIntGlobalEnM ? PendingIntsM & MIDELEG_REGW : '0);
-  assign ValidIntsM    = Committed ? '0 : EnabledIntsM;
-  assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW); // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
-  // wfiW is to support possible but unlikely back to back wfi instructions. wfiM would be high in the M stage, while also in the W stage.
+  // Suppress interrupts if the memory system has partially processed a request, or if a wait
+  // instruction in M has waited: it then retires and the interrupt is taken on the next instruction (mepc = pc + 4).
+  // Gating ValidIntsM rather than InterruptM keeps CauseM consistent when the wait ends in an exception.
+  assign ValidIntsM    = (Committed | WaitedM) ? '0 : EnabledIntsM;
+  assign InterruptM    = (|ValidIntsM) & InstrValidM;
   assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseM[3:0]]) &
                      (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
 

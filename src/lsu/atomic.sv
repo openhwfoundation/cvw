@@ -43,6 +43,7 @@ module atomic import cvw::*;  #(parameter cvw_t P) (
   input logic                 LSUFlushW,  // On FlushM or TLB miss ignore memory operation
   output logic [P.XLEN-1:0]   IMAWriteDataM,  // IEU, HPTW, or AMO write data
   output logic                SquashSCW,      // Store conditional failed disable write to GPR
+  output logic                ReservationValidW, // a reservation is held
   output logic [1:0]          LSURWM          // IEU or HPTW Read/Write signal gated by LR/SC
 );
 
@@ -59,9 +60,10 @@ module atomic import cvw::*;  #(parameter cvw_t P) (
   // LRSC unit
   if (P.ZALRSC_SUPPORTED) begin
     assign MemReadM = PreLSURWM[1] & ~LSUFlushW;
-    lrsc #(P) lrsc(.clk, .reset, .StallW, .MemReadM, .PreLSURWM, .LSUAtomicM, .PAdrM, .SquashSCW, .LSURWM);
+    lrsc #(P) lrsc(.clk, .reset, .StallW, .MemReadM, .PreLSURWM, .LSUAtomicM, .PAdrM, .SquashSCW, .ReservationValidW, .LSURWM);
   end else begin
     assign SquashSCW = 0;
+    assign ReservationValidW = 1'b0;
     assign LSURWM = PreLSURWM;
   end
 

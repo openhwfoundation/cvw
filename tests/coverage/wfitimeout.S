@@ -19,10 +19,10 @@
 //   false (no-timeout) direction, which PR #1783 stopped covering incidentally
 //   when it made the counter reset on every trap.
 //
-//   WFI_TIMEOUT_BIT = 16, so the counter saturates after 2^16 = 65536 cycles of
+//   WFI_TIMEOUT_BIT = 14, so the counter saturates after 2^14 = 16384 cycles of
 //   continuous WFI.  MTIME increments once per cycle, so a timer deadline of
-//   0x14000 (81920) cycles guarantees the counter saturates before the interrupt
-//   wakes WFI.
+//   0x14000 (81920) cycles leaves ample margin for the counter to saturate before
+//   the interrupt wakes WFI.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
@@ -54,7 +54,7 @@ main:
     # Schedule a machine timer interrupt well past the WFI watchdog timeout.
     li t1, 0x0200BFF8       # MTIME register in CLINT
     ld t2, 0(t1)            # read current MTIME
-    li t3, 0x14000          # deadline offset > 2^16 cycles so the watchdog counter saturates first
+    li t3, 0x14000          # deadline offset > 2^14 cycles so the watchdog counter saturates first
     add t2, t2, t3          # MTIMECMP = MTIME + offset
     li t1, 0x02004000       # MTIMECMP register in CLINT
     sd t2, 0(t1)

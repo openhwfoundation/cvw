@@ -76,6 +76,7 @@ typedef struct packed {
   logic         ZALRSC_SUPPORTED;
   logic         ZABHA_SUPPORTED;
   logic         ZACAS_SUPPORTED;
+  logic         ZAWRS_SUPPORTED;
 
   // Microarchitectural Features
   logic         BUS_SUPPORTED;
@@ -110,6 +111,9 @@ typedef struct packed {
 
 // WFI Timeout Wait
   int           WFI_TIMEOUT_BIT;
+  int           WRSNTO_TIMEOUT_BIT;
+  int           WRSSTO_TIMEOUT_BIT;
+  int           WAIT_TIMEOUT_BIT;
 
 // Peripheral Addresses
 // Peripheral memory space extends from BASE to BASE+RANGE

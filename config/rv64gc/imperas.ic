@@ -42,6 +42,7 @@
 --override cpu/Zcmop=T
 --override cpu/Zabha=T
 --override cpu/Zacas=T
+--override cpu/Zawrs=T
 --override cpu/Sstc=T
 
 # mcause and scause have 5 lsbs of code and 1 msb of interrupt flag
