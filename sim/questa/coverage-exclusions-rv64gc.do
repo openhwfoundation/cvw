@@ -277,6 +277,13 @@ for {set i 0} {$i < $numcacheways} {incr i} {
 }
 # D$ writeback, flush, write_line, or flush_writeback states can't be cancelled by a flush
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -ftrans CurrState STATE_WRITEBACK->STATE_ACCESS STATE_FLUSH->STATE_ACCESS STATE_WRITE_LINE->STATE_ACCESS STATE_FLUSH_WRITEBACK->STATE_ACCESS
+# D$ FETCH->ACCESS: the case statement leaves STATE_FETCH only for STATE_WRITE_LINE; the transition Questa
+# infers comes from the synchronous reset term (reset | FlushStage).  FlushStage (LSUFlushW) cannot fire
+# mid-fetch: a trap's FlushW waits for the committed access (interrupts are masked while the cache is
+# committed), an access that faults on its own is squashed by SelfFaultM before it reaches the cache, and
+# HPTWFlushW is only asserted before the walker has a bus transaction (hptw.sv).  The transition is seen only
+# when the testbench resets between back-to-back ELFs in one session.
+coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -ftrans CurrState STATE_FETCH->STATE_ACCESS
 
 ####################
 # Unused / illegal peripheral accesses
@@ -319,10 +326,22 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign IdempotentRegion"]
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 2 4 6
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4 6
 
+# MisalignedFaultAllowedM (~Cacheable & ~TLBMiss & Idempotent), TLBMiss_1 row: unreachable.  PBMemoryType is
+# the PTE's PBMT field only on a TLB hit and 00 otherwise, and with PBMemoryType = 00 pmachecker drives
+# Cacheable = SelRegions[3]|[4]|[5] and Idempotent = SelRegions[1]|[2]|[3]|[4]|[5].  rv64gc has no DTIM, no
+# IROM and no external memory, so SelRegions 1, 2 and 3 are tied low and the two are the same signal: while
+# the TLB misses, Idempotent & ~Cacheable cannot hold.  A non-cacheable idempotent region only exists through
+# PBMT = NC, which requires the TLB hit that this row needs to be absent.
+set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
+coverage exclude -scope /core/lsu/dmmu/dmmu -fecexprrow $line 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+
 # The instruction side ties AtomicAccessM low, so every row that needs an atomic access is
 # unreachable in the instruction MMU.
 set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedCausesAccessFaultM"]
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4 5 6
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 6
 
 # The following peripherals are always supported (Supported_0, row 3); the boot ROM, CLINT and RAM accept every
 # access size (SizeValid_0, row 7)
@@ -333,6 +352,14 @@ coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/uartdec -fecexprr
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/plicdec -fecexprrow $line 3
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/spidec -fecexprrow $line 3
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/pwmdec -fecexprrow $line 3
+
+# LSU MemAccessDoneM clear (reset | FlushW | ~StallW), FlushW_1 row (FlushW while StallW): the two cannot
+# coincide in this testbench.  FlushW is LatestUnstalledW, which requires ~StallW, or FlushWCause = TrapM &
+# ~WFIInterruptedM.  StallW is (IFUStallF & ~FlushDCause) | (LSUStallM & ~FlushWCause) | ExternalStall;
+# FlushDCause includes TrapM and the LSU term is gated by ~FlushWCause, so both drop when FlushWCause is set,
+# and ExternalStall is the RVVI backpressure, tied low unless the synthesizable RVVI testbench is built.
+set line [GetLineNum ${SRC}/lsu/lsu.sv "reset \\| FlushW \\| ~StallW"]
+coverage exclude -scope /core/lsu -feccondrow $line 6
 
 set line [GetLineNum ${SRC}/mmu/adrdec.sv "exclusion-tag: adrdecSel"]
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/clintdec -fecexprrow $line 3 7
