@@ -42,6 +42,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   // system status
   input  logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]        STATUS_MPP,
+  input  logic              ENVCFG_PBMTE,           // Page-based memory types enabled
   input  logic              ENVCFG_ADUE,            // HPTW A/D Update enable
   input  logic [1:0]        PrivilegeModeW,
   input  logic [P.XLEN-1:0] ReadDataM,              // page table entry from LSU
@@ -205,6 +206,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     logic                 InvalidRead, InvalidWrite, InvalidOp;
     logic                 UpperBitsUnequal, UpperBitsUnequalD;
     logic                 OtherPageFault;
+    logic                 BadLeafEncoding;
     logic [1:0]           EffectivePrivilegeMode;
     logic                 ImproperPrivilege;
     logic                 SaveHPTWAdr, SelHPTWWriteAdr;
@@ -238,7 +240,17 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign InvalidRead = ReadAccess & ~Readable & (~STATUS_MXR | ~Executable);
     assign InvalidWrite = WriteAccess & ~Writable;
     assign InvalidOp = DTLBWalk ? (InvalidRead | InvalidWrite) : ~Executable;
-    assign OtherPageFault = ImproperPrivilege | InvalidOp | UpperBitsUnequalD | Misaligned | ~Valid;
+    // Reserved leaf encodings page-fault in tlbcontrol after the TLB fill, so they must also block the A/D update:
+    // PBMT=3, or PBMT!=0 without Svpbmt enabled; N=1 without Svnapot or with a reserved napot encoding
+    // (only ppn[3:0]=1000 is defined); any of bits 60:54 set
+    if (P.XLEN == 64) begin : leafencoding
+      logic BadPBMT, BadNAPOT, BadReserved;
+      assign BadPBMT = ((PTE[62:61] != 2'b00) & ~(P.SVPBMT_SUPPORTED & ENVCFG_PBMTE)) | (PTE[62:61] == 2'b11);
+      assign BadNAPOT = PTE[63] & (~P.SVNAPOT_SUPPORTED | (PTE[13:10] != 4'b1000));
+      assign BadReserved = |PTE[60:54];
+      assign BadLeafEncoding = BadPBMT | BadNAPOT | BadReserved;
+    end else assign BadLeafEncoding = 1'b0;
+    assign OtherPageFault = ImproperPrivilege | InvalidOp | UpperBitsUnequalD | Misaligned | ~Valid | BadLeafEncoding;
 
     // hptw needs to know if there is a Dirty or Access fault occurring on this
     // memory access.  If there is the PTE needs to be updated setting Access
