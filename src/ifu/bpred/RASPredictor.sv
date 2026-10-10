@@ -28,34 +28,33 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module RASPredictor import cvw::*;  #(parameter cvw_t P)(
-  input  logic             clk,
-  input  logic             reset,
-  input  logic             StallD, StallE, StallM, FlushD, FlushE, FlushM,
-  input  logic             BPReturnWrongD,                      // Prediction class is wrong
-  input  logic             ReturnD,
-  input  logic             ReturnE, CallE,                  // Instr class
-  input  logic             BPReturnF,
-  input  logic [P.XLEN-1:0] PCLinkE,                                   // PC of instruction after a call
-  output logic [P.XLEN-1:0] RASPCF                                     // Top of the stack
-   );
+module RASPredictor import cvw::*; #(parameter cvw_t P) (
+  input  logic              clk,            // Clock
+  input  logic              reset,          // Reset
+  input  logic              StallD, StallE, StallM, FlushD, FlushE, FlushM, // Stall and flush Decode, Execute, Memory stages
+  input  logic              BPReturnWrongD, // Return prediction was wrong in Decode stage
+  input  logic              ReturnD,        // Return instruction in Decode stage
+  input  logic              ReturnE, CallE, // Return and call instructions in Execute stage
+  input  logic              BPReturnF,      // Predicted return instruction in Fetch stage
+  input  logic [P.XLEN-1:0] PCLinkE,        // PC + 2 or 4 of instruction in Execute stage (link address)
+  output logic [P.XLEN-1:0] RASPCF          // Return address predicted by RAS (top of stack)
+);
 
   logic                     CounterEn;
   localparam Depth = $clog2(P.RAS_SIZE);
 
   logic [Depth-1:0]         NextPtr, Ptr, P1, M1, IncDecPtr;
   logic [P.RAS_SIZE-1:0]     [P.XLEN-1:0] memory;
-  integer        index;
+  integer                   index;
 
-  logic      PopF;
-  logic      PushE;
-  logic      RepairD;
-  logic      IncrRepairD, DecRepairD;
+  logic                     PopF;
+  logic                     PushE;
+  logic                     RepairD;
+  logic                     IncrRepairD, DecRepairD;
 
-  logic      DecPtr;
-  logic      FlushedReturnDE;
-  logic      WrongPredReturnD;
-
+  logic                     DecPtr;
+  logic                     FlushedReturnDE;
+  logic                     WrongPredReturnD;
 
   assign PopF = BPReturnF & ~StallD & ~FlushD;
   assign PushE = CallE & ~StallM & ~FlushM;
@@ -63,11 +62,11 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P)(
   assign WrongPredReturnD = (BPReturnWrongD) & ~StallE & ~FlushE;
   assign FlushedReturnDE = (~StallE & FlushE & ReturnD) | (FlushM & ReturnE); // flushed return
 
-  assign RepairD = WrongPredReturnD | FlushedReturnDE ;
+  assign RepairD = WrongPredReturnD | FlushedReturnDE;
 
-  assign IncrRepairD = FlushedReturnDE | (WrongPredReturnD & ~ReturnD); // Guessed it was a return, but its not
+  assign IncrRepairD = FlushedReturnDE | (WrongPredReturnD & ~ReturnD); // Guessed it was a return, but it's not
 
-  assign DecRepairD =  WrongPredReturnD & ReturnD; // Guessed non return but is a return.
+  assign DecRepairD = WrongPredReturnD & ReturnD; // Guessed non return but is a return.
 
   assign CounterEn = PopF | PushE | RepairD;
 
@@ -78,25 +77,24 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P)(
   mux2 #(Depth) PtrMux(P1, M1, DecPtr, IncDecPtr);
   logic [Depth-1:0] Sum;
   assign Sum = Ptr + IncDecPtr;
-  if(|P.RAS_SIZE[Depth-1:0])
+  // RAS_SIZE is not a power of 2 if any of its low Depth bits are set
+  if (|P.RAS_SIZE[Depth-1:0])
     assign NextPtr = Sum >= P.RAS_SIZE[Depth-1:0] ? 0 : Sum; // wrap back around if our stack is not a power of 2
   else
     assign NextPtr = Sum;
-  //assign NextPtr = Ptr + IncDecPtr;
 
   flopenr #(Depth) ptrreg(clk, reset, CounterEn, NextPtr, Ptr);
 
   // RAS must be reset.
-  always_ff @ (posedge clk) begin
-    if(reset) begin
-      for(index=0; index<P.RAS_SIZE; index++)
-    memory[index] <= {P.XLEN{1'b0}};
-    end else if(PushE) begin
+  always_ff @(posedge clk) begin
+    if (reset) begin
+      for (index = 0; index < P.RAS_SIZE; index++)
+        memory[index] <= {P.XLEN{1'b0}};
+    end else if (PushE) begin
       memory[NextPtr] <= PCLinkE;
     end
   end
 
   assign RASPCF = memory[Ptr];
-
 
 endmodule

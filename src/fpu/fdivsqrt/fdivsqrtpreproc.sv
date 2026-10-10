@@ -27,29 +27,29 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
-  input  logic                 clk,
-  input  logic                 IFDivStartE,
-  input  logic [P.NF:0]        Xm, Ym,      // Floating-point significands
-  input  logic [P.NE-1:0]      Xe, Ye,      // Floating-point exponents
-  input  logic [P.FMTBITS-1:0] FmtE,
-  input  logic [P.NE-2:0]      Bias,                               // Bias of exponent
-  input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
-  input  logic                 SqrtE,
-  input  logic                 XZeroE,
-  input  logic [2:0]           Funct3E,
-  output logic [P.NE+1:0]      UeM,         // biased exponent of result
-  output logic [P.DIVb+3:0]    X, D,        // Q4.DIVb
+module fdivsqrtpreproc import cvw::*; #(parameter cvw_t P) (
+  input  logic                 clk,              // Clock
+  input  logic                 IFDivStartE,      // Start integer or FP divide/sqrt
+  input  logic [P.NF:0]        Xm, Ym,           // X and Y significands
+  input  logic [P.NE-1:0]      Xe, Ye,           // X and Y exponents
+  input  logic [P.FMTBITS-1:0] FmtE,             // FP format in Execute stage
+  input  logic [P.NE-2:0]      Bias,             // Exponent bias
+  input  logic [P.LOGFLEN-1:0] Nf,               // Number of fractional bits in selected format
+  input  logic                 SqrtE,            // Square root operation in Execute stage
+  input  logic                 XZeroE,           // X is zero
+  input  logic [2:0]           Funct3E,          // funct3 field of instruction in Execute stage
+  output logic [P.NE+1:0]      UeM,              // Divide/sqrt result exponent (biased)
+  output logic [P.DIVb+3:0]    X, D,             // Dividend or radicand X and divisor D (Q4.DIVb)
   // Int-specific
-  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE, // U(XLEN.0) inputs from IEU
-  input  logic                 IntDivE, W64E,
+  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  input  logic                 IntDivE, W64E,    // Integer divide or remainder, RV64 W-type instruction
   // Outputs
-  output logic                 ISpecialCaseE,
-  output logic [P.DURLEN-1:0]  CyclesE,
-  output logic [P.DIVBLEN-1:0] IntNormShiftM,
-  output logic                 ALTBM, W64M,
-  output logic                 AsM, BsM, BZeroM,
-  output logic [P.XLEN-1:0]    AM
+  output logic                 ISpecialCaseE,    // Integer divide special case (divide by zero or |A| < |B|)
+  output logic [P.DURLEN-1:0]  CyclesE,          // Number of iteration cycles
+  output logic [P.DIVBLEN-1:0] IntNormShiftM,    // Integer divide normalization shift
+  output logic                 ALTBM, W64M,      // Integer |A| < |B|, RV64 W-type instruction
+  output logic                 AsM, BsM, BZeroM, // Integer operand signs, divisor is zero
+  output logic [P.XLEN-1:0]    AM                // Integer dividend A (U/Q(XLEN.0))
 );
 
   logic [P.DIVb:0]             Xnorm, Dnorm;
@@ -58,7 +58,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   logic [P.DIVb:0]             IFX, IFD;                            // Correctly-sized inputs for iterator, selected from int or fp input
   logic [P.DIVBLEN-1:0]        mE, ell;                             // Leading zeros of inputs
   logic [P.DIVBLEN-1:0]        IntResultBitsE;                      // bits in integer result
-  logic                        AZeroE, BZeroE;                      // A or B is Zero for integer division
+  logic                        BZeroE;                              // B is Zero for integer division
   logic                        SignedDivE;                          // signed division
   logic                        AsE, BsE;                            // Signs of integer inputs
   logic [P.XLEN-1:0]           AE;                                  // input A after W64 adjustment
@@ -73,17 +73,17 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
     logic [P.XLEN-1:0] BE, PosA, PosB;
 
     // Extract inputs, signs, zero, depending on W64 mode if applicable
+    // Funct3 = 1xx for DIV/DIVU/REM/REMU; Funct3[0] = 1 for unsigned (DIVU, REMU)
     assign SignedDivE = ~Funct3E[0];
 
     // Source handling
-    if (P.XLEN==64) begin // 64-bit, supports W64
+    if (P.XLEN == 64) begin // 64-bit, supports W64
       mux2 #(64)    amux(ForwardedSrcAE, {{32{ForwardedSrcAE[31] & SignedDivE}}, ForwardedSrcAE[31:0]}, W64E, AE);
       mux2 #(64)    bmux(ForwardedSrcBE, {{32{ForwardedSrcBE[31] & SignedDivE}}, ForwardedSrcBE[31:0]}, W64E, BE);
     end else begin // 32 bits only
       assign AE = ForwardedSrcAE;
       assign BE = ForwardedSrcBE;
-     end
-    assign AZeroE = ~(|AE);
+    end
     assign BZeroE = ~(|BE);
     assign AsE = AE[P.XLEN-1] & SignedDivE;
     assign BsE = BE[P.XLEN-1] & SignedDivE;
@@ -115,11 +115,11 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   //////////////////////////////////////////////////////
   // Integer Right Shift to digit boundary
   //  Determine DivXShifted (X shifted to digit boundary)
-  //  and nE (number of fractional digits)
+  //  and p (number of fractional result bits)
   //////////////////////////////////////////////////////
 
   if (P.IDIV_ON_FPU) begin : intrightshift // Int Supported
-    logic [P.DIVBLEN-1:0] ZeroDiff,p;
+    logic [P.DIVBLEN-1:0] ZeroDiff, p;
 
     // calculate number of fractional bits p
     assign ZeroDiff = mE - ell;         // Difference in number of leading zeros
@@ -152,8 +152,8 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // Extend to Q4.b format
   // shift square root to be in range [1/4, 1)
   // Normalized numbers are shifted right by 1 if the exponent is odd
-  // Subnormal numbers have Xe = 0 and an unbiased exponent of 1-BIAS.  They are shifted right if the number of leading zeros is odd.
-   //////////////////////////////////////////////////////
+  // Subnormal numbers have Xe = 1 (set by the unpacker) and an unbiased exponent of 1-BIAS.  They are shifted right if the number of leading zeros is odd.
+  //////////////////////////////////////////////////////
 
   assign DivX = {3'b000, Xnorm}; // Zero-extend numerator for division
 
@@ -161,18 +161,19 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // If X = 0, then special case logic sets sqrt = 0 so this portion doesn't matter
   // Otherwise, X has a leading 1 after possible normalization shift and is now in range [1, 2)
   // Next X is shifted right by 1 or 2 bits to range [1/4, 1) and exponent will be adjusted accordingly to be even
-  // Now (X-1) is negative.  Formed by placing all 1s in all four integer bits (in Q4.b) form, keeping X in fraciton bits
+  // Now (X-1) is negative.  Formed by placing all 1s in all four integer bits (in Q4.b) form, keeping X in fraction bits
   // Then multiply by R is left shift by r (1 or 2 for radix 2 or 4)
   // This is optimized in hardware by first right shifting by 0 or 1 bit (instead of 1 or 2), then left shifting by (r-1), then subtracting 2 or 4
   // Subtracting 2 is equivalent to adding 1110.  Subtracting 4 is equivalent to adding 1100.  Prepend leading 1s to do a free subtraction.
   // This also means only one extra fractional bit is needed because we never shift right by more than 1.
   // Radix      Exponent odd          Exponent Even
   // 2          x-2 = 2(x/2 - 1)      x/2 - 2 = 2(x/4 - 1)
-  // 4          2(x)-4 = 4(x/2 - 1))  2(x/2)-4 = 4(x/4 - 1)
+  // 4          2x - 4 = 4(x/2 - 1)    2(x/2) - 4 = 4(x/4 - 1)
   // Summary: PreSqrtX = r(x/2or4 - 1)
 
-  assign EvenExp = Xe[0] ^ ell[0]; // effective unbiased exponent after normalization is even
-  mux2 #(P.DIVb+4) sqrtxmux({4'b0,Xnorm[P.DIVb:1]}, {5'b00, Xnorm[P.DIVb:2]}, EvenExp, SqrtX); // X/2 if exponent odd, X/4 if exponent even
+  // EvenExp: the unbiased exponent after normalization (Xe - Bias - ell) is even; Bias is odd, so this holds when Xe[0] != ell[0]
+  assign EvenExp = Xe[0] ^ ell[0];
+  mux2 #(P.DIVb+4) sqrtxmux({4'b0, Xnorm[P.DIVb:1]}, {5'b00, Xnorm[P.DIVb:2]}, EvenExp, SqrtX); // X/2 if exponent odd, X/4 if exponent even
 
 /*
   // Attempt to optimize radix 4 to use a left shift by 1 or zero initially, followed by no more left shift
@@ -215,13 +216,13 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
 
   if (P.IDIV_ON_FPU) begin : intpipelineregs
     logic [P.DIVBLEN-1:0] IntDivNormShiftE, IntRemNormShiftE, IntNormShiftE;
-    logic               RemOpE;
+    logic                 RemOpE;
 
     /* verilator lint_off WIDTH */
     assign IntDivNormShiftE = P.INTDIVb - (CyclesE * P.RK - P.LOGR); // b - rn, used for integer normalization right shift.  n = (Cycles * k - 1)
-    assign IntRemNormShiftE = mE + (P.INTDIVb-(P.XLEN-1));           // m + b - (N-1) for remainder normalization shift
+    assign IntRemNormShiftE = mE + (P.INTDIVb - (P.XLEN - 1));       // m + b - (N-1) for remainder normalization shift
     /* verilator lint_on WIDTH */
-    assign RemOpE = Funct3E[1];
+    assign RemOpE = Funct3E[1]; // REM/REMU
     mux2 #(P.DIVBLEN) normshiftmux(IntDivNormShiftE, IntRemNormShiftE, RemOpE, IntNormShiftE);
 
     // pipeline registers
@@ -231,7 +232,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
     flopen #(1)        bsignreg(clk, IFDivStartE, BsE,      BsM);
     flopen #(P.DIVBLEN)   nsreg(clk, IFDivStartE, IntNormShiftE, IntNormShiftM);
     flopen #(P.XLEN)    srcareg(clk, IFDivStartE, AE,       AM);
-    if (P.XLEN==64)
+    if (P.XLEN == 64)
       flopen #(1)        w64reg(clk, IFDivStartE, W64E,     W64M);
     else assign W64M = 0;
   end else

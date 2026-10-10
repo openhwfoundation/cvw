@@ -30,9 +30,9 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module pmpchecker import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.PA_BITS-1:0]     PhysicalAddress,
-  input  logic [1:0]               EffectivePrivilegeModeW,
+module pmpchecker import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.PA_BITS-1:0]     PhysicalAddress,                           // Physical address
+  input  logic [1:0]               EffectivePrivilegeModeW,                   // Current privilege level of the processor, accounting for mstatus.MPRV
   // ModelSim has a switch -svinputport which controls whether input ports
   // are nets (wires) or vars by default. The default setting of this switch is
   // `relaxed`, which means that signals are nets if and only if they are
@@ -40,14 +40,14 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   // this will be understood as a var. However, if we don't supply the `var`
   // keyword, the compiler warns us that it's interpreting the signal as a var,
   // which we might not intend.
-  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],
-  input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM,
-  input  logic [1:0]               Size,
-  input  logic [3:0]               CMOpM,
-  output logic                     PMPInstrAccessFaultF,
-  output logic                     PMPLoadAccessFaultM,
-  output logic                     PMPStoreAmoAccessFaultM
+  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],      // PMP configuration CSRs
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],     // PMP address CSRs
+  input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM, // Access type: execute, write, read
+  input  logic [1:0]               Size,                                      // Access size (log2 bytes)
+  input  logic [3:0]               CMOpM,                                     // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  output logic                     PMPInstrAccessFaultF,                      // PMP instruction access fault
+  output logic                     PMPLoadAccessFaultM,                       // PMP load access fault
+  output logic                     PMPStoreAmoAccessFaultM                    // PMP store/AMO access fault
 );
 
   // Bit i is high when the address falls in PMP region i
@@ -57,9 +57,7 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   logic [P.PMP_ENTRIES-1:0]        L, X, W, R; // PMP matches and has flag set
   logic [P.PMP_ENTRIES-1:0]        PAgePMPAdr; // for TOR PMP matching, PhysicalAddress > PMPAdr[i]
   logic                            PMPCMOAccessFault, PMPCBOMAccessFault, PMPCBOZAccessFault;
-  logic [2:0]                      SizeBytesMinus1;
   logic                            MatchingR, MatchingW, MatchingX, MatchingL;
-
 
   if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
@@ -84,11 +82,12 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   // Only enforce PMP checking for effective S and U modes (accounting for mstatus.MPRV) or in Machine mode when L bit is set in selected region
   assign EnforcePMP = (EffectivePrivilegeModeW != P.M_MODE) | MatchingL;
 
-  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR ; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
-  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[3] & ~MatchingW ;          // exclusion-tag: immu-pmpcboz
+  // CMOpM[2:0] = cbo.inval/clean/flush (Zicbom) need R; cbo.zero (Zicboz) needs W
+  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
+  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[CMO_ZERO] & ~MatchingW;     // exclusion-tag: immu-pmpcboz
   assign PMPCMOAccessFault      = PMPCBOZAccessFault | PMPCBOMAccessFault;              // exclusion-tag: immu-pmpcboaccess
 
-  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX ;
-  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW)  | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
+  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX;
+  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW) | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
   assign PMPLoadAccessFaultM      = EnforcePMP & ReadAccessM & ~WriteAccessM & ~MatchingR;
- endmodule
+endmodule

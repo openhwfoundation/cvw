@@ -27,30 +27,30 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
-  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,
-  input  logic [P.XLEN-1:0]        VAdr,
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
-  input  logic [1:0]               STATUS_MPP,
-  input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
-  input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
-  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
-  input  logic                     ReadAccess, WriteAccess,
-  input  logic [3:0]               CMOpM,
-  input  logic                     DisableTranslation,
-  input  logic [11:0]              PTEAccessBits,
-  input  logic                     CAMHit,
-  input  logic                     Misaligned,
-  input  logic                     NAPOT4,             // pte.ppn[3:0] = 1000, indicating 64 KiB continuous NAPOT region
-  output logic                     TLBMiss,
-  output logic                     TLBHit,
-  output logic                     TLBPageFault,
-  output logic                     UpdateDA,
-  output logic                     SV39Mode,
-  output logic                     SV48Mode,
-  output logic                     Translate,
-  output logic                     PTE_N,         // NAPOT page table entry
-  output logic [1:0]               PBMemoryType   // PBMT field of PTE during TLB hit, or 00 otherwise
+module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
+  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,               // Current address translation mode
+  input  logic [P.XLEN-1:0]        VAdr,                    // Address before translation (virtual or physical)
+  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV, // mstatus.MXR, SUM, MPRV: control address translation permissions
+  input  logic [1:0]               STATUS_MPP,              // mstatus.MPP: machine previous privilege mode
+  input  logic                     ENVCFG_PBMTE,            // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,             // HPTW A/D Update enable
+  input  logic [1:0]               EffectivePrivilegeModeW, // Current privilege level of the processor, accounting for mstatus.MPRV
+  input  logic                     ReadAccess, WriteAccess, // Read access, write access
+  input  logic [3:0]               CMOpM,                   // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic                     DisableTranslation,      // Disable translation for D$ flush and HPTW accesses, which use physical addresses
+  input  logic [11:0]              PTEAccessBits,           // PTE permission and status bits
+  input  logic                     CAMHit,                  // A TLB entry matches the virtual page number
+  input  logic                     Misaligned,              // Superpage PPN is misaligned
+  input  logic                     NAPOT4,                  // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
+  output logic                     TLBMiss,                 // TLB miss
+  output logic                     TLBHit,                  // TLB hit
+  output logic                     TLBPageFault,            // TLB page fault
+  output logic                     UpdateDA,                // TLB hit needs to set the dirty or access bit
+  output logic                     SV39Mode,                // Translation mode is Sv39
+  output logic                     SV48Mode,                // Translation mode is Sv48
+  output logic                     Translate,               // Virtual address translation is enabled
+  output logic                     PTE_N,                   // NAPOT page table entry
+  output logic [1:0]               PBMemoryType             // PBMT field of PTE during TLB hit, or 00 otherwise
 );
 
   // Sections of the page table entry
@@ -83,9 +83,9 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   // Send PMA a 2-bit MemoryType that is PBMT during leaf page table accesses and 0 otherwise
   assign PBMemoryType = PTE_PBMT & {2{Translate & TLBHit & P.SVPBMT_SUPPORTED}};
 
-  // check if reserved, N, or PBMT bits are malformed w in RV64
+  // check if reserved, N, or PBMT bits are malformed in RV64
   assign BadPBMT = ((PTE_PBMT != 0) & ~(P.SVPBMT_SUPPORTED & ENVCFG_PBMTE)) | PTE_PBMT == 3; // PBMT must be zero if not supported; value of 3 is reserved
-  assign BadNAPOT = PTE_N & (~P.SVNAPOT_SUPPORTED | ~NAPOT4);              // N must be be 0 if CVNAPOT is not supported or not 64 KiB contiguous region
+  assign BadNAPOT = PTE_N & (~P.SVNAPOT_SUPPORTED | ~NAPOT4);              // N must be 0 if Svnapot is not supported or not 64 KiB contiguous region
   assign BadReserved = PTE_RESERVED;                                       // Reserved bits must be zero
   assign ReservedRW = PTE_W & ~PTE_R;                                      // page fault on reserved encoding with R=0, W=1 per Privileged Spec 10.3.1
 
@@ -96,7 +96,7 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
     assign ImproperPrivilege = ((EffectivePrivilegeModeW == P.U_MODE) & ~PTE_U) | ((EffectivePrivilegeModeW == P.S_MODE) & PTE_U);
     assign PreUpdateDA = ~PTE_A;
     assign InvalidAccess = ~PTE_X | ReservedRW;
- end else begin : dtlb // Data TLB fault checking
+  end else begin : dtlb // Data TLB fault checking
     logic InvalidRead, InvalidWrite;
     logic InvalidCBOM, InvalidCBOZ;
 
@@ -104,16 +104,16 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
     // may only access user mode pages when STATUS_SUM is low.
     assign ImproperPrivilege = ((EffectivePrivilegeModeW == P.U_MODE) & ~PTE_U) |
       ((EffectivePrivilegeModeW == P.S_MODE) & PTE_U & ~STATUS_SUM);
-    // Check for read error. Reads are invalid when the page is not readable
-    // (and executable pages are not readable) or when the page is neither
-    // readable nor executable (and executable pages are readable).
+    // Check for read error. Reads are invalid when the page is not readable,
+    // unless STATUS_MXR is set and the page is executable.
     assign InvalidRead = ReadAccess & ~PTE_R & (~STATUS_MXR | ~PTE_X);
     // Check for write error. Writes are invalid when the page's write bit is 0.
     assign InvalidWrite = WriteAccess & ~PTE_W;
+    // cbo.inval/clean/flush (CMOpM[2:0]) need read permission; cbo.zero needs write permission
     assign InvalidCBOM = (|CMOpM[2:0]) & (~PTE_R & (~STATUS_MXR | ~PTE_X));
-    assign InvalidCBOZ = CMOpM[3] & ~PTE_W;
+    assign InvalidCBOZ = CMOpM[CMO_ZERO] & ~PTE_W;
     assign InvalidAccess = InvalidRead | InvalidWrite | InvalidCBOM | InvalidCBOZ | ReservedRW;
-    assign PreUpdateDA = ~PTE_A | (WriteAccess | CMOpM[3]) & ~PTE_D;
+    assign PreUpdateDA = ~PTE_A | (WriteAccess | CMOpM[CMO_ZERO]) & ~PTE_D; // set A on any access; also set D on a write or cbo.zero
   end
 
   // Determine whether to update DA bits.  With SVADU, it is done in hardware
@@ -124,5 +124,5 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   assign TLBPageFault = Translate & TLBHit & (PrePageFault | InvalidAccess);
 
   assign TLBHit = CAMHit & TLBAccess;
-  assign TLBMiss = ~CAMHit & TLBAccess & Translate ;
+  assign TLBMiss = ~CAMHit & TLBAccess & Translate;
 endmodule

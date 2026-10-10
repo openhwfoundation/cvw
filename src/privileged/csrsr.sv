@@ -28,34 +28,34 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrsr import cvw::*;  #(parameter cvw_t P) (
-  input  logic              clk, reset, StallW,
-  input  logic              WriteMSTATUSM, WriteMSTATUSHM, WriteSSTATUSM,
-  input  logic              TrapM, FRegWriteM,
-  input  logic [1:0]        NextPrivilegeModeM, PrivilegeModeW,
-  input  logic              mretM, sretM,
-  input  logic              WriteFRMM, SetOrWriteFFLAGSM,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic              SelHPTW,
-  output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,
-  output logic [1:0]        STATUS_MPP,
-  output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,
-  output logic              STATUS_MIE, STATUS_SIE,
-  output logic              STATUS_MXR, STATUS_SUM,
-  output logic              STATUS_MPRV, STATUS_TVM,
-  output logic [1:0]        STATUS_FS,
-  output logic              BigEndianM
+module csrsr import cvw::*; #(parameter cvw_t P) (
+  input  logic              clk, reset, StallW,                           // Clock, reset, stall Writeback stage
+  input  logic              WriteMSTATUSM, WriteMSTATUSHM, WriteSSTATUSM, // Write mstatus, mstatush, sstatus
+  input  logic              TrapM, FRegWriteM,                            // Trap is occurring, FP register write
+  input  logic [1:0]        NextPrivilegeModeM, PrivilegeModeW,           // Next and current privilege modes
+  input  logic              mretM, sretM,                                 // mret and sret instructions
+  input  logic              WriteFRMM, SetOrWriteFFLAGSM,                 // Write frm, set or write fflags
+  input  logic [P.XLEN-1:0] CSRWriteValM,                                 // Value to write to CSR
+  input  logic              SelHPTW,                                      // HPTW is accessing memory through the LSU
+  output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,    // mstatus, sstatus, mstatush CSRs
+  output logic [1:0]        STATUS_MPP,                                   // mstatus.MPP: machine previous privilege mode
+  output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,            // mstatus.SPP, TSR, TW bits
+  output logic              STATUS_MIE, STATUS_SIE,                       // mstatus.MIE, SIE: machine and supervisor interrupt enables
+  output logic              STATUS_MXR, STATUS_SUM,                       // mstatus.MXR, SUM: make executable readable, supervisor user memory access
+  output logic              STATUS_MPRV, STATUS_TVM,                      // mstatus.MPRV, TVM: modify privilege, trap virtual memory
+  output logic [1:0]        STATUS_FS,                                    // mstatus.FS: FPU state (00 off)
+  output logic              BigEndianM                                    // Memory access is big-endian
 );
 
-  logic STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
+  logic       STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
   logic [1:0] STATUS_SXL, STATUS_UXL, STATUS_XS, STATUS_FS_INT, STATUS_MPP_NEXT;
-  logic STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
-  logic nextMBE, nextSBE;
+  logic       STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
+  logic       nextMBE, nextSBE;
 
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6
   // Lower privilege status registers are a subset of the full status register
-  if (P.XLEN==64) begin : csrsr64 // RV64
+  if (P.XLEN == 64) begin : csrsr64 // RV64
     assign MSTATUS_REGW  = {STATUS_SD, 25'b0, STATUS_MBE, STATUS_SBE, STATUS_SXL, STATUS_UXL, 9'b0,
                            STATUS_TSR, STATUS_TW, STATUS_TVM, STATUS_MXR, STATUS_SUM, STATUS_MPRV,
                            STATUS_XS, STATUS_FS, STATUS_MPP, 2'b0,
@@ -81,7 +81,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   end
 
   // extract values to write to upper status register on 64/32-bit access
-  if (P.XLEN==64) begin : upperstatus
+  if (P.XLEN == 64) begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & CSRWriteValM[37];
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[36];
   end else begin : upperstatus
@@ -103,6 +103,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   assign STATUS_SD   = (STATUS_FS == 2'b11) | (STATUS_XS == 2'b11); // dirty state logic
   assign STATUS_XS   = 2'b00; // No additional user-mode state to be dirty
 
+  // MPP (mstatus[12:11]) is WARL: only accept supported privilege modes
   always_comb
     if      (CSRWriteValM[12:11] == P.U_MODE & P.U_SUPPORTED) STATUS_MPP_NEXT = P.U_MODE;
     else if (CSRWriteValM[12:11] == P.S_MODE & P.S_SUPPORTED) STATUS_MPP_NEXT = P.S_MODE;
@@ -127,7 +128,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
       case (EndiannessPrivMode)
         P.M_MODE: BigEndianM = STATUS_MBE;
         P.S_MODE: BigEndianM = STATUS_SBE;
-        default: BigEndianM  = STATUS_UBE;
+        default:  BigEndianM = STATUS_UBE;
       endcase
     end
   end else begin : endianmux
@@ -136,7 +137,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
 
   // registers for STATUS bits
   // complex register with reset, write enable, and the ability to update other bits in certain cases
-  always_ff @(posedge clk) //, posedge reset)
+  always_ff @(posedge clk)
     if (reset) begin
       STATUS_TSR_INT  <= 1'b0;
       STATUS_TW_INT   <= 1'b0;
@@ -168,10 +169,10 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
           STATUS_SPIE <= STATUS_SIE;
           STATUS_SIE  <= 1'b0;
           STATUS_SPP  <= PrivilegeModeW[0];
-       end
+        end
       end else if (mretM) begin // Privileged 3.1.6.1
         STATUS_MIE      <= STATUS_MPIE; // restore global interrupt enable
-        STATUS_MPIE     <= 1'b1; //
+        STATUS_MPIE     <= 1'b1;
         STATUS_MPP      <= P.U_SUPPORTED ? P.U_MODE : P.M_MODE; // set MPP to lowest supported privilege level
         STATUS_MPRV_INT <= STATUS_MPRV_INT & (STATUS_MPP == P.M_MODE); // page 21 of privileged spec.
       end else if (sretM & P.S_SUPPORTED) begin

@@ -27,38 +27,37 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ram_ahb import cvw::*;  #(parameter cvw_t P,
-                                 parameter RANGE = 65535, PRELOAD = 0) (
-  input  logic                 HCLK, HRESETn,
-  input  logic                 HSELRam,
-  input  logic [P.PA_BITS-1:0] HADDR,
-  input  logic                 HWRITE,
-  input  logic                 HREADY,
-  input  logic [1:0]           HTRANS,
-  input  logic [P.XLEN-1:0]    HWDATA,
-  input  logic [P.XLEN/8-1:0]  HWSTRB,
-  output logic [P.XLEN-1:0]    HREADRam,
-  output logic                 HRESPRam, HREADYRam
+module ram_ahb import cvw::*; #(parameter cvw_t P,
+                                parameter RANGE = 65535, PRELOAD = 0) (
+  input  logic                 HCLK, HRESETn,      // AHB clock and reset (active low)
+  input  logic                 HSELRam,            // AHB select for RAM
+  input  logic [P.PA_BITS-1:0] HADDR,              // AHB address
+  input  logic                 HWRITE,             // AHB write (1) or read (0)
+  input  logic                 HREADY,             // AHB ready
+  input  logic [1:0]           HTRANS,             // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  input  logic [P.XLEN-1:0]    HWDATA,             // AHB write data
+  input  logic [P.XLEN/8-1:0]  HWSTRB,             // AHB byte write enables
+  output logic [P.XLEN-1:0]    HREADRam,           // AHB read data from RAM
+  output logic                 HRESPRam, HREADYRam // AHB response and ready from RAM
 );
 
-  localparam                   ADDR_WIDTH = $clog2(RANGE/8);
-  localparam                   OFFSET = $clog2(P.XLEN/8);
+  localparam ADDR_WIDTH = $clog2(RANGE/8);
+  localparam OFFSET     = $clog2(P.XLEN/8);
 
-  logic [P.XLEN/8-1:0]         ByteMask;
   logic [P.PA_BITS-1:0]        HADDRD, RamAddr;
   logic                        initTrans;
   logic                        memwrite, memwriteD, memread;
   logic                        nextHREADYRam;
   logic                        DelayReady;
 
-  // a new AHB transactions starts when HTRANS requests a transaction,
+  // a new AHB transaction starts when HTRANS requests a transaction,
   // the peripheral is selected, and the previous transaction is completing
-  assign initTrans = HREADY & HSELRam & HTRANS[1] ;
+  assign initTrans = HREADY & HSELRam & HTRANS[1];
   assign memwrite  = initTrans & HWRITE;
   assign memread   = initTrans & ~HWRITE;
 
-  flopenr #(1) memwritereg(HCLK, ~HRESETn, HREADY, memwrite, memwriteD);
-  flopenr #(P.PA_BITS)   haddrreg(HCLK, ~HRESETn, HREADY, HADDR, HADDRD);
+  flopenr #(1)        memwritereg(HCLK, ~HRESETn, HREADY, memwrite, memwriteD);
+  flopenr #(P.PA_BITS) haddrreg(HCLK, ~HRESETn, HREADY, HADDR, HADDRD);
 
   // Stall on a read after a write because the RAM can't take both addresses on the same cycle
   assign nextHREADYRam = (~(memwriteD & memread)) & ~DelayReady;
@@ -74,7 +73,7 @@ module ram_ahb import cvw::*;  #(parameter cvw_t P,
     .addr(RamAddr[ADDR_WIDTH+OFFSET-1:OFFSET]), .we(memwriteD), .din(HWDATA), .bwe(HWSTRB), .dout(HREADRam));
 
   // use this to add arbitrary latency to ram. Helps test AHB controller correctness
-  if(P.RAM_LATENCY > 0) begin
+  if (P.RAM_LATENCY > 0) begin
     logic [7:0]       NextCycle, Cycle;
     logic             CntEn, CntRst;
     logic             CycleFlag;
@@ -82,7 +81,7 @@ module ram_ahb import cvw::*;  #(parameter cvw_t P,
     flopenr #(8) counter (HCLK, ~HRESETn | CntRst, CntEn, NextCycle, Cycle);
     assign NextCycle = Cycle + 1'b1;
 
-    typedef enum      logic  {READY, DELAY} statetype;
+    typedef enum logic {READY, DELAY} statetype;
     statetype CurrState, NextState;
 
     always_ff @(posedge HCLK)
@@ -90,13 +89,13 @@ module ram_ahb import cvw::*;  #(parameter cvw_t P,
       else             CurrState <= NextState;
 
     always_comb begin
-    case(CurrState)
-      READY: if(initTrans & ~CycleFlag) NextState = DELAY;
-        else                            NextState = READY;
-        DELAY: if(CycleFlag)            NextState = READY;
-    else                                NextState = DELAY;
-      default:                          NextState = READY;
-    endcase
+      case (CurrState)
+        READY:   if (initTrans & ~CycleFlag) NextState = DELAY;
+                 else                        NextState = READY;
+        DELAY:   if (CycleFlag)              NextState = READY;
+                 else                        NextState = DELAY;
+        default:                             NextState = READY;
+      endcase
     end
 
     assign CycleFlag = Cycle == P.RAM_LATENCY[7:0];

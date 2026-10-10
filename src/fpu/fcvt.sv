@@ -26,32 +26,32 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fcvt import cvw::*;  #(parameter cvw_t P) (
-  input  logic                    Xs,           // input's sign
-  input  logic [P.NE-1:0]         Xe,           // input's exponent
-  input  logic [P.NF:0]           Xm,           // input's fraction
+module fcvt import cvw::*; #(parameter cvw_t P) (
+  input  logic                    Xs,           // X sign
+  input  logic [P.NE-1:0]         Xe,           // X exponent
+  input  logic [P.NF:0]           Xm,           // X significand
   input  logic [P.XLEN-1:0]       Int,          // integer input - from IEU
-  input  logic [2:0]              OpCtrl,       // choose which operation (look below for values)
-  input  logic                    ToInt,        // is fp->int (since it's writing to the integer register)
-  input  logic                    XZero,        // is the input zero
-  input  logic [P.FMTBITS-1:0]    Fmt,          // the input's precision (11=quad 01=double 00=single 10=half)
+  input  logic [2:0]              OpCtrl,       // FPU operation control
+  input  logic                    ToInt,        // FP to integer conversion
+  input  logic                    XZero,        // X is zero
+  input  logic [P.FMTBITS-1:0]    Fmt,          // FP format: 00 single, 01 double, 10 half, 11 quad
   output logic [P.NE:0]           Ce,           // the calculated exponent
-  output logic [P.LOGCVTLEN-1:0]  ShiftAmt,     // how much to shift by
+  output logic [P.LOGCVTLEN-1:0]  ShiftAmt,     // Shift amount
   output logic                    ResSubnormUf, // does the result underflow or is subnormal
   output logic                    Cs,           // the result's sign
-  output logic                    IntZero,      // is the integer zero?
+  output logic                    IntZero,      // Integer input is zero
   output logic [P.CVTLEN-1:0]     LzcIn         // input to the Leading Zero Counter (priority encoder)
-  );
+);
 
   // OpCtrls:
-  //  fp->fp conversions: {0, output precision} - only one of the operations writes to the int register
+  //  fp->fp conversions: {0, output precision}
   //      half   - 10
   //      single - 00
   //      double - 01
   //      quad   - 11
   //  int<->fp conversions: {is int->fp?, is the integer 64-bit?, is the integer signed?}
   //                            bit 2              bit 1                   bit 0
-  //      for example: signed long -> single floating point has the OpCode 101
+  //      for example: fcvt.s.l (signed 64-bit integer -> single) has OpCtrl 111
 
   logic [P.FMTBITS-1:0]           OutFmt;       // format of the output
   logic [P.XLEN-1:0]              PosInt;       // the positive integer input
@@ -72,16 +72,17 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   // choose the output format depending on the operation
   //      - fp -> fp: OpCtrl contains the precision of the output
   //      - int -> fp: Fmt contains the precision of the output
+  //      - with two formats, OutFmt = 1 selects the larger format P.FMT
   if (P.FPSIZES == 2)
-      assign OutFmt = IntToFp ? Fmt : (OpCtrl[1:0] == P.FMT);
+    assign OutFmt = IntToFp ? Fmt : (OpCtrl[1:0] == P.FMT);
   else if (P.FPSIZES == 3 | P.FPSIZES == 4)
-      assign OutFmt = IntToFp ? Fmt : OpCtrl[1:0];
+    assign OutFmt = IntToFp ? Fmt : OpCtrl[1:0];
 
   ///////////////////////////////////////////////////////////////////////////
   // negation
   ///////////////////////////////////////////////////////////////////////////
   // 1) negate the input if the input is a negative signed integer
-  // 2) trim the input to the proper size (kill the 32 most significant zeroes if needed)
+  // 2) trim the input to the proper size (zero the upper XLEN-32 bits for a 32-bit integer)
 
   assign PosInt = Cs ? -Int : Int;
   assign TrimInt = {{P.XLEN-32{Int64}}, {32{1'b1}}} & PosInt;
@@ -110,46 +111,46 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //      fp -> int : select 1
   //      ??? -> fp : pick the new bias depending on the output format
   if (P.FPSIZES == 1) begin
-      assign NewBias = ToInt ? (P.NE-1)'(1) : (P.NE-1)'(P.BIAS);
+    assign NewBias = ToInt ? (P.NE-1)'(1) : (P.NE-1)'(P.BIAS);
 
   end else if (P.FPSIZES == 2) begin
-      logic [P.NE-2:0] NewBiasToFp;
-      assign NewBiasToFp = OutFmt ? (P.NE-1)'(P.BIAS) : (P.NE-1)'(P.BIAS1);
-      assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
+    logic [P.NE-2:0] NewBiasToFp;
+    assign NewBiasToFp = OutFmt ? (P.NE-1)'(P.BIAS) : (P.NE-1)'(P.BIAS1);
+    assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
 
   end else if (P.FPSIZES == 3) begin
-      logic [P.NE-2:0] NewBiasToFp;
-      always_comb
-          case (OutFmt)
-              P.FMT: NewBiasToFp =  (P.NE-1)'(P.BIAS);
-              P.FMT1: NewBiasToFp = (P.NE-1)'(P.BIAS1);
-              P.FMT2: NewBiasToFp = (P.NE-1)'(P.BIAS2);
-              default: NewBiasToFp = {P.NE-1{1'bx}};
-          endcase
-      assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
+    logic [P.NE-2:0] NewBiasToFp;
+    always_comb
+      case (OutFmt)
+        P.FMT:   NewBiasToFp = (P.NE-1)'(P.BIAS);
+        P.FMT1:  NewBiasToFp = (P.NE-1)'(P.BIAS1);
+        P.FMT2:  NewBiasToFp = (P.NE-1)'(P.BIAS2);
+        default: NewBiasToFp = {P.NE-1{1'bx}};
+      endcase
+    assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
 
   end else if (P.FPSIZES == 4) begin
-      logic [P.NE-2:0] NewBiasToFp;
-      always_comb
-          case (OutFmt)
-              2'h3: NewBiasToFp =  (P.NE-1)'(P.Q_BIAS);
-              2'h1: NewBiasToFp =  (P.NE-1)'(P.D_BIAS);
-              2'h0: NewBiasToFp =  (P.NE-1)'(P.S_BIAS);
-              2'h2: NewBiasToFp =  (P.NE-1)'(P.H_BIAS);
-          endcase
-      assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
+    logic [P.NE-2:0] NewBiasToFp;
+    always_comb
+      case (OutFmt)
+        P.Q_FMT: NewBiasToFp = (P.NE-1)'(P.Q_BIAS);
+        P.D_FMT: NewBiasToFp = (P.NE-1)'(P.D_BIAS);
+        P.S_FMT: NewBiasToFp = (P.NE-1)'(P.S_BIAS);
+        P.H_FMT: NewBiasToFp = (P.NE-1)'(P.H_BIAS);
+      endcase
+    assign NewBias = ToInt ? (P.NE-1)'(1) : NewBiasToFp;
   end
 
   // select the old exponent
   //      int -> fp : largest bias + XLEN-1
   //      fp -> ??? : XExp
-  assign OldExp = IntToFp ? (P.NE)'(P.BIAS)+(P.NE)'(P.XLEN-1) : Xe;
+  assign OldExp = IntToFp ? (P.NE)'(P.BIAS) + (P.NE)'(P.XLEN-1) : Xe;
 
   // calculate CalcExp
   //      fp -> fp :
   //          - XExp - Largest bias + new bias - (LeadingZeros+1)
   //                                          only do ^ if the input was subnormal
-  //              - convert the expoenent to the final preciaion (Exp - oldBias + newBias)
+  //              - convert the exponent to the final precision (Exp - oldBias + newBias)
   //              - correct the exponent when there is a normalization shift ( + LeadingZeros+1)
   //              - the plus 1 is built into the leading zeros by counting the leading zeroes in the mantissa rather than the fraction
   //      fp -> int : XExp - Largest Bias + 1 - (LeadingZeros+1)
@@ -166,13 +167,13 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //                  |  0's |     Mantissa      |      0's if necessary     |
   //                  |     keep        |
   //
-  //              - if the input is subnormal then we dont shift... so the  "- LeadingZeros" is just leftovers from other options
+  //              - if the input is subnormal then we don't shift... so the  "- LeadingZeros" is just leftovers from other options
   //      int -> fp : largest bias +  XLEN-1 - Largest bias + new bias - LeadingZeros = XLEN-1 + NewBias - LeadingZeros
   //              Process:
   //                      |XLEN|.0000
   //                  - shifted right by XLEN (XLEN)
   //                      000000.|XLEN|
-  //                  - shift left to normilize (-LeadingZeros)
+  //                  - shift left to normalize (-LeadingZeros)
   //                      000000.1...
   //                  - shift left 1 to normalize
   //                      000001.stuff
@@ -181,10 +182,10 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //          oldexp         - biasold         - LeadingZeros                               + newbias
   assign Ce = {1'b0, OldExp} - (P.NE+1)'(P.BIAS) - {{P.NE-P.LOGCVTLEN+1{1'b0}}, (LeadingZeros)} + {2'b0, NewBias};
 
-  // find if the result is dnormal or underflows
-  //      - if Calculated expoenent is 0 or negative (and the input/result is not exactaly 0)
+  // find if the result is subnormal or underflows
+  //      - if Calculated exponent is 0 or negative (and the input/result is not exactly 0)
   //      - can't underflow an integer to Fp conversion
-  assign ResSubnormUf = (~|Ce | Ce[P.NE])&~XZero&~IntToFp;
+  assign ResSubnormUf = (~|Ce | Ce[P.NE]) & ~XZero & ~IntToFp;
 
   ///////////////////////////////////////////////////////////////////////////
   // shifter
@@ -195,17 +196,17 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //      fp -> int:
   //          - shift left by CalcExp - essentially shifting until the unbiased exponent = 0
   //              - don't shift if supposed to shift right (underflowed or Subnorm input)
-  //      subnormal/undeflowed result fp -> fp:
-  //          - shift left by NF-1+CalcExp - to shift till the biased expoenent is 0
+  //      subnormal/underflowed result fp -> fp:
+  //          - shift left by NF-1+CalcExp - to shift till the biased exponent is 0
   //      ??? -> fp:
   //          - shift left by LeadingZeros - to shift till the result is normalized
   //              - only shift fp -> fp if the initial value is subnormal
   //                  - this is a problem because the input to the lzc was the fraction rather than the mantissa
   //                  - rather have a few and-gates than an extra bit in the priority encoder???
   always_comb
-      if(ToInt)                       ShiftAmt = Ce[P.LOGCVTLEN-1:0]&{P.LOGCVTLEN{~Ce[P.NE]}};
-      else if (ResSubnormUf)          ShiftAmt = (P.LOGCVTLEN)'(P.NF-1)+Ce[P.LOGCVTLEN-1:0];
-      else                            ShiftAmt = LeadingZeros;
+    if (ToInt)                      ShiftAmt = Ce[P.LOGCVTLEN-1:0] & {P.LOGCVTLEN{~Ce[P.NE]}};
+    else if (ResSubnormUf)          ShiftAmt = (P.LOGCVTLEN)'(P.NF-1) + Ce[P.LOGCVTLEN-1:0];
+    else                            ShiftAmt = LeadingZeros;
 
   ///////////////////////////////////////////////////////////////////////////
   // sign
@@ -217,8 +218,8 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //          - if 32-bit : check the msb of the 32-bit integer input and if it's signed
   //      - otherwise: the floating point input's sign
   always_comb
-      if(IntToFp)
-          if(Int64)   Cs = Int[P.XLEN-1]&Signed;
-          else        Cs = Int[31]&Signed;
-      else            Cs = Xs;
+    if (IntToFp)
+      if (Int64)  Cs = Int[P.XLEN-1] & Signed;
+      else        Cs = Int[31] & Signed;
+    else          Cs = Xs;
 endmodule

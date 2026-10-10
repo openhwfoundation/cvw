@@ -29,36 +29,36 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module bitmanipalu import cvw::*; #(parameter cvw_t P) (
-  input logic [P.XLEN-1:0] A, B,                    // Operands
-  input logic              W64, UW64,               // W64/.uw-type instruction
-  input logic [3:0]        BSelect,                 // Binary encoding of if it's a ZBA_ZBB_ZBC_ZBS instruction
-  input logic [3:0]        ZBBSelect,               // ZBB mux select signal
-  input logic [2:0]        Funct3,                  // Funct3 field of opcode indicates operation to perform
-  input logic [6:0]        Funct7,                  // Funct7 field for ZKND and ZKNE operations
-  input logic [4:0]        Rs2E,                    // Register source2 for RNUM of ZKNE/ZKND
-  input logic              LT,                      // less than flag
-  input logic              LTU,                     // less than unsigned flag
-  input logic [2:0]        BALUControl,             // ALU Control signals for B instructions in Execute Stage
-  input logic              BMUActive,               // Bit manipulation instruction being executed
-  input logic  [P.XLEN-1:0] PreALUResult,           // PreALUResult signals
-  input  logic [P.XLEN-1:0] FullResult,             // FullResult signals
+  input  logic [P.XLEN-1:0] A, B,                   // Operands
+  input  logic              W64, UW64,              // RV64 W-type and .uw-type instruction
+  input  logic [3:0]        BSelect,                // BMU result select (binary encoded; see bitmanipalu)
+  input  logic [3:0]        ZBBSelect,              // Zbb result select
+  input  logic [2:0]        Funct3,                 // funct3 field of instruction
+  input  logic [6:0]        Funct7,                 // funct7 field of instruction
+  input  logic [4:0]        Rs2E,                   // rs2 field of instruction in Execute stage
+  input  logic              LT,                     // Less than (signed)
+  input  logic              LTU,                    // Less than (unsigned)
+  input  logic [2:0]        BALUControl,            // ALU Control signals for B instructions in Execute Stage
+  input  logic              BMUActive,              // Bit manipulation instruction being executed
+  input  logic [P.XLEN-1:0] PreALUResult,           // ALU result after RV64 W-type sign extension
+  input  logic [P.XLEN-1:0] FullResult,             // ALU result before RV64 W-type sign extension
   output logic [P.XLEN-1:0] CondMaskB,              // B is conditionally masked for ZBS instructions
   output logic [P.XLEN-1:0] CondShiftA,             // A is conditionally shifted for ShAdd instructions
-  output logic [P.XLEN-1:0] ALUResult);             // Result
+  output logic [P.XLEN-1:0] ALUResult);             // ALU result
 
-  logic [P.XLEN-1:0]        ZBBResult;               // ZBB Result
-  logic [P.XLEN-1:0]        ZBCResult;               // ZBC Result
-  logic [P.XLEN-1:0]        ZBKBResult;              // ZBKB Result
-  logic [P.XLEN-1:0]        ZBKXResult;              // ZBKX Result
-  logic [P.XLEN-1:0]        ZKNHResult;              // ZKNH Result
-  logic [P.XLEN-1:0]        ZKNDEResult;             // ZKNE or ZKND Result
-  logic [P.XLEN-1:0]        MaskB;                   // BitMask of B
-  logic [P.XLEN-1:0]        RevA;                    // Bit-reversed A
-  logic                     Mask;                    // Indicates if it is ZBS instruction
-  logic                     PreShift;                // Indicates if it is sh1add, sh2add, sh3add instruction
-  logic [1:0]               PreShiftAmt;             // Amount to Pre-Shift A
-  logic [P.XLEN-1:0]        CondZextA;               // A Conditional Extend Intermediary Signal
-  logic [P.XLEN-1:0]        ABMU, BBMU;              // Gated data inputs to reduce BMU activity
+  logic [P.XLEN-1:0]        ZBBResult;              // ZBB Result
+  logic [P.XLEN-1:0]        ZBCResult;              // ZBC Result
+  logic [P.XLEN-1:0]        ZBKBResult;             // ZBKB Result
+  logic [P.XLEN-1:0]        ZBKXResult;             // ZBKX Result
+  logic [P.XLEN-1:0]        ZKNHResult;             // ZKNH Result
+  logic [P.XLEN-1:0]        ZKNDEResult;            // ZKNE or ZKND Result
+  logic [P.XLEN-1:0]        MaskB;                  // BitMask of B
+  logic [P.XLEN-1:0]        RevA;                   // Bit-reversed A
+  logic                     Mask;                   // Indicates if it is ZBS instruction
+  logic                     PreShift;               // Indicates if it is sh1add, sh2add, sh3add instruction
+  logic [1:0]               PreShiftAmt;            // Amount to Pre-Shift A
+  logic [P.XLEN-1:0]        CondZextA;              // A Conditional Extend Intermediary Signal
+  logic [P.XLEN-1:0]        ABMU, BBMU;             // Gated data inputs to reduce BMU activity
 
   // gate data inputs to BMU to only operate when BMU is active
   assign ABMU = A & {P.XLEN{BMUActive}};
@@ -78,6 +78,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
     if (P.XLEN == 64) begin
       mux2 #(64) zextmux(A, {{32{1'b0}}, A[31:0]}, UW64, CondZextA);
     end else assign CondZextA = A;
+    // sh1add/sh2add/sh3add have Funct3 = 010/100/110, so Funct3[2:1] is the shift amount
     assign PreShiftAmt = Funct3[2:1] & {2{PreShift}};
     assign CondShiftA = CondZextA << (PreShiftAmt);
   end else begin
@@ -90,7 +91,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
     bitreverse #(P.XLEN) brA(.A(ABMU), .RevA);
   end
 
-  // ZBC and ZBKCUnit
+  // ZBC and ZBKC Unit
   if (P.ZBC_SUPPORTED | P.ZBKC_SUPPORTED) begin : zbc
     zbc #(P) ZBC(.A(ABMU), .RevA, .B(BBMU), .Funct3(Funct3[1:0]), .ZBCResult);
   end else assign ZBCResult = '0;
@@ -99,10 +100,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   if (P.ZBB_SUPPORTED) begin : zbb
     zbb #(P.XLEN) ZBB(.A(ABMU), .RevA, .B(BBMU), .W64, .LT, .LTU, .BUnsigned(Funct3[0]), .ZBBSelect(ZBBSelect[2:0]), .ZBBResult);
   end else if (P.ZBKB_SUPPORTED) begin : zbkbonly // only needs rev8 portion
-    genvar i;
-    for (i=0;i<P.XLEN;i+=8) begin : byteloop
-      assign ZBBResult[P.XLEN-i-1:P.XLEN-i-8] = ABMU[i+7:i]; // Rev8
-    end
+    byteop #(P.XLEN) rev8(.A(ABMU), .ByteSelect(1'b0), .ByteResult(ZBBResult)); // ByteSelect = 0 selects rev8
   end else assign ZBBResult = '0;
 
   // ZBKB Unit
@@ -117,8 +115,8 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
 
   // ZKND and ZKNE AES decryption and encryption
   if (P.ZKND_SUPPORTED | P.ZKNE_SUPPORTED) begin : zknde
-    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
-    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU),                   .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]),  .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
   end else assign ZKNDEResult = '0;
 
   // ZKNH Unit
@@ -131,9 +129,9 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   always_comb
     case (BSelect)
       // 0000: ALU, 0001: ZBA/ZBS, 0010: ZBB, 0011: ZBC/ZBKC, 0100: ZBKB, 0110: ZBKX
-      // 0111: ZKND, 1000: ZKNE, 1001: ZKNH, 1010: ZKSED, 1011: ZKSH...
+      // 0111: ZKND/ZKNE, 1000: ZKNH
       4'b0000: ALUResult = PreALUResult;
-      4'b0001: ALUResult = FullResult;  // NOTE: don't use ALUResult since ZBA/ZBS doesnt sext the MSB of RH word
+      4'b0001: ALUResult = FullResult;  // ZBA/ZBS results are not sign-extended from 32 bits, so use FullResult rather than PreALUResult
       4'b0010: ALUResult = ZBBResult;
       4'b0011: ALUResult = ZBCResult;
       4'b0100: ALUResult = ZBKBResult;

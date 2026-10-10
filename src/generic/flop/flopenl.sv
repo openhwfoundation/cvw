@@ -25,11 +25,11 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module flopenl #(parameter WIDTH = 8, parameter type TYPE=logic [WIDTH-1:0]) (
-  input  logic clk, load, en,
-  input  TYPE d,
-  input  TYPE val,
-  output TYPE q);
+module flopenl #(parameter WIDTH = 8, parameter type TYPE = logic [WIDTH-1:0]) (
+  input  logic clk, load, en, // Clock, load val, enable
+  input  TYPE d,              // Data input
+  input  TYPE val,            // Value to load when load is asserted
+  output TYPE q);             // Data output
 
   always_ff @(posedge clk)
     if (load)    q <= val;

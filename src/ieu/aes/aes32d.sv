@@ -26,16 +26,16 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aes32d(
-  input  logic [7:0]  SboxIn,
-  input  logic        finalround,
-  output logic [31:0] result
+  input  logic [7:0]  SboxIn,     // S-box input byte
+  input  logic        finalround, // Final round of AES (skip MixColumns)
+  output logic [31:0] result      // Result
 );
 
   logic [7:0]         SboxOut;
   logic [31:0]        so, mixed;
 
-   aesinvsbox8 inv_sbox(SboxIn, SboxOut);          // Apply inverse sbox to si
-   aesinvmixcolumns8 mix(SboxOut, mixed);          // Run so through the InvMixColumns AES function
-   assign so = {24'h0, SboxOut};                   // Pad output of inverse substitution box
-   mux2 #(32) rmux(mixed, so, finalround, result); // on final round, skip mixcolumns
+  aesinvsbox8 inv_sbox(SboxIn, SboxOut);          // Apply inverse sbox to SboxIn
+  aesinvmixcolumns8 mix(SboxOut, mixed);          // Apply InvMixColumns to SboxOut
+  assign so = {24'h0, SboxOut};                   // Pad output of inverse substitution box
+  mux2 #(32) rmux(mixed, so, finalround, result); // on final round, skip mixcolumns
 endmodule

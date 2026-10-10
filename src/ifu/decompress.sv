@@ -27,9 +27,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-module decompress import cvw::*;  #(parameter cvw_t P) (
+module decompress import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0] InstrRawD,         // 32-bit instruction or raw compressed 16-bit instruction in bottom half
-  output logic [31:0] InstrD,            // Decompressed instruction
+  output logic [31:0] InstrD,            // Instruction in Decode stage
   output logic        IllegalCompInstrD  // Invalid decompressed instruction
 );
 
@@ -84,7 +84,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
         5'b00000: if (immCIW != 0)                      LInstrD = {1'b1, immCIW, 5'b00010, 3'b000, rdp, 7'b0010011};                      // c.addi4spn
         5'b00001: if (P.ZCD_SUPPORTED)                  LInstrD = {1'b1, immCLD, rs1p, 3'b011, rdp, 7'b0000111};                          // c.fld
         5'b00010:                                       LInstrD = {1'b1, immCL, rs1p, 3'b010, rdp, 7'b0000011};                           // c.lw
-        5'b00011: if (P.XLEN==32) begin
+        5'b00011: if (P.XLEN == 32) begin
                     if (P.ZCF_SUPPORTED)                LInstrD = {1'b1, immCL, rs1p, 3'b010, rdp, 7'b0000111};                           // c.flw
                   end else                              LInstrD = {1'b1, immCLD, rs1p, 3'b011, rdp, 7'b0000011};                          // c.ld
         5'b00100: if (P.ZCB_SUPPORTED)
@@ -98,7 +98,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
                                                         LInstrD = {1'b1, 7'b0, rs2p, rs1p, 3'b001, 3'b000, instr16[5], 1'b0, 7'b0100011}; // c.sh
         5'b00101: if (P.ZCD_SUPPORTED)                  LInstrD = {1'b1, immCSD[11:5], rs2p, rs1p, 3'b011, immCSD[4:0], 7'b0100111};      // c.fsd
         5'b00110:                                       LInstrD = {1'b1, immCS[11:5], rs2p, rs1p, 3'b010, immCS[4:0], 7'b0100011};        // c.sw
-        5'b00111: if (P.XLEN==32) begin
+        5'b00111: if (P.XLEN == 32) begin
                     if (P.ZCF_SUPPORTED)                LInstrD = {1'b1, immCS[11:5], rs2p, rs1p, 3'b010, immCS[4:0], 7'b0100111};        // c.fsw
                   end else                              LInstrD = {1'b1, immCSD[11:5], rs2p, rs1p, 3'b011, immCSD[4:0], 7'b0100011};      // c.sd
         5'b01000: if (rds1 != 5'b0)
@@ -106,12 +106,12 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
                     else                                LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.addi with imm = 0 is a HINT, treated as nop
                   else if (immCI[5:0] == 6'b0)          LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.nop = addi x0, x0, 0
                   else                                  LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.nop with imm != 0 is a HINT, treated as nop
-        5'b01001: if (P.XLEN==32)                       LInstrD = {1'b1, immCJ, 5'b00001, 7'b1101111};                                    // c.jal
+        5'b01001: if (P.XLEN == 32)                     LInstrD = {1'b1, immCJ, 5'b00001, 7'b1101111};                                    // c.jal
                   else if (rds1 != 5'b0)                LInstrD = {1'b1, immCI, rds1, 3'b000, rds1, 7'b0011011};                          // c.addiw
         5'b01010: if (rds1 != 5'b0)                     LInstrD = {1'b1, immCI, 5'b00000, 3'b000, rds1, 7'b0010011};                      // c.li
                   else                                  LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.li with rd = 0 is a HINT, treated as nop
         5'b01011: if (rds1 == 5'b00010) begin
-                     if (immCIASP[9:4] != 6'b0)         LInstrD = {1'b1, immCIASP, rds1, 3'b000, rds1, 7'b0010011};                       // c.addi16sp
+                    if (immCIASP[9:4] != 6'b0)          LInstrD = {1'b1, immCIASP, rds1, 3'b000, rds1, 7'b0010011};                       // c.addi16sp
                   end else if (immCILUI[5:0] != 0)
                     if (rds1 != 5'b0)                   LInstrD = {1'b1, immCILUI, rds1, 7'b0110111};                                     // c.lui
                     else                                LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.lui with rd = 0, imm!=0 is a HINT, treated as nop
@@ -145,7 +145,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
                     else if (instr16[6:5] == 2'b10 & P.ZCB_SUPPORTED & P.ZMMUL_SUPPORTED)
                                                         LInstrD = {1'b1, 7'b0000001, rs2p, rds1p, 3'b000, rds1p, 7'b0110011};             // c.mul
                   end
-        5'b01101:                                       LInstrD = {1'b1, immCJ, 5'b00000, 7'b1101111}; // c.j
+        5'b01101:                                       LInstrD = {1'b1, immCJ, 5'b00000, 7'b1101111};                                    // c.j
         5'b01110:                                       LInstrD = {1'b1, immCB[11:5], 5'b00000, rs1p, 3'b000, immCB[4:0], 7'b1100011};    // c.beqz
         5'b01111:                                       LInstrD = {1'b1, immCB[11:5], 5'b00000, rs1p, 3'b001, immCB[4:0], 7'b1100011};    // c.bnez
         5'b10000: if (immSH != 0) begin
@@ -153,7 +153,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
                       if (rds1 != 5'b0)                 LInstrD = {1'b1, 6'b000000, immSH, rds1, 3'b001, rds1, 7'b0010011};               // c.slli
                       else                              LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.slli with rd = 0 is a HINT, treated as nop
                     end
-                  end else                              LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.slli with immm = 0 is a HINT, treated as nop
+                  end else                              LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.slli with imm = 0 is a HINT, treated as nop
         5'b10001: if (P.ZCD_SUPPORTED)                  LInstrD = {1'b1, immCILSPD, 5'b00010, 3'b011, rds1, 7'b0000111};                  // c.fldsp
         5'b10010: if (rds1 != 5'b0)                     LInstrD = {1'b1, immCILSP, 5'b00010, 3'b010, rds1, 7'b0000011};                   // c.lwsp
         5'b10011: if (P.XLEN == 32) begin
@@ -174,7 +174,7 @@ module decompress import cvw::*;  #(parameter cvw_t P) (
                       else                              LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.add with rd = 0 is a HINT, treated as nop, even if it is a C.NTL
         5'b10101: if (P.ZCD_SUPPORTED)                  LInstrD = {1'b1, immCSSD[11:5], rs2, 5'b00010, 3'b011, immCSSD[4:0], 7'b0100111}; // c.fsdsp
         5'b10110:                                       LInstrD = {1'b1, immCSS[11:5], rs2, 5'b00010, 3'b010, immCSS[4:0], 7'b0100011};   // c.swsp
-        5'b10111: if (P.XLEN==32) begin
+        5'b10111: if (P.XLEN == 32) begin
                     if (P.ZCF_SUPPORTED)                LInstrD = {1'b1, immCSS[11:5], rs2, 5'b00010, 3'b010, immCSS[4:0], 7'b0100111};   // c.fswsp
                   end else                              LInstrD = {1'b1, immCSSD[11:5], rs2, 5'b00010, 3'b011, immCSSD[4:0], 7'b0100011}; // c.sdsp
         default: ; // illegal instruction

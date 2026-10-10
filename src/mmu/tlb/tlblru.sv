@@ -29,11 +29,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module tlblru #(parameter TLB_ENTRIES = 8) (
-  input  logic                    clk, reset,
-  input  logic                    TLBWrite,
-  input  logic [TLB_ENTRIES-1:0]  Matches,
-  input  logic                    TLBHit,
-  output logic [TLB_ENTRIES-1:0]  WriteEnables
+  input  logic                    clk, reset,  // Clock and reset
+  input  logic                    TLBWrite,    // Write TLB entry
+  input  logic [TLB_ENTRIES-1:0]  Matches,     // One-hot TLB entry that matches
+  input  logic                    TLBHit,      // TLB hit
+  output logic [TLB_ENTRIES-1:0]  WriteEnables // One-hot TLB entry to write
 );
 
   logic [TLB_ENTRIES-1:0]         RUBits, RUBitsNext, RUBitsAccessed;

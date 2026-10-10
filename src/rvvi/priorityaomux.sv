@@ -28,16 +28,16 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module priorityaomux #(parameter ROWS = 8, COLS = 64) (
-  input logic [ROWS-1:0]  Sel,
-  input                   var logic [COLS-1:0] A [ROWS-1:0],
-  output logic [COLS-1:0] Y,
-  output logic [ROWS-1:0] SelPriority);
+  input  logic [ROWS-1:0]     Sel,          // Row selects; lowest asserted row has priority
+  input  var logic [COLS-1:0] A [ROWS-1:0], // Data inputs, one per row
+  output logic [COLS-1:0]     Y,            // Selected data
+  output logic [ROWS-1:0]     SelPriority); // One-hot select of the highest-priority asserted Sel bit
 
-  logic [COLS-1:0]           AMasked [ROWS-1:0];
-  genvar                     index;
+  logic [COLS-1:0] AMasked [ROWS-1:0];
+  genvar           index;
 
   priorityonehot #(ROWS) priorityonehot(Sel, SelPriority);
-  for(index = 0; index < ROWS; index = index + 1) begin
+  for (index = 0; index < ROWS; index = index + 1) begin
     assign AMasked[index] = SelPriority[index] ? A[index] : '0;
   end
   or_rows #(ROWS, COLS) or_rows(AMasked, Y);

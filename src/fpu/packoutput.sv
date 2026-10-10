@@ -28,10 +28,10 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module packoutput import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FLEN-1:0]       Unpacked,
-  input  logic [P.FMTBITS-1:0]    Fmt,
-  output logic [P.FLEN-1:0]       Packed
+module packoutput import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
+  input  logic [P.FMTBITS-1:0]    Fmt,       // FP format: 00 single, 01 double, 10 half, 11 quad
+  output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
 );
 
   logic             Sign;
@@ -43,6 +43,8 @@ module packoutput import cvw::*;  #(parameter cvw_t P) (
   logic [P.H_NF-1:0] Fract3;
 
   // Pack exponent and fraction, with NaN-boxing to full FLEN
+  // A smaller exponent keeps the msb and low bits of the larger one; the dropped bits are copies of ~msb
+  // for any value representable in the smaller format, so this also re-biases the exponent
 
   assign Sign = Unpacked[P.FLEN-1];
   if (P.FPSIZES == 1) begin
@@ -81,18 +83,18 @@ module packoutput import cvw::*;  #(parameter cvw_t P) (
     always_comb begin
       {Exp1, Fract1, Exp2, Fract2, Exp3, Fract3} = '0; // default if not used, to prevent latch
       case (Fmt)
-        2'h3: Packed = Unpacked;  // Quad
-        2'h1: begin // double
+        P.Q_FMT: Packed = Unpacked;  // Quad
+        P.D_FMT: begin // double
                 Exp1 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE1-2:P.NF]};
                 Fract1 = Unpacked[P.NF-1:P.NF-P.NF1];
                 Packed = {{(P.FLEN-P.LEN1){1'b1}}, Sign, Exp1, Fract1};
               end
-        2'h0: begin // float
+        P.S_FMT: begin // float
                 Exp2 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE2-2:P.NF]};
                 Fract2 = Unpacked[P.NF-1:P.NF-P.NF2];
                 Packed = {{(P.FLEN-P.LEN2){1'b1}}, Sign, Exp2, Fract2};
               end
-        2'h2: begin // half
+        P.H_FMT: begin // half
                 Exp3 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.H_NE-2:P.NF]};
                 Fract3 = Unpacked[P.NF-1:P.NF-P.H_NF];
                 Packed = {{(P.FLEN-P.H_LEN){1'b1}}, Sign, Exp3, Fract3};

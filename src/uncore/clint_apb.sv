@@ -28,37 +28,39 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module clint_apb import cvw::*;  #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn,
-  input  logic                PSEL,
-  input  logic [15:0]         PADDR,
-  input  logic [P.XLEN-1:0]   PWDATA,
-  input  logic [P.XLEN/8-1:0] PSTRB,
-  input  logic                PWRITE,
-  input  logic                PENABLE,
-  output logic [P.XLEN-1:0]   PRDATA,
-  output logic                PREADY,
-  output logic [63:0] MTIME,
-  output logic                MTimerInt, MSwInt
+module clint_apb import cvw::*; #(parameter cvw_t P) (
+  input  logic                PCLK, PRESETn,    // APB clock and reset (active low)
+  input  logic                PSEL,             // APB peripheral select
+  input  logic [15:0]         PADDR,            // APB address
+  input  logic [P.XLEN-1:0]   PWDATA,           // APB write data
+  input  logic [P.XLEN/8-1:0] PSTRB,            // APB byte write strobes
+  input  logic                PWRITE,           // APB write (1) or read (0)
+  input  logic                PENABLE,          // APB enable (access phase)
+  output logic [P.XLEN-1:0]   PRDATA,           // APB read data
+  output logic                PREADY,           // APB ready
+  output logic [63:0]         MTIME,            // Machine timer value
+  output logic                MTimerInt, MSwInt // Machine timer and software interrupts
 );
 
   // register map
-  localparam CLINT_MSIP     = 16'h0000;
-  localparam CLINT_MTIMECMP = 16'h4000;
-  localparam CLINT_MTIME    = 16'hBFF8;
+  localparam CLINT_MSIP      = 16'h0000;
+  localparam CLINT_MTIMECMP  = 16'h4000;
+  localparam CLINT_MTIMECMPH = 16'h4004;
+  localparam CLINT_MTIME     = 16'hBFF8;
+  localparam CLINT_MTIMEH    = 16'hBFFC;
 
   logic                       MSIP;
   logic [15:0]                entry;
   logic                       memwrite;
-  logic [63:0] MTIMECMP;
+  logic [63:0]                MTIMECMP;
   integer                     i, j;
 
   assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
   assign PREADY   = 1'b1;                     // CLINT never takes >1 cycle to respond
 
   // word aligned reads
-  if (P.XLEN==64) assign entry = {PADDR[15:3], 3'b000};
-  else            assign entry = {PADDR[15:2], 2'b00};
+  if (P.XLEN == 64) assign entry = {PADDR[15:3], 3'b000};
+  else              assign entry = {PADDR[15:2], 2'b00};
 
   // DH 2/20/21: Eventually allow MTIME to run off a separate clock
   // This will require synchronizing MTIME to the system clock
@@ -67,9 +69,9 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
   // Use req and ack signals synchronized across the clock domains.
 
   // register access
-  if (P.XLEN==64) begin : clint // 64-bit
+  if (P.XLEN == 64) begin : clint // 64-bit
     always_ff @(posedge PCLK) begin
-      case(entry)
+      case (entry)
         CLINT_MSIP:     PRDATA <= {63'b0, MSIP};
         CLINT_MTIMECMP: PRDATA <= MTIMECMP;
         CLINT_MTIME:    PRDATA <= MTIME;
@@ -83,8 +85,8 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
       end else if (memwrite) begin
         if (entry == CLINT_MSIP) MSIP <= PWDATA[0];
         if (entry == CLINT_MTIMECMP) begin
-          for(i=0;i<P.XLEN/8;i++)
-            if(PSTRB[i])
+          for (i = 0; i < P.XLEN/8; i++)
+            if (PSTRB[i])
               MTIMECMP[i*8 +: 8] <= PWDATA[i*8 +: 8];
         end
       end
@@ -95,21 +97,21 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
     always_ff @(posedge PCLK)
       if (~PRESETn) begin
         MTIME <= '0;
-      end else if (memwrite & entry == 16'hBFF8) begin
+      end else if (memwrite & entry == CLINT_MTIME) begin
         // MTIME Counter.  Eventually change this to run off separate clock.  Synchronization then needed
-        for(j=0;j<P.XLEN/8;j++)
-          if(PSTRB[j])
+        for (j = 0; j < P.XLEN/8; j++)
+          if (PSTRB[j])
             MTIME[j*8 +: 8] <= PWDATA[j*8 +: 8];
       end else MTIME <= MTIME + 1;
   end else begin : clint // 32-bit
     always_ff @(posedge PCLK) begin
-      case(entry)
-        16'h0000: PRDATA <= {31'b0, MSIP};
-        16'h4000: PRDATA <= MTIMECMP[31:0];
-        16'h4004: PRDATA <= MTIMECMP[63:32];
-        16'hBFF8: PRDATA <= MTIME[31:0];
-        16'hBFFC: PRDATA <= MTIME[63:32];
-        default:  PRDATA <= '0;
+      case (entry)
+        CLINT_MSIP:      PRDATA <= {31'b0, MSIP};
+        CLINT_MTIMECMP:  PRDATA <= MTIMECMP[31:0];
+        CLINT_MTIMECMPH: PRDATA <= MTIMECMP[63:32];
+        CLINT_MTIME:     PRDATA <= MTIME[31:0];
+        CLINT_MTIMEH:    PRDATA <= MTIME[63:32];
+        default:         PRDATA <= '0;
       endcase
     end
     always_ff @(posedge PCLK)
@@ -117,14 +119,14 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
         MSIP <= 1'b0;
         MTIMECMP <= 64'hFFFFFFFFFFFFFFFF; // Spec says MTIMECMP is not reset, but we reset to maximum value to prevent spurious timer interrupts
       end else if (memwrite) begin
-        if (entry == 16'h0000) MSIP <= PWDATA[0];
-        if (entry == 16'h4000)
-          for(j=0;j<P.XLEN/8;j++)
-            if(PSTRB[j])
+        if (entry == CLINT_MSIP) MSIP <= PWDATA[0];
+        if (entry == CLINT_MTIMECMP)
+          for (j = 0; j < P.XLEN/8; j++)
+            if (PSTRB[j])
               MTIMECMP[j*8 +: 8] <= PWDATA[j*8 +: 8];
-        if (entry == 16'h4004)
-          for(j=0;j<P.XLEN/8;j++)
-            if(PSTRB[j])
+        if (entry == CLINT_MTIMECMPH)
+          for (j = 0; j < P.XLEN/8; j++)
+            if (PSTRB[j])
               MTIMECMP[32 + j*8 +: 8] <= PWDATA[j*8 +: 8];
         // MTIME Counter.  Eventually change this to run off separate clock.  Synchronization then needed
       end
@@ -135,15 +137,15 @@ module clint_apb import cvw::*;  #(parameter cvw_t P) (
       if (~PRESETn) begin
         MTIME <= '0;
         // MTIMECMP is not reset
-      end else if (memwrite & (entry == 16'hBFF8)) begin
-        for(i=0;i<P.XLEN/8;i++)
-          if(PSTRB[i])
+      end else if (memwrite & (entry == CLINT_MTIME)) begin
+        for (i = 0; i < P.XLEN/8; i++)
+          if (PSTRB[i])
             MTIME[i*8 +: 8] <= PWDATA[i*8 +: 8];
-      end else if (memwrite & (entry == 16'hBFFC)) begin
+      end else if (memwrite & (entry == CLINT_MTIMEH)) begin
         // MTIME Counter.  Eventually change this to run off separate clock.  Synchronization then needed
-        for(i=0;i<P.XLEN/8;i++)
-          if(PSTRB[i])
-            MTIME[32 + i*8 +: 8]<= PWDATA[i*8 +: 8];
+        for (i = 0; i < P.XLEN/8; i++)
+          if (PSTRB[i])
+            MTIME[32 + i*8 +: 8] <= PWDATA[i*8 +: 8];
       end else MTIME <= MTIME + 1;
   end
 
@@ -156,10 +158,10 @@ endmodule
 
 /*
 module timeregsync  import cvw::*;  #(parameter cvw_t P) (
-  input  logic              clk, resetn,
-  input  logic              we0, we1,
-  input  logic [P.XLEN-1:0] wd,
-  output logic [63:0]       q);
+  input  logic              clk, resetn, // Clock and reset (active low)
+  input  logic              we0, we1,    // Write lower and upper 32 bits (we0 writes all 64 bits when XLEN = 64)
+  input  logic [P.XLEN-1:0] wd,          // MTIME write data
+  output logic [63:0]       q);          // MTIME value
 
   if (P.XLEN==64)
     always_ff @(posedge clk or negedge resetn)
@@ -176,11 +178,11 @@ endmodule
 
 
 module timereg  import cvw::*;  #(parameter cvw_t P) (
-  input  logic              PCLK, PRESETn, TIMECLK,
-  input  logic              we0, we1,
-  input  logic [P.XLEN-1:0] PWDATA,
-  output logic [63:0]       MTIME,
-  output logic              done);
+  input  logic              PCLK, PRESETn, TIMECLK, // APB clock, reset (active low), and optional MTIME clock
+  input  logic              we0, we1, // Write lower and upper 32 bits (we0 writes all 64 bits when XLEN = 64)
+  input  logic [P.XLEN-1:0] PWDATA,   // MTIME write data
+  output logic [63:0]       MTIME,    // Machine timer value
+  output logic              done);    // MTIME write complete
 
 //  if (P.TIMEBASE_SYNC) begin : timereg // use PCLK for MTIME
   if (1) begin : timereg // use PCLK for MTIME
@@ -231,8 +233,8 @@ module timereg  import cvw::*;  #(parameter cvw_t P) (
 endmodule
 
 module binarytogray #(parameter N) (
-  input  logic [N-1:0] b,
-  output logic [N-1:0] g);
+  input  logic [N-1:0] b,  // Binary input
+  output logic [N-1:0] g); // Gray-code output
 
   // G[N-1] = B[N-1]; G[i] = B[i] ^ B[i+1] for 0 <= i < N-1
   // requires single layer of N-1 XOR gates
@@ -240,8 +242,8 @@ module binarytogray #(parameter N) (
 endmodule
 
 module graytobinary #(parameter N) (
-  input  logic [N-1:0] g,
-  output logic [N-1:0] b);
+  input  logic [N-1:0] g,  // Gray-code input
+  output logic [N-1:0] b); // Binary output
 
   // B[N-1] = G[N-1]; B[i] = G[i] ^ B[i+1] for 0 <= i < N-1
   // requires rippling through N-1 XOR gates

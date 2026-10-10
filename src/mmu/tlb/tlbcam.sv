@@ -30,22 +30,22 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcam  import cvw::*;  #(parameter cvw_t P,
-                                 parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
-  input  logic                    clk, reset,
-  input  logic [P.VPN_BITS-1:0]   VPN,
-  input  logic [2:0]              PageTypeWriteVal,
-  input  logic                    SV39Mode,
-  input  logic                    SV48Mode,
-  input  logic                    TLBFlush,
-  input  logic                    TLBFlushAll,  // Flush global (G=1) entries too
-  input  logic [TLB_ENTRIES-1:0]  WriteEnables,
-  input  logic [TLB_ENTRIES-1:0]  PTE_Gs,
-  input  logic [TLB_ENTRIES-1:0]  PTE_NAPOTs,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
-  input  logic [P.ASID_BITS-1:0]  SATP_ASID,
-  output logic [TLB_ENTRIES-1:0]  Matches,
-  output logic [2:0]              HitPageType,
-  output logic                    CAMHit
+module tlbcam import cvw::*; #(parameter cvw_t P,
+                               parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
+  input  logic                    clk, reset,       // Clock and reset
+  input  logic [P.VPN_BITS-1:0]   VPN,              // Virtual page number
+  input  logic [2:0]              PageTypeWriteVal, // Page type to write to TLB
+  input  logic                    SV39Mode,         // Translation mode is Sv39
+  input  logic                    SV48Mode,         // Translation mode is Sv48
+  input  logic                    TLBFlush,         // Invalidate TLB entries (ASID-specific flush preserves global entries)
+  input  logic                    TLBFlushAll,      // Flush global (G = 1) entries too
+  input  logic [TLB_ENTRIES-1:0]  WriteEnables,     // One-hot TLB entry to write
+  input  logic [TLB_ENTRIES-1:0]  PTE_Gs,           // Global bits of all TLB entries
+  input  logic [TLB_ENTRIES-1:0]  PTE_NAPOTs,       // NAPOT mode bits of all TLB entries
+  input  logic [P.ASID_BITS-1:0]  SATP_ASID,        // satp.ASID
+  output logic [TLB_ENTRIES-1:0]  Matches,          // One-hot TLB entry that matches
+  output logic [2:0]              HitPageType,      // Page type of the matching TLB entry
+  output logic                    CAMHit            // A TLB entry matches the virtual page number
 );
 
   logic [2:0] PageTypeRead [TLB_ENTRIES-1:0];
@@ -60,5 +60,5 @@ module tlbcam  import cvw::*;  #(parameter cvw_t P,
     .clk, .reset, .VPN, .SATP_ASID, .SV39Mode, .SV48Mode, .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs), .PageTypeWriteVal, .TLBFlush, .TLBFlushAll,
     .WriteEnable(WriteEnables), .PageTypeRead, .Match(Matches));
   assign CAMHit = |Matches & ~TLBFlush;
-  or_rows #(TLB_ENTRIES,3) PageTypeOr(PageTypeRead, HitPageType);
+  or_rows #(TLB_ENTRIES, 3) PageTypeOr(PageTypeRead, HitPageType);
 endmodule

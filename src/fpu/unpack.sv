@@ -27,23 +27,23 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module unpack import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FLEN-1:0]       X, Y, Z,              // inputs from register file
-  input  logic [P.FMTBITS-1:0]    Fmt,                  // format signal 00 - single 01 - double 11 - quad 10 - half
-  input  logic                    XEn, YEn, ZEn,        // input enables
+module unpack import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.FLEN-1:0]       X, Y, Z,              // Inputs from FP register file
+  input  logic [P.FMTBITS-1:0]    Fmt,                  // FP format: 00 single, 01 double, 10 half, 11 quad
+  input  logic                    XEn, YEn, ZEn,        // X, Y, Z inputs used
   input  logic                    FPUActive,            // Kill inputs when FPU is not active
-  output logic                    Xs, Ys, Zs,           // sign bits of XYZ
-  output logic [P.NE-1:0]         Xe, Ye, Ze,           // exponents of XYZ (converted to largest supported precision)
-  output logic [P.NF:0]           Xm, Ym, Zm,           // mantissas of XYZ (converted to largest supported precision)
-  output logic                    XNaN, YNaN, ZNaN,     // is XYZ a NaN
-  output logic                    XSNaN, YSNaN, ZSNaN,  // is XYZ a signaling NaN
-  output logic                    XSubnorm,             // is X subnormal
-  output logic                    XZero, YZero, ZZero,  // is XYZ zero
-  output logic                    XInf, YInf, ZInf,     // is XYZ infinity
+  output logic                    Xs, Ys, Zs,           // X, Y, Z signs
+  output logic [P.NE-1:0]         Xe, Ye, Ze,           // X, Y, Z exponents
+  output logic [P.NF:0]           Xm, Ym, Zm,           // X, Y, Z significands
+  output logic                    XNaN, YNaN, ZNaN,     // X, Y, Z are NaN
+  output logic                    XSNaN, YSNaN, ZSNaN,  // X, Y, Z are signaling NaN
+  output logic                    XSubnorm,             // X is subnormal
+  output logic                    XZero, YZero, ZZero,  // X, Y, Z are zero
+  output logic                    XInf, YInf, ZInf,     // X, Y, Z are infinity
   output logic                    XExpMax,              // does X have the maximum exponent (NaN or Inf)
   output logic [P.FLEN-1:0]       XPostBox,             // X after being properly NaN-boxed
   output logic [P.NE-2:0]         Bias,                 // Exponent bias
-  output logic [P.LOGFLEN-1:0]    Nf                    // Number of fractional bits
+  output logic [P.LOGFLEN-1:0]    Nf                    // Number of fractional bits in selected format
 );
 
   logic YExpMax, ZExpMax;                               // is the exponent all 1s
@@ -66,4 +66,4 @@ module unpack import cvw::*;  #(parameter cvw_t P) (
   // look up bias and fractional bits for the given format
   fmtparams #(P) fmtparams(Fmt, Bias, Nf);
 
- endmodule
+endmodule

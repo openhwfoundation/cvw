@@ -27,12 +27,12 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vm64check import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,
-  input  logic [P.XLEN-1:0]         VAdr,
-  output logic                      SV39Mode,
-  output logic                      SV48Mode,
-  output logic                      UpperBitsUnequal
+module vm64check import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,       // Current address translation mode
+  input  logic [P.XLEN-1:0]         VAdr,            // Address before translation (virtual or physical)
+  output logic                      SV39Mode,        // Translation mode is Sv39
+  output logic                      SV48Mode,        // Translation mode is Sv48
+  output logic                      UpperBitsUnequal // Virtual address upper bits are not a sign extension
 );
 
   if (P.XLEN == 64) begin
@@ -54,12 +54,12 @@ module vm64check import cvw::*;  #(parameter cvw_t P) (
     assign all1_63_56 =  &VAdr[63:56];
 
     assign UpperBitsUnequal =
-      SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56 ) ) :  // SV39 Mode
-      (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 ))) :                             // SV48 Mode
+      SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56) | (all1_46_38 & all1_55_47 & all1_63_56)) :     // SV39 Mode
+      (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56))) :                              // SV48 Mode
                   (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56))));                                                          // SV57 Mode
-    end else begin
-      assign SV39Mode = 1'b0;
-      assign SV48Mode = 1'b0;
-      assign UpperBitsUnequal = 1'b0;
+  end else begin
+    assign SV39Mode = 1'b0;
+    assign SV48Mode = 1'b0;
+    assign UpperBitsUnequal = 1'b0;
   end
 endmodule

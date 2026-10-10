@@ -27,11 +27,11 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module divshiftcalc import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.NE+1:0]              DivUe,              // divsqrt exponent
+module divshiftcalc import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.NE+1:0]              DivUe,              // Divide/sqrt result exponent
   output logic [P.LOGNORMSHIFTSZ-1:0]  DivShiftAmt,        // divsqrt shift amount
   output logic                         DivResSubnorm,      // is the divsqrt result subnormal
-  output logic                         DivSubnormShiftPos  // is the subnormal shift amount positive
+  output logic                         DivSubnormShiftPos  // Subnormal divide/sqrt shift amount is positive
 );
 
   logic [P.LOGNORMSHIFTSZ-1:0]         NormShift;          // normalized result shift amount
@@ -39,8 +39,8 @@ module divshiftcalc import cvw::*;  #(parameter cvw_t P) (
   logic [P.NE+1:0]                     DivSubnormShift;    // subnormal result shift amount
 
   // is the result subnormal
-  // if the exponent is 1 then the result needs to be normalized then the result is Subnormalizes
-  assign DivResSubnorm = DivUe[P.NE+1]|(~|DivUe[P.NE+1:0]);
+  // the result is subnormal if DivUe <= 0 (sign bit DivUe[NE+1] set, or DivUe = 0)
+  assign DivResSubnorm = DivUe[P.NE+1] | (~|DivUe[P.NE+1:0]);
 
   // if the result is subnormal
   //  00000000x.xxxxxx...                     Exp = DivUe
@@ -48,7 +48,7 @@ module divshiftcalc import cvw::*;  #(parameter cvw_t P) (
   //  .00xxxxxxxxxxxxx... << DivUe+NF+1       Exp = +1
   //  .0000xxxxxxxxxxx... >> 1                Exp = 1
   // Left shift amount      = DivUe+NF+1-1
-  assign DivSubnormShift    = (P.NE+2)'(P.NF)+DivUe;
+  assign DivSubnormShift    = (P.NE+2)'(P.NF) + DivUe;
   assign DivSubnormShiftPos = ~DivSubnormShift[P.NE+1];
 
   // if the result is normalized
@@ -58,11 +58,11 @@ module divshiftcalc import cvw::*;  #(parameter cvw_t P) (
   //  00000000x.xxxxxx... << NF               Exp = DivUe (extra shift done afterwards)
   //  00000000xx.xxxxx... << 1?               Exp = DivUe-1 (determined after)
   // initial Left shift amount  = NF
-  // shift one more if the it's a minimally redundant radix 4 - one entire cycle needed for integer bit
+  // shift one more if it's a minimally redundant radix 4 - one entire cycle needed for integer bit
   assign NormShift = (P.LOGNORMSHIFTSZ)'(P.NF);
 
   // if the shift amount is negative then don't shift (keep sticky bit)
-  // need to multiply the early termination shift by LOGR*DIVCOPIES =  left shift of log2(LOGR*DIVCOPIES)
+  // need to multiply the early termination shift by LOGR*DIVCOPIES = left shift of log2(LOGR*DIVCOPIES)
   assign DivSubnormShiftAmt = DivSubnormShiftPos ? DivSubnormShift[P.LOGNORMSHIFTSZ-1:0] : '0;
   assign DivShiftAmt        = DivResSubnorm ? DivSubnormShiftAmt : NormShift;
 

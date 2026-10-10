@@ -149,7 +149,7 @@ set numcacheways 4
 for {set i 0} {$i < $numcacheways} {incr i} {
     # rows 2-4 need SetDirty = 1 (row 1, SetDirty_0, is hit)
     coverage exclude -scope /core/ifu/bus/icache/icache/CacheWays[$i] -fecexprrow [GetLineNum ${SRC}/cache/cacheway.sv "exclusion-tag: icache SetDirtyWay"] 2-4
-    coverage exclude -scope /core/ifu/bus/icache/icache/CacheWays[$i] -fecexprrow [GetLineNum ${SRC}/cache/cacheway.sv "exclusion-tag: icache SelectedWiteWordEn"] 4 6
+    coverage exclude -scope /core/ifu/bus/icache/icache/CacheWays[$i] -fecexprrow [GetLineNum ${SRC}/cache/cacheway.sv "exclusion-tag: icache SelectedWriteWordEn"] 4 6
     # below: flushD can't go high during an icache write b/c of pipeline stall
     coverage exclude -scope /core/ifu/bus/icache/icache/CacheWays[$i] -fecexprrow [GetLineNum ${SRC}/cache/cacheway.sv "exclusion-tag: cache SetValidEN"] 4
     # and the I$ never clears valid bits (no CMOs): ClearValidWay_1 and both FlushStage rows need ClearValidWay = 1

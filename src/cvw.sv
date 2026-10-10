@@ -36,6 +36,58 @@ package cvw;
 
   `include "BranchPredictorType.vh"
 
+  // Shared constants; some are unused in configurations that omit the hardware using them
+  /* verilator lint_off UNUSEDPARAM */
+
+  // Page type of a TLB entry or page table walk leaf
+  localparam logic [2:0] KILOPAGE = 3'd0;
+  localparam logic [2:0] MEGAPAGE = 3'd1;
+  localparam logic [2:0] GIGAPAGE = 3'd2;
+  localparam logic [2:0] TERAPAGE = 3'd3;
+  localparam logic [2:0] PETAPAGE = 3'd4;
+
+  // Bit positions in the one-hot cache management operation CMOp
+  localparam CMO_INVAL = 0; // cbo.inval
+  localparam CMO_CLEAN = 1; // cbo.clean
+  localparam CMO_FLUSH = 2; // cbo.flush
+  localparam CMO_ZERO  = 3; // cbo.zero
+
+  // Bit positions in the one-hot instruction class IClass {call, return, jump, branch}
+  localparam ICLASS_BRANCH = 0;
+  localparam ICLASS_JUMP   = 1;
+  localparam ICLASS_RETURN = 2;
+  localparam ICLASS_CALL   = 3;
+
+  // Bit positions in the one-hot PMA region select from adrdecs
+  localparam REGION_NONE       = 0;
+  localparam REGION_DTIM       = 1;
+  localparam REGION_IROM       = 2;
+  localparam REGION_EXT_MEM    = 3;
+  localparam REGION_BOOTROM    = 4;
+  localparam REGION_UNCORE_RAM = 5;
+  localparam REGION_CLINT      = 6;
+  localparam REGION_GPIO       = 7;
+  localparam REGION_UART       = 8;
+  localparam REGION_PLIC       = 9;
+  localparam REGION_SDC        = 10;
+  localparam REGION_SPI        = 11;
+  localparam REGION_PWM        = 12;
+
+  // FPU postprocessor operation select PostProcSel
+  localparam logic [1:0] POSTPROC_CVT = 2'b00; // conversion
+  localparam logic [1:0] POSTPROC_DIV = 2'b01; // divide or square root
+  localparam logic [1:0] POSTPROC_FMA = 2'b10; // fused multiply-add, add, subtract, multiply
+
+  // FP rounding modes Frm
+  localparam logic [2:0] RM_RNE = 3'b000; // round to nearest, ties to even
+  localparam logic [2:0] RM_RTZ = 3'b001; // round towards zero
+  localparam logic [2:0] RM_RDN = 3'b010; // round down, towards negative infinity
+  localparam logic [2:0] RM_RUP = 3'b011; // round up, towards positive infinity
+  localparam logic [2:0] RM_RMM = 3'b100; // round to nearest, ties to max magnitude
+  localparam logic [2:0] RM_DYN = 3'b111; // dynamic: use the frm field of fcsr
+
+  /* verilator lint_on UNUSEDPARAM */
+
 typedef struct packed {
   int           XLEN;     // Machine width (32 or 64)
   logic         IEEE754;  // IEEE754 NaN handling (0 = use RISC-V NaN propagation instead)
@@ -78,12 +130,12 @@ typedef struct packed {
   logic         DCACHE_SUPPORTED;
   logic         ICACHE_SUPPORTED;
 
-// TLB configuration.  Entries should be a power of 2
+  // TLB configuration.  Entries should be a power of 2
   int           ITLB_ENTRIES;
   int           DTLB_ENTRIES;
 
-// Cache configuration.  Sizes should be a power of two
-// typical configuration 4 ways, 4096 ints per way, 256 bit or more lines
+  // Cache configuration.  Sizes should be a power of two
+  // typical configuration 4 ways, 4096 bytes per way, 256 bit or more lines
   int           DCACHE_NUMWAYS;
   int           DCACHE_WAYSIZEINBYTES;
   int           DCACHE_LINELENINBITS;
@@ -92,24 +144,24 @@ typedef struct packed {
   int           ICACHE_LINELENINBITS;
   int           CACHE_SRAMLEN;
 
-// Integer Divider Configuration
-// IDIV_BITSPERCYCLE must be 1, 2, or 4
+  // Integer Divider Configuration
+  // IDIV_BITSPERCYCLE must be 1, 2, or 4
   int           IDIV_BITSPERCYCLE;
   logic         IDIV_ON_FPU;
 
-// Legal number of PMP entries are 0, 16, or 64
+  // Legal number of PMP entries are 0, 16, or 64
   int           PMP_ENTRIES;
   int           PMP_G; // grain
 
-// Address space
+  // Address space
   logic [63:0]  RESET_VECTOR;
 
-// WFI Timeout Wait
+  // WFI Timeout Wait
   int           WFI_TIMEOUT_BIT;
 
-// Peripheral Addresses
-// Peripheral memory space extends from BASE to BASE+RANGE
-// Range should be a thermometer code with 0's in the upper bits and 1s in the lower bits
+  // Peripheral Addresses
+  // Peripheral memory space extends from BASE to BASE+RANGE
+  // Range should be a thermometer code with 0's in the upper bits and 1s in the lower bits
   logic         DTIM_SUPPORTED;
   logic [63:0]  DTIM_BASE;
   logic [63:0]  DTIM_RANGE;
@@ -149,18 +201,17 @@ typedef struct packed {
   logic [63:0]  PWM_BASE;
   logic [63:0]  PWM_RANGE;
 
+  // Test modes
 
-// Test modes
-
-// Tie GPIO outputs back to inputs
+  // Tie GPIO outputs back to inputs
   logic         GPIO_LOOPBACK_TEST;
   logic         SPI_LOOPBACK_TEST;
 
-// Hardware configuration
+  // Hardware configuration
   int           UART_PRESCALE;
   int           PWM_WIDTH;
 
-// Interrupt configuration
+  // Interrupt configuration
   int           PLIC_NUM_SRC;
   logic         PLIC_NUM_SRC_LT_32;
   int           PLIC_GPIO_ID;
@@ -169,31 +220,31 @@ typedef struct packed {
   int           PLIC_SDC_ID;
   int           PLIC_PWM_ID;
 
-  logic                BPRED_SUPPORTED;
-  logic [31:0]         BPRED_TYPE;
-  int                  BPRED_NUM_LHR;
-  int                  BPRED_SIZE;
-  int                  BTB_SIZE;
-  int                  RAS_SIZE;
-  logic                INSTR_CLASS_PRED; // is class predictor enabled
+  logic         BPRED_SUPPORTED;
+  logic [31:0]  BPRED_TYPE;
+  int           BPRED_NUM_LHR;
+  int           BPRED_SIZE;
+  int           BTB_SIZE;
+  int           RAS_SIZE;
+  logic         INSTR_CLASS_PRED; // is class predictor enabled
 
-// FPU division architecture
+  // FPU division architecture
   int           RADIX;
   int           DIVCOPIES;
 
-// bit manipulation
+  // bit manipulation
   logic         ZBA_SUPPORTED;
   logic         ZBB_SUPPORTED;
   logic         ZBC_SUPPORTED;
   logic         ZBS_SUPPORTED;
 
-// compressed
+  // compressed
   logic         ZCA_SUPPORTED;
   logic         ZCB_SUPPORTED;
   logic         ZCD_SUPPORTED;
   logic         ZCF_SUPPORTED;
 
-// Cryptography
+  // Cryptography
   logic         ZBKB_SUPPORTED;
   logic         ZBKC_SUPPORTED;
   logic         ZBKX_SUPPORTED;
@@ -202,112 +253,112 @@ typedef struct packed {
   logic         ZKNH_SUPPORTED;
   logic         ZKN_SUPPORTED;
 
-// Memory synthesis configuration
+  // Memory synthesis configuration
   logic         USE_SRAM;
 
-// constants defining different privilege modes
-// defined in Table 1.1 of the privileged spec
-  logic [1:0] M_MODE ;
-  logic [1:0] S_MODE ;
-  logic [1:0] U_MODE ;
+  // constants defining different privilege modes
+  // defined in Table 1.1 of the privileged spec
+  logic [1:0]   M_MODE;
+  logic [1:0]   S_MODE;
+  logic [1:0]   U_MODE;
 
-// Virtual Memory Constants
-  int VPN_SEGMENT_BITS;
-  int VPN_BITS;
-  int PPN_BITS;
-  int PA_BITS;
-  int SVMODE_BITS;
-  int ASID_BASE;
-  int ASID_BITS;
+  // Virtual Memory Constants
+  int           VPN_SEGMENT_BITS;
+  int           VPN_BITS;
+  int           PPN_BITS;
+  int           PA_BITS;
+  int           SVMODE_BITS;
+  int           ASID_BASE;
+  int           ASID_BITS;
 
-// constants to check SATP_MODE against
-// defined in Table 4.3 of the privileged spec
-  logic [3:0] NO_TRANSLATE;
-  logic [3:0] SV32;
-  logic [3:0] SV39;
-  logic [3:0] SV48;
-  logic [3:0] SV57;
+  // constants to check SATP_MODE against
+  // defined in Table 4.3 of the privileged spec
+  logic [3:0]   NO_TRANSLATE;
+  logic [3:0]   SV32;
+  logic [3:0]   SV39;
+  logic [3:0]   SV48;
+  logic [3:0]   SV57;
 
-// macros to define supported modes
-  logic A_SUPPORTED;
-  logic B_SUPPORTED;
-  logic C_SUPPORTED;
-  logic D_SUPPORTED;
-  logic E_SUPPORTED;
-  logic F_SUPPORTED;
-  logic I_SUPPORTED;
-  logic M_SUPPORTED;
-  logic Q_SUPPORTED;
-  logic S_SUPPORTED;
-  logic U_SUPPORTED;
+  // supported extensions and privilege modes
+  logic         A_SUPPORTED;
+  logic         B_SUPPORTED;
+  logic         C_SUPPORTED;
+  logic         D_SUPPORTED;
+  logic         E_SUPPORTED;
+  logic         F_SUPPORTED;
+  logic         I_SUPPORTED;
+  logic         M_SUPPORTED;
+  logic         Q_SUPPORTED;
+  logic         S_SUPPORTED;
+  logic         U_SUPPORTED;
 
-// logarithm of XLEN, used for number of index bits to select
-  int LOG_XLEN;
+  // logarithm of XLEN, used for number of index bits to select
+  int           LOG_XLEN;
 
-// Number of 64 bit PMP Configuration Register entries (or pairs of 32 bit entries)
-  int PMPCFG_ENTRIES;
+  // Number of 64 bit PMP Configuration Register entries (or pairs of 32 bit entries)
+  int           PMPCFG_ENTRIES;
 
-// Floating point constants for Quad, Double, Single, and Half precisions
-  int         Q_LEN;
-  int         Q_NE;
-  int         Q_NF;
-  int         Q_BIAS;
-  logic [1:0] Q_FMT;
-  int         D_LEN;
-  int         D_NE;
-  int         D_NF;
-  int         D_BIAS;
-  logic [1:0] D_FMT;
-  int         S_LEN;
-  int         S_NE;
-  int         S_NF;
-  int         S_BIAS;
-  logic [1:0] S_FMT;
-  int         H_LEN;
-  int         H_NE;
-  int         H_NF;
-  int         H_BIAS;
-  logic [1:0] H_FMT;
+  // Floating point constants for Quad, Double, Single, and Half precisions
+  int           Q_LEN;
+  int           Q_NE;
+  int           Q_NF;
+  int           Q_BIAS;
+  logic [1:0]   Q_FMT;
+  int           D_LEN;
+  int           D_NE;
+  int           D_NF;
+  int           D_BIAS;
+  logic [1:0]   D_FMT;
+  int           S_LEN;
+  int           S_NE;
+  int           S_NF;
+  int           S_BIAS;
+  logic [1:0]   S_FMT;
+  int           H_LEN;
+  int           H_NE;
+  int           H_NF;
+  int           H_BIAS;
+  logic [1:0]   H_FMT;
 
-// Floating point length FLEN and number of exponent (NE) and fraction (NF) bits
-  int         FLEN;
-  int         LOGFLEN;
-  int         NE  ;
-  int         NF  ;
-  logic [1:0] FMT ;
-  int         BIAS;
+  // Floating point length FLEN and number of exponent (NE) and fraction (NF) bits
+  int           FLEN;
+  int           LOGFLEN;
+  int           NE;
+  int           NF;
+  logic [1:0]   FMT;
+  int           BIAS;
 
-// Floating point constants needed for FPU paramerterization
-  int         FPSIZES;
-  int         FMTBITS;
-  int         LEN1 ;
-  int         NE1  ;
-  int         NF1  ;
-  logic [1:0] FMT1 ;
-  int         BIAS1;
-  int         LEN2 ;
-  int         NE2  ;
-  int         NF2  ;
-  logic [1:0] FMT2 ;
-  int         BIAS2;
+  // Floating point constants needed for FPU parameterization
+  int           FPSIZES;
+  int           FMTBITS;
+  int           LEN1;
+  int           NE1;
+  int           NF1;
+  logic [1:0]   FMT1;
+  int           BIAS1;
+  int           LEN2;
+  int           NE2;
+  int           NF2;
+  logic [1:0]   FMT2;
+  int           BIAS2;
 
-// largest length in IEU/FPU
-  int CVTLEN;
-  int LLEN;
-  int LOGCVTLEN;
-  int NORMSHIFTSZ;
-  int LOGNORMSHIFTSZ;
-  int FMALEN;
+  // largest length in IEU/FPU
+  int           CVTLEN;
+  int           LLEN;
+  int           LOGCVTLEN;
+  int           NORMSHIFTSZ;
+  int           LOGNORMSHIFTSZ;
+  int           FMALEN;
 
-// division constants
-  int LOGR       ;
-  int RK         ;
-  int FPDUR      ;
-  int DURLEN     ;
-  int DIVb       ;
-  int DIVBLEN    ;
-// integer division/remainder constants
-  int INTDIVb    ;
+  // division constants
+  int           LOGR;
+  int           RK;
+  int           FPDUR;
+  int           DURLEN;
+  int           DIVb;
+  int           DIVBLEN;
+  // integer division/remainder constants
+  int           INTDIVb;
 } cvw_t;
 
 endpackage

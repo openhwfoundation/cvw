@@ -29,19 +29,19 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module pmachecker import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.PA_BITS-1:0] PhysicalAddress,
-  input  logic [1:0]           Size,
-  input  logic [3:0]           CMOpM,
-  input  logic                 AtomicAccessM,  // Atomic access
-  input  logic                 ExecuteAccessF, // Execute access
-  input  logic                 WriteAccessM,   // Write access
-  input  logic                 ReadAccessM,    // Read access
-  input  logic [1:0]           PBMemoryType,     // PBMT field of PTE during TLB hit, or 00 otherwise
-  output logic                 Cacheable, Idempotent, SelTIM,
-  output logic                 PMAInstrAccessFaultF,
-  output logic                 PMALoadAccessFaultM,
-  output logic                 PMAStoreAmoAccessFaultM
+module pmachecker import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.PA_BITS-1:0] PhysicalAddress,        // Physical address
+  input  logic [1:0]           Size,                   // Access size (log2 bytes)
+  input  logic [3:0]           CMOpM,                  // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic                 AtomicAccessM,          // Atomic access
+  input  logic                 ExecuteAccessF,         // Execute access
+  input  logic                 WriteAccessM,           // Write access
+  input  logic                 ReadAccessM,            // Read access
+  input  logic [1:0]           PBMemoryType,           // PBMT field of PTE during TLB hit, or 00 otherwise
+  output logic                 Cacheable, Idempotent, SelTIM, // PMA attributes: cacheable, idempotent, tightly integrated memory
+  output logic                 PMAInstrAccessFaultF,   // PMA instruction access fault
+  output logic                 PMALoadAccessFaultM,    // PMA load access fault
+  output logic                 PMAStoreAmoAccessFaultM // PMA store/AMO access fault
 );
 
   logic                        PMAAccessFault;
@@ -56,24 +56,25 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   assign AccessRX  = ReadAccessM | ExecuteAccessF;
 
   // Determine which region of physical memory (if any) is being accessed
+  // SelRegions is one-hot, indexed by the REGION_* bit positions in the cvw package
   adrdecs #(P) adrdecs(PhysicalAddress, AccessRW, AccessRX, AccessRWXC, Size, SelRegions);
 
   // Only non-core RAM/ROM memory regions are cacheable. PBMT can override cacheable; NC and IO are uncachable
-  assign CacheableRegion = SelRegions[3] | SelRegions[4] | SelRegions[5];  // exclusion-tag: unused-cacheable
+  assign CacheableRegion = SelRegions[REGION_EXT_MEM] | SelRegions[REGION_BOOTROM] | SelRegions[REGION_UNCORE_RAM];  // exclusion-tag: unused-cacheable
   assign Cacheable = (PBMemoryType == 2'b00) ? CacheableRegion : 1'b0;
 
-  // Nonidemdempotent means access could have side effect and must not be done speculatively or redundantly
+  // Non-idempotent means access could have side effect and must not be done speculatively or redundantly
   // I/O is nonidempotent.  PBMT can override PMA; NC is idempotent and IO is non-idempotent
-  assign IdempotentRegion = SelRegions[1] | SelRegions[2] | SelRegions[3] | SelRegions[4] | SelRegions[5];
+  assign IdempotentRegion = SelRegions[REGION_DTIM] | SelRegions[REGION_IROM] | SelRegions[REGION_EXT_MEM] | SelRegions[REGION_BOOTROM] | SelRegions[REGION_UNCORE_RAM];
   assign Idempotent = (PBMemoryType == 2'b00) ? IdempotentRegion : (PBMemoryType == 2'b01);
 
   // Atomic operations are only allowed on RAM
-  assign AtomicAllowed = SelRegions[1] | SelRegions[3] | SelRegions[5]; // exclusion-tag: unused-atomic
+  assign AtomicAllowed = SelRegions[REGION_DTIM] | SelRegions[REGION_EXT_MEM] | SelRegions[REGION_UNCORE_RAM]; // exclusion-tag: unused-atomic
   // Check if tightly integrated memories are selected
-  assign SelTIM = SelRegions[1] | SelRegions[2]; // exclusion-tag: unused-tim
+  assign SelTIM = SelRegions[REGION_DTIM] | SelRegions[REGION_IROM]; // exclusion-tag: unused-tim
 
   // Detect access faults
-  assign PMAAccessFault          = SelRegions[0] & AccessRWXC | AtomicAccessM & ~AtomicAllowed;
+  assign PMAAccessFault          = SelRegions[REGION_NONE] & AccessRWXC | AtomicAccessM & ~AtomicAllowed;
   assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault;
   assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMAAccessFault;
   assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMAAccessFault;

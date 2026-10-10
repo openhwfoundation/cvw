@@ -26,13 +26,13 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aessbox32(
-   input  logic [31:0] a,
-   output logic [31:0] y
+  input  logic [31:0] a, // Input
+  output logic [31:0] y  // Output
 );
 
-   // substitutions boxes for each byte of the 32-bit word
-   aessbox8 sbox0(a[7:0],   y[7:0]);
-   aessbox8 sbox1(a[15:8],  y[15:8]);
-   aessbox8 sbox2(a[23:16], y[23:16]);
-   aessbox8 sbox3(a[31:24], y[31:24]);
+  // substitution boxes for each byte of the 32-bit word
+  aessbox8 sbox0(a[7:0],   y[7:0]);
+  aessbox8 sbox1(a[15:8],  y[15:8]);
+  aessbox8 sbox2(a[23:16], y[23:16]);
+  aessbox8 sbox3(a[31:24], y[31:24]);
 endmodule
