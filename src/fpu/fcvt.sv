@@ -57,6 +57,7 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]              PosInt;       // the positive integer input
   logic [P.XLEN-1:0]              TrimInt;      // integer trimmed to the correct size
   logic [P.NE-2:0]                NewBias;      // the bias of the final result
+  logic [P.NE:0]                  CeNoLz;       // Ce before the normalization shift is subtracted
   logic [P.NE-1:0]                OldExp;       // the old exponent
   logic                           Signed;       // is the operation with a signed integer?
   logic                           Int64;        // is the integer 64 bits?
@@ -178,8 +179,10 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //                      000001.stuff
   //                  - newBias to make the biased exponent
   //
-  //          oldexp         - biasold         - LeadingZeros                               + newbias
-  assign Ce = {1'b0, OldExp} - (P.NE+1)'(P.BIAS) - {{P.NE-P.LOGCVTLEN+1{1'b0}}, (LeadingZeros)} + {2'b0, NewBias};
+  //          oldexp         - biasold         + newbias, before the normalization shift is taken out
+  assign CeNoLz = {1'b0, OldExp} - (P.NE+1)'(P.BIAS) + {2'b0, NewBias};
+  //          ... - LeadingZeros
+  assign Ce = CeNoLz - {{P.NE-P.LOGCVTLEN+1{1'b0}}, (LeadingZeros)};
 
   // find if the result is dnormal or underflows
   //      - if Calculated expoenent is 0 or negative (and the input/result is not exactaly 0)
@@ -204,7 +207,11 @@ module fcvt import cvw::*;  #(parameter cvw_t P) (
   //                  - rather have a few and-gates than an extra bit in the priority encoder???
   always_comb
       if(ToInt)                       ShiftAmt = Ce[P.LOGCVTLEN-1:0]&{P.LOGCVTLEN{~Ce[P.NE]}};
-      else if (ResSubnormUf)          ShiftAmt = (P.LOGCVTLEN)'(P.NF-1)+Ce[P.LOGCVTLEN-1:0];
+      // Use the exponent from before the normalization shift: a subnormal source needs no normalizing
+      // when the result is also subnormal, and the two are identical for a normal source.  Only
+      // same-precision converts reach that combination: narrowing flushes such a source to zero
+      // and widening normalizes it.
+      else if (ResSubnormUf)          ShiftAmt = (P.LOGCVTLEN)'(P.NF-1)+CeNoLz[P.LOGCVTLEN-1:0];
       else                            ShiftAmt = LeadingZeros;
 
   ///////////////////////////////////////////////////////////////////////////
