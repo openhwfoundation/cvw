@@ -39,6 +39,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] PCSpillF,               // addresses to translate
   input  logic [P.XLEN+1:0] IEUAdrExtM,             // addresses to translate
   input  logic [1:0]        MemRWM, AtomicM,
+  input  logic              FpLoadStoreM,           // FP load/store in M
   // system status
   input  logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]        STATUS_MPP,
@@ -65,6 +66,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   output logic [2:0]        LSUFunct3M,
   output logic [6:0]        LSUFunct7M,
   output logic [3:0]        LSUCMOpM,
+  output logic              LSUFpLoadStoreM,        // FpLoadStoreM, cleared for the walker's PTE accesses
   output logic              HPTWFlushW,
   output logic              SelHPTW,
   output logic              HPTWStall,
@@ -396,6 +398,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   mux2 #(7) funct7mux(Funct7M, 7'b0, SelHPTW, LSUFunct7M);
   mux2 #(2) atomicmux(AtomicM, 2'b00, SelHPTW, LSUAtomicM);
   mux2 #(4) cmomux(CMOpM, 4'b0, SelHPTW, LSUCMOpM);
+  mux2 #(1) fpmux(FpLoadStoreM, 1'b0, SelHPTW, LSUFpLoadStoreM);
   mux2 #(P.XLEN+2) lsupadrmux(IEUAdrExtM, HPTWAdrExt, SelHPTWAdr, IHAdrM);
   if (P.SVADU_SUPPORTED)
     mux2 #(P.XLEN) lsuwritedatamux(WriteDataM, PTE, SelHPTW, IHWriteDataM);

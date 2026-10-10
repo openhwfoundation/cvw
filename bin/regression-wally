@@ -59,6 +59,14 @@ periph_tests = {
                 "rv64/WALLY-uart-timeout-01"],
 }
 
+# Coverage-targeted tests (tests/coverage) that need a derivative configuration, run as one group per
+# configuration in the nightly regression.  Every ELF in tests/coverage also runs on rv64gc.
+deriv_coverage_tests = {
+    # A/D updates on single-precision FP loads and stores with FLEN < XLEN
+    "f_rv64gc":  ["fpADUpdate32"],
+    "fh_rv64gc": ["fpADUpdate32"],
+}
+
 # The tests below are a list with one element for each configuration
 # The element consists of the configuration name, a list of test suites to run,
 # optionally a string to pass to the simulator, and optionally a nonstandard grep string to check for success
@@ -803,6 +811,8 @@ def selectTests(args, sims, coverStr):
         addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTests(derivconfigtests, defaultsim, coverStr, configs)
+        for config, tests in deriv_coverage_tests.items():
+            addTestGroup("coverage", coverageDir, tests, config, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others

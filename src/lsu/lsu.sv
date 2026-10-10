@@ -159,6 +159,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]     WriteDataZM;
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
+  logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
@@ -207,7 +208,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
       .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,
       .IEUAdrExtM, .PTE, .IHWriteDataM, .PageType, .PreLSURWM, .LSUAtomicM,
-      .IHAdrM, .CMOpM, .LSUCMOpM, .HPTWStall, .SelHPTW,
+      .IHAdrM, .CMOpM, .LSUCMOpM, .FpLoadStoreM, .LSUFpLoadStoreM, .HPTWStall, .SelHPTW,
       .HPTWFlushW, .LSULoadAccessFaultM, .LSUStoreAmoAccessFaultM,
       .LoadAccessFaultM, .StoreAmoAccessFaultM, .HPTWInstrAccessFaultF,
       .LoadPageFaultM, .StoreAmoPageFaultM, .LSULoadPageFaultM, .LSUStoreAmoPageFaultM, .HPTWInstrPageFaultF
@@ -232,6 +233,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign LSUFunct7M = Funct7M;
     assign LSUAtomicM = AtomicM;
     assign LSUCMOpM = CMOpM;
+    assign LSUFpLoadStoreM = FpLoadStoreM;
     assign IHWriteDataM = WriteDataZM;
     assign LoadAccessFaultM = LSULoadAccessFaultM;
     assign StoreAmoAccessFaultM = LSUStoreAmoAccessFaultM;
@@ -257,7 +259,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // AHB defines HSIZE 100/101/110 as 128/256/512-bit transfers, but funct3 uses those codes for the
   // unsigned integer loads lbu/lhu/lwu, which are byte/halfword/word accesses.  Clear the unsigned bit
   // for integer accesses; FP accesses use funct3 as the true width (including 100 for a 128-bit flq).
-  assign LSUSizeM = FpLoadStoreM ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]};
+  assign LSUSizeM = LSUFpLoadStoreM ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]};
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // MMU and misalignment fault logic required if privileged unit exists
@@ -434,9 +436,9 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
 
   if (P.F_SUPPORTED)
     if (P.FLEN >= P.XLEN)
-      mux2 #(P.LLEN) datamux({{{P.LLEN-P.XLEN}{1'b0}}, IMAWriteDataM}, FWriteDataM, FpLoadStoreM, IMAFWriteDataM);
+      mux2 #(P.LLEN) datamux({{{P.LLEN-P.XLEN}{1'b0}}, IMAWriteDataM}, FWriteDataM, LSUFpLoadStoreM, IMAFWriteDataM);
     else
-      mux2 #(P.LLEN) datamux(IMAWriteDataM, {{{P.XLEN-P.FLEN}{1'b0}}, FWriteDataM}, FpLoadStoreM, IMAFWriteDataM);
+      mux2 #(P.LLEN) datamux(IMAWriteDataM, {{{P.XLEN-P.FLEN}{1'b0}}, FWriteDataM}, LSUFpLoadStoreM, IMAFWriteDataM);
 
   else assign IMAFWriteDataM = IMAWriteDataM;
 
@@ -445,7 +447,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   subwordread #(P) subwordread(.ReadDataWordMuxM(LittleEndianReadDataWordM), .PAdrM(PAdrM[3:0]), .BigEndianM,
-    .FpLoadStoreM, .Funct3M(LSUFunct3M), .ReadDataM);
+    .FpLoadStoreM(LSUFpLoadStoreM), .Funct3M(LSUFunct3M), .ReadDataM);
   subwordwrite #(P.LLEN) subwordwrite(.LSUFunct3M, .IMAFWriteDataM, .LittleEndianWriteDataM);
 
   // Compute byte masks
