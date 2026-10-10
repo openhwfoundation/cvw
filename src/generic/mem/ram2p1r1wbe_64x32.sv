@@ -46,5 +46,6 @@ module ram2p1r1wbe_64x32(
    //generic64x32RAM sramIP (.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
    //       .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
   TSDN28HPCPA64X32M4MW sramIP(.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
-    .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
+    .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB,
+    .RTSEL(2'b01), .WTSEL(2'b01), .VG(1'b1), .VS(1'b1)); // timing and voltage settings required by the datasheet
 endmodule

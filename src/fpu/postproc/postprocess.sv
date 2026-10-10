@@ -153,7 +153,7 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
   always_comb
     case(PostProcSel)
       2'b10: begin // fma
-        ShiftAmt = {{P.LOGNORMSHIFTSZ-$clog2(P.FMALEN-1){1'b0}}, FmaShiftAmt};
+        ShiftAmt = {{P.LOGNORMSHIFTSZ-$clog2(P.FMALEN+1){1'b0}}, FmaShiftAmt};
         ShiftIn  =  {{2'b00, FmaSm}, {P.NORMSHIFTSZ-(P.FMALEN+2){1'b0}}};
       end
       2'b00: begin // cvt

@@ -44,39 +44,47 @@ module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) 
   output logic [WIDTH-1:0]         rd1
 );
 
-  localparam                      SRAMWIDTH = 32;
-  localparam                      SRAMNUMSETS = SRAMWIDTH/WIDTH;
-
   ///////////////////////////////////////////////////////////////////////////////
   // TRUE SRAM macro
   ///////////////////////////////////////////////////////////////////////////////
 
   if ((USE_SRAM == 1) & (WIDTH == 68) & (DEPTH == 1024)) begin
 
+    logic [WIDTH-1:0] BitWriteMask;
+    for (genvar index = 0; index < WIDTH; index++)
+      assign BitWriteMask[index] = bwe2[index/8];
+    // WEB and BWEB are active low; port A only reads
     ram2p1r1wbe_1024x68 memory1(.CLKA(clk), .CLKB(clk),
       .CEBA(~ce1), .CEBB(~ce2),
-      .WEBA(1'b0), .WEBB(~we2),
+      .WEBA(1'b1), .WEBB(~we2),
       .AA(ra1), .AB(wa2),
       .DA('0),
       .DB(wd2),
-      .BWEBA('0), .BWEBB('1),
+      .BWEBA('1), .BWEBB(~BitWriteMask),
       .QA(rd1),
       .QB());
 
   end else if ((USE_SRAM == 1) & (WIDTH == 36) & (DEPTH == 1024)) begin
 
+    logic [WIDTH-1:0] BitWriteMask;
+    for (genvar index = 0; index < WIDTH; index++)
+      assign BitWriteMask[index] = bwe2[index/8];
+    // WEB and BWEB are active low; port A only reads
     ram2p1r1wbe_1024x36 memory1(.CLKA(clk), .CLKB(clk),
       .CEBA(~ce1), .CEBB(~ce2),
-      .WEBA(1'b0), .WEBB(~we2),
+      .WEBA(1'b1), .WEBB(~we2),
       .AA(ra1), .AB(wa2),
       .DA('0),
       .DB(wd2),
-      .BWEBA('0), .BWEBB('1),
+      .BWEBA('1), .BWEBB(~BitWriteMask),
       .QA(rd1),
       .QB());
 
   end else if ((USE_SRAM == 1) & (WIDTH == 2) & (DEPTH == 1024)) begin
 
+    // Pack SRAMNUMSETS 2-bit entries into each 32-bit word of a 64-entry SRAM
+    localparam SRAMWIDTH = 32;
+    localparam SRAMNUMSETS = SRAMWIDTH/WIDTH;
     logic [SRAMWIDTH-1:0]     SRAMReadData;
     logic [SRAMWIDTH-1:0]     SRAMWriteData;
     logic [SRAMWIDTH-1:0]     RD1Sets[SRAMNUMSETS-1:0];
@@ -88,19 +96,19 @@ module ram2p1r1wbe import cvw::*; #(parameter USE_SRAM=0, DEPTH=1024, WIDTH=68) 
     genvar                    index;
     for (index = 0; index < SRAMNUMSETS; index++) begin : readdatalinesetsmux
       assign RD1Sets[index] = SRAMReadData[(index*WIDTH)+WIDTH-1 : (index*WIDTH)];
-      assign SRAMWriteData[index*2+1:index*2] = wd2;
-      assign SRAMBitMask[index*2+1:index*2] = {2{SRAMBitMaskPre[index]}};
+      assign SRAMWriteData[index*WIDTH +: WIDTH] = wd2;
+      assign SRAMBitMask[index*WIDTH +: WIDTH] = {WIDTH{SRAMBitMaskPre[index] & bwe2[0]}};
     end
     flopen #($clog2(DEPTH)) mem_reg1 (clk, ce1, ra1, RA1Q);
-    assign rd1 = RD1Sets[RA1Q[$clog2(SRAMWIDTH)-1:0]];
+    assign rd1 = RD1Sets[RA1Q[$clog2(SRAMNUMSETS)-1:0]];
     ram2p1r1wbe_64x32 memory2(.CLKA(clk), .CLKB(clk),
       .CEBA(~ce1), .CEBB(~ce2),
-      .WEBA(1'b0), .WEBB(~we2),
+      .WEBA(1'b1), .WEBB(~we2),
       .AA(ra1[$clog2(DEPTH)-1:$clog2(SRAMNUMSETS)]),
       .AB(wa2[$clog2(DEPTH)-1:$clog2(SRAMNUMSETS)]),
       .DA('0),
       .DB(SRAMWriteData),
-      .BWEBA('0), .BWEBB(SRAMBitMask),
+      .BWEBA('1), .BWEBB(~SRAMBitMask),
       .QA(SRAMReadData),
       .QB());
 

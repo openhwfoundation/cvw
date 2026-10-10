@@ -49,7 +49,8 @@ module ram2p1r1wbe_1024x36(
   logic [67:0] QAfull, QBfull;
   TSDN28HPCPA1024X68M4MW sramIP(.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
     .AA, .AB, .DA({32'b0, DA[35:0]}), .DB({32'b0, DB[35:0]}),
-    .BWEBA({32'b0, BWEBA[35:0]}), .BWEBB({32'b0, BWEBB[35:0]}), .QA(QAfull), .QB(QBfull));
+    .BWEBA({32'b0, BWEBA[35:0]}), .BWEBB({32'b0, BWEBB[35:0]}), .QA(QAfull), .QB(QBfull),
+    .RTSEL(2'b01), .WTSEL(2'b01), .VG(1'b1), .VS(1'b1)); // timing and voltage settings required by the datasheet
   assign QA = QAfull[35:0];
   assign QB = QBfull[35:0];
 

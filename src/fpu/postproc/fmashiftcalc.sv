@@ -37,6 +37,7 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   output logic                          FmaPreResultSubnorm, // is the result subnormal - calculated before LZA correction
   output logic [$clog2(P.FMALEN+1)-1:0] FmaShiftAmt          // normalization shift count
 );
+  localparam LOGFMALEN = $clog2(P.FMALEN+1);                // width of FmaSCnt and FmaShiftAmt
   logic [P.NE+1:0]                      PreNormSumExp;       // the exponent of the normalized sum with the P.FLEN bias
   logic [P.NE+1:0]                      BiasCorr;            // correction for bias
 
@@ -48,7 +49,7 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   assign FmaSZero = ~(|FmaSm);
 
   // calculate the sum's exponent FmaSe-FmaSCnt+NF+2
-  assign PreNormSumExp = FmaSe + {{P.NE+2-$unsigned($clog2(P.FMALEN+1)){1'b1}}, ~FmaSCnt} + (P.NE+2)'(P.NF+4);
+  assign PreNormSumExp = FmaSe + {{P.NE+2-$unsigned(LOGFMALEN){1'b1}}, ~FmaSCnt} + (P.NE+2)'(P.NF+4);
 
   //convert the sum's exponent into the proper precision
   if (P.FPSIZES == 1) begin
@@ -130,5 +131,5 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
 
   // set and calculate the shift input and amount
   //  - shift once if killing a product and the result is subnormal
-  assign FmaShiftAmt = FmaPreResultSubnorm ? FmaSe[$clog2(P.FMALEN-1)-1:0]+($clog2(P.FMALEN-1))'(P.NF+3)+BiasCorr[$clog2(P.FMALEN-1)-1:0]: FmaSCnt+1;
+  assign FmaShiftAmt = FmaPreResultSubnorm ? FmaSe[LOGFMALEN-1:0]+(LOGFMALEN)'(P.NF+3)+BiasCorr[LOGFMALEN-1:0]: FmaSCnt+1;
 endmodule

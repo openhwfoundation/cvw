@@ -142,7 +142,6 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic                        BusCommittedF;                            // Bus memory operation in flight, delay interrupts
   logic                        CacheCommittedF;                          // I$ memory operation started, delay interrupts
   logic                        SelIROM;                                  // PMA indicates instruction address is in the IROM
-  logic [15:0]                 InstrRawE, InstrRawM;
   logic [LINELEN-1:0]          FetchBuffer;
   logic [31:0]                 ShiftUncachedInstr;
   logic                        ITLBMissF;
@@ -476,8 +475,10 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   end
 
   // pipeline original compressed instruction in case it is needed for XTVAL on an illegal instruction exception
-  if (P.ZICSR_SUPPORTED & P.ZCA_SUPPORTED | 1) begin
-    logic CompressedM; // instruction is compressed
+  // Only csr reads InstrOrigM, and it differs from InstrM only for compressed instructions
+  if (P.ZICSR_SUPPORTED & P.ZCA_SUPPORTED) begin
+    logic        CompressedM; // instruction is compressed
+    logic [15:0] InstrRawE, InstrRawM;
     flopenrc #(16) InstrRawEReg(clk, reset, FlushE, ~StallE, InstrRawD[15:0], InstrRawE);
     flopenrc #(16) InstrRawMReg(clk, reset, FlushM, ~StallM, InstrRawE, InstrRawM);
     flopenrc #(1)  CompressedMReg(clk, reset, FlushM, ~StallM, CompressedE, CompressedM);

@@ -98,9 +98,8 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   localparam DPC           = 12'h7B1;
   localparam DSCRATCH0     = 12'h7B2;
   localparam DSCRATCH1     = 12'h7B3;
-  /* verilator lint_off UNUSEDPARAM */
+  /* verilator lint_on UNUSEDPARAM */
   // Constants
-  localparam ZERO = {(P.XLEN){1'b0}};
   // when compressed instructions are supported, there can't be misaligned instructions
   localparam MEDELEG_MASK  = P.ZCA_SUPPORTED ? 16'hB3FE : 16'hB3FF;
   localparam MIDELEG_MASK  = 12'h222; // we choose to not make machine interrupts delegable
