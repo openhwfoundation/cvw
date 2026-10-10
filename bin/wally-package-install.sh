@@ -42,7 +42,7 @@ fi
 
 # Packages are grouped by which tool requires them. If multiple tools need a package, it is included in each tool's list.
 # Packages that are constant across distros
-GENERAL_PACKAGES+=(rsync git wget tar unzip gzip bzip2 gcc make dialog mutt) # TODO: check what needs dialog
+GENERAL_PACKAGES+=(rsync git tar unzip gzip bzip2 gcc make dialog mutt) # TODO: check what needs dialog
 GNU_PACKAGES+=(autoconf automake gawk bison flex texinfo gperf libtool patchutils bc)
 SAIL_PACKAGES+=(cmake)
 VERILATOR_PACKAGES+=(autoconf flex bison help2man perl ccache numactl gtkwave) # gtkwave is not needed for verilator, but useful for viewing waveforms
@@ -54,7 +54,7 @@ case "$FAMILY" in
         PYTHON_VERSION=python3.12
         PACKAGE_MANAGER="dnf -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update"
-        GENERAL_PACKAGES+=(which "$PYTHON_VERSION" "$PYTHON_VERSION"-pip pkgconf-pkg-config gcc-c++)
+        GENERAL_PACKAGES+=(which "$PYTHON_VERSION" "$PYTHON_VERSION"-pip pkgconf-pkg-config gcc-c++ wget)
         GNU_PACKAGES+=(libmpc-devel mpfr-devel gmp-devel zlib-devel expat-devel glib2-devel libslirp-devel)
         QEMU_PACKAGES+=(glib2-devel libfdt-devel pixman-devel zlib-devel ninja-build)
         SPIKE_PACKAGES+=(dtc) # compiling Spike with boost fails on RHEL
@@ -92,7 +92,7 @@ case "$FAMILY" in
         fi
         PACKAGE_MANAGER="DEBIAN_FRONTEND=noninteractive apt-get -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update && $PACKAGE_MANAGER upgrade --with-new-pkgs"
-        GENERAL_PACKAGES+=(curl "$PYTHON_VERSION" python3-pip "$PYTHON_VERSION"-venv pkg-config build-essential g++ ssmtp)
+        GENERAL_PACKAGES+=(curl "$PYTHON_VERSION" python3-pip "$PYTHON_VERSION"-venv pkg-config build-essential g++ ssmtp wget)
         GNU_PACKAGES+=(autotools-dev libmpc-dev libmpfr-dev libgmp-dev zlib1g-dev libexpat1-dev libglib2.0-dev libslirp-dev)
         QEMU_PACKAGES+=(libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build)
         SPIKE_PACKAGES+=(device-tree-compiler libboost-regex-dev libboost-system-dev)
@@ -112,7 +112,7 @@ case "$FAMILY" in
 
         PACKAGE_MANAGER="zypper -n"
         UPDATE_COMMAND="$PACKAGE_MANAGER update"
-        GENERAL_PACKAGES+=(which curl "$PYTHON_VERSION_PACKAGE" "$PYTHON_VERSION_PACKAGE"-pip pkg-config gcc-c++)
+        GENERAL_PACKAGES+=(which curl "$PYTHON_VERSION_PACKAGE" "$PYTHON_VERSION_PACKAGE"-pip pkg-config gcc-c++ wget)
         GNU_PACKAGES+=(mpc-devel mpfr-devel gmp-devel zlib-devel libexpat-devel glib2-devel libslirp-devel)
         QEMU_PACKAGES+=(glib2-devel libfdt-devel libpixman-1-0-devel zlib-devel ninja)
         SPIKE_PACKAGES+=(dtc)
@@ -129,13 +129,26 @@ case "$FAMILY" in
             GENERAL_PACKAGES+=(gcc13 gcc13-c++ cpp13) # Newer version of gcc needed for many tools. Default is gcc7
         fi
         ;;
+    fedora)
+        PYTHON_VERSION=python3
+        PACKAGE_MANAGER="dnf -y"
+        UPDATE_COMMAND="$PACKAGE_MANAGER update"
+        GENERAL_PACKAGES+=(which curl "$PYTHON_VERSION" "$PYTHON_VERSION"-pip pkgconf-pkg-config gcc-c++ wget2-wget)
+        GNU_PACKAGES+=(libmpc-devel mpfr-devel gmp-devel zlib-ng-compat-devel expat-devel glib2-devel libslirp-devel)
+        QEMU_PACKAGES+=(glib2-devel libfdt-devel pixman-devel zlib-ng-compat-devel ninja-build)
+        SPIKE_PACKAGES+=(dtc)
+        WHISPER_PACKAGES+=(libstdc++-static)
+        SAIL_PACKAGES+=(ninja-build gmp-devel)
+        VERILATOR_PACKAGES+=(zlib-ng-compat-devel gperftools-devel mold perl-doc)
+        BUILDROOT_PACKAGES+=(ncurses ncurses-base ncurses-libs ncurses-devel gcc-gfortran)
+        ;;
 esac
 
 
 # Check if required packages are installed or install/update them depending on passed flag.
 if [ "${1}" == "--check" ]; then
     section_header "Checking Dependencies from Package Manager"
-    if [[ "$FAMILY" == rhel || "$FAMILY" == suse ]]; then
+    if [[ "$FAMILY" == rhel || "$FAMILY" == suse || "$FAMILY" == fedora ]]; then
         for pack in "${GENERAL_PACKAGES[@]}" "${GNU_PACKAGES[@]}" "${QEMU_PACKAGES[@]}" "${SPIKE_PACKAGES[@]}" "${WHISPER_PACKAGES[@]}" "${SAIL_PACKAGES[@]}" "${VERILATOR_PACKAGES[@]}" "${BUILDROOT_PACKAGES[@]}"; do
             rpm -q "$pack" > /dev/null || (echo -e "${FAIL_COLOR}Missing packages detected (${WARNING_COLOR}$pack${FAIL_COLOR}). Run as root to auto-install or run wally-package-install.sh first.${ENDC}" && exit 1)
         done

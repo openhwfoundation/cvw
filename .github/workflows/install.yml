@@ -104,6 +104,11 @@ jobs:
             image: opensuse/leap:16.0
             imageFamily: suse
             os: ubuntu-latest
+          # Fedora installations
+          - name: fedora-44
+            image: fedora:44
+            imageFamily: redhat
+            os: ubuntu-latest
           # User level installation
           - name: user-install
             image: null
