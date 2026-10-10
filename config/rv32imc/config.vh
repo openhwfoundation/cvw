@@ -42,6 +42,8 @@ localparam logic ZIFENCEI_SUPPORTED = 0; // Instruction-Fetch fence
 localparam logic ZICSR_SUPPORTED    = 1; // CSR Instructions
 localparam logic ZICCLSM_SUPPORTED  = 0; // Misaligned loads/stores
 localparam logic ZICOND_SUPPORTED   = 0; // Integer conditional operations
+localparam logic ZCMT_SUPPORTED = 0; // Table jump; jvt CSR
+localparam logic ZFINX_SUPPORTED = 0; // Floating point in x registers; fcsr CSR
 localparam logic ZIMOP_SUPPORTED    = 0; // May-be-operations
 localparam logic ZCMOP_SUPPORTED    = 0; // Compressed may-be-operations
 
@@ -94,6 +96,14 @@ localparam logic U_SUPPORTED = 1; // User mode
 
 // Supervisor level extensions
 localparam logic SSTC_SUPPORTED = 0; // Supervisor-mode timer interrupts
+localparam logic SMSTATEEN_SUPPORTED = 0; // Machine-level state enable registers
+localparam logic SSSTATEEN_SUPPORTED = 0; // Supervisor-level state enable registers
+localparam logic SMP1P13_SUPPORTED = 0; // Privileged Spec 1.13 state controlled by mstateen0.P1P13
+localparam logic SMCTR_SUPPORTED = 0; // Control transfer records
+localparam logic SSCSRIND_SUPPORTED = 0; // Indirect CSR access (siselect/sireg*)
+localparam logic SSAIA_SUPPORTED = 0; // Advanced Interrupt Architecture
+localparam logic SDTRIG_SUPPORTED = 0; // Debug triggers (scontext)
+localparam logic SSQOSID_SUPPORTED = 0; // Quality of Service identifiers (srmcfg)
 
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 1;

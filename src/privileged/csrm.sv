@@ -51,7 +51,8 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   /* verilator lint_on UNDRIVEN */
   output logic                     WriteMSTATUSM, WriteMSTATUSHM,
   output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
-  output logic [63:0]              MENVCFG_REGW
+  output logic [63:0]              MENVCFG_REGW,
+  output logic [63:0]              MSTATEEN0_REGW
 );
 
   logic [P.PA_BITS-3:0]            PMPADDR_ARRAY_PREGRAIN_REGW[P.PMP_ENTRIES-1:0];
@@ -79,6 +80,14 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   localparam MENVCFG       = 12'h30A;
   localparam MSTATUSH      = 12'h310;
   localparam MENVCFGH      = 12'h31A;
+  localparam MSTATEEN0     = 12'h30C;
+  localparam MSTATEEN1     = 12'h30D;
+  localparam MSTATEEN2     = 12'h30E;
+  localparam MSTATEEN3     = 12'h30F;
+  localparam MSTATEEN0H    = 12'h31C;
+  localparam MSTATEEN1H    = 12'h31D;
+  localparam MSTATEEN2H    = 12'h31E;
+  localparam MSTATEEN3H    = 12'h31F;
   localparam MCOUNTINHIBIT = 12'h320;
   localparam MSCRATCH      = 12'h340;
   localparam MEPC          = 12'h341;
@@ -225,6 +234,44 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
     assign MENVCFGH_REGW = '0;
   end
 
+  // MSTATEEN0 register
+  // Each bit controls access from less-privileged modes to the state named by the bit; a bit is
+  // read-only zero when Wally does not implement that state.  mstateen1-3 are read-only zero, which
+  // the spec permits because the hypervisor extension is not implemented and sstateen1-3 are
+  // read-only zero.  Bit 63 of each mstateen controls access to the matching sstateen.
+  if (P.SMSTATEEN_SUPPORTED) begin : mstateen // stateen registers only exist if there is a lower privilege to control
+    logic WriteMSTATEEN0M;
+    logic [63:0] MSTATEEN0_PreWriteValM, MSTATEEN0_WriteValM;
+    assign WriteMSTATEEN0M = CSRMWriteM & (CSRAdrM == MSTATEEN0);
+    // MSTATEEN0 is always 64 bits even for RV32
+    assign MSTATEEN0_WriteValM = {
+      MSTATEEN0_PreWriteValM[63] & P.SSSTATEEN_SUPPORTED, // SE0: access to sstateen0
+      MSTATEEN0_PreWriteValM[62],                        // ENVCFG: access to senvcfg; senvcfg always exists because Wally is Sm1p12 compatible
+      1'b0,                                              // 61: reserved
+      MSTATEEN0_PreWriteValM[60] & P.SSCSRIND_SUPPORTED, // CSRIND: access to siselect and sireg*
+      MSTATEEN0_PreWriteValM[59] & P.SSAIA_SUPPORTED,    // AIA: access to other Ssaia state
+      MSTATEEN0_PreWriteValM[58] & P.SSAIA_SUPPORTED,    // IMSIC: access to stopei and other IMSIC state
+      MSTATEEN0_PreWriteValM[57] & P.SDTRIG_SUPPORTED,   // CONTEXT: access to scontext
+      MSTATEEN0_PreWriteValM[56] & P.SMP1P13_SUPPORTED,  // P1P13: access to hedelegh
+      MSTATEEN0_PreWriteValM[55] & P.SSQOSID_SUPPORTED,  // SRMCFG: access to srmcfg
+      MSTATEEN0_PreWriteValM[54] & P.SMCTR_SUPPORTED,    // CTR: access to control transfer records
+      51'b0,                                             // 53:3 reserved
+      MSTATEEN0_PreWriteValM[2] & P.ZCMT_SUPPORTED,      // JVT: access to jvt
+      MSTATEEN0_PreWriteValM[1] & P.ZFINX_SUPPORTED & ~MISA_26[5], // FCSR: access to fcsr when floating point uses x registers; read-only zero without Zfinx to control, and whenever misa.F = 1
+      1'b0                                               // C: Wally has no custom state
+    };
+    if (P.XLEN == 64) begin
+      assign MSTATEEN0_PreWriteValM = CSRWriteValM;
+      flopenr #(P.XLEN) MSTATEEN0reg(clk, reset, WriteMSTATEEN0M, MSTATEEN0_WriteValM, MSTATEEN0_REGW);
+    end else begin // RV32 has high and low halves
+      logic WriteMSTATEEN0HM;
+      assign MSTATEEN0_PreWriteValM = {CSRWriteValM, CSRWriteValM};
+      assign WriteMSTATEEN0HM = CSRMWriteM & (CSRAdrM == MSTATEEN0H) & (P.XLEN==32);
+      flopenr #(P.XLEN) MSTATEEN0reg(clk, reset, WriteMSTATEEN0M, MSTATEEN0_WriteValM[31:0], MSTATEEN0_REGW[31:0]);
+      flopenr #(P.XLEN) MSTATEEN0Hreg(clk, reset, WriteMSTATEEN0HM, MSTATEEN0_WriteValM[63:32], MSTATEEN0_REGW[63:32]);
+    end
+  end else assign MSTATEEN0_REGW = '0;
+
   // Grain alignment for PMPADDR read values.
   for(i=0; i<P.PMP_ENTRIES; i++)
     always_comb begin
@@ -280,6 +327,18 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
       MENVCFGH:      if (P.U_SUPPORTED & P.XLEN==32) CSRMReadValM = MENVCFGH_REGW;
                      else IllegalCSRMAccessM = 1'b1;
       MCOUNTINHIBIT: CSRMReadValM = {{(P.XLEN-32){1'b0}}, MCOUNTINHIBIT_REGW};
+      MSTATEEN0:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = MSTATEEN0_REGW[P.XLEN-1:0];
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN1,
+      MSTATEEN2,
+      MSTATEEN3:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = '0; // read-only zero
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN0H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = MSTATEEN0_REGW[63:32];
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN1H,
+      MSTATEEN2H,
+      MSTATEEN3H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = '0; // read-only zero
+                     else IllegalCSRMAccessM = 1'b1;
       default:       IllegalCSRMAccessM = 1'b1;
     endcase
   end

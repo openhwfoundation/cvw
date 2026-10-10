@@ -38,6 +38,8 @@
 --override cpu/Zimop=T
 --override cpu/Zcmop=T
 --override cpu/Zabha=T
+--override cpu/Smstateen=T
+--override cpu/Ssstateen=T
 --override cpu/Zacas=T
 --override cpu/Sstc=T
 

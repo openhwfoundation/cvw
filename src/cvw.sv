@@ -53,6 +53,16 @@ typedef struct packed {
   logic         ZFH_SUPPORTED;
   logic         ZFA_SUPPORTED;
   logic         SSTC_SUPPORTED;
+  logic         SMSTATEEN_SUPPORTED;
+  logic         SSSTATEEN_SUPPORTED;
+  logic         SMP1P13_SUPPORTED;
+  logic         SMCTR_SUPPORTED;
+  logic         SSCSRIND_SUPPORTED;
+  logic         SSAIA_SUPPORTED;
+  logic         SDTRIG_SUPPORTED;
+  logic         SSQOSID_SUPPORTED;
+  logic         ZCMT_SUPPORTED;
+  logic         ZFINX_SUPPORTED;
   logic         VIRTMEM_SUPPORTED;
   logic         SVPBMT_SUPPORTED;
   logic         SVNAPOT_SUPPORTED;
