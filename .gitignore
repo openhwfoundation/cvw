@@ -27,7 +27,6 @@ tests/fp/vectors/*.tv
 tests/fp/vectors/sed*
 tests/custom/*/*/
 tests/custom/*/*/*.memfile
-sim/tests/riscvdv
 testbench/trek_files/*/uvm_output
 
 # Linux

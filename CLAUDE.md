@@ -77,7 +77,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 - `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
 - `tests/` — Test suites (`coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests)
-- `addins/` — Git submodules (riscv-arch-test, sail-riscv, riscv-dv, embench, etc.)
+- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, etc.)
 - `bin/` — Scripts (`wsim`, `regression-wally`, `lint-wally`, `derivgen.pl`, etc.)
 - `fpga/` — FPGA-specific files
 - `linux/` — Linux boot support
