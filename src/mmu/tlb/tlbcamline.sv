@@ -43,6 +43,9 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   input  logic [2:0]            PageTypeWriteVal,
   input  logic                  TLBFlush,     // Flush this line (set valid to 0)
   input  logic                  TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
+  input  logic                  TLBWrite,       // a PTE is being written into the TLB
+  input  logic                  WritePTE_G,     // G bit of the PTE being written
+  input  logic                  WritePTE_NAPOT, // the PTE being written is a NAPOT entry
   output logic [2:0]            PageTypeRead,
   output logic                  Match
 );
@@ -105,6 +108,14 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
 
   assign Match = Match0 & Match1 & Match2 & Match3 & Match4 & MatchASID & Valid;
 
+  // Overlap: this line and the PTE being written cover a common address.  It ignores the VPN segments covered by
+  // either page, and a global PTE overlaps lines of every ASID.  A TLB write invalidates every other overlapping
+  // line, so no address ever matches two entries (lookups OR the matching entries together).
+  logic Overlap;
+  assign Overlap = (Match0 | (PageTypeWriteVal > 3'd0) | (WritePTE_NAPOT & (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]))) &
+                   (Match1 | (PageTypeWriteVal > 3'd1)) & (Match2 | (PageTypeWriteVal > 3'd2)) &
+                   (Match3 | (PageTypeWriteVal > 3'd3)) & Match4 & (MatchASID | WritePTE_G) & Valid;
+
   // On a write, update the type of the page referred to by this line.
   flopenr #(3) pagetypeflop(clk, reset, WriteEnable, PageTypeWriteVal, PageType);
   assign PageTypeRead = PageType & {3{Match}};
@@ -114,6 +125,8 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   // and the flush is ASID-specific (TLBFlushAll=0): global mappings survive an ASID-scoped sfence.vma.
   logic ShouldFlush;
   assign ShouldFlush = TLBFlush & (~PTE_G | TLBFlushAll);
-  flopenr #(1) validbitflop(clk, reset, WriteEnable | ShouldFlush, ~ShouldFlush, Valid);
+  logic Invalidate;
+  assign Invalidate = ShouldFlush | (TLBWrite & Overlap & ~WriteEnable);
+  flopenr #(1) validbitflop(clk, reset, WriteEnable | Invalidate, ~Invalidate, Valid);
   flopenr #(KEY_BITS) keyflop(clk, reset, WriteEnable, {SATP_ASID, VPN}, Key);
 endmodule
