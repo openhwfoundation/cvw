@@ -41,6 +41,7 @@ localparam logic E_SUPPORTED = 0;
 localparam logic ZIFENCEI_SUPPORTED = 1; // Instruction-Fetch fence
 localparam logic ZICSR_SUPPORTED    = 1; // CSR Instructions
 localparam logic ZICCLSM_SUPPORTED  = 0; // Misaligned loads/stores
+localparam logic ZAMA16B_SUPPORTED  = 0; // Misaligned loads/stores/AMOs within a 16 byte granule are atomic
 localparam logic ZICOND_SUPPORTED   = 1; // Integer conditional operations
 localparam logic ZIMOP_SUPPORTED    = 1; // May-be-operations
 localparam logic ZCMOP_SUPPORTED    = 1; // Compressed may-be-operations
