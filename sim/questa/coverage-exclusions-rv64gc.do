@@ -52,9 +52,6 @@ coverage exclude -scope /core/fpu/fpu/fdivsqrt/fdivsqrtfsm -ftrans state DONE->B
 # DH 4/22/23: The busy->idle transition only occurs if a FlushE occurs while the divider is busy.  The flush is caused by a trap or return,
 # which won't happen while the divider is busy.
 coverage exclude -scope /core/fpu/fpu/fdivsqrt/fdivsqrtfsm -ftrans state BUSY->IDLE
-# All Memory-stage stalls have resolved by time fdivsqrt finishes regular operation in this configuration, so can't test StallM
-coverage exclude -scope /core/fpu/fpu/fdivsqrt/fdivsqrtfsm -linerange [GetLineNum ${SRC}/fpu/fdivsqrt/fdivsqrtfsm.sv "exclusion-tag: fdivsqrtfsm stallm"] -item b 1
-coverage exclude -scope /core/fpu/fpu/fdivsqrt/fdivsqrtfsm -linerange [GetLineNum ${SRC}/fpu/fdivsqrt/fdivsqrtfsm.sv "exclusion-tag: fdivsqrtfsm stallm"] -item s 1
 # Division by zero never sets sticky/guard/overflow/round to cause inexact or underflow result, but check out of paranoia
 # (FpInexact row 14 and Underflow row 22 are the DivByZero_1 rows)
 coverage exclude -scope /core/fpu/fpu/postprocess/flags -fecexprrow [GetLineNum ${SRC}/fpu/postproc/flags.sv "assign FpInexact"] 14

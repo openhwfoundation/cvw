@@ -32,8 +32,8 @@ uncore/uartPC16550D.sv : logic txfifohead
 uncore/uartPC16550D.sv : logic rxfifotriggered
 uncore/uartPC16550D.sv : logic rxdataready
 privileged/privdec.sv : logic wfiM
-privileged/privdec.sv : logic wfiW
-privileged/privdec.sv : logic WFITimeoutM
+privileged/privdec.sv : logic WaitedM
+privileged/privdec.sv : logic TWTimeoutM
 uncore/plic_apb.sv : logic requests
 uncore/plic_apb.sv : logic intInProgress
 uncore/plic_apb.sv : logic intPending
