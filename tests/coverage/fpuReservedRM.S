@@ -18,6 +18,10 @@
 //          uses dynamic rounding (funct3 = 0b111).  This makes SupportedRM false,
 //          which marks the instruction illegal.  The library trap handler advances
 //          mepc past the illegal instruction so the test continues to "done".
+//          The test checks that each reserved-mode instruction raised an illegal
+//          instruction exception at its own address without writing its destination
+//          or fflags, that frm holds the value written, and that the legal adds before
+//          and after give 1 + 1 = 2 exactly.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
@@ -40,6 +44,38 @@
 
 // load code to initialize stack, handle interrupts, terminate
 #include "WALLY-init-lib.h"
+#include "WALLY-selfcheck.h"
+
+// CHECKF freg, val, index: check all 64 bits of freg (a single is NaN-boxed)
+.macro CHECKF freg, val, index
+    fmv.x.d t2, \freg
+    li t3, \val
+    SC_CHECK_EQ t2, t3, \index
+.endm
+
+// CHECKCSR csr, val, index: check that a CSR reads val
+.macro CHECKCSR csr, val, index
+    csrr t2, \csr
+    li t3, \val
+    SC_CHECK_EQ t2, t3, \index
+.endm
+
+// ILLEGAL_DYN index: f3 = sentinel, then a dynamic-rounding fadd.s, which frm makes reserved.  It must
+// raise an illegal instruction exception (mcause 2) at its own address (the library trap handler
+// returns past it, so mepc = its address + 4) and leave f3 and fflags unchanged.
+.macro ILLEGAL_DYN index
+    li t2, 0x5555aaaa5555aaaa
+    fmv.d.x f3, t2
+    csrw mcause, zero
+1:
+    fadd.s f3, f1, f2, dyn  // funct3=0b111 (dyn); reserved because FRM_REGW is 5 or 6 -> illegal
+    CHECKCSR mcause, 2, \index
+    csrr t2, mepc
+    la t3, 1b + 4
+    SC_CHECK_EQ t2, t3, \index + 1
+    CHECKF f3, 0x5555aaaa5555aaaa, \index + 2
+    CHECKCSR fflags, 0, \index + 3
+.endm
 
 main:
 
@@ -49,21 +85,30 @@ main:
     # A couple of legal FP ops to keep FS live and the FPU exercised
     fli.s f1, 1
     fli.s f2, 1
-    fadd.s f3, f1, f2       # legal add with implicit (static) rounding
+    fadd.s f3, f1, f2       # legal add with frm = 0 (rne)
+    CHECKF f3, 0xffffffff40000000, 1    # 1 + 1 = 2.0, NaN-boxed
+    CHECKCSR fflags, 0, 2               # exact
 
     # ---- Set frm = 5 (reserved), then issue a dynamic-rounding OP-FP op ----
     li t0, 5
     csrw frm, t0            # frm (CSR 0x002) = 0b101 -> fcsr[7:5] = 5
-    fadd.s f3, f1, f2, dyn  # funct3=0b111 (dyn); reserved because FRM_REGW==5 -> illegal
+    CHECKCSR frm, 5, 3      # frm holds the reserved value; only its use by a dyn op is illegal
+    ILLEGAL_DYN 4
 
     # ---- Set frm = 6 (reserved), then issue a dynamic-rounding OP-FP op ----
     li t0, 6
     csrw frm, t0            # frm (CSR 0x002) = 0b110 -> fcsr[7:5] = 6
-    fadd.s f3, f1, f2, dyn  # funct3=0b111 (dyn); reserved because FRM_REGW==6 -> illegal
+    CHECKCSR frm, 6, 8
+    ILLEGAL_DYN 9
 
     # Restore a legal rounding mode and do a legal op so FPU still works
     li t0, 0
     csrw frm, t0            # frm = rne
+    li t2, 0x5555aaaa5555aaaa
+    fmv.d.x f3, t2          # sentinel, so the check sees the add write f3
     fadd.s f3, f1, f2
+    CHECKF f3, 0xffffffff40000000, 13
+    CHECKCSR fcsr, 0, 14    # frm = 0 and no flags
 
+    SC_PASS
     j done
