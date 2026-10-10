@@ -203,7 +203,6 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   if(P.SVADU_SUPPORTED) begin : hptwwrites
     logic                 ReadAccess, WriteAccess;
     logic                 InvalidRead, InvalidWrite, InvalidOp;
-    logic                 UpperBitsUnequal, UpperBitsUnequalD;
     logic                 OtherPageFault;
     logic [1:0]           EffectivePrivilegeMode;
     logic                 ImproperPrivilege;
@@ -230,15 +229,11 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign ImproperPrivilege = ((EffectivePrivilegeMode == P.U_MODE) & ~PTE_U) |
                                ((EffectivePrivilegeMode == P.S_MODE) & PTE_U & (~STATUS_SUM | ~DTLBWalk));
 
-    // Check for page faults
-    vm64check #(P) vm64check(.SATP_MODE(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]), .VAdr(TranslationVAdr),
-      .SV39Mode(), .SV48Mode(), .UpperBitsUnequal);
-    // This register is not functionally necessary, but improves the critical path.
-    flopr #(1) upperbitsunequalreg(clk, reset, UpperBitsUnequal, UpperBitsUnequalD);
+    // Check for page faults.  Non-canonical addresses page fault in the TLB and are never walked.
     assign InvalidRead = ReadAccess & ~Readable & (~STATUS_MXR | ~Executable);
     assign InvalidWrite = WriteAccess & ~Writable;
     assign InvalidOp = DTLBWalk ? (InvalidRead | InvalidWrite) : ~Executable;
-    assign OtherPageFault = ImproperPrivilege | InvalidOp | UpperBitsUnequalD | Misaligned | ~Valid;
+    assign OtherPageFault = ImproperPrivilege | InvalidOp | Misaligned | ~Valid;
 
     // hptw needs to know if there is a Dirty or Access fault occurring on this
     // memory access.  If there is the PTE needs to be updated setting Access

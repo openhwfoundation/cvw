@@ -121,8 +121,10 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
 
   // Determine whether page fault occurs
   assign PrePageFault = UpperBitsUnequal | Misaligned | ~PTE_V | ImproperPrivilege | (P.XLEN == 64 & (BadPBMT | BadNAPOT | BadReserved)) | (PreUpdateDA & (~P.SVADU_SUPPORTED | ~ENVCFG_ADUE));
-  assign TLBPageFault = Translate & TLBHit & (PrePageFault | InvalidAccess);
+  // A non-canonical address (UpperBitsUnequal, part of PrePageFault) faults before any page table access,
+  // so it faults whether or not it hits and is never a miss, which would start a walk
+  assign TLBPageFault = Translate & (TLBHit | UpperBitsUnequal) & (PrePageFault | InvalidAccess);
 
   assign TLBHit = CAMHit & TLBAccess;
-  assign TLBMiss = ~CAMHit & TLBAccess & Translate ;
+  assign TLBMiss = ~CAMHit & TLBAccess & Translate & ~UpperBitsUnequal;
 endmodule
