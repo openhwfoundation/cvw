@@ -32,6 +32,7 @@ regressionDir = f'{WALLY}/sim'
 archVerifDir = os.environ.get('ACTDIR', f'{WALLY}/addins/riscv-arch-test') # riscv-arch-test checkout; override with ACTDIR
 periphDir = f'{WALLY}/tests/periph'
 coverageDir = f'{WALLY}/tests/coverage'
+coverage32Dir = f'{WALLY}/tests/coverage32'  # RV32 coverage-targeted tests, run on rv32gc
 coveragesim = "questa"     # Questa is required for code/functional coverage
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
@@ -802,6 +803,7 @@ def selectTests(args, sims, coverStr):
         addTestsByDir(coverageDir, "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverage32Dir, "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTests(derivconfigtests, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests

@@ -125,8 +125,11 @@ module div import cvw::*;  #(parameter cvw_t P) (
   // Divider FSM to sequence Busy and Done
   //////////////////////////////
 
+ // Reset only when the Execute pipeline register clears (~StallE), so a finished divide held in Execute by
+ // StallM keeps its result even if mispredicted (BPWrongE).  StallE = StallM whenever FlushE is asserted
+ // (FlushECause masks the divider's own StallECause, and LatestUnstalledE implies ~StallE), so StallM is used.
  always_ff @(posedge clk)
-    if (reset | FlushE) begin
+    if (reset | FlushE & ~StallM) begin
         state <= IDLE;
     end else if (DivStartE) begin
         step <= 1;

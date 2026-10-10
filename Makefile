@@ -40,6 +40,7 @@ zsbl:
 
 coverage:
 	$(MAKE) -C tests/coverage
+	$(MAKE) -C tests/coverage32
 
 deriv:
 	derivgen.pl
@@ -58,5 +59,6 @@ clean:
 	$(MAKE) clean -C ${WALLY}/tests/fp
 	$(MAKE) clean -C ${WALLY}/fpga/zsbl
 	$(MAKE) clean -C ${WALLY}/tests/coverage
+	$(MAKE) clean -C ${WALLY}/tests/coverage32
 	$(MAKE) clean -C ${WALLY}/tests/periph
 	rm -rf $(ACT_WORKDIRS)
