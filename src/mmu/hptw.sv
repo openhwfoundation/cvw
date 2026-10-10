@@ -1,36 +1,19 @@
 ///////////////////////////////////////////
 // hptw.sv
 //
-// Written: tfleming@hmc.edu 2 March 2021
-// Modified:  david_harris@hmc.edu 18 July 2021 cleanup and simplification
-//            kmacsaigoren@hmc.edu 1 June 2021
-//            implemented SV48 on top of SV39. This included, adding a level of the FSM for the extra page number segment
-//            adding support for terapage encoding, and for setting the HPTWAdr using the new level,
-//            adding the internal SvMode signal
+// Written:  Thomas Fleming tfleming@hmc.edu 2 March 2021
+// Modified: Rose Thompson rose@rosethompson.net, David Harris David_Harris@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Ayesha Anwaar ayesha.anwaar2005@gmail.com, Muhammad Zain zainzahid2050@gmail.com, Flavien Solt flavien.solt97@gmail.com, Abdul Rafay abdulrafay7038@gmail.com
 //
-//            implemented SV57 on top of SV48, SV39. This included, adding a level of the FSM for the extra page number segment
-//            adding support for petapage encoding, and for setting the HPTWAdr using the new level,
-//            adding the internal SvMode signal
-// Purpose: Hardware Page Table Walker
+// Purpose: Hardware page table walker that refills the TLBs on a miss and updates PTE A/D bits.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-27 Harvey Mudd College & Oklahoma State University
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
-// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
-// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software
-// is furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-// BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
-// OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ///////////////////////////////////////////
 
 module hptw import cvw::*;  #(parameter cvw_t P) (

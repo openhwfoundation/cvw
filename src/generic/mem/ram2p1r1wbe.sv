@@ -1,34 +1,17 @@
 ///////////////////////////////////////////
 // ram2p1r1wbe.sv
-// 2 port sram.
 //
-// Written: rose@rosethompson.net May 3, 2021
-//          Two port SRAM 1 read port and 1 write port.
-//          When clk rises Addr and LineWriteData are sampled.
-//          Following the clk edge read data is output from the sampled Addr.
-//          Write
-// Modified: james.stine@okstate.edu Feb 1, 2023
-//           Integration of memories
+// Written:  Rose Thompson rose@rosethompson.net 3 May 2021
+// Modified: David Harris David_Harris@hmc.edu, James Stine james.stine@okstate.edu
 //
-// Purpose: Storage and read/write access to data cache data, tag valid, dirty, and replacement.
+// Purpose: Two-port RAM with one read port and one byte-enabled write port, built from a behavioral array or SRAM macros.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // WIDTH is number of bits in one "word" of the memory, DEPTH is number of such words

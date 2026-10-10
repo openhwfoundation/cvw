@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // fround.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 4/21/2024
+// Written:  David Harris David_Harris@hmc.edu 21 April 2024
+// Modified: Corey Hickson chickson@hmc.edu, Jordan Carlin jcarlin@hmc.edu, Vikram Krishna vkrishna@hmc.edu
 //
-// Purpose: Floating-point round to integer for Zfa
+// Purpose: Round a floating-point value to an integral value for the Zfa fround and froundnx instructions.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fround import cvw::*;  #(parameter cvw_t P) (

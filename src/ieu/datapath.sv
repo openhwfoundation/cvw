@@ -1,31 +1,19 @@
 ///////////////////////////////////////////
 // datapath.sv
 //
-// Written: David_Harris@hmc.edu, Sarah.Harris@unlv.edu
-// Created: 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu, Sarah Harris Sarah.Harris@unlv.edu 9 January 2021
+// Modified: Katherine Parry me@KatherineParry.com, Rose Thompson rose@rosethompson.net, Kevin Kim kekim@hmc.edu, James Stine james.stine@okstate.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Madeleine Masser-Frye, Shreya Sanghai ssanghai@hmc.edu
 //
-// Purpose: Wally Integer Datapath
+// Purpose: Integer datapath with register file, immediate extension, forwarding muxes, ALU, and result selection from Decode to Writeback.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module datapath import cvw::*;  #(parameter cvw_t P) (

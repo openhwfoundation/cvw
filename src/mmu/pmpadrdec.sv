@@ -1,34 +1,19 @@
 ///////////////////////////////////////////
 // pmpadrdec.sv
 //
-// Written: tfleming@hmc.edu 28 April 2021
-// Modified:
+// Written:  Thomas Fleming tfleming@hmc.edu 28 April 2021
+// Modified: David Harris David_Harris@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Madeleine Masser-Frye
 //
-// Purpose: Address decoder for the PMP checker. Decides whether a given address
-//          falls within the PMP range for each address-matching mode
-//          (top-of-range/TOR, naturally aligned four-byte region/NA4, and
-//          naturally aligned power-of-two region/NAPOT), then selects the
-//          output based on which mode is input.
+// Purpose: Determines whether an address matches one PMP entry in TOR, NA4, or NAPOT mode.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmpadrdec import cvw::*;  #(parameter cvw_t P) (

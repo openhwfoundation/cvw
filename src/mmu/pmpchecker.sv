@@ -1,33 +1,19 @@
 ///////////////////////////////////////////
 // pmpchecker.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 28 April 2021
-// Modified:
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 28 April 2021
+// Modified: David Harris David_Harris@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Rose Thompson rose@rosethompson.net, Madeleine Masser-Frye
 //
-// Purpose: Examines all physical memory accesses and checks them against the
-//          current values of the physical memory protection (PMP) registers.
-//          Can raise an access fault on illegal reads, writes, and instruction
-//          fetches.
+// Purpose: Checks each physical access against the PMP registers and raises access faults on illegal reads, writes, and fetches.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmpchecker import cvw::*;  #(parameter cvw_t P) (

@@ -1,33 +1,20 @@
 ///////////////////////////////////////////
-// spill.sv
+// align.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 26 October 2023
-// Modified: 26 October 2023
+// Written:  Rose Thompson rose@rosethompson.net 26 October 2023
+// Modified: David Harris David_Harris@hmc.edu
 //
-// Purpose: This module implements native alignment support for the Zicclsm extension
-//          It is similar to the IFU's spill module and probably could be merged together with
-//          some effort.
+// Purpose: Splits misaligned loads and stores that cross a cache-line boundary into two accesses and realigns the data for Zicclsm.
+//          Similar to the IFU's spill module; the two could be merged with some effort.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module align import cvw::*;  #(parameter cvw_t P) (

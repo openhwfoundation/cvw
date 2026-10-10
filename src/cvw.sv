@@ -1,26 +1,17 @@
 //////////////////////////////////////////
 // cvw.sv
 //
-// Written: David_Harris@hmc.edu 27 January 2022
+// Written:  David Harris David_Harris@hmc.edu 27 January 2023
+// Modified: Rose Thompson rose@rosethompson.net, James Stine james.stine@okstate.edu, Naiche Whyte-Aguayo nwhyteaguayo@g.hmc.edu, Kevin Kim kekim@hmc.edu, Jordan Carlin jordanmcarlin@gmail.com
 //
-// Purpose: package with shared CORE-V-Wally global parameters
+// Purpose: Package defining the cvw_t configuration structure that parameterizes every module.
 //
-// A component of the Wally configurable RISC-V project.
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-27 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Using global `define statements isn't ideal in a large SystemVerilog system because
