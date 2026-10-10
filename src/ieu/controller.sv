@@ -136,6 +136,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   logic [1:0]  AtomicE;                        // Atomic instruction
   logic        FenceD, FenceE;                 // Fence instruction
   logic        SFenceVmaD;                     // sfence.vma instruction
+  logic        SFenceInvalIrD;                 // sfence.inval.ir instruction
   logic        IntDivM;                        // Integer divide instruction
   logic        RegWriteM;                      // Instruction writes a register (needed for Hazard unit)
   logic [1:0]  CZeroD;
@@ -307,7 +308,9 @@ module controller import cvw::*;  #(parameter cvw_t P) (
   assign CSRZeroSrcD = InstrD[14] ? (InstrD[19:15] == 0) : (Rs1D == 0); // Is a CSR instruction using zero as the source?
   assign CSRWriteD = CSRReadD & !(CSRZeroSrcD & InstrD[13]);            // Don't write if setting or clearing zeros
   assign SFenceVmaD = PrivilegedD & (InstrD[31:25] ==  7'b0001001);
-  assign FenceD = SFenceVmaD | FenceXD; // possible sfence.vma or fence.i
+  // sfence.inval.ir orders earlier sinval.vma before later fetches, so refetch the instructions after it
+  assign SFenceInvalIrD = P.SVINVAL_SUPPORTED & PrivilegedD & (InstrD[31:20] == 12'b000110000001);
+  assign FenceD = SFenceVmaD | SFenceInvalIrD | FenceXD; // possible sfence.vma, sfence.inval.ir, or fence.i
 
   // ALU Decoding is lazy, only using func7[5] to distinguish add/sub and srl/sra
   assign sltuD = (Funct3D == 3'b011);
