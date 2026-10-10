@@ -249,11 +249,6 @@ coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -feccondrow [GetLin
 # exclusion above resolves via GetLineNum to L95/AnyMiss; this anchor catches the L193 LoadMiss copy.)
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign LoadMiss"] 4
 
-# D$ cachefsm CacheMiss (STATE_ADDRESS_SETUP & ~Stall & ~FlushStage) FlushStage_1 (row 4): a trap that flushes the
-# M stage waits for the access to commit, and an access that faults on its own is squashed before it reaches the
-# cache (lsu.sv SelfFaultM), so the D$ is not flushed in ADDRESS_SETUP.
-coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign CacheMiss"] 4
-
 # D$ cachefsm L195 CacheBusRW[0] CacheCMOpM[1]/[2] terms (FEC rows 13-16): the writeback-CMO term
 # (STATE_WRITEBACK & (CMOpM[1]|CMOpM[2]) & ~CacheBusAck) is logically subsumed by the earlier OR term
 # (STATE_WRITEBACK & ~CacheBusAck), so CacheCMOpM[1]/[2] never independently drive CacheBusRW[0].

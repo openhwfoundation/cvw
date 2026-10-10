@@ -102,7 +102,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
 
   // outputs for the performance counters.
   assign CacheAccess = (|CacheRW) & ((CurrState == STATE_ACCESS & ~Stall & ~FlushStage) | (CurrState == STATE_ADDRESS_SETUP & ~Stall & ~FlushStage)); // exclusion-tag: icache CacheW
-  assign CacheMiss = CurrState == STATE_ADDRESS_SETUP & ~Stall & ~FlushStage;
+  assign CacheMiss = CurrState == STATE_WRITE_LINE; // one cycle per line fill; flushes and CMOs pass through ADDRESS_SETUP without a fill
 
   // special case on reset. When the fsm first exists reset twayhe
   // PCNextF will no longer be pointing to the correct address.
