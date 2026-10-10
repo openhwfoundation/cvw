@@ -11,7 +11,6 @@
 //
 //  Compatible with most of PC16550D with the following known exceptions:
 //   Generates 2 rather than 1.5 stop bits when 5-bit word length is selected and LCR[2] = 1
-//   Timeout not yet implemented
 //
 // Documentation: RISC-V System on Chip Design
 //
@@ -269,7 +268,8 @@ module uartPC16550D #(parameter UART_PRESCALE) (
         else rxstate <= UART_IDLE;
       end
       // timeout counting
-      if (~MEMRb & A == 3'b000 & ~DLAB) rxtimeoutcnt <= '0; // reset timeout on read
+      // reset timeout on read, and while the receive FIFO is empty, so a timeout does not outlive a FIFO reset
+      if ((~MEMRb & A == 3'b000 & ~DLAB) | rxfifoempty) rxtimeoutcnt <= '0;
       else if (fifoenabled & ~rxfifoempty & rxbaudpulse & ~rxfifotimeout) rxtimeoutcnt <= rxtimeoutcnt+1; // may not be right
     end
 
