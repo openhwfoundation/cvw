@@ -117,6 +117,9 @@ simv
 sim/vcs/logs
 sim/vcs/wkdir
 sim/vcs/ucdb
+sim/vcs/cov
+sim/vcs/fcov
+sim/vcs/fcov_ucdb
 sim/vcs/csrc
 sim/vcs/profileReport*
 sim/vcs/program.out
@@ -126,6 +129,7 @@ sim/vcs/ucli.key
 sim/vcs/verdi_config_file
 sim/vcs/vcdplus.vpd
 sim/vcs/simprofile*
+sim/vcs/.fsm.sch.verilog.xml
 
 # Verilator
 sim/verilator/logs

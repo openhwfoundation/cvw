@@ -15,7 +15,7 @@ coveragetests:
 deriv:
 	derivgen.pl
 
-.PHONY: QuestaFunctCoverage QuestaCodeCoverage
+.PHONY: QuestaFunctCoverage QuestaCodeCoverage VcsFunctCoverage VcsCodeCoverage
 
 # Merge the per-test functional coverage databases written by wsim --fcov and report the total.
 QuestaFunctCoverage:
@@ -58,6 +58,38 @@ QuestaCodeCoverage:
 #	vcover report -below 100 questa/ucdb/cov.ucdb > questa/cov/rv64gc_coverage.rpt
 #	vcover report -recursive questa/ucdb/cov.ucdb > questa/cov/rv64gc_recursive.rpt
 	vcover report -details -threshH 100 -html questa/ucdb/cov.ucdb
+
+# VCS counterparts of the two targets above, for wsim --sim vcs --ccov/--fcov and regression-wally
+# --coveragesim vcs.  Each simulation writes its own coverage database, a .vdb directory, which urg merges.
+# The rv64gc code coverage exclusions are those of coverage-exclusions-rv64gc.do and the RTL's
+# "// coverage off" pragmas, translated by vcs/exclusions2el into a URG exclusion file for the merged
+# database; vcs/cov/exclusions-rv64gc.log says what each exclusion became, or why VCS has no counterpart.
+# Reports: vcs/cov/rv64gc_coverage_hierarchical.rpt (per-instance summary), vcs/cov/report (details,
+# text and HTML), vcs/cov/uncovered (details of what is not covered) and vcs/cov/unexcluded (no exclusions).
+URG = urg -full64
+
+VcsFunctCoverage:
+	rm -rf vcs/fcov && mkdir -p vcs/fcov
+	ls -d $(CURDIR)/vcs/fcov_ucdb/rv64gc*.vdb > vcs/fcov/vdbs.txt
+	cd vcs/fcov && $(URG) -f vdbs.txt -dbname fcov -format text -report report -log urg.log > /dev/null 2>&1
+	cd vcs/fcov && $(URG) -dir fcov.vdb -format text -show brief -report uncovered -log uncovered.log > /dev/null 2>&1
+	cp vcs/fcov/report/groups.txt vcs/fcov/fcov.summary.log
+	@echo "VCS TOTAL COVERGROUP COVERAGE: $$(grep -A2 '^Total Groups Coverage Summary' vcs/fcov/report/groups.txt | tail -n 1 | awk '{print $$1}')%"
+
+# urg names a merged database after -dbname in the current directory (a / in the name separates a test name),
+# so the merges run in vcs/cov and vcs/fcov
+VcsCodeCoverage:
+	rm -rf vcs/cov && mkdir -p vcs/cov
+	ls -d $(CURDIR)/vcs/ucdb/rv64gc*.vdb > vcs/cov/vdbs.txt
+	cd vcs/cov && $(URG) -f vdbs.txt -dbname merged -noreport -log merge.log > /dev/null 2>&1
+	cd vcs/cov && $(URG) -dir merged.vdb -dump full_exclusions -format text -show ratios -report unexcluded -log unexcluded.log > /dev/null 2>&1
+	vcs/exclusions2el --wally $(WALLY) --do questa/coverage-exclusions-rv64gc.do --dump vcs/cov \
+	  --modinfo vcs/cov/unexcluded/modinfo.txt --out vcs/cov/exclusions-rv64gc.el --log vcs/cov/exclusions-rv64gc.log
+	cd vcs/cov && $(URG) -dir merged.vdb -elfile exclusions-rv64gc.el -format both -show ratios -report report -log report.log > /dev/null 2>&1
+	cd vcs/cov && $(URG) -dir merged.vdb -elfile exclusions-rv64gc.el -format text -show brief -report uncovered -log uncovered.log > /dev/null 2>&1
+	cp vcs/cov/report/hierarchy.txt vcs/cov/rv64gc_coverage_hierarchical.rpt
+	cp vcs/cov/unexcluded/hierarchy.txt vcs/cov/rv64gc_coverage_hierarchical_unexcluded.rpt
+	@grep -A2 "^Total Coverage Summary" vcs/cov/report/dashboard.txt
 
 benchmarks:
 	$(MAKE) -C ${WALLY}benchmarks/embench build

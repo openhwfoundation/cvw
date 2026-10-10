@@ -32,7 +32,7 @@ regressionDir = f'{WALLY}/sim'
 archVerifDir = os.environ.get('ACTDIR', f'{WALLY}/addins/riscv-arch-test') # riscv-arch-test checkout; override with ACTDIR
 periphDir = f'{WALLY}/tests/periph'
 coverageDir = f'{WALLY}/tests/coverage'
-coveragesim = "questa"     # Questa is required for code/functional coverage
+coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
 testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
@@ -478,26 +478,49 @@ keptCoverage = set()  # reused .ucdb files; with the ones the selected tests wri
 
 
 def coverageDatabase(coverStr, config, name):
-    """The .ucdb a coverage run named <config>_<name> writes (see wally-run.do), or None."""
+    """The coverage database a run named <config>_<name> writes, or None: a .ucdb file from Questa
+    (see wally-run.do) or a .vdb directory from VCS (see run_vcs)."""
+    ext = ".vdb" if coveragesim == "vcs" else ".ucdb"
     if "--ccov" in coverStr:
-        return f"{regressionDir}/questa/ucdb/{config}_{name}.ucdb"
+        return f"{regressionDir}/{coveragesim}/ucdb/{config}_{name}{ext}"
     if "--fcov" in coverStr:
-        return f"{regressionDir}/questa/fcov_ucdb/{config}_{name}.ucdb"
+        return f"{regressionDir}/{coveragesim}/fcov_ucdb/{config}_{name}{ext}"
     return None
+
+
+def coverageMtime(db):
+    """When a coverage database was completed, or None if there is no complete one.  run_vcs creates
+    a .vdb directory before the simulation starts; the simulation adds its results under testdata
+    only when it finishes, so an interrupted run leaves a .vdb without them."""
+    if db.endswith(".vdb"):
+        results = glob.glob(f"{db}/snps/coverage/db/testdata/*")
+        return max(os.path.getmtime(r) for r in results) if results else None
+    return os.path.getmtime(db) if os.path.isfile(db) else None
+
+
+def removeCoverage(db):
+    """Remove a coverage database (a .ucdb file or a .vdb directory) and its record of ELFs."""
+    if os.path.isdir(db):
+        shutil.rmtree(db, ignore_errors=True)
+    elif os.path.exists(db):
+        os.remove(db)
+    if os.path.exists(f"{db}.elfs"):
+        os.remove(f"{db}.elfs")
 
 
 def coverageInputsMtime():
     """Newest mtime among everything that shapes a run's coverage: the design and testbench sources,
-    the ImperasDV configurations (.ic), and the Questa scripts that compile and run the tests, plus,
-    for functional coverage, the riscv-arch-test covergroups and the sources they include.  The code
-    coverage exclusions are applied to the merged database (sim/Makefile), so editing them does not
-    require rerunning the tests."""
+    the ImperasDV configurations (.ic), and the coverage simulator's scripts that compile and run the
+    tests, plus, for functional coverage, the riscv-arch-test covergroups and the sources they include.
+    The code coverage exclusions are applied to the merged database (sim/Makefile), so editing them
+    does not require rerunning the tests."""
     global _inputsMtime
     if _inputsMtime is None:
         dirs = [f"{WALLY}/{d}" for d in ("src", "testbench", "config")]
         if fcovRun:
             dirs += [f"{archVerifDir}/{d}" for d in ("coverpoints", "framework/src/act/fcov", "tests/env")]
-        _inputsMtime = max(os.path.getmtime(f"{regressionDir}/questa/{f}") for f in ("wally-compile.do", "wally-run.do"))
+        scripts = ("run_vcs", "coverage.hier") if coveragesim == "vcs" else ("wally-compile.do", "wally-run.do")
+        _inputsMtime = max(os.path.getmtime(f"{regressionDir}/{coveragesim}/{f}") for f in scripts)
         for d in dirs:
             for root, _, files in os.walk(d):
                 for f in files:
@@ -508,47 +531,55 @@ def coverageInputsMtime():
 
 def coverageTools():
     """Versions of the tools that produce coverage, so coverage from other versions is not reused."""
-    vsim = shutil.which("vsim")
-    version = subprocess.run([vsim, "-version"], capture_output=True, text=True).stdout.strip() if vsim else ""
+    if coveragesim == "vcs":
+        urg = shutil.which("urg")
+        out = subprocess.run([urg, "-full64", "-version"], capture_output=True, text=True).stdout if urg else ""
+        version = "".join(line for line in out.splitlines(keepends=True) if "ersion" in line).strip()
+        sim = f"VCS_HOME={os.path.realpath(os.environ.get('VCS_HOME', ''))}\n{version}"
+    else:
+        vsim = shutil.which("vsim")
+        sim = subprocess.run([vsim, "-version"], capture_output=True, text=True).stdout.strip() if vsim else ""
     imperas = os.path.realpath(os.environ.get("IMPERAS_HOME", ""))
-    return f"{version}\nIMPERAS_HOME={imperas}\n"
+    return f"{sim}\nIMPERAS_HOME={imperas}\n"
 
 
 def elfList(elfs):
-    """The record of the ELFs a coverage database was collected from, kept in <ucdb>.elfs."""
+    """The record of the ELFs a coverage database was collected from, kept in <database>.elfs."""
     return "".join(f"{elf}\n" for elf in elfs)
 
 
 def coverageUpToDate(ucdb, elfs):
-    """True if ucdb was collected from exactly these ELFs and is newer than each of them and than
-    every input that shapes coverage."""
-    if not (reuseCoverage and ucdb and os.path.isfile(ucdb) and os.path.isfile(f"{ucdb}.elfs")):
+    """True if the coverage database ucdb was collected from exactly these ELFs and is newer than each
+    of them and than every input that shapes coverage."""
+    if not (reuseCoverage and ucdb and os.path.isfile(f"{ucdb}.elfs")):
         return False
     with open(f"{ucdb}.elfs") as f:
         if f.read() != elfList(elfs):
             return False
-    mtime = os.path.getmtime(ucdb)
-    return mtime > coverageInputsMtime() and all(mtime > os.path.getmtime(elf) for elf in elfs)
+    mtime = coverageMtime(ucdb)
+    return mtime is not None and mtime > coverageInputsMtime() and all(mtime > os.path.getmtime(elf) for elf in elfs)
 
 
-def prepareCoverage(coverStr, clean):
-    """Coverage is per simulation, so an unchanged simulation's .ucdb is still valid: keep the
-    databases and rerun only what is out of date.  --clean discards them all and starts over."""
+def prepareCoverage(coverStr, clean, dryrun):
+    """Coverage is per simulation, so an unchanged simulation's database is still valid: keep the
+    databases and rerun only what is out of date.  --clean discards them all and starts over, except
+    in a dry run, which must not discard the coverage of an earlier run."""
     global reuseCoverage, fcovRun
     fcovRun = "--fcov" in coverStr
-    ucdbDir, reportDir = [f"{regressionDir}/questa/{d}" for d in (("fcov_ucdb", "fcov") if fcovRun else ("ucdb", "cov"))]
+    ucdbDir, reportDir = [f"{regressionDir}/{coveragesim}/{d}" for d in (("fcov_ucdb", "fcov") if fcovRun else ("ucdb", "cov"))]
     reuseCoverage = not clean
     toolsFile = f"{ucdbDir}/.tools"
     tools = coverageTools()
     if reuseCoverage and os.path.isfile(toolsFile) and open(toolsFile).read() != tools:
-        print(f"{bcolors.WARNING}Questa or ImperasDV changed since the coverage was collected; rerunning every test{bcolors.ENDC}")
+        print(f"{bcolors.WARNING}{coveragesim} or ImperasDV changed since the coverage was collected; rerunning every test{bcolors.ENDC}")
         reuseCoverage = False
     for d in [ucdbDir, reportDir]:
-        if not reuseCoverage:
+        if not reuseCoverage and not dryrun:
             shutil.rmtree(d, ignore_errors=True)
         os.makedirs(d, exist_ok=True)
-    with open(toolsFile, "w") as f:
-        f.write(tools)
+    if not dryrun:
+        with open(toolsFile, "w") as f:
+            f.write(tools)
 
 
 def actElfDir(config):
@@ -622,20 +653,18 @@ def search_log_for_text(text, grepfile):
 
 def run_test_case(config, dryrun: bool = False, timeout=None):
     """Run one test case; 0 if it passed.  The command runs in its own process group so that a
-    timeout stops the simulator it started too.  A coverage run's .ucdb is removed first and again
+    timeout stops the simulator it started too.  A coverage run's database is removed first and again
     if the run fails, so a failing or interrupted run never contributes coverage; a passing run
     records the ELFs it was collected from next to it."""
     if dryrun:
         print(f"Executing {shlex.join(config.cmd)} > {config.log}", flush=True)
         return 0
     if config.ucdb:
-        for f in [config.ucdb, f"{config.ucdb}.elfs"]:
-            if os.path.exists(f):
-                os.remove(f)
+        removeCoverage(config.ucdb)
     failed = run_test_command(config, timeout)
     if config.ucdb and os.path.exists(config.ucdb):
         if failed:
-            os.remove(config.ucdb)
+            removeCoverage(config.ucdb)
         else:
             with open(f"{config.ucdb}.elfs", "w") as f:
                 f.write(elfList(config.elfs or ()))
@@ -702,6 +731,7 @@ def parse_args():
     parser.add_argument("--ccov", help="Code Coverage", action="store_true")
     parser.add_argument("--clean", help="With --ccov or --fcov, discard existing coverage and rerun every test", action="store_true")
     parser.add_argument("--fcov", help="Functional Coverage", action="store_true")
+    parser.add_argument("--coveragesim", help="Simulator for --ccov and --fcov", choices=["questa", "vcs"], default="questa")
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
     parser.add_argument("--testfloat", help="Include Testfloat floating-point unit tests", action="store_true")
@@ -714,6 +744,8 @@ def parse_args():
 
 
 def process_args(args):
+    global coveragesim
+    coveragesim = args.coveragesim
     coverStr = ""
     # exercise all simulators in nightly; can omit a sim if no license is available
     sims = ["questa", "verilator", "vcs"] if args.nightly else [defaultsim]
@@ -737,7 +769,7 @@ def process_args(args):
     else:
         TIMEOUT_DUR = 10*60 # seconds
     if coverStr:
-        prepareCoverage(coverStr, args.clean)
+        prepareCoverage(coverStr, args.clean, args.dryrun)
 
     return sims, coverStr, TIMEOUT_DUR
 
@@ -891,12 +923,11 @@ def main(args):
         # was renamed, removed, or run by hand outside the regression.
         current = keptCoverage | {c.ucdb for c in configs if c.ucdb}
         merged = {f"{regressionDir}/questa/ucdb/cov.ucdb", f"{regressionDir}/questa/fcov_ucdb/fcov.ucdb"}  # sim/Makefile writes these
-        ucdbDir = f"{regressionDir}/questa/{'fcov_ucdb' if fcovRun else 'ucdb'}"
-        stale = [f for f in glob.glob(f"{ucdbDir}/*.ucdb") if f not in current and f not in merged]
+        ext = ".vdb" if coveragesim == "vcs" else ".ucdb"
+        ucdbDir = f"{regressionDir}/{coveragesim}/{'fcov_ucdb' if fcovRun else 'ucdb'}"
+        stale = [f for f in glob.glob(f"{ucdbDir}/*{ext}") if f not in current and f not in merged]
         for f in stale:
-            for g in [f, f"{f}.elfs"]:
-                if os.path.exists(g):
-                    os.remove(g)
+            removeCoverage(f)
         if stale:
             print(f"{bcolors.OKCYAN}Removed {len(stale)} coverage databases that no selected test writes{bcolors.ENDC}")
     # Scale the number of concurrent processes to the number of test cases, but
@@ -913,14 +944,15 @@ def main(args):
             num_fail += result.get() # each test enforces its own timeout
     # A run that passed but left no coverage database would silently lower the merged coverage
     if (args.ccov or args.fcov) and not args.dryrun:
-        missing = [c for c in configs if c.ucdb and not os.path.exists(c.ucdb)]
+        missing = [c for c in configs if c.ucdb and coverageMtime(c.ucdb) is None]
         for c in missing:
             print(f"{bcolors.FAIL}{c.cmd}: no coverage database {c.ucdb}{bcolors.ENDC}")
         if missing:
             print(f"{bcolors.FAIL}The merged coverage leaves out the {len(missing)} runs above{bcolors.ENDC}")
 
     # Coverage report; a merge or exclusion failure means the report cannot be trusted
-    for enabled, target in ((args.ccov, "QuestaCodeCoverage"), (args.fcov, "QuestaFunctCoverage")):
+    prefix = "Vcs" if coveragesim == "vcs" else "Questa"
+    for enabled, target in ((args.ccov, f"{prefix}CodeCoverage"), (args.fcov, f"{prefix}FunctCoverage")):
         if enabled and not args.dryrun and subprocess.run(["make", "-C", regressionDir, target]).returncode:
             print(f"{bcolors.FAIL}make {target} failed{bcolors.ENDC}")
             num_fail += 1

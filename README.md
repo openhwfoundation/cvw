@@ -155,7 +155,7 @@ Verilator is an open-source Verilog simulator.  It is fast and free.  Run Wally 
 regression-wally
 ```
 
-Running code or functional coverage simulations or lock-step presently require commercial tools.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally and lock-step simulation.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+Running code or functional coverage simulations or lock-step presently require commercial tools.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
 
 Note: Some EDA tools utilize `LM_LICENSE_FILE` for their environmental variable to point to their license server.  Some operating systems may also utilize `MGLS_LICENSE_FILE` instead, therefore, it is important to read the user manual on the preferred environmental variable required to point to a user’s license file.  Although there are different mechanisms to allow licenses to work, many companies commonly utilize the FlexLM (i.e., Flex-enabled) license server manager that runs off a node locked license.
 
@@ -278,7 +278,7 @@ Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requi
 wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
 ```
 
-Collect functional coverage over a directory of tests.
+Collect functional coverage over a directory of tests (add `--sim vcs` to use VCS).
 
 ```bash
 wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov

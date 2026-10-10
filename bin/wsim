@@ -72,8 +72,8 @@ def validateArgs(args):
     if args.gui and args.sim != "questa":
         print("GUI only supported by Questa")
         sys.exit(1)
-    elif (args.ccov or args.fcov) and args.sim != "questa":
-        print("Coverage only supported by Questa")
+    elif (args.ccov or args.fcov) and args.sim not in ["questa", "vcs"]:
+        print("Coverage only supported by Questa and VCS")
         sys.exit(1)
     elif any([args.lockstep, args.lockstepverbose]) and args.sim not in ["questa", "vcs"]:
         print("Lockstep only supported by Questa and VCS")
@@ -254,6 +254,12 @@ def fcovConfigDigest(config):
     return hashlib.md5(b"".join(f.read_bytes() for f in files)).hexdigest()
 
 
+def fcovKey(args):
+    """With --fcov, what else selects the compiled design: the covergroups compiled in, which follow
+    the set of built ACT test directories, and the configuration headers ACT generates."""
+    return (fcovConfigDigest(args.config), *fcovGroups(args.config)) if args.fcov else ()
+
+
 def targetMtime(target):
     return target.stat().st_mtime if target.exists() else None
 
@@ -311,9 +317,8 @@ def runQuesta(args, flags, env):
     sim_dir = WALLY / "sim" / "questa"
 
     # Compute build hash from all compile-time parameters (flags, params, defines), and for --fcov
-    # the covergroups compiled in, which follow the set of built ACT test directories
-    fcovKey = (fcovConfigDigest(args.config), *fcovGroups(args.config)) if args.fcov else ()
-    bhash = buildHash(flags, args.params, args.define, *fcovKey)
+    # the covergroups compiled in (see fcovKey)
+    bhash = buildHash(flags, args.params, args.define, *fcovKey(args))
     wkdir = f"wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
 
     # Build compile-time flag arguments; the -do script is Tcl, which groups each quoted value
@@ -387,7 +392,7 @@ def runVerilator(args):
 def runVCS(args, flags, env):
     print(f"Running VCS on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "vcs"
-    bhash = buildHash(flags, args.params, args.define)
+    bhash = buildHash(flags, args.params, args.define, *fcovKey(args))
     wkdir = f"{WALLY}/sim/vcs/wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = Path(wkdir) / "sim_out"
 
@@ -400,7 +405,10 @@ def runVCS(args, flags, env):
 
     # Phase 1: Compile (only once per config/flags/params/defines combo)
     target_mtime = targetMtime(binary)
-    needs_compile = target_mtime is None or not isDesignUpToDate(binary)
+    # run_vcs holds the compile options and coverage.hier the code coverage scope, so they are sources too
+    scripts = [WALLY / "sim" / "vcs" / f for f in ("run_vcs", "coverage.hier")]
+    needs_compile = (target_mtime is None or not isDesignUpToDate(binary, FCOV_DIRS if args.fcov else ())
+                     or any(f.stat().st_mtime > target_mtime for f in scripts))
     with compileLock("vcs", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(binary)
         if needs_compile and current_mtime == target_mtime:
