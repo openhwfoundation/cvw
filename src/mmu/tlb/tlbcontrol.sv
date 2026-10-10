@@ -85,7 +85,7 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
 
   // check if reserved, N, or PBMT bits are malformed w in RV64
   assign BadPBMT = ((PTE_PBMT != 0) & ~(P.SVPBMT_SUPPORTED & ENVCFG_PBMTE)) | PTE_PBMT == 3; // PBMT must be zero if not supported; value of 3 is reserved
-  assign BadNAPOT = PTE_N & (~P.SVNAPOT_SUPPORTED | ~NAPOT4);              // N must be be 0 if CVNAPOT is not supported or not 64 KiB contiguous region
+  assign BadNAPOT = PTE_N & (~P.SVNAPOT_SUPPORTED | ~NAPOT4);              // N must be 0 if Svnapot is not supported or the PTE is not a 64 KiB region in a 4 KiB leaf
   assign BadReserved = PTE_RESERVED;                                       // Reserved bits must be zero
   assign ReservedRW = PTE_W & ~PTE_R;                                      // page fault on reserved encoding with R=0, W=1 per Privileged Spec 10.3.1
 
