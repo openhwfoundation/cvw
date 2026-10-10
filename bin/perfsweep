@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+#
+# perfsweep
+# David_Harris@hmc.edu 10 October 2026
+#
+# Run ELF directories with the testbench performance monitor (PERF_MONITOR=1) and collect
+# its per-ELF cycle accounting for bin/perfanalyze.py.  Each leaf directory of ELFs runs as
+# one simulation; the directories of a configuration run in parallel.
+#
+# usage: perfsweep [-c rv64gc,rv32gc] [-e ELFROOT] [-o OUTDIR] [-j JOBS] [-s verilator] [-b]
+#   ELFROOT defaults to $ACTDIR/work/cvw-<config>/elfs, the riscv-arch-test build.  When it is
+#   given, it holds one subdirectory per configuration (ELFROOT/<config>/...).
+#   -b also runs CoreMark (benchmarks/coremark/work<XLEN>, built with
+#   make -C benchmarks/coremark XLEN=<XLEN> work_dir=$WALLY/benchmarks/coremark/work<XLEN>) and,
+#   on rv32gc, Embench (make -C benchmarks/embench build_speedopt_speed objdump sim_build_memfile).
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+import argparse
+import multiprocessing
+import os
+import subprocess
+import sys
+import time
+
+WALLY = os.environ.get("WALLY")
+if WALLY is None:
+    sys.exit("perfsweep: source setup.sh first so that $WALLY is set")
+ACTDIR = os.environ.get("ACTDIR", f"{WALLY}/addins/riscv-arch-test")
+
+
+def leaf_dirs(root):
+    """Directories under root that contain ELF files, largest first so the pool finishes evenly."""
+    leaves = []
+    for dirpath, _, files in os.walk(root):
+        n = sum(f.endswith(".elf") for f in files)
+        if n:
+            leaves.append((n, dirpath))
+    return [d for _, d in sorted(leaves, reverse=True)]
+
+
+def run_dir(job):
+    config, leaf, root, outdir, sim, timeout = job
+    if isinstance(leaf, tuple):   # benchmark: (name, wsim arguments)
+        name, target = leaf
+    else:
+        name, target = os.path.relpath(leaf, root).replace(os.sep, "_"), [leaf]
+    csvfile = os.path.join(outdir, config, f"{name}.csv")
+    logfile = os.path.join(outdir, config, f"{name}.log")
+    cmd = ["wsim", config, *target, "--sim", sim, "--params", "PERF_MONITOR=1", "--args", f"+PERF_FILE={csvfile}"]
+    start = time.time()
+    with open(logfile, "w") as log:
+        try:
+            rc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=timeout).returncode
+        except subprocess.TimeoutExpired:
+            rc = "timeout"
+    return config, name, rc, time.time() - start
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-c", "--configs", default="rv64gc,rv32gc", help="Comma-separated configurations")
+    parser.add_argument("-e", "--elfroot", help="Directory with one ELF tree per configuration")
+    parser.add_argument("-o", "--outdir", default="perfsweep", help="Output directory")
+    parser.add_argument("-j", "--jobs", type=int, default=min(16, os.cpu_count()), help="Parallel simulations")
+    parser.add_argument("-s", "--sim", default="verilator", help="Simulator")
+    parser.add_argument("-t", "--timeout", type=int, default=3600, help="Timeout per directory in seconds")
+    parser.add_argument("-b", "--benchmarks", action="store_true", help="Also run CoreMark and Embench")
+    args = parser.parse_args()
+
+    jobs = []
+    for config in args.configs.split(","):
+        root = os.path.join(args.elfroot, config) if args.elfroot else f"{ACTDIR}/work/cvw-{config}/elfs"
+        if not os.path.isdir(root):
+            sys.exit(f"perfsweep: no ELF directory {root}")
+        os.makedirs(os.path.join(args.outdir, config), exist_ok=True)
+        jobs += [(config, leaf, root, os.path.abspath(args.outdir), args.sim, args.timeout) for leaf in leaf_dirs(root)]
+        if args.benchmarks:
+            xlen = "64" if "64" in config else "32"
+            coremark = f"{WALLY}/benchmarks/coremark/work{xlen}/coremark.bare.riscv"
+            embench = f"{WALLY}/addins/embench-iot/bd_speedopt_speed/src"
+            if os.path.exists(coremark):
+                jobs.append((config, ("benchmark_coremark", ["--elf", coremark, "--test", "coremark"]), root,
+                             os.path.abspath(args.outdir), args.sim, args.timeout))
+            else:
+                print(f"perfsweep: skipping CoreMark on {config}; {coremark} is not built")
+            if xlen == "32" and os.path.isdir(embench):
+                jobs.append((config, ("benchmark_embench", [embench, "--test", "embench"]), root,
+                             os.path.abspath(args.outdir), args.sim, args.timeout))
+
+    # wsim builds each configuration once, under a lock, before the first directory runs
+    failures = 0
+    with multiprocessing.Pool(args.jobs) as pool:
+        for config, name, rc, secs in pool.imap_unordered(run_dir, jobs):
+            status = "ok" if rc == 0 else f"FAIL ({rc})"
+            failures += rc != 0
+            print(f"{config} {name}: {status} {secs:.0f}s", flush=True)
+    print(f"perfsweep: {len(jobs)} directories, {failures} failed; results in {args.outdir}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

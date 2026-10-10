@@ -40,6 +40,7 @@ module testbench;
   /* verilator lint_off WIDTHEXPAND */
   parameter DEBUG=0;
   parameter PrintHPMCounters=0;
+  parameter PERF_MONITOR=0;         // cycle accounting for performance verification (testbench/common/perfmon.sv)
   parameter BPRED_LOGGER=0;
   parameter I_CACHE_ADDR_LOGGER=0;
   parameter D_CACHE_ADDR_LOGGER=0;
@@ -635,6 +636,10 @@ module testbench;
   riscvassertions_wally #(P) riscvassertions_wally();  // check assertions for a legal microarchitectural configuration
   loggers #(P, PrintHPMCounters, I_CACHE_ADDR_LOGGER, D_CACHE_ADDR_LOGGER, BPRED_LOGGER)
     loggers (clk, reset, DCacheFlushStart, DCacheFlushDone, memfilename, sim_log_prefix, TEST);
+
+  if (PERF_MONITOR & P.ZICNTR_SUPPORTED) begin : perfmon
+    perfmon #(P) perfmon(.clk, .reset, .CopyRAM, .elffilename, .sim_log_prefix);
+  end
 
   // track the current function or global label
   if (DEBUG > 0 | ((PrintHPMCounters | BPRED_LOGGER) & P.ZICNTR_SUPPORTED)) begin : functionName
