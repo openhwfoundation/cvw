@@ -40,6 +40,8 @@ def parseArgs():
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--lockstepverbose", "-lv", help="Run ImperasDV lock, step, and compare with tracing enabled", action="store_true")
     parser.add_argument("--rvvi", "-r", help="Simulate rvvi hardware interface and ethernet.", action="store_true")
+    parser.add_argument("--debug", help="Specify that this is a Debug test and provide jtag testvectors.", default="")
+    parser.add_argument("--rvvidb", help="Create imperas debug logs.", action="store_true", default="")
     return parser.parse_args()
 
 
@@ -129,6 +131,10 @@ def prepSim(args, ElfFile):
         argsList.append(f"+TREK_TBX_FILE={ElfFileNoExtension}.tbx")
         if "WALLY_UVM_PKG" not in os.environ:
             prefix += f"WALLY_UVM_PKG={WALLY}/testbench/trek_files/{'rv64' if args.config == 'rv64breker' else 'rv32'}/uvm_output/trek_uvm_pkg.sv"
+    if args.debug:
+        argsList.append(f"+DEBUGFILE={args.debug}")
+    if args.rvvidb:
+        defineList.append("+define+IDV_INCLUDE_TRACE2BIN")
     # Combine into a single string
     args.args += " " + " ".join(argsList)
     args.params += " " + " ".join(paramsList)

@@ -3,8 +3,12 @@
 # mmcm_clkout0 is the clock output of the DDR3 memory interface / 4.
 # This clock is not used by wally or the AHB Bus. However it is used by the AXI BUS on the DD3 IP.
 
+#set_property DONT_TOUCH true [get_nets wallypipelinedsoc/uncoregen.uncore/sdc.sdc/SPICLK]
+
 #create_generated_clock -name CLKDiv64_Gen -source [get_pins wallypipelinedsoc/uncore.uncore/sdc.SDC/sd_top/slow_clk_divider/clkMux/I0] -multiply_by 1 -divide_by 1 [get_pins wallypipelinedsoc/uncore.uncore/sdc.SDC/sd_top/slow_clk_divider/clkMux/O]
-create_generated_clock -name SPISDCClock -source [get_pins mmcm/clk_out3] -multiply_by 1 -divide_by 1 [get_pins wallypipelinedsoc/uncoregen.uncore/sdc.sdc/SPICLK]
+create_generated_clock -name SPISDCClock -source [get_pins mmcm/clk_out3] -multiply_by 1 -divide_by 1 [get_pins wallypipelinedsoc/uncoregen.uncore/sdc.sdc/SPICLK_reg]
+create_clock -add -name tck_pin -period 1000 -waveform {0 500} [get_ports {tck}];
+#set_clock_groups -asynchronous -group [get_clock ] -group [get_clocks tck_pin]
 
 ##### clock #####
 set_property PACKAGE_PIN E3 [get_ports default_100mhz_clk]
@@ -163,6 +167,27 @@ set_output_delay -clock [get_clocks SPISDCClock] 0.000 [get_ports SDCCLK]
 #set_multicycle_path -from [get_pins xlnx_ddr3_c0/u_xlnx_ddr3_mig/u_memc_ui_top_axi/mem_intfc0/ddr_phy_top0/u_ddr_calib_top/init_calib_complete_reg/C] -to [get_pins xlnx_proc_sys_reset_0/U0/EXT_LPF/lpf_int_reg/D] 10
 
 set_max_delay -datapath_only -from [get_pins xlnx_ddr3_c0/u_xlnx_ddr3_mig/u_memc_ui_top_axi/mem_intfc0/ddr_phy_top0/u_ddr_calib_top/init_calib_complete_reg/C] -to [get_pins xlnx_proc_sys_reset_0/U0/EXT_LPF/lpf_int_reg/D] 20.000
+
+######################################################################
+# JTAG Port
+######################################################################
+set_property -dict { PACKAGE_PIN G13   IOSTANDARD LVCMOS33 } [get_ports { tck }]; #IO_0_15 Sch=ja[1]
+set_property -dict { PACKAGE_PIN B11   IOSTANDARD LVCMOS33 } [get_ports { tdo }]; #IO_L4P_T0_15 Sch=ja[2]
+set_property -dict { PACKAGE_PIN A11   IOSTANDARD LVCMOS33 } [get_ports { tms }]; #IO_L4N_T0_15 Sch=ja[3]
+set_property -dict { PACKAGE_PIN D12   IOSTANDARD LVCMOS33 } [get_ports { tdi }]; #IO_L6P_T0_15 Sch=ja[4]
+#set_property -dict { PACKAGE_PIN D13   IOSTANDARD LVCMOS33 } [get_ports { trst }]; #IO_L6N_T0_VREF_15 Sch=ja[7]
+#set_property -dict { PACKAGE_PIN B18   IOSTANDARD LVCMOS33 } [get_ports { ja[8] }]; #IO_L10P_T1_AD11P_15 Sch=ja[8]
+#set_property -dict { PACKAGE_PIN A18   IOSTANDARD LVCMOS33 } [get_ports { ja[9] }]; #IO_L10N_T1_AD11N_15 Sch=ja[9]
+#set_property -dict { PACKAGE_PIN E15   IOSTANDARD LVCMOS33 } [get_ports { ja[10] }]; #IO_L11P_T1_SRCC_15 Sch=ja[10]
+
+set_input_delay -clock [get_clocks tck_pin] -max 5.0 [get_ports {tms tdi}]
+set_input_delay -clock [get_clocks tck_pin] -min 0.0 [get_ports {tms tdi}]
+
+# Issue with tck and implementation - seems to fix (jes)
+# Issue related to JTAG tck treating it as a global clock
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets tck_IBUF]
+set_false_path -from [get_clocks tck_pin] -to [get_clocks -of_objects [get_pins mmcm/inst/mmcm_adv_inst/CLKOUT2]]
+set_false_path -from [get_clocks -of_objects [get_pins mmcm/inst/mmcm_adv_inst/CLKOUT2]] -to [get_clocks tck_pin]
 
 # *********************************
 #set_property DCI_CASCADE {64} [get_iobanks 65]

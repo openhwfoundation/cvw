@@ -5,6 +5,7 @@
 ## Written: Rose Thompson rose@rosethompson.net
 ## Modified: 30 June 2024, Jordan Carlin jcarlin@hmc.edu
 ## Modified: 30 May 2025
+## Modified: 24 Jan 2206, James Stine james.stine@okstate.edu
 ##
 ## Purpose: Open source tool chain installation script
 ##
@@ -114,6 +115,12 @@ source "$WALLY"/bin/installation/verilator-install.sh
 # OSU Skywater 130 cell library (https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t12)
 # The OSU Skywater 130 cell library is a standard cell library that is used to synthesize Wally.
 source "$WALLY"/bin/installation/skywater-lib-install.sh
+
+
+# OpenOCD installation for RISC-V debug support
+# OpenOCD is used to provide JTAG-based debugging and programming support
+# for the Wally RISC-V processor during bring-up and validation.
+source "$WALLY"/bin/installation/openocd-install.sh
 
 
 # Buildroot and Linux testvectors

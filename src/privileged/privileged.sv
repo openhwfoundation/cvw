@@ -34,14 +34,19 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              FlushD, FlushE, FlushM, FlushW,
   // CSR Reads and Writes, and values needed for traps
   input  logic              CSRReadM, CSRWriteM,                            // Read or write CSRs
+  input  logic              PCSrcE,
+  input  logic              PCSrcM,
   input  logic [P.XLEN-1:0] SrcAM,                                          // GPR register to write
   input  logic [31:0]       InstrM,                                         // Instruction
   input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
+  input  logic [P.XLEN-1:0] NextValidPCE,
+  input  logic [P.XLEN-1:0] IEUAdrM,
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
   // control signals
   input  logic              InstrValidM,                                    // Current instruction is valid (not flushed)
+  input  logic              InstrValidE,                                    // Current valid instruction in Execute stage (needed for debug reset on halt)
   input  logic              CommittedM, CommittedF,                         // current instruction is using bus; don't interrupt
   input  logic              PrivilegedM,                                    // privileged instruction
   // processor events for performance counter logging
@@ -76,7 +81,16 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic [63:0]       MTIME_CLINT,                                    // timer value from CLINT
   input  logic [4:0]        SetFflagsM,                                     // set FCSR flags from FPU
   input  logic              SelHPTW,                                        // HPTW in use.  Causes system to use S-mode endianness for accesses
+  // Debug Inputs
+  input  logic              DebugCSREnable,
+  input  logic [P.XLEN-1:0] DebugRegWDATA,
+  input  logic [11:0]       DebugRegAddr,
+  input  logic              DebugRegWrite,
+  input  logic              DebugHaltReq, DebugResumeReq,
+  input  logic              DebugResetHaltReq,
+  input  logic              DebugHaveResetAck,
   // CSR outputs
+  output logic [P.XLEN-1:0] CSRReadValM,
   output logic [P.XLEN-1:0] CSRReadValW,                                    // Value read from CSR
   output logic [1:0]        PrivilegeModeW,                                 // current privilege mode
   output logic [P.XLEN-1:0] SATP_REGW,                                      // supervisor address translation register
@@ -98,7 +112,15 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              InvalidateICacheM,                              // fence instruction
   output logic              BigEndianM,                                     // Use big endian in current privilege mode
   // Fault outputs
-  output logic              wfiM, IntPendingM                               // Stall in Memory stage for WFI until interrupt pending or timeout
+  output logic              wfiM, IntPendingM,                              // Stall in Memory stage for WFI until interrupt pending or timeout
+  // Debug outputs
+  output logic              DebugHaltFlush,
+  output logic              DebugResumeFlush,
+  output logic              DebugUseDPC,
+  output logic [P.XLEN-1:0] DPC,
+  output logic              DebugHaveReset,
+  output logic              IllegalDebugCSRAccess,
+  output logic              DebugMode
 );
 
   logic [4:0]               CauseM;                                         // trap cause
@@ -120,27 +142,57 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   logic                     HPTWInstrAccessFaultM;                          // Hardware page table access fault while fetching instruction PTE
   logic                     HPTWInstrPageFaultM;                            // Hardware page table page fault while fetching instruction PTE
   logic                     BreakpointFaultM, EcallFaultM;                  // breakpoint and Ecall traps should retire
+  logic                     DebugEBreakM, DebugEBreakS, DebugEBreakU;
+  logic                     DebugStepIE;
+  logic                     DebugStep;
+  logic [1:0]               DebugPrivilegeMode;
+  logic                     DebugSetPrivMode;
+  logic                     NextHalt, NextResume;
+  logic [2:0]               NextHaltCause;
+  logic                     DebugEBreak;
+
+  // Lift these signals up
+  logic                     DebugHalted, DebugRunning;
 
   logic                     wfiW;
 
   // track the current privilege level
   privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM, .DelegateM,
-    .STATUS_MPP, .STATUS_SPP, .NextPrivilegeModeM, .PrivilegeModeW);
+    .STATUS_MPP, .STATUS_SPP, .DebugPrivilegeMode, .DebugSetPrivMode, .NextPrivilegeModeM, .PrivilegeModeW);
+
+  // CREATE DebugEBReak
+  // NextHalt and DebugHaltFlush are the same signal. Consolidate?
+  if (P.SDEXT_SUPPORTED) begin : debugmode
+    debugmode #(P) debugmode(.clk, .reset, .StallW, .InstrValidM, .InstrValidE,
+      .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq,
+      .DebugStep, .DebugEBreakM, .DebugEBreakS, .DebugEBreakU, .BreakpointFaultM, .PrivilegeModeW,
+      .DebugHaveResetAck,
+      .DebugMode, .DebugHalted, .DebugRunning, .DebugHaveReset,
+      .NextHalt, .NextResume, .DebugEBreak, .NextHaltCause, .DebugUseDPC, .DebugHaltFlush, .DebugResumeFlush
+    );
+  end else begin
+    assign {DebugMode, DebugHalted, DebugRunning, DebugHaveReset,
+            NextHalt, NextResume, DebugEBreak, NextHaltCause, DebugUseDPC,
+            DebugHaltFlush, DebugResumeFlush} = '0;
+  end
 
   // decode privileged instructions
   privdec #(P) pmd(.clk, .reset, .StallW, .FlushW, .InstrM(InstrM[31:7]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM,
     .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .TrapM, .IllegalInstrFaultM,
-    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM, .sfencevmaAllM);
+    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM, .sfencevmaAllM, .DebugStep);
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,
-    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM,
+    .InstrM, .InstrOrigM, .PCSrcM, .NextValidPCE, .IEUAdrM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM,
     .CSRReadM, .CSRWriteM, .TrapM, .mretM, .sretM, .InterruptM,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
     .MTIME_CLINT, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
+    .DebugCSREnable, .DebugRegWDATA, .DebugRegAddr, .DebugRegWrite,
+    .DebugMode, .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq,
+    .BreakpointFaultM, .NextHalt, .NextResume, .DebugHalted, .DebugRunning, .NextHaltCause, .DebugEBreak,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
     .NextPrivilegeModeM, .PrivilegeModeW, .CauseM, .SelHPTW,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
@@ -149,7 +201,10 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
-    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM);
+    .CSRReadValM, .CSRReadValW, .IllegalCSRAccessM, .BigEndianM,
+    .DPC, .DebugEBreakM, .DebugEBreakS, .DebugEBreakU,
+    .DebugStepIE, .DebugStep, .DebugSetPrivMode, .DebugPrivilegeMode, .IllegalDebugCSRAccess
+    );
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
@@ -164,5 +219,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
     .LoadPageFaultM, .StoreAmoPageFaultM, .PrivilegeModeW,
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .STATUS_MIE, .STATUS_SIE,
     .InstrValidM, .CommittedM, .CommittedF,
-    .TrapM, .wfiM, .wfiW, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM);
+    .TrapM, .wfiM, .wfiW, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
+    .DebugEBreakM, .DebugEBreakS, .DebugEBreakU,
+    .DebugMode, .DebugStepIE, .DebugStep);
 endmodule

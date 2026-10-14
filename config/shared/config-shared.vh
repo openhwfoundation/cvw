@@ -127,3 +127,8 @@ localparam FMALEN = 3*NF + 6;
 localparam NORMSHIFTSZ = `max(`max((CVTLEN+NF+1), (DIVb + 1 + NF + 1)), (FMALEN + 2));
 
 localparam LOGNORMSHIFTSZ = ($clog2(NORMSHIFTSZ));                  // log_2(NORMSHIFTSZ)
+
+// Debug Specification (if enabled)
+localparam JEDEC = 32'h1002ac05;
+localparam ABITS = 6'd7;
+localparam DTM_INSTR_WIDTH = 32'd5;
