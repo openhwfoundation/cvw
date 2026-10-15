@@ -27,43 +27,48 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module unpack import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FLEN-1:0]       X, Y, Z,              // inputs from register file
-  input  logic [P.FMTBITS-1:0]    Fmt,                  // format signal 00 - single 01 - double 11 - quad 10 - half
+module unpack import cvw::*;  #(parameter cvw_t P, parameter V=0,           // V = 1 uses VPU's formats instead of FPU's
+  localparam FLEN    = V ? P.VFLEN     : P.FLEN,
+  localparam NE      = V ? P.VFNE      : P.NE,
+  localparam NF      = V ? P.VFNF      : P.NF,
+  localparam FMTBITS = V ? P.VFMTBITS  : P.FMTBITS,
+  localparam LOGFLEN = V ? P.VFLOGFLEN : P.LOGFLEN) (
+  input  logic [FLEN-1:0]         X, Y, Z,              // inputs from register file
+  input  logic [FMTBITS-1:0]      Fmt,                  // format signal 00 - single 01 - double 11 - quad 10 - half
   input  logic                    XEn, YEn, ZEn,        // input enables
   input  logic                    FPUActive,            // Kill inputs when FPU is not active
   output logic                    Xs, Ys, Zs,           // sign bits of XYZ
-  output logic [P.NE-1:0]         Xe, Ye, Ze,           // exponents of XYZ (converted to largest supported precision)
-  output logic [P.NF:0]           Xm, Ym, Zm,           // mantissas of XYZ (converted to largest supported precision)
+  output logic [NE-1:0]           Xe, Ye, Ze,           // exponents of XYZ (converted to largest supported precision)
+  output logic [NF:0]             Xm, Ym, Zm,           // mantissas of XYZ (converted to largest supported precision)
   output logic                    XNaN, YNaN, ZNaN,     // is XYZ a NaN
   output logic                    XSNaN, YSNaN, ZSNaN,  // is XYZ a signaling NaN
   output logic                    XSubnorm,             // is X subnormal
   output logic                    XZero, YZero, ZZero,  // is XYZ zero
   output logic                    XInf, YInf, ZInf,     // is XYZ infinity
   output logic                    XExpMax,              // does X have the maximum exponent (NaN or Inf)
-  output logic [P.FLEN-1:0]       XPostBox,             // X after being properly NaN-boxed
-  output logic [P.NE-2:0]         Bias,                 // Exponent bias
-  output logic [P.LOGFLEN-1:0]    Nf                    // Number of fractional bits
+  output logic [FLEN-1:0]         XPostBox,             // X after being properly NaN-boxed
+  output logic [NE-2:0]           Bias,                 // Exponent bias
+  output logic [LOGFLEN-1:0]      Nf                    // Number of fractional bits
 );
 
   logic YExpMax, ZExpMax;                               // is the exponent all 1s
 
-  unpackinput #(P) unpackinputX (.A(X), .Fmt, .Sgn(Xs), .Exp(Xe), .Man(Xm), .En(XEn), .FPUActive,
+  unpackinput #(P, V) unpackinputX (.A(X), .Fmt, .Sgn(Xs), .Exp(Xe), .Man(Xm), .En(XEn), .FPUActive,
                           .NaN(XNaN), .SNaN(XSNaN),
                           .Zero(XZero), .Inf(XInf), .ExpMax(XExpMax),
                           .Subnorm(XSubnorm), .PostBox(XPostBox));
 
-  unpackinput #(P) unpackinputY (.A(Y), .Fmt, .Sgn(Ys), .Exp(Ye), .Man(Ym), .En(YEn), .FPUActive,
+  unpackinput #(P, V) unpackinputY (.A(Y), .Fmt, .Sgn(Ys), .Exp(Ye), .Man(Ym), .En(YEn), .FPUActive,
                           .NaN(YNaN), .SNaN(YSNaN),
                           .Zero(YZero), .Inf(YInf), .ExpMax(YExpMax),
                           .Subnorm(), .PostBox());
 
-  unpackinput #(P) unpackinputZ (.A(Z), .Fmt, .Sgn(Zs), .Exp(Ze), .Man(Zm), .En(ZEn), .FPUActive,
+  unpackinput #(P, V) unpackinputZ (.A(Z), .Fmt, .Sgn(Zs), .Exp(Ze), .Man(Zm), .En(ZEn), .FPUActive,
                           .NaN(ZNaN), .SNaN(ZSNaN),
                           .Zero(ZZero), .Inf(ZInf), .ExpMax(ZExpMax),
                           .Subnorm(), .PostBox());
 
   // look up bias and fractional bits for the given format
-  fmtparams #(P) fmtparams(Fmt, Bias, Nf);
+  fmtparams #(P, V) fmtparams(Fmt, Bias, Nf);
 
  endmodule

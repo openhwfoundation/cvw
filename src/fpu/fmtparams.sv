@@ -28,52 +28,66 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmtparams import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FMTBITS-1:0] Fmt,
-  output logic [P.NE-2:0]      Bias,
-  output logic [P.LOGFLEN-1:0] Nf
+module fmtparams import cvw::*;  #(parameter cvw_t P, parameter V=0,        // V = 1 uses VPU's formats instead of FPU's
+  localparam FMTBITS = V ? P.VFMTBITS  : P.FMTBITS,
+  localparam NE      = V ? P.VFNE      : P.NE,
+  localparam LOGFLEN = V ? P.VFLOGFLEN : P.LOGFLEN) (
+  input  logic [FMTBITS-1:0]   Fmt,
+  output logic [NE-2:0]        Bias,
+  output logic [LOGFLEN-1:0]   Nf
 );
 
-  if (P.FPSIZES == 1) begin
-    assign Bias = (P.NE-1)'(P.BIAS);
-  end else if (P.FPSIZES == 2) begin
-    assign Bias = Fmt ? (P.NE-1)'(P.BIAS) : (P.NE-1)'(P.BIAS1);
-  end else if (P.FPSIZES == 3) begin
+  localparam FPSIZES = V ? P.VFPSIZES : P.FPSIZES;
+  localparam NF      = V ? P.VFNF     : P.NF;
+  localparam FMT     = V ? P.VFMT     : P.FMT;
+  localparam BIAS    = V ? P.VFBIAS   : P.BIAS;
+  localparam NF1     = V ? P.VFNF1    : P.NF1;
+  localparam FMT1    = V ? P.VFMT1    : P.FMT1;
+  localparam BIAS1   = V ? P.VFBIAS1  : P.BIAS1;
+  localparam NF2     = V ? P.VFNF2    : P.NF2;
+  localparam FMT2    = V ? P.VFMT2    : P.FMT2;
+  localparam BIAS2   = V ? P.VFBIAS2  : P.BIAS2;
+
+  if (FPSIZES == 1) begin
+    assign Bias = (NE-1)'(BIAS);
+  end else if (FPSIZES == 2) begin
+    assign Bias = Fmt ? (NE-1)'(BIAS) : (NE-1)'(BIAS1);
+  end else if (FPSIZES == 3) begin
     always_comb
       case (Fmt)
-        P.FMT:  Bias =  (P.NE-1)'(P.BIAS);
-        P.FMT1: Bias = (P.NE-1)'(P.BIAS1);
-        P.FMT2: Bias = (P.NE-1)'(P.BIAS2);
+        FMT:    Bias =  (NE-1)'(BIAS);
+        FMT1:   Bias = (NE-1)'(BIAS1);
+        FMT2:   Bias = (NE-1)'(BIAS2);
         default: Bias = 'x;
       endcase
-  end else if (P.FPSIZES == 4) begin
+  end else if (FPSIZES == 4) begin
     always_comb
       case (Fmt)
-        2'h3: Bias =  (P.NE-1)'(P.Q_BIAS);
-        2'h1: Bias =  (P.NE-1)'(P.D_BIAS);
-        2'h0: Bias =  (P.NE-1)'(P.S_BIAS);
-        2'h2: Bias =  (P.NE-1)'(P.H_BIAS);
+        2'h3: Bias =  (NE-1)'(P.Q_BIAS);
+        2'h1: Bias =  (NE-1)'(P.D_BIAS);
+        2'h0: Bias =  (NE-1)'(P.S_BIAS);
+        2'h2: Bias =  (NE-1)'(P.H_BIAS);
       endcase
   end
 
   /* verilator lint_off WIDTH */
-  if (P.FPSIZES == 1)
-    assign Nf = P.NF;
-  else if (P.FPSIZES == 2)
+  if (FPSIZES == 1)
+    assign Nf = NF;
+  else if (FPSIZES == 2)
     always_comb
       case (Fmt)
-        1'b0: Nf = P.NF1;
-        1'b1: Nf = P.NF;
+        1'b0: Nf = NF1;
+        1'b1: Nf = NF;
       endcase
-  else if (P.FPSIZES == 3)
+  else if (FPSIZES == 3)
     always_comb
       case (Fmt)
-        P.FMT:   Nf = P.NF;
-        P.FMT1:  Nf = P.NF1;
-        P.FMT2:  Nf = P.NF2;
+        FMT:     Nf = NF;
+        FMT1:    Nf = NF1;
+        FMT2:    Nf = NF2;
         default: Nf = 'x; // shouldn't happen
       endcase
-  else if (P.FPSIZES == 4)
+  else if (FPSIZES == 4)
     always_comb
       case(Fmt)
         P.S_FMT: Nf = P.S_NF;

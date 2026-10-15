@@ -95,6 +95,30 @@ localparam NF2   = (LEN1 > S_LEN) ? S_NF   : H_NF;
 localparam FMT2  = (LEN1 > S_LEN) ? 2'd0   : 2'd2;
 localparam BIAS2 = (LEN1 > S_LEN) ? S_BIAS : H_BIAS;
 
+// Floating point constants needed for VPU parameterization, mirrors FPU constants
+// Vector floating point constants: longest format supported by the vector unit
+localparam logic VF_SUPPORTED = ZVE32F_SUPPORTED | ZVE64F_SUPPORTED | ZVE64D_SUPPORTED;
+localparam VFLEN  = ZVE64D_SUPPORTED ? D_LEN  : S_LEN;
+localparam VFNE   = ZVE64D_SUPPORTED ? D_NE   : S_NE;
+localparam VFNF   = ZVE64D_SUPPORTED ? D_NF   : S_NF;
+localparam VFMT   = ZVE64D_SUPPORTED ? 2'd1   : 2'd0;
+localparam VFBIAS = ZVE64D_SUPPORTED ? D_BIAS : S_BIAS;
+localparam VFLOGFLEN = $clog2(VFLEN);
+
+// Vector floating point constants: second and third longest vector format
+localparam VFPSIZES = (32)'(ZVE64D_SUPPORTED)+(32)'(VF_SUPPORTED)+(32)'(ZVFHMIN_SUPPORTED | ZVFH_SUPPORTED);   // Zvfh requires Zvfhmin
+localparam VFMTBITS = (32)'(VFPSIZES>=3)+1;
+localparam VFLEN1  = (VFLEN > S_LEN) ? S_LEN  : H_LEN;
+localparam VFNE1   = (VFLEN > S_LEN) ? S_NE   : H_NE;
+localparam VFNF1   = (VFLEN > S_LEN) ? S_NF   : H_NF;
+localparam VFMT1   = (VFLEN > S_LEN) ? 2'd0   : 2'd2;
+localparam VFBIAS1 = (VFLEN > S_LEN) ? S_BIAS : H_BIAS;
+localparam VFLEN2  = H_LEN;
+localparam VFNE2   = H_NE;
+localparam VFNF2   = H_NF;
+localparam VFMT2   = 2'd2;
+localparam VFBIAS2 = H_BIAS;
+
 // divider r and rk (bits per digit, bits per cycle)
 localparam LOGR        = $clog2(RADIX);                             // r = log(R) bits per digit
 localparam RK          = LOGR*DIVCOPIES;                            // r*k bits per cycle generated
