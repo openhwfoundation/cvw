@@ -225,7 +225,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
      assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 
     // Hold a page table walk fault for the current fetch (issues #1538, #1766).
-    // A walk that faults (access fault on a page table entry address, or reserved bits in a non-leaf PTE) writes
+    // A walk that faults (access fault on a page table entry address, reserved bits in a non-leaf PTE, or an invalid PTE) writes
     // nothing into the ITLB, so the miss would re-request a walk every cycle.  The walker reports the fault as a
     // one-cycle pulse; remember it until the fetch advances (PCF changes), present it to the pipeline as a level,
     // suppress further walk requests, and do not fetch.

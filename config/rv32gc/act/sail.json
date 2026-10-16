@@ -969,6 +969,7 @@
     "Svpbmt": {
       "supported": false
     },
+    // Wally's page-table walker does not cache invalid PTEs in the TLB, so Svvptc holds.
     "Svvptc": {
       "supported": true
     },

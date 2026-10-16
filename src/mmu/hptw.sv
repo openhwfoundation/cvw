@@ -115,19 +115,20 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic                     TakeHPTWFault;
   logic                     NonLeafReservedFaultM;
   logic                     DAUFaultM;
-  logic                     NonLeafPageFaultM;
+  logic                     InvalidPTEFaultM;
+  logic                     WalkPageFaultM;
   logic                     HPTWFaultM;
 
   // map hptw access faults onto either the original LSU load/store fault or instruction access fault
   assign LSUAccessFaultM         = LSULoadAccessFaultM | LSUStoreAmoAccessFaultM;
-  assign NonLeafPageFaultM       = NonLeafReservedFaultM | DAUFaultM;
-  assign HPTWFaultM              = LSUAccessFaultM | NonLeafPageFaultM;
+  assign WalkPageFaultM          = NonLeafReservedFaultM | DAUFaultM | InvalidPTEFaultM;
+  assign HPTWFaultM              = LSUAccessFaultM | WalkPageFaultM;
   assign HPTWLoadAccessFault     = LSUAccessFaultM & DTLBWalk & MemRWM[1] & ~MemRWM[0];
   assign HPTWStoreAmoAccessFault = LSUAccessFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
   assign HPTWInstrAccessFault    = LSUAccessFaultM & ~DTLBWalk;
-  assign HPTWLoadPageFault       = NonLeafPageFaultM & DTLBWalk & MemRWM[1] & ~MemRWM[0];
-  assign HPTWStoreAmoPageFault   = NonLeafPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
-  assign HPTWInstrPageFault      = NonLeafPageFaultM & ~DTLBWalk;
+  assign HPTWLoadPageFault       = WalkPageFaultM & DTLBWalk & MemRWM[1] & ~MemRWM[0];
+  assign HPTWStoreAmoPageFault   = WalkPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
+  assign HPTWInstrPageFault      = WalkPageFaultM & ~DTLBWalk;
 
   flopr #(6) HPTWAccesFaultReg(clk, reset, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
                                             HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
@@ -170,7 +171,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   // Pending-request registers: both requests are captured when the walk starts; each is cleared when its
   // walk completes (final LEAF or FAULT).  A DTLB-walk fault traps, so the ITLB request is dropped too.
   // FlushW (trap) clears both.
-  assign WalkDone = ((WalkerState == LEAF) & ~UpdatePTE) | (WalkerState == FAULT);
+  assign WalkDone = ((WalkerState == LEAF) & ~UpdatePTE & ~InvalidPTEFaultM) | (WalkerState == FAULT);
   always_ff @(posedge clk)
     if (reset | FlushW)       {DTLBWalkPending, ITLBWalkPending} <= 2'b00;
     else if (StartWalk)       {DTLBWalkPending, ITLBWalkPending} <= {DTLBReq, ITLBReq};
@@ -199,6 +200,9 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   if(P.XLEN == 64) assign NonLeafReservedFaultM = ValidNonLeafPTE & (|PTE[63:54]);
   else assign NonLeafReservedFaultM = 1'b0;
   assign DAUFaultM = ValidNonLeafPTE & (|PTE[7:6] | PTE[4]);
+  // Svvptc: a walk that ends at an invalid (V=0) leaf or non-leaf PTE faults from the walker and writes nothing
+  // into the TLB, so a later change of that PTE to valid is seen by the next walk without an SFENCE.VMA.
+  assign InvalidPTEFaultM = (WalkerState == LEAF) & ~Valid;
 
   if(P.SVADU_SUPPORTED) begin : hptwwrites
     logic                 ReadAccess, WriteAccess;
@@ -263,8 +267,8 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
                       (WalkerState == L3_RD & P.SV48_SUPPORTED) |
                       (WalkerState == L2_RD & P.SV39_SUPPORTED) |
                       (WalkerState == L1_RD) | (WalkerState == L0_RD);
-  assign DTLBWriteM = (WalkerState == LEAF & ~HPTWUpdateDA) & DTLBWalk;
-  assign ITLBWriteF = (WalkerState == LEAF & ~HPTWUpdateDA) & ~DTLBWalk;
+  assign DTLBWriteM = (WalkerState == LEAF & ~HPTWUpdateDA & ~InvalidPTEFaultM) & DTLBWalk;
+  assign ITLBWriteF = (WalkerState == LEAF & ~HPTWUpdateDA & ~InvalidPTEFaultM) & ~DTLBWalk;
 
   // FSM to track PageType based on the levels of the page table traversed
   flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
@@ -359,7 +363,8 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
       L0_RD:      if (HPTWFaultM)                                     NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                           NextWalkerState = L0_RD;
                   else                                                NextWalkerState = LEAF;
-      LEAF:       if (P.SVADU_SUPPORTED & HPTWUpdateDA)               NextWalkerState = UPDATE_PTE;
+      LEAF:       if (InvalidPTEFaultM)                               NextWalkerState = FAULT;
+                  else if (P.SVADU_SUPPORTED & HPTWUpdateDA)          NextWalkerState = UPDATE_PTE;
                   else if (DTLBWalk & ITLBWalkPending)                NextWalkerState = InitialWalkerState; // DTLB walk done; chain directly to the pending ITLB walk
                   else                                                NextWalkerState = IDLE;
       UPDATE_PTE: if (HPTWFaultM)                                     NextWalkerState = FAULT;
