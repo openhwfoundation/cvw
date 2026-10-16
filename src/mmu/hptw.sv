@@ -1,24 +1,17 @@
 ///////////////////////////////////////////
 // hptw.sv
 //
-// Written: tfleming@hmc.edu 2 March 2021
-// Modified:  david_harris@hmc.edu 18 July 2021 cleanup and simplification
-//            kmacsaigoren@hmc.edu 1 June 2021
-//            implemented SV48 on top of SV39. This included, adding a level of the FSM for the extra page number segment
-//            adding support for terapage encoding, and for setting the HPTWAdr using the new level,
-//            adding the internal SvMode signal
+// Written:  Thomas Fleming tfleming@hmc.edu 2 March 2021
+// Modified: Rose Thompson, David Harris David_Harris@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Ayesha Anwaar, Muhammad Zain, Flavien Solt, Abdul Rafay
 //
-//            implemented SV57 on top of SV48, SV39. This included, adding a level of the FSM for the extra page number segment
-//            adding support for petapage encoding, and for setting the HPTWAdr using the new level,
-//            adding the internal SvMode signal
-// Purpose: Hardware Page Table Walker
+// Purpose: Hardware page table walker that refills the TLBs on a miss and updates PTE A/D bits.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
