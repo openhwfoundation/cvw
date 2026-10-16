@@ -28,11 +28,13 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module csrindextoaddr #(parameter TOTAL_CSRS = 36) (
-  input logic [TOTAL_CSRS-1:0]  CSRWen,
-  output logic [11:0] CSRAddr);
+  input  logic [TOTAL_CSRS-1:0] CSRWen,
+  output logic [11:0]            CSRAddr);
 
+  // CSRWen is one-hot: bit i selects CSRArray[i] as assigned in testbench/common/rvvitbwrapper.sv
+  // and the FPGA top levels.  Return the address of that CSR (0 if none).
   always_comb begin
-    case(CSRWen)
+    case (CSRWen)
       36'h0_0000_0000: CSRAddr = 12'h000;
       36'h0_0000_0001: CSRAddr = 12'h300;
       36'h0_0000_0002: CSRAddr = 12'h310;

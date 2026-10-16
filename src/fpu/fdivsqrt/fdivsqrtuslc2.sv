@@ -37,14 +37,14 @@ module fdivsqrtuslc2 (
   // Carry chain logic determines if W = WS + WC = -1, < -1, > -1 to choose 0, -1, 1 respectively
 
   //if p2 * p1 * p0, W = -1 and choose digit of 0
-  assign uz = ((WS[2]^WC[2]) & (WS[1]^WC[1]) &
-        (WS[0]^WC[0]));
+  assign uz = ((WS[2] ^ WC[2]) & (WS[1] ^ WC[1]) &
+        (WS[0] ^ WC[0]));
 
   // Otherwise determine sign using carry chain: sign = p3 ^ g_2:0
-  assign sign = (WS[3]^WC[3])^
-      (WS[2] & WC[2] | ((WS[2]^WC[2]) &
-          (WS[1]&WC[1] | ((WS[1]^WC[1]) &
-            (WS[0]&WC[0])))));
+  assign sign = (WS[3] ^ WC[3]) ^
+      (WS[2] & WC[2] | ((WS[2] ^ WC[2]) &
+          (WS[1] & WC[1] | ((WS[1] ^ WC[1]) &
+            (WS[0] & WC[0])))));
 
   // Produce digit = +1, 0, or -1
   assign up = ~uz & ~sign;

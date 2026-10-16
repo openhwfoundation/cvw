@@ -42,25 +42,26 @@ module fsgninj import cvw::*;  #(parameter cvw_t P) (
   //     01 - fsgnjn - negate sign value of Y
   //     10 - fsgnjx - XOR sign values of X and Y
 
-  // calculate the result's sign
+  // calculate the result's sign: Ys for fsgnj, ~Ys for fsgnjn, Xs ^ Ys for fsgnjx
   assign ResSgn = (OpCtrl[1] ? Xs : OpCtrl[0]) ^ Ys;
 
   // format final result based on precision
-  //    - uses NaN-blocking format
+  //    - uses NaN-boxing format
   //        - if there are any unused bits the most significant bits are filled with 1s
 
   if (P.FPSIZES == 1)
     assign SgnRes = {ResSgn, X[P.FLEN-2:0]};
   else if (P.FPSIZES == 2)
-    assign SgnRes = {~Fmt|ResSgn, X[P.FLEN-2:P.LEN1], Fmt ? X[P.LEN1-1] : ResSgn, X[P.LEN1-2:0]};
-  else if (P.FPSIZES ==  3) begin
+    // for the smaller format (Fmt = 0), the msb stays 1 for NaN-boxing and ResSgn goes in bit LEN1-1
+    assign SgnRes = {~Fmt | ResSgn, X[P.FLEN-2:P.LEN1], Fmt ? X[P.LEN1-1] : ResSgn, X[P.LEN1-2:0]};
+  else if (P.FPSIZES == 3) begin
     logic [2:0] SgnBits;
     always_comb
       case (Fmt)
         P.FMT:    SgnBits = {ResSgn, X[P.LEN1-1], X[P.LEN2-1]};
         P.FMT1:   SgnBits = {1'b1, ResSgn, X[P.LEN2-1]};
         P.FMT2:   SgnBits = {2'b11, ResSgn};
-        default: SgnBits = {3{1'bx}};
+        default:  SgnBits = {3{1'bx}};
       endcase
     assign SgnRes = {SgnBits[2], X[P.FLEN-2:P.LEN1], SgnBits[1], X[P.LEN1-2:P.LEN2], SgnBits[0], X[P.LEN2-2:0]};
   end else if (P.FPSIZES == 4) begin

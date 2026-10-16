@@ -66,9 +66,10 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
     logic wfeq0E;
     logic [P.DIVb+3:0] WCF, WSF;
 
+    // FirstK is the lowest 1 of the thermometer code C, marking the current digit position
     assign FirstK = ({1'b1, FirstC} & ~({1'b1, FirstC} << 1));
-    assign FZeroSqrtE = {FirstUM[P.DIVb], FirstUM, 2'b0} | {FirstK,1'b0};    // F for square root
-    assign FZeroDivE =  D << 1;                                    // F for divide
+    assign FZeroSqrtE = {FirstUM[P.DIVb], FirstUM, 2'b0} | {FirstK, 1'b0};   // F for square root
+    assign FZeroDivE  = D << 1;                                    // F for divide
     mux2 #(P.DIVb+4) fzeromux(FZeroDivE, FZeroSqrtE, SqrtE, FZeroE);
     csa #(P.DIVb+4) fadd(WS, WC, FZeroE, 1'b0, WSF, WCF); // compute {WCF, WSF} = {WS + WC + FZero};
     aplusbeq0 #(P.DIVb+4) wcfpluswsfeq0(WCF, WSF, wfeq0E);
@@ -87,10 +88,10 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
   // Memory Stage: Postprocessing
   //////////////////////////
 
-  //  If the result is not exact, the sticky should be set
+  // If the result is not exact, the sticky should be set
   assign DivStickyM = ~WZeroM & ~SpecialCaseM;
 
-  // Determine if sticky bit is negative
+  // Determine if the residual (sticky) is negative
   assign Sum = WC + WS;
   assign NegStickyM = Sum[P.DIVb+3];
   mux2 #(P.DIVb+1) preummux(FirstU, FirstUM, NegStickyM, PreUmM); // Select U or U-1 depending on negative sticky bit
@@ -102,23 +103,21 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
     logic signed [P.INTDIVb+3:0] PreResultM, PreResultShiftedM, PreIntResultM;
     logic [P.INTDIVb+3:0] DTrunc, SumTrunc;
 
-
     assign SumTrunc = Sum[P.DIVb+3:P.DIVb-P.INTDIVb];
     assign DTrunc = D[P.DIVb+3:P.DIVb-P.INTDIVb];
 
     assign W = $signed(SumTrunc) >>> P.LOGR;
     assign UnsignedQuotM = {3'b000, PreUmM[P.DIVb:P.DIVb-P.INTDIVb]};
 
-
     // Integer remainder: sticky and sign correction muxes
     assign NegQuotM = AsM ^ BsM; // Integer Quotient is negative
-    mux2 #(P.INTDIVb+4) normremdmux(W, W+DTrunc, NegStickyM, NormRemDM);
-
+    mux2 #(P.INTDIVb+4) normremdmux(W, W + DTrunc, NegStickyM, NormRemDM);
 
     // Select quotient or remainder and do normalization shift
     mux2 #(P.INTDIVb+4)    presresultmux(UnsignedQuotM, NormRemDM, RemOpM, PreResultM);
     assign PreResultShiftedM = PreResultM >> IntNormShiftM;
-    mux2 #(P.INTDIVb+4)    preintresultmux(PreResultShiftedM, -PreResultShiftedM,AsM ^ (BsM&~RemOpM), PreIntResultM);
+    // Negate if the result is negative: a remainder takes the sign of A; a quotient is negative if A and B signs differ
+    mux2 #(P.INTDIVb+4)    preintresultmux(PreResultShiftedM, -PreResultShiftedM, AsM ^ (BsM & ~RemOpM), PreIntResultM);
 
     // special case logic
     // terminates immediately when B is Zero (div 0) or |A| has more leading 0s than |B|
@@ -126,13 +125,13 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
       if (BZeroM) begin         // Divide by zero
         if (RemOpM) IntDivResultM = AM;
         else        IntDivResultM = {(P.XLEN){1'b1}};
-     end else if (ALTBM) begin // Numerator is small
+      end else if (ALTBM) begin // Numerator is small
         if (RemOpM) IntDivResultM = AM;
         else        IntDivResultM = '0;
-     end else       IntDivResultM = PreIntResultM[P.XLEN-1:0];
+      end else      IntDivResultM = PreIntResultM[P.XLEN-1:0];
 
     // sign extend result for W64
-    if (P.XLEN==64) begin
+    if (P.XLEN == 64) begin
       mux2 #(64) resmux(IntDivResultM[P.XLEN-1:0],
         {{(P.XLEN-32){IntDivResultM[31]}}, IntDivResultM[31:0]}, // Sign extending in case of W64
         W64M, FIntDivResultM);

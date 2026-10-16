@@ -35,8 +35,8 @@ module ram1p1rwbe_64x44(
   output logic [43:0]   Q
 );
 
-   // replace "generic64x44RAM" with "TS1N..64X44.." module from your memory vendor
-   // generic64x44RAM sramIP (.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
-   TS1N28HPCPSVTB64X44M4SW sramIP(.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
+  // replace "generic64x44RAM" with "TS1N..64X44.." module from your memory vendor
+  // generic64x44RAM sramIP (.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
+  TS1N28HPCPSVTB64X44M4SW sramIP(.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
 
 endmodule

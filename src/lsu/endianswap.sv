@@ -34,7 +34,7 @@ module endianswap #(parameter LEN) (
   output logic [LEN-1:0]  y
 );
 
-  if(LEN == 128) begin
+  if (LEN == 128) begin
     always_comb
       if (BigEndianM) begin // swap endianness
         y[127:120] = a[7:0];
@@ -54,7 +54,7 @@ module endianswap #(parameter LEN) (
         y[15:8]    = a[119:112];
         y[7:0]     = a[127:120];
       end else y = a;
-  end else if(LEN == 64) begin
+  end else if (LEN == 64) begin
     always_comb
       if (BigEndianM) begin // swap endianness
         y[63:56] = a[7:0];

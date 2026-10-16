@@ -31,7 +31,7 @@ module packetizer import cvw::*; #(parameter cvw_t P,
                                    parameter integer MAX_CSRS,
                                    parameter logic [31:0] RVVI_INIT_TIME_OUT = 32'd4,
                                    parameter logic [31:0] RVVI_PACKET_DELAY = 32'd2
-)(
+) (
   input  logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvvi,
   input  logic valid,
   input  logic m_axi_aclk, m_axi_aresetn,
@@ -59,8 +59,8 @@ module packetizer import cvw::*; #(parameter cvw_t P,
   logic [47:0]             SrcMac, DstMac;
   logic [15:0]             EthType, Length;
   logic [TotalFrameLengthBits-1:0] TotalFrame;
-  logic [31:0] TotalFrameWords [TotalFrameLengthBytes/4-1:0];
-  logic [WordPadLen-1:0]     WordPad;
+  logic [31:0]             TotalFrameWords [TotalFrameLengthBytes/4-1:0];
+  logic [WordPadLen-1:0]   WordPad;
 
   logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvviDelay;
 
@@ -71,27 +71,26 @@ module packetizer import cvw::*; #(parameter cvw_t P,
 (* mark_debug = "true" *)   logic [31:0]      FrameCount;
   logic              RstCountRst, RstCountEn, CountFlag, DelayFlag;
 
-
   always_ff @(posedge m_axi_aclk) begin
-    if(~m_axi_aresetn) CurrState <= STATE_RST;
-    else               CurrState <= NextState;
+    if (~m_axi_aresetn) CurrState <= STATE_RST;
+    else                CurrState <= NextState;
   end
 
   always_comb begin
-    case(CurrState)
-      STATE_RST: NextState = STATE_COUNT;
+    case (CurrState)
+      STATE_RST:   NextState = STATE_COUNT;
       STATE_COUNT: if (CountFlag) NextState = STATE_RDY;
                    else           NextState = STATE_COUNT;
-      STATE_RDY: if (TransReady & valid) NextState = STATE_TRANS;
-      else if(~TransReady & valid) NextState = STATE_WAIT;
-      else                        NextState = STATE_RDY;
-      STATE_WAIT: if(TransReady)  NextState = STATE_TRANS;
-                  else            NextState = STATE_WAIT;
-      STATE_TRANS: if(BurstDone & TransReady) NextState = STATE_TRANS_INSERT_DELAY;
-                   else          NextState = STATE_TRANS;
-      STATE_TRANS_INSERT_DELAY: if(DelayFlag) NextState = STATE_RDY;
-                                else          NextState = STATE_TRANS_INSERT_DELAY;
-      default: NextState = STATE_RDY;
+      STATE_RDY:   if (TransReady & valid)       NextState = STATE_TRANS;
+                   else if (~TransReady & valid) NextState = STATE_WAIT;
+                   else                          NextState = STATE_RDY;
+      STATE_WAIT:  if (TransReady) NextState = STATE_TRANS;
+                   else            NextState = STATE_WAIT;
+      STATE_TRANS: if (BurstDone & TransReady) NextState = STATE_TRANS_INSERT_DELAY;
+                   else                        NextState = STATE_TRANS;
+      STATE_TRANS_INSERT_DELAY: if (DelayFlag) NextState = STATE_RDY;
+                                else           NextState = STATE_TRANS_INSERT_DELAY;
+      default:     NextState = STATE_RDY;
     endcase
   end
 
@@ -110,9 +109,7 @@ module packetizer import cvw::*; #(parameter cvw_t P,
 
   counter #(32) framecounter(m_axi_aclk, ~m_axi_aresetn, (RvviAxiWready & RvviAxiWlast), FrameCount);
 
-
   flopenr #(72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)) rvvireg(m_axi_aclk, ~m_axi_aresetn, valid, rvvi, rvviDelay);
-
 
   counter #(10) WordCounter(m_axi_aclk, WordCountReset, WordCountEnable, WordCount);
   // *** BUG BytesInFrame will eventually depend on the length of the data stored into the ethernet frame

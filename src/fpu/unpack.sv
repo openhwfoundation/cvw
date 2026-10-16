@@ -66,4 +66,4 @@ module unpack import cvw::*;  #(parameter cvw_t P) (
   // look up bias and fractional bits for the given format
   fmtparams #(P) fmtparams(Fmt, Bias, Nf);
 
- endmodule
+endmodule

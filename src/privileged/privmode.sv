@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privmode import cvw::*;  #(parameter cvw_t P) (
+module privmode import cvw::*; #(parameter cvw_t P) (
   input  logic             clk, reset,
   input  logic             StallW,
   input  logic             TrapM,               // Trap

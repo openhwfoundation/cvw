@@ -42,9 +42,9 @@ module ram2p1r1wbe_1024x68(
   output logic [67:0]   QB
 );
 
-   // replace "generic1024x68RAM" with "TSDN..1024X68.." module from your memory vendor
-   //generic1024x68RAM sramIP (.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
-   //         .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
+  // replace "generic1024x68RAM" with "TSDN..1024X68.." module from your memory vendor
+  // generic1024x68RAM sramIP (.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
+  //          .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
   TSDN28HPCPA1024X68M4MW sramIP(.CLKA, .CLKB, .CEBA, .CEBB, .WEBA, .WEBB,
     .AA, .AB, .DA, .DB, .BWEBA, .BWEBB, .QA, .QB);
 

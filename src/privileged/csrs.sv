@@ -29,7 +29,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrs import cvw::*;  #(parameter cvw_t P) (
+module csrs import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              CSRSWriteM, STrapM,
   input  logic [11:0]       CSRAdrM,
@@ -49,7 +49,6 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   output logic              IllegalCSRSAccessM,
   output logic              STimerInt,
   output logic [P.XLEN-1:0] SENVCFG_REGW
-
 );
 
   // Supervisor CSRs
@@ -79,7 +78,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.XLEN-1:0]       SSCRATCH_REGW, STVAL_REGW, SCAUSE_REGW;
   logic [P.XLEN-1:0]       SENVCFG_WriteValM;
-  logic [P.XLEN-1:0]               TVECWriteValM;
+  logic [P.XLEN-1:0]       TVECWriteValM;
 
   logic [63:0]             STIMECMP_REGW;
 
@@ -90,7 +89,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   assign WriteSEPCM       = STrapM | (CSRSWriteM & (CSRAdrM == SEPC));
   assign WriteSCAUSEM     = STrapM | (CSRSWriteM & (CSRAdrM == SCAUSE));
   assign WriteSTVALM      = STrapM | (CSRSWriteM & (CSRAdrM == STVAL));
-  if(P.XLEN == 64) begin
+  if (P.XLEN == 64) begin
     logic LegalSatpModeM;
     assign LegalSatpModeM = CSRWriteValM[63:60] == 0 |
                            (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
@@ -131,7 +130,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   // Supervisor timer interrupt logic
   // Spec is a bit peculiar - Machine timer interrupts are produced in CLINT, while Supervisor timer interrupts are in CSRs
   if (P.SSTC_SUPPORTED)
-   assign STimerInt  = ({1'b0, MTIME_CLINT} >= {1'b0, STIMECMP_REGW}); // unsigned comparison
+    assign STimerInt = ({1'b0, MTIME_CLINT} >= {1'b0, STIMECMP_REGW}); // unsigned comparison
   else
     assign STimerInt = 1'b0;
 
@@ -153,23 +152,23 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
     CSRSReadValM = '0;
     IllegalCSRSAccessM = 1'b0;
     case (CSRAdrM)
-      SSTATUS:   CSRSReadValM = SSTATUS_REGW;
-      STVEC:     CSRSReadValM = STVEC_REGW;
-      SIP:       CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
-      SIE:       CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
-      SSCRATCH:  CSRSReadValM = SSCRATCH_REGW;
-      SEPC:      CSRSReadValM = SEPC_REGW;
-      SCAUSE:    CSRSReadValM = SCAUSE_REGW;
-      STVAL:     CSRSReadValM = STVAL_REGW;
-      SATP:      if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
-                 else IllegalCSRSAccessM = 1'b1;
-      SCOUNTEREN:CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
-      SENVCFG:   CSRSReadValM = SENVCFG_REGW;
-      STIMECMP:  if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
-                 else IllegalCSRSAccessM = 1'b1;
-      STIMECMPH: if (STCE & P.XLEN == 32) CSRSReadValM = {{(P.XLEN-32){1'b0}}, STIMECMP_REGW[63:32]};
-                 else IllegalCSRSAccessM = 1'b1; // not supported for RV64
-      default:   IllegalCSRSAccessM = 1'b1;
+      SSTATUS:    CSRSReadValM = SSTATUS_REGW;
+      STVEC:      CSRSReadValM = STVEC_REGW;
+      SIP:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
+      SIE:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
+      SSCRATCH:   CSRSReadValM = SSCRATCH_REGW;
+      SEPC:       CSRSReadValM = SEPC_REGW;
+      SCAUSE:     CSRSReadValM = SCAUSE_REGW;
+      STVAL:      CSRSReadValM = STVAL_REGW;
+      SATP:       if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
+                  else IllegalCSRSAccessM = 1'b1;
+      SCOUNTEREN: CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
+      SENVCFG:    CSRSReadValM = SENVCFG_REGW;
+      STIMECMP:   if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
+                  else IllegalCSRSAccessM = 1'b1;
+      STIMECMPH:  if (STCE & P.XLEN == 32) CSRSReadValM = {{(P.XLEN-32){1'b0}}, STIMECMP_REGW[63:32]};
+                  else IllegalCSRSAccessM = 1'b1; // not supported for RV64
+      default:    IllegalCSRSAccessM = 1'b1;
     endcase
   end
 endmodule

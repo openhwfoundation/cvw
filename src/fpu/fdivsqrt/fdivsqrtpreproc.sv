@@ -33,7 +33,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.NF:0]        Xm, Ym,      // Floating-point significands
   input  logic [P.NE-1:0]      Xe, Ye,      // Floating-point exponents
   input  logic [P.FMTBITS-1:0] FmtE,
-  input  logic [P.NE-2:0]      Bias,                               // Bias of exponent
+  input  logic [P.NE-2:0]      Bias,        // Bias of exponent
   input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
   input  logic                 SqrtE,
   input  logic                 XZeroE,
@@ -73,16 +73,17 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
     logic [P.XLEN-1:0] BE, PosA, PosB;
 
     // Extract inputs, signs, zero, depending on W64 mode if applicable
+    // Funct3 = 1xx for DIV/DIVU/REM/REMU; Funct3[0] = 1 for unsigned (DIVU, REMU)
     assign SignedDivE = ~Funct3E[0];
 
     // Source handling
-    if (P.XLEN==64) begin // 64-bit, supports W64
+    if (P.XLEN == 64) begin // 64-bit, supports W64
       mux2 #(64)    amux(ForwardedSrcAE, {{32{ForwardedSrcAE[31] & SignedDivE}}, ForwardedSrcAE[31:0]}, W64E, AE);
       mux2 #(64)    bmux(ForwardedSrcBE, {{32{ForwardedSrcBE[31] & SignedDivE}}, ForwardedSrcBE[31:0]}, W64E, BE);
     end else begin // 32 bits only
       assign AE = ForwardedSrcAE;
       assign BE = ForwardedSrcBE;
-     end
+    end
     assign AZeroE = ~(|AE);
     assign BZeroE = ~(|BE);
     assign AsE = AE[P.XLEN-1] & SignedDivE;
@@ -115,11 +116,11 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   //////////////////////////////////////////////////////
   // Integer Right Shift to digit boundary
   //  Determine DivXShifted (X shifted to digit boundary)
-  //  and nE (number of fractional digits)
+  //  and p (number of fractional result bits)
   //////////////////////////////////////////////////////
 
   if (P.IDIV_ON_FPU) begin : intrightshift // Int Supported
-    logic [P.DIVBLEN-1:0] ZeroDiff,p;
+    logic [P.DIVBLEN-1:0] ZeroDiff, p;
 
     // calculate number of fractional bits p
     assign ZeroDiff = mE - ell;         // Difference in number of leading zeros
@@ -152,8 +153,8 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // Extend to Q4.b format
   // shift square root to be in range [1/4, 1)
   // Normalized numbers are shifted right by 1 if the exponent is odd
-  // Subnormal numbers have Xe = 0 and an unbiased exponent of 1-BIAS.  They are shifted right if the number of leading zeros is odd.
-   //////////////////////////////////////////////////////
+  // Subnormal numbers have Xe = 1 (set by the unpacker) and an unbiased exponent of 1-BIAS.  They are shifted right if the number of leading zeros is odd.
+  //////////////////////////////////////////////////////
 
   assign DivX = {3'b000, Xnorm}; // Zero-extend numerator for division
 
@@ -161,18 +162,19 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   // If X = 0, then special case logic sets sqrt = 0 so this portion doesn't matter
   // Otherwise, X has a leading 1 after possible normalization shift and is now in range [1, 2)
   // Next X is shifted right by 1 or 2 bits to range [1/4, 1) and exponent will be adjusted accordingly to be even
-  // Now (X-1) is negative.  Formed by placing all 1s in all four integer bits (in Q4.b) form, keeping X in fraciton bits
+  // Now (X-1) is negative.  Formed by placing all 1s in all four integer bits (in Q4.b) form, keeping X in fraction bits
   // Then multiply by R is left shift by r (1 or 2 for radix 2 or 4)
   // This is optimized in hardware by first right shifting by 0 or 1 bit (instead of 1 or 2), then left shifting by (r-1), then subtracting 2 or 4
   // Subtracting 2 is equivalent to adding 1110.  Subtracting 4 is equivalent to adding 1100.  Prepend leading 1s to do a free subtraction.
   // This also means only one extra fractional bit is needed because we never shift right by more than 1.
   // Radix      Exponent odd          Exponent Even
   // 2          x-2 = 2(x/2 - 1)      x/2 - 2 = 2(x/4 - 1)
-  // 4          2(x)-4 = 4(x/2 - 1))  2(x/2)-4 = 4(x/4 - 1)
+  // 4          2x - 4 = 4(x/2 - 1)    2(x/2) - 4 = 4(x/4 - 1)
   // Summary: PreSqrtX = r(x/2or4 - 1)
 
-  assign EvenExp = Xe[0] ^ ell[0]; // effective unbiased exponent after normalization is even
-  mux2 #(P.DIVb+4) sqrtxmux({4'b0,Xnorm[P.DIVb:1]}, {5'b00, Xnorm[P.DIVb:2]}, EvenExp, SqrtX); // X/2 if exponent odd, X/4 if exponent even
+  // EvenExp: the unbiased exponent after normalization (Xe - Bias - ell) is even; Bias is odd, so this holds when Xe[0] != ell[0]
+  assign EvenExp = Xe[0] ^ ell[0];
+  mux2 #(P.DIVb+4) sqrtxmux({4'b0, Xnorm[P.DIVb:1]}, {5'b00, Xnorm[P.DIVb:2]}, EvenExp, SqrtX); // X/2 if exponent odd, X/4 if exponent even
 
 /*
   // Attempt to optimize radix 4 to use a left shift by 1 or zero initially, followed by no more left shift
@@ -215,13 +217,13 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
 
   if (P.IDIV_ON_FPU) begin : intpipelineregs
     logic [P.DIVBLEN-1:0] IntDivNormShiftE, IntRemNormShiftE, IntNormShiftE;
-    logic               RemOpE;
+    logic                 RemOpE;
 
     /* verilator lint_off WIDTH */
     assign IntDivNormShiftE = P.INTDIVb - (CyclesE * P.RK - P.LOGR); // b - rn, used for integer normalization right shift.  n = (Cycles * k - 1)
-    assign IntRemNormShiftE = mE + (P.INTDIVb-(P.XLEN-1));           // m + b - (N-1) for remainder normalization shift
+    assign IntRemNormShiftE = mE + (P.INTDIVb - (P.XLEN - 1));       // m + b - (N-1) for remainder normalization shift
     /* verilator lint_on WIDTH */
-    assign RemOpE = Funct3E[1];
+    assign RemOpE = Funct3E[1]; // REM/REMU
     mux2 #(P.DIVBLEN) normshiftmux(IntDivNormShiftE, IntRemNormShiftE, RemOpE, IntNormShiftE);
 
     // pipeline registers
@@ -231,7 +233,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
     flopen #(1)        bsignreg(clk, IFDivStartE, BsE,      BsM);
     flopen #(P.DIVBLEN)   nsreg(clk, IFDivStartE, IntNormShiftE, IntNormShiftM);
     flopen #(P.XLEN)    srcareg(clk, IFDivStartE, AE,       AM);
-    if (P.XLEN==64)
+    if (P.XLEN == 64)
       flopen #(1)        w64reg(clk, IFDivStartE, W64E,     W64M);
     else assign W64M = 0;
   end else

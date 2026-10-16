@@ -31,35 +31,35 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module align import cvw::*;  #(parameter cvw_t P) (
-  input logic                     clk,
-  input logic                     reset,
-  input logic                     StallM, FlushM,
-  input logic [P.XLEN-1:0]        IEUAdrM, // 2 byte aligned PC in Fetch stage
-  input logic [P.XLEN-1:0]        IEUAdrE, // The next IEUAdrM
-  input logic [2:0]               Funct3M, // Size of memory operation
-  input logic                     FpLoadStoreM, // Floating point Load or Store
-  input logic [1:0]               MemRWM,
-  input logic [P.LLEN*2-1:0]      DCacheReadDataWordM, // Instruction from the IROM, I$, or bus. Used to check if the instruction if compressed
-  input logic                     CacheBusHPWTStall, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
-  input logic                     SelHPTW,
+  input  logic                    clk,
+  input  logic                    reset,
+  input  logic                    StallM, FlushM,
+  input  logic [P.XLEN-1:0]       IEUAdrM,      // Memory stage memory address
+  input  logic [P.XLEN-1:0]       IEUAdrE,      // The next IEUAdrM
+  input  logic [2:0]              Funct3M,      // Size of memory operation
+  input  logic                    FpLoadStoreM, // Floating point Load or Store
+  input  logic [1:0]              MemRWM,
+  input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM, // D$ read data, two LLEN words wide
+  input  logic                    CacheBusHPWTStall, // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
+  input  logic                    SelHPTW,
 
-  input logic [(P.LLEN-1)/8:0]    ByteMaskM,
-  input logic [(P.LLEN-1)/8:0]    ByteMaskExtendedM,
-  input logic [P.LLEN-1:0]        LSUWriteDataM,
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskM,
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskExtendedM,
+  input  logic [P.LLEN-1:0]       LSUWriteDataM,
 
   output logic [(P.LLEN*2-1)/8:0] ByteMaskSpillM,
   output logic [P.LLEN*2-1:0]     LSUWriteDataSpillM,
 
-  output logic [P.XLEN-1:0]       IEUAdrSpillE, // The next PCF for one of the two memory addresses of the spill
+  output logic [P.XLEN-1:0]       IEUAdrSpillE, // The next IEUAdrM for one of the two memory addresses of the spill
   output logic [P.XLEN-1:0]       IEUAdrSpillM, // IEUAdrM for one of the two memory addresses of the spill
   output logic [P.XLEN-1:0]       IEUAdrxTvalM, // IEUAdrM or spilled and aligned to next page
-  output logic                    SelSpillE, // During the transition between the two spill operations, the IFU should stall the pipeline
-  output logic [P.LLEN-1:0]       DCacheReadDataWordSpillM, // The final 32 bit instruction after merging the two spilled fetches into 1 instruction
+  output logic                    SelSpillE,    // During the transition between the two spill operations, the LSU should stall the pipeline
+  output logic [P.LLEN-1:0]       DCacheReadDataWordSpillM, // Read data after merging the two halves of a spilled access
   output logic                    SpillStallM);
 
   localparam LLENINBYTES = P.LLEN/8;
-  localparam OFFSET_BIT_POS =  $clog2(P.DCACHE_LINELENINBITS/8);
-  // Spill threshold occurs when all the cache offset PC bits are 1 (except [0]).  Without a cache this is just PCF[1]
+  localparam OFFSET_BIT_POS = $clog2(P.DCACHE_LINELENINBITS/8);
+  // A spill occurs when a misaligned access crosses a cache line boundary
   typedef enum logic [1:0]  {STATE_READY, STATE_SPILL, STATE_STORE_DELAY} statetype;
 
   statetype          CurrState, NextState;
@@ -79,14 +79,11 @@ module align import cvw::*;  #(parameter cvw_t P) (
   logic                                        PotentialSpillM;
   logic [P.LLEN*3-1:0]                         LSUWriteDataShiftedExtM;
 
-
   /* verilator lint_off WIDTHEXPAND */
-  //assign IEUAdrIncrementM = {IEUAdrM[P.XLEN-1:OFFSET_LEN], {{OFFSET_LEN}{1'b0}}} + LLENINBYTES;
   assign IEUAdrIncrementM = IEUAdrM + LLENINBYTES;
   /* verilator lint_on WIDTHEXPAND */
   mux2 #(P.XLEN) ieuadrspillemux(.d0(IEUAdrE), .d1(IEUAdrIncrementM), .s(SelSpillE), .y(IEUAdrSpillE));
   mux2 #(P.XLEN) ieuadrspillmmux(.d0(IEUAdrM), .d1(IEUAdrIncrementM), .s(SelSpillM), .y(IEUAdrSpillM));
-  //assign IEUAdrxTvalM = {IEUAdrSpillM[P.XLEN-1:OFFSET_LEN], {{OFFSET_LEN}{1'b0}}};
   mux2 #(P.XLEN) ieuadrxtvalmmux(.d0(IEUAdrM), .d1({IEUAdrIncrementM[P.XLEN-1:OFFSET_LEN], {{OFFSET_LEN}{1'b0}}}), .s(SelSpillM), .y(IEUAdrxTvalM));
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,19 +97,21 @@ module align import cvw::*;  #(parameter cvw_t P) (
 
   // compute misalignment
   always_comb begin
+    // funct3[2] is the unsigned flag for integer loads, but selects quad width for FP loads/stores
     case (Funct3M & {FpLoadStoreM, 2'b11})
       3'b000: AccessByteOffsetM = '0; // byte access
       3'b001: AccessByteOffsetM = {{OFFSET_LEN-1{1'b0}}, IEUAdrM[0]}; // half access
       3'b010: AccessByteOffsetM = {{OFFSET_LEN-2{1'b0}}, IEUAdrM[1:0]}; // word access
-      3'b011: if(P.LLEN >= 64) AccessByteOffsetM = {{OFFSET_LEN-3{1'b0}}, IEUAdrM[2:0]}; // double access
-              else             AccessByteOffsetM = '0;                                    // shouldn't happen
+      3'b011: if (P.LLEN >= 64) AccessByteOffsetM = {{OFFSET_LEN-3{1'b0}}, IEUAdrM[2:0]}; // double access
+              else              AccessByteOffsetM = '0;                                    // shouldn't happen
       // coverage off
       // RV64GC doesn't support Q
-      3'b100: if(P.LLEN == 128) AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0]; // quad access
-              else              AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0];
+      3'b100: if (P.LLEN == 128) AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0]; // quad access
+              else               AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0];
       // coverage on
       default: AccessByteOffsetM = '0;                                        // shouldn't happen
     endcase
+    // An access can spill only if it starts in the last naturally aligned slot of its size in the cache line
     case (Funct3M[1:0])
       2'b00: PotentialSpillM = 1'b0; // byte access
       2'b01: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
@@ -131,9 +130,9 @@ module align import cvw::*;  #(parameter cvw_t P) (
 
   always_comb begin
     case (CurrState)
-      STATE_READY: if (ValidSpillM)  NextState = STATE_SPILL;       // load spill
+      STATE_READY: if (ValidSpillM)               NextState = STATE_SPILL;       // load spill
                    else                           NextState = STATE_READY;       // no spill
-      STATE_SPILL: if(StallM)                     NextState = STATE_SPILL;
+      STATE_SPILL: if (StallM)                    NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
       default:                                    NextState = STATE_READY;
     endcase
@@ -153,7 +152,6 @@ module align import cvw::*;  #(parameter cvw_t P) (
 
   // merge together
   mux2 #(2*P.LLEN) postspillmux(DCacheReadDataWordM, {DCacheReadDataWordM[P.LLEN-1:0], ReadDataWordFirstHalfM}, SelSpillM & ~SelHPTW, ReadDataWordSpillAllM);
-
 
   // shifter (4:1 mux for 32 bit, 8:1 mux for 64 bit)
   // 8 * is for shifting by bytes not bits

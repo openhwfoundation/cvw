@@ -32,8 +32,8 @@ module rom1p1r_128x64(
   output logic [63:0] Q
 );
 
-   // replace "generic64x128RAM" with "TS3N..64X128.." module from your memory vendor
+  // replace "generic128x64ROM" with "TS3N..128X64.." module from your memory vendor
   ts3n28hpcpa128x64m8m romIP (.CLK, .CEB, .A, .Q);
-//   generic64x128ROM romIP (.CLK, .CEB, .A, .Q);
+  // generic128x64ROM romIP (.CLK, .CEB, .A, .Q);
 
 endmodule

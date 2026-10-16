@@ -38,7 +38,8 @@ module adrdecs import cvw::*;  #(parameter cvw_t P) (
 
   localparam logic [3:0]       SUPPORTED_SIZE = (P.LLEN == 32 ? 4'b0111 : 4'b1111);
   localparam logic [3:0]       SUPPORTED_BUS_SIZE = SUPPORTED_SIZE & (P.AHBW >= 64 ? 4'b1111 : 4'b0111);
- // Determine which region of physical memory (if any) is being accessed
+  // Determine which region of physical memory (if any) is being accessed
+  // SizeMask bit i permits 2^i-byte accesses: GPIO, PLIC, SPI, and PWM are word-only; UART is byte-only
   adrdec #(P.PA_BITS) dtimdec(PhysicalAddress, P.DTIM_BASE[P.PA_BITS-1:0], P.DTIM_RANGE[P.PA_BITS-1:0], P.DTIM_SUPPORTED, AccessRW, Size, SUPPORTED_SIZE, SelRegions[1]);
   adrdec #(P.PA_BITS) iromdec(PhysicalAddress, P.IROM_BASE[P.PA_BITS-1:0], P.IROM_RANGE[P.PA_BITS-1:0], P.IROM_SUPPORTED, AccessRX, Size, SUPPORTED_SIZE, SelRegions[2]);
   adrdec #(P.PA_BITS) ddr4dec(PhysicalAddress, P.EXT_MEM_BASE[P.PA_BITS-1:0], P.EXT_MEM_RANGE[P.PA_BITS-1:0], P.EXT_MEM_SUPPORTED, AccessRWXC, Size, SUPPORTED_SIZE, SelRegions[3]);

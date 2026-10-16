@@ -35,7 +35,7 @@ module fdivsqrtfgen4 import cvw::*;  #(parameter cvw_t P) (
   logic [P.DIVb+3:0]        F2, F1, F0, FN1, FN2; // Q4.DIVb
 
   // Generate for both positive and negative digits
-  assign F2  = (~U << 2) & (C << 2);              //
+  assign F2  = (~U << 2) & (C << 2);
   assign F1  = ~(U << 1) & C;
   assign F0  = '0;
   assign FN1 = (UM << 1) | (C & ~(C << 3));

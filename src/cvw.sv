@@ -78,12 +78,12 @@ typedef struct packed {
   logic         DCACHE_SUPPORTED;
   logic         ICACHE_SUPPORTED;
 
-// TLB configuration.  Entries should be a power of 2
+  // TLB configuration.  Entries should be a power of 2
   int           ITLB_ENTRIES;
   int           DTLB_ENTRIES;
 
-// Cache configuration.  Sizes should be a power of two
-// typical configuration 4 ways, 4096 ints per way, 256 bit or more lines
+  // Cache configuration.  Sizes should be a power of two
+  // typical configuration 4 ways, 4096 bytes per way, 256 bit or more lines
   int           DCACHE_NUMWAYS;
   int           DCACHE_WAYSIZEINBYTES;
   int           DCACHE_LINELENINBITS;
@@ -92,24 +92,24 @@ typedef struct packed {
   int           ICACHE_LINELENINBITS;
   int           CACHE_SRAMLEN;
 
-// Integer Divider Configuration
-// IDIV_BITSPERCYCLE must be 1, 2, or 4
+  // Integer Divider Configuration
+  // IDIV_BITSPERCYCLE must be 1, 2, or 4
   int           IDIV_BITSPERCYCLE;
   logic         IDIV_ON_FPU;
 
-// Legal number of PMP entries are 0, 16, or 64
+  // Legal number of PMP entries are 0, 16, or 64
   int           PMP_ENTRIES;
   int           PMP_G; // grain
 
-// Address space
+  // Address space
   logic [63:0]  RESET_VECTOR;
 
-// WFI Timeout Wait
+  // WFI Timeout Wait
   int           WFI_TIMEOUT_BIT;
 
-// Peripheral Addresses
-// Peripheral memory space extends from BASE to BASE+RANGE
-// Range should be a thermometer code with 0's in the upper bits and 1s in the lower bits
+  // Peripheral Addresses
+  // Peripheral memory space extends from BASE to BASE+RANGE
+  // Range should be a thermometer code with 0's in the upper bits and 1s in the lower bits
   logic         DTIM_SUPPORTED;
   logic [63:0]  DTIM_BASE;
   logic [63:0]  DTIM_RANGE;
@@ -149,18 +149,17 @@ typedef struct packed {
   logic [63:0]  PWM_BASE;
   logic [63:0]  PWM_RANGE;
 
+  // Test modes
 
-// Test modes
-
-// Tie GPIO outputs back to inputs
+  // Tie GPIO outputs back to inputs
   logic         GPIO_LOOPBACK_TEST;
   logic         SPI_LOOPBACK_TEST;
 
-// Hardware configuration
+  // Hardware configuration
   int           UART_PRESCALE;
   int           PWM_WIDTH;
 
-// Interrupt configuration
+  // Interrupt configuration
   int           PLIC_NUM_SRC;
   logic         PLIC_NUM_SRC_LT_32;
   int           PLIC_GPIO_ID;
@@ -169,31 +168,31 @@ typedef struct packed {
   int           PLIC_SDC_ID;
   int           PLIC_PWM_ID;
 
-  logic                BPRED_SUPPORTED;
-  logic [31:0]         BPRED_TYPE;
-  int                  BPRED_NUM_LHR;
-  int                  BPRED_SIZE;
-  int                  BTB_SIZE;
-  int                  RAS_SIZE;
-  logic                INSTR_CLASS_PRED; // is class predictor enabled
+  logic         BPRED_SUPPORTED;
+  logic [31:0]  BPRED_TYPE;
+  int           BPRED_NUM_LHR;
+  int           BPRED_SIZE;
+  int           BTB_SIZE;
+  int           RAS_SIZE;
+  logic         INSTR_CLASS_PRED; // is class predictor enabled
 
-// FPU division architecture
+  // FPU division architecture
   int           RADIX;
   int           DIVCOPIES;
 
-// bit manipulation
+  // bit manipulation
   logic         ZBA_SUPPORTED;
   logic         ZBB_SUPPORTED;
   logic         ZBC_SUPPORTED;
   logic         ZBS_SUPPORTED;
 
-// compressed
+  // compressed
   logic         ZCA_SUPPORTED;
   logic         ZCB_SUPPORTED;
   logic         ZCD_SUPPORTED;
   logic         ZCF_SUPPORTED;
 
-// Cryptography
+  // Cryptography
   logic         ZBKB_SUPPORTED;
   logic         ZBKC_SUPPORTED;
   logic         ZBKX_SUPPORTED;
@@ -202,16 +201,16 @@ typedef struct packed {
   logic         ZKNH_SUPPORTED;
   logic         ZKN_SUPPORTED;
 
-// Memory synthesis configuration
+  // Memory synthesis configuration
   logic         USE_SRAM;
 
-// constants defining different privilege modes
-// defined in Table 1.1 of the privileged spec
-  logic [1:0] M_MODE ;
-  logic [1:0] S_MODE ;
-  logic [1:0] U_MODE ;
+  // constants defining different privilege modes
+  // defined in Table 1.1 of the privileged spec
+  logic [1:0] M_MODE;
+  logic [1:0] S_MODE;
+  logic [1:0] U_MODE;
 
-// Virtual Memory Constants
+  // Virtual Memory Constants
   int VPN_SEGMENT_BITS;
   int VPN_BITS;
   int PPN_BITS;
@@ -220,15 +219,15 @@ typedef struct packed {
   int ASID_BASE;
   int ASID_BITS;
 
-// constants to check SATP_MODE against
-// defined in Table 4.3 of the privileged spec
+  // constants to check SATP_MODE against
+  // defined in Table 4.3 of the privileged spec
   logic [3:0] NO_TRANSLATE;
   logic [3:0] SV32;
   logic [3:0] SV39;
   logic [3:0] SV48;
   logic [3:0] SV57;
 
-// macros to define supported modes
+  // supported extensions and privilege modes
   logic A_SUPPORTED;
   logic B_SUPPORTED;
   logic C_SUPPORTED;
@@ -241,13 +240,13 @@ typedef struct packed {
   logic S_SUPPORTED;
   logic U_SUPPORTED;
 
-// logarithm of XLEN, used for number of index bits to select
+  // logarithm of XLEN, used for number of index bits to select
   int LOG_XLEN;
 
-// Number of 64 bit PMP Configuration Register entries (or pairs of 32 bit entries)
+  // Number of 64 bit PMP Configuration Register entries (or pairs of 32 bit entries)
   int PMPCFG_ENTRIES;
 
-// Floating point constants for Quad, Double, Single, and Half precisions
+  // Floating point constants for Quad, Double, Single, and Half precisions
   int         Q_LEN;
   int         Q_NE;
   int         Q_NF;
@@ -269,7 +268,7 @@ typedef struct packed {
   int         H_BIAS;
   logic [1:0] H_FMT;
 
-// Floating point length FLEN and number of exponent (NE) and fraction (NF) bits
+  // Floating point length FLEN and number of exponent (NE) and fraction (NF) bits
   int         FLEN;
   int         LOGFLEN;
   int         NE  ;
@@ -277,7 +276,7 @@ typedef struct packed {
   logic [1:0] FMT ;
   int         BIAS;
 
-// Floating point constants needed for FPU paramerterization
+  // Floating point constants needed for FPU parameterization
   int         FPSIZES;
   int         FMTBITS;
   int         LEN1 ;
@@ -291,7 +290,7 @@ typedef struct packed {
   logic [1:0] FMT2 ;
   int         BIAS2;
 
-// largest length in IEU/FPU
+  // largest length in IEU/FPU
   int CVTLEN;
   int LLEN;
   int LOGCVTLEN;
@@ -299,14 +298,14 @@ typedef struct packed {
   int LOGNORMSHIFTSZ;
   int FMALEN;
 
-// division constants
+  // division constants
   int LOGR       ;
   int RK         ;
   int FPDUR      ;
   int DURLEN     ;
   int DIVb       ;
   int DIVBLEN    ;
-// integer division/remainder constants
+  // integer division/remainder constants
   int INTDIVb    ;
 } cvw_t;
 

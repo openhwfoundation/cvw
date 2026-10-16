@@ -27,29 +27,29 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module satCounter2
-  (input logic        BrDir,
-   input logic [1:0]  OldState,
-   output logic [1:0] NewState
-   );
+module satCounter2 (
+  input  logic       BrDir,
+  input  logic [1:0] OldState,
+  output logic [1:0] NewState
+);
 
   always_comb begin
-    case(OldState)
+    case (OldState)
       2'b00: begin
- if(BrDir) NewState = 2'b01;
- else NewState = 2'b00;
+        if (BrDir) NewState = 2'b01;
+        else NewState = 2'b00;
       end
       2'b01: begin
- if(BrDir) NewState = 2'b10;
- else NewState = 2'b00;
+        if (BrDir) NewState = 2'b10;
+        else NewState = 2'b00;
       end
       2'b10: begin
- if(BrDir) NewState = 2'b11;
- else NewState = 2'b01;
+        if (BrDir) NewState = 2'b11;
+        else NewState = 2'b01;
       end
       2'b11: begin
- if(BrDir) NewState = 2'b11;
- else NewState = 2'b10;
+        if (BrDir) NewState = 2'b11;
+        else NewState = 2'b10;
       end
     endcase
   end

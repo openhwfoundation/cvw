@@ -30,22 +30,22 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module btb import cvw::*;  #(parameter cvw_t P,
-                             parameter Depth = 10 ) (
-  input  logic             clk,
-  input  logic             reset,
-  input  logic             StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW,
+                             parameter Depth = 10) (
+  input  logic              clk,
+  input  logic              reset,
+  input  logic              StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW,
   input  logic [P.XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM, // PC at various stages
   output logic [P.XLEN-1:0] BPBTAF,                      // BTB's guess at PC
-  output logic [3:0]       BTBIClassF,                  // BTB's guess at instruction class
-  output logic BPBTAWrongM,
+  output logic [3:0]        BTBIClassF,                  // BTB's guess at instruction class
+  output logic              BPBTAWrongM,                 // BTB target prediction was wrong
   // update
-  input  logic             IClassWrongM,                // BTB's instruction class guess was wrong
+  input  logic              IClassWrongM,                // BTB's instruction class guess was wrong
   input  logic [P.XLEN-1:0] IEUAdrE,                     // Branch/jump target address to insert into btb
   input  logic [P.XLEN-1:0] IEUAdrM,                     // Branch/jump target address to insert into btb
-  input  logic [3:0]       IClassD,                 // Instruction class to insert into btb
-  input  logic [3:0]       IClassE,                 // Instruction class to insert into btb
-  input  logic [3:0]       IClassM,                 // Instruction class to insert into btb
-  input  logic [3:0]       IClassW
+  input  logic [3:0]        IClassD,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassE,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassM,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassW
 );
 
   logic [Depth-1:0]        PCNextFIndex, PCFIndex, PCDIndex, PCEIndex, PCMIndex, PCWIndex;
@@ -57,7 +57,6 @@ module btb import cvw::*;  #(parameter cvw_t P,
   logic [P.XLEN-1:0]       BPBTAD, BPBTAE;
   logic                    BPBTAWrongE;
   logic                    BTBWrongM;
-
 
   // hashing function for indexing the PC
   // We have Depth bits to index, but XLEN bits as the input.
@@ -78,24 +77,24 @@ module btb import cvw::*;  #(parameter cvw_t P,
   assign MatchX = MatchD | MatchE | MatchM | MatchW;
 
   assign ForwardBTBPredF = MatchD ? {IClassD, BPBTAD} :
-                                 MatchE ? {IClassE, IEUAdrE} :
-                                 MatchM ? {IClassM, IEUAdrM} :
-                                 {IClassW, IEUAdrW} ;
+                           MatchE ? {IClassE, IEUAdrE} :
+                           MatchM ? {IClassM, IEUAdrM} :
+                           {IClassW, IEUAdrW};
 
   assign {BTBIClassF, BPBTAF} = MatchX ? ForwardBTBPredF : {TableBTBPredF};
-
 
   // An optimization may be using a PC relative address.
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**Depth), .WIDTH(P.XLEN+4)) memory(
     .clk, .ce1(~StallF | reset), .ra1(PCNextFIndex), .rd1(TableBTBPredF),
-     .ce2(~StallW & ~FlushW), .wa2(PCMIndex), .wd2({IClassM, IEUAdrM}), .we2(BTBWrongM), .bwe2('1));
+    .ce2(~StallW & ~FlushW), .wa2(PCMIndex), .wd2({IClassM, IEUAdrM}), .we2(BTBWrongM), .bwe2('1));
 
   flopenrc #(P.XLEN) BTBD(clk, reset, FlushD, ~StallD, BPBTAF, BPBTAD);
 
-  // BPBTAE is not strickly necessary.  However it is used by two parts of wally.
-  // 1. It gates updates to the BTB when the prediction does not change.  This save power.
+  // BPBTAE is not strictly necessary.  However it is used by two parts of wally.
+  // 1. It gates updates to the BTB when the prediction does not change.  This saves power.
   // 2. BPBTAWrongE is used by the performance counters to track when the BTB's BPBTA or instruction class is wrong.
   flopenrc #(P.XLEN) BTBTargetEReg(clk, reset, FlushE, ~StallE, BPBTAD, BPBTAE);
+  // IClass = {Call, Return, Jump, Branch}: target is checked for branches and non-return jumps (the RAS predicts returns)
   assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[0] | IClassE[1] & ~IClassE[2]);
 
   flopenrc #(1) BPBTAWrongMReg(clk, reset, FlushM, ~StallM, BPBTAWrongE, BPBTAWrongM);

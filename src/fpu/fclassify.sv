@@ -42,15 +42,15 @@ module fclassify import cvw::*;  #(parameter cvw_t P) (
   logic XNorm;                            // is the input normal
 
   // determine the sub categories
-  assign XNorm= ~(XNaN | XInf| XSubnorm| XZero);
-  assign PInf = ~Xs&XInf;
-  assign NInf = Xs&XInf;
-  assign PNorm = ~Xs&XNorm;
-  assign NNorm = Xs&XNorm;
-  assign PSubnorm = ~Xs&XSubnorm;
-  assign NSubnorm = Xs&XSubnorm;
-  assign PZero = ~Xs&XZero;
-  assign NZero = Xs&XZero;
+  assign XNorm = ~(XNaN | XInf | XSubnorm | XZero);
+  assign PInf = ~Xs & XInf;
+  assign NInf = Xs & XInf;
+  assign PNorm = ~Xs & XNorm;
+  assign NNorm = Xs & XNorm;
+  assign PSubnorm = ~Xs & XSubnorm;
+  assign NSubnorm = Xs & XSubnorm;
+  assign PZero = ~Xs & XZero;
+  assign NZero = Xs & XZero;
 
   // determine sub category and combine into the result
   //  bit 0 - -Inf
@@ -63,6 +63,6 @@ module fclassify import cvw::*;  #(parameter cvw_t P) (
   //  bit 7 - +Inf
   //  bit 8 - signaling NaN
   //  bit 9 - quiet NaN
-  assign ClassRes = {{P.XLEN-10{1'b0}}, XNaN&~XSNaN, XSNaN, PInf, PNorm, PSubnorm, PZero, NZero, NSubnorm, NNorm, NInf};
+  assign ClassRes = {{P.XLEN-10{1'b0}}, XNaN & ~XSNaN, XSNaN, PInf, PNorm, PSubnorm, PZero, NZero, NSubnorm, NNorm, NInf};
 
 endmodule

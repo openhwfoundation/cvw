@@ -50,13 +50,13 @@ module fdivsqrtfsm import cvw::*;  #(parameter cvw_t P) (
   logic SpecialCaseE, FSpecialCaseE;
   logic [P.DURLEN-1:0] step;
 
-  // FDivStartE and IDivStartE come from fctrl, reflecitng the start of floating-point and possibly integer division
+  // FDivStartE and IDivStartE come from fctrl, reflecting the start of floating-point and possibly integer division
   assign IFDivStartE = (FDivStartE | (IDivStartE & P.IDIV_ON_FPU)) & (state == IDLE) & ~StallM;
   assign FDivDoneE = (state == DONE);
   assign FDivBusyE = (state == BUSY) | IFDivStartE;
 
-  // terminate immediately on special cases
-  assign FSpecialCaseE = XZeroE | XInfE  | XNaNE |  (XsE&SqrtE) | (YZeroE | YInfE | YNaNE)&~SqrtE;
+  // terminate immediately on special cases: X is 0, Inf, or NaN; sqrt of negative X; or divide with Y 0, Inf, or NaN
+  assign FSpecialCaseE = XZeroE | XInfE | XNaNE | (XsE & SqrtE) | (YZeroE | YInfE | YNaNE) & ~SqrtE;
   if (P.IDIV_ON_FPU) assign SpecialCaseE = IntDivE ? ISpecialCaseE : FSpecialCaseE;
   else               assign SpecialCaseE = FSpecialCaseE;
   flopenr #(1) SpecialCaseReg(clk, reset, IFDivStartE, SpecialCaseE, SpecialCaseM); // save SpecialCase for checking in fdivsqrtpostproc
@@ -65,19 +65,19 @@ module fdivsqrtfsm import cvw::*;  #(parameter cvw_t P) (
   // StallM keeps its result even if mispredicted (BPWrongE).  StallE = StallM whenever FlushE is asserted
   // (FlushECause masks the divider's own StallECause, and LatestUnstalledE implies ~StallE), so StallM is used.
   always_ff @(posedge clk) begin
-      if (reset | FlushE & ~StallM) begin
-          state <= IDLE;
-      end else if (IFDivStartE) begin // IFDivStartE implies stat is IDLE
-          step <= CyclesE;
-          if (SpecialCaseE) state <= DONE;
-          else              state <= BUSY;
-      end else if (state == BUSY) begin
-          if (step == 1 | WZeroE) state <= DONE; // finished steps or terminate early on zero residual
-          step <= step - 1;
-      end else if (state == DONE) begin
-        if (StallM) state <= DONE;
-        else        state <= IDLE;
-      end
+    if (reset | FlushE & ~StallM) begin
+      state <= IDLE;
+    end else if (IFDivStartE) begin // IFDivStartE implies state is IDLE
+      step <= CyclesE;
+      if (SpecialCaseE) state <= DONE;
+      else              state <= BUSY;
+    end else if (state == BUSY) begin
+      if (step == 1 | WZeroE) state <= DONE; // finished steps or terminate early on zero residual
+      step <= step - 1;
+    end else if (state == DONE) begin
+      if (StallM) state <= DONE;
+      else        state <= IDLE;
+    end
   end
 
 endmodule

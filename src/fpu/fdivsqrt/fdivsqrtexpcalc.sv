@@ -31,7 +31,7 @@ module fdivsqrtexpcalc import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.NE-2:0]      Bias,      // Bias of exponent
   input  logic [P.NE-1:0]      Xe, Ye,    // input exponents
   input  logic                 Sqrt,
-  input  logic [P.DIVBLEN-1:0] ell, m,    // number of leading 0s in Xe and Ye
+  input  logic [P.DIVBLEN-1:0] ell, m,    // number of leading 0s in Xm and Ym
   output logic [P.NE+1:0]      Ue         // result exponent
   );
 

@@ -34,7 +34,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   // hazard and privilege unit
   input  logic       Stall,             // Stall the cache, preventing new accesses. In-flight access finished but does not return to READY
   input  logic       FlushStage,        // Pipeline flush of second stage (prevent writes and bus operations)
-  input  logic       InvalidateFlushStage, // Pipeline flush of second stage (prevent writes and bus operations)
+  input  logic       InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
   output logic       CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
   output logic       CacheStall,        // Cache stalls pipeline during multicycle operation
   // inputs from IEU
@@ -50,20 +50,20 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   output logic       CacheAccess,       // Cache access
 
   // cache internals
-  input  logic       Hit,          // Exactly 1 way hits
+  input  logic       Hit,               // Exactly 1 way hits
   input  logic       LineDirty,         // The selected line and way is dirty
-  input  logic       HitLineDirty,   // The cache hit way is dirty
+  input  logic       HitLineDirty,      // The cache hit way is dirty
   input  logic       FlushAdrFlag,      // On last set of a cache flush
   input  logic       FlushWayFlag,      // On the last way for any set of a cache flush
-  output logic       SelAdrData,            // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
-  output logic       SelAdrTag,            // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
+  output logic       SelAdrData,        // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
+  output logic       SelAdrTag,         // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
   output logic       SetValid,          // Set the valid bit in the selected way and set
   output logic       ClearValid,        // Clear the valid bit in the selected way and set
   output logic       SetDirty,          // Set the dirty bit in the selected way and set
   output logic       ClearDirty,        // Clear the dirty bit in the selected way and set
   output logic       SelWriteback,      // Overrides cached tag check to select a specific way and set for writeback
   output logic       LRUWriteEn,        // Update the LRU state
-  output logic       SelVictim,         // Overrides HitWay Tag matching.  Selects selects the victim tag/data regardless of hit
+  output logic       SelVictim,         // Overrides HitWay Tag matching.  Selects the victim tag/data regardless of hit
   output logic       FlushAdrCntEn,     // Enable the counter for Flush Adr
   output logic       FlushWayCntEn,     // Enable the way counter during a flush
   output logic       FlushCntRst,       // Reset both flush counters
@@ -79,7 +79,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   logic              CMOZeroNoEviction;
   logic              StallConditions;
 
-  typedef enum logic [3:0]{STATE_ACCESS, // hit states
+  typedef enum logic [3:0] {STATE_ACCESS, // hit states
                            // miss states
                            STATE_FETCH,
                            STATE_WRITEBACK,
@@ -96,6 +96,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign AnyUpdateHit = (CacheRW[0]) & Hit;                            // exclusion-tag: icache storeAMO1
   assign AnyHit = AnyUpdateHit | (CacheRW[1] & Hit);                  // exclusion-tag: icache AnyUpdateHit
   assign CMOZeroNoEviction = CMOpM[3] & (Hit | ~LineDirty);   // (hit or miss) with no writeback store zeros now
+  // cbo.clean or cbo.flush of a dirty hit, or cbo.zero miss with a dirty victim, must write back first
   assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | (CMOpM[3] & ~Hit & LineDirty);
 
   assign FlushFlag = FlushAdrFlag & FlushWayFlag;
@@ -104,9 +105,8 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign CacheAccess = (|CacheRW) & ((CurrState == STATE_ACCESS & ~Stall & ~FlushStage) | (CurrState == STATE_ADDRESS_SETUP & ~Stall & ~FlushStage)); // exclusion-tag: icache CacheW
   assign CacheMiss = CurrState == STATE_ADDRESS_SETUP & ~Stall & ~FlushStage;
 
-  // special case on reset. When the fsm first exists reset twayhe
-  // PCNextF will no longer be pointing to the correct address.
-  // But PCF will be the reset vector.
+  // Special case on reset.  When the FSM first exits reset, PCNextF no longer
+  // points to the correct address, but PCF is the reset vector.  Read from PAdr for one cycle.
   flop #(1) resetDelayReg(.clk, .d(reset), .q(resetDelay));
 
   always_ff @(posedge clk)
@@ -116,40 +116,40 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   always_comb begin
     NextState = STATE_ACCESS;
     case (CurrState)                                                                                        // exclusion-tag: icache state-case
-      STATE_ACCESS:           if(InvalidateCache & ~InvalidateFlushStage)                               NextState = STATE_ACCESS;     // exclusion-tag: dcache InvalidateCheck
-                             else if(FlushCache & ~READ_ONLY_CACHE)            NextState = STATE_FLUSH;     // exclusion-tag: icache FLUSHStatement
-                             else if(AnyMiss & (READ_ONLY_CACHE | ~LineDirty)) NextState = STATE_FETCH;     // exclusion-tag: icache FETCHStatement
-                             else if((AnyMiss | CMOWriteback) & ~READ_ONLY_CACHE) NextState = STATE_WRITEBACK; // exclusion-tag: icache WRITEBACKStatement
-                             else if((|CMOpM) & ~CMOWriteback)               NextState = STATE_ADDRESS_SETUP; // any CMO without dirty writeback: stall and re-read SRAM next cycle
-                             else                                              NextState = STATE_ACCESS;
-      STATE_FETCH:           if(CacheBusAck)                                   NextState = STATE_WRITE_LINE;
-                             else                                              NextState = STATE_FETCH;
-      STATE_WRITE_LINE:                                                        NextState = STATE_ADDRESS_SETUP;
-      STATE_ADDRESS_SETUP:       if(Stall)                                         NextState = STATE_ADDRESS_SETUP;
-                             else                                              NextState = STATE_ACCESS;
+      STATE_ACCESS:          if (InvalidateCache & ~InvalidateFlushStage)          NextState = STATE_ACCESS;          // exclusion-tag: dcache InvalidateCheck
+                             else if (FlushCache & ~READ_ONLY_CACHE)               NextState = STATE_FLUSH;           // exclusion-tag: icache FLUSHStatement
+                             else if (AnyMiss & (READ_ONLY_CACHE | ~LineDirty))    NextState = STATE_FETCH;           // exclusion-tag: icache FETCHStatement
+                             else if ((AnyMiss | CMOWriteback) & ~READ_ONLY_CACHE) NextState = STATE_WRITEBACK;       // exclusion-tag: icache WRITEBACKStatement
+                             else if ((|CMOpM) & ~CMOWriteback)                    NextState = STATE_ADDRESS_SETUP;   // any CMO without dirty writeback: stall and re-read SRAM next cycle
+                             else                                                  NextState = STATE_ACCESS;
+      STATE_FETCH:           if (CacheBusAck)                                      NextState = STATE_WRITE_LINE;
+                             else                                                  NextState = STATE_FETCH;
+      STATE_WRITE_LINE:                                                            NextState = STATE_ADDRESS_SETUP;
+      STATE_ADDRESS_SETUP:   if (Stall)                                            NextState = STATE_ADDRESS_SETUP;
+                             else                                                  NextState = STATE_ACCESS;
       // exclusion-tag-start: icache case
-      STATE_WRITEBACK:       if(CacheBusAck & ~(|CMOpM[3:1]))                  NextState = STATE_FETCH;
-                             else if(CacheBusAck)                              NextState = STATE_ADDRESS_SETUP; // Read_hold lowers CacheStall
-                             else                                              NextState = STATE_WRITEBACK;
+      STATE_WRITEBACK:       if (CacheBusAck & ~(|CMOpM[3:1]))                     NextState = STATE_FETCH;
+                             else if (CacheBusAck)                                 NextState = STATE_ADDRESS_SETUP;   // ADDRESS_SETUP lowers CacheStall
+                             else                                                  NextState = STATE_WRITEBACK;
       // eviction needs a delay as the bus fsm does not correctly handle sending the write command at the same time as getting back the bus ack.
-      STATE_FLUSH:           if(LineDirty)                                     NextState = STATE_FLUSH_WRITEBACK;
-                             else if (FlushFlag)                               NextState = STATE_ADDRESS_SETUP;
-                             else                                              NextState = STATE_FLUSH;
-      STATE_FLUSH_WRITEBACK: if(CacheBusAck & ~FlushFlag)                      NextState = STATE_FLUSH;
-                             else if(CacheBusAck)                              NextState = STATE_ADDRESS_SETUP;
-                             else                                              NextState = STATE_FLUSH_WRITEBACK;
+      STATE_FLUSH:           if (LineDirty)                                        NextState = STATE_FLUSH_WRITEBACK;
+                             else if (FlushFlag)                                   NextState = STATE_ADDRESS_SETUP;
+                             else                                                  NextState = STATE_FLUSH;
+      STATE_FLUSH_WRITEBACK: if (CacheBusAck & ~FlushFlag)                         NextState = STATE_FLUSH;
+                             else if (CacheBusAck)                                 NextState = STATE_ADDRESS_SETUP;
+                             else                                                  NextState = STATE_FLUSH_WRITEBACK;
       // exclusion-tag-end: icache case
-      default:                                                                 NextState = STATE_ACCESS;
+      default:                                                                     NextState = STATE_ACCESS;
     endcase
   end
 
-  // com back to CPU
+  // Signals back to the CPU
   assign CacheCommitted = (CurrState != STATE_ACCESS) & ~(READ_ONLY_CACHE & (CurrState == STATE_ADDRESS_SETUP));
-  assign StallConditions =  FlushCache | AnyMiss | (|CMOpM);                            // exclusion-tag: icache FlushCache
+  assign StallConditions = FlushCache | AnyMiss | (|CMOpM);                            // exclusion-tag: icache FlushCache
   assign CacheStall = (CurrState == STATE_ACCESS & StallConditions) | // exclusion-tag: icache StallStates
                       (CurrState == STATE_FETCH) |
                       (CurrState == STATE_WRITEBACK) |
-                      (CurrState == STATE_WRITE_LINE) |  // this cycle writes the sram, must keep stalling so the next cycle can read the next hit/miss unless its a write.
+                      (CurrState == STATE_WRITE_LINE) |  // this cycle writes the sram, must keep stalling so the next cycle can read the next hit/miss unless it's a write.
                       (CurrState == STATE_FLUSH) |
                       (CurrState == STATE_FLUSH_WRITEBACK);
   // write enables internal to cache
@@ -157,7 +157,6 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
                     (CurrState == STATE_ACCESS & CMOZeroNoEviction) |
                     (CurrState == STATE_WRITEBACK & CacheBusAck & CMOpM[3]);
   assign ClearValid = (CurrState == STATE_ACCESS & (CMOpM[0] | (CMOpM[2] & ~HitLineDirty))) |
-  //assign ClearValid = (CurrState == STATE_ACCESS & (CMOpM[0])) |
                       (CurrState == STATE_WRITEBACK & CMOpM[2] & CacheBusAck);
   assign LRUWriteEn = (((CurrState == STATE_ACCESS & (AnyHit | CMOZeroNoEviction)) |
                        (CurrState == STATE_WRITE_LINE)) & ~FlushStage) |
@@ -171,18 +170,18 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   // Flush and eviction controls
                       CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) & CacheBusAck;
   assign SelVictim = (CurrState == STATE_WRITEBACK & ((~CacheBusAck & ~(CMOpM[1] | CMOpM[2])) | (CacheBusAck & CMOpM[3]))) |
-                  (CurrState == STATE_ACCESS & ((AnyMiss & LineDirty) | (CMOZeroNoEviction & ~Hit))) |
-                  (CurrState == STATE_WRITE_LINE);
+                     (CurrState == STATE_ACCESS & ((AnyMiss & LineDirty) | (CMOZeroNoEviction & ~Hit))) |
+                     (CurrState == STATE_WRITE_LINE);
   assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2] | ~CacheBusAck)) |
                         (CurrState == STATE_ACCESS & AnyMiss & LineDirty);
   // coverage off -item e 1 -fecexprrow 1
   // (state is always FLUSH_WRITEBACK when FlushWayFlag & CacheBusAck)
   assign FlushAdrCntEn = (CurrState == STATE_FLUSH_WRITEBACK & FlushWayFlag & CacheBusAck) |
-             (CurrState == STATE_FLUSH & FlushWayFlag & ~LineDirty);
+                         (CurrState == STATE_FLUSH & FlushWayFlag & ~LineDirty);
   assign FlushWayCntEn = (CurrState == STATE_FLUSH & ~LineDirty) |
-             (CurrState == STATE_FLUSH_WRITEBACK & CacheBusAck);
+                         (CurrState == STATE_FLUSH_WRITEBACK & CacheBusAck);
   assign FlushCntRst = (CurrState == STATE_FLUSH & FlushFlag & ~LineDirty) |
-              (CurrState == STATE_FLUSH_WRITEBACK & FlushFlag & CacheBusAck);
+                       (CurrState == STATE_FLUSH_WRITEBACK & FlushFlag & CacheBusAck);
   // exclusion-tag-end: icache flushdirtycontrols
   // Bus interface controls
   assign CacheBusRW[1] = (CurrState == STATE_ACCESS & AnyMiss & ~LineDirty) | // exclusion-tag: icache CacheBusRCauses
@@ -198,15 +197,15 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
                          (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) & ~CacheBusAck);
 
   assign SelAdrData = (CurrState == STATE_ACCESS & (CacheRW[0] | AnyMiss | (|CMOpM))) | // exclusion-tag: icache SelAdrCauses // changes if store delay hazard removed
-                  (CurrState == STATE_FETCH) |
-                  (CurrState == STATE_WRITEBACK) |
-                  (CurrState == STATE_WRITE_LINE) |
-                  resetDelay;
+                      (CurrState == STATE_FETCH) |
+                      (CurrState == STATE_WRITEBACK) |
+                      (CurrState == STATE_WRITE_LINE) |
+                      resetDelay;
   assign SelAdrTag = (CurrState == STATE_ACCESS & (AnyMiss | (|CMOpM))) | // exclusion-tag: icache SelAdrTag // changes if store delay hazard removed
-                  (CurrState == STATE_FETCH) |
-                  (CurrState == STATE_WRITEBACK) |
-                  (CurrState == STATE_WRITE_LINE) |
-                  resetDelay;
+                     (CurrState == STATE_FETCH) |
+                     (CurrState == STATE_WRITEBACK) |
+                     (CurrState == STATE_WRITE_LINE) |
+                     resetDelay;
   assign SelFetchBuffer = CurrState == STATE_WRITE_LINE | CurrState == STATE_ADDRESS_SETUP;
   assign CacheEn = (~Stall | StallConditions) | (CurrState != STATE_ACCESS) | reset | InvalidateCache; // exclusion-tag: dcache CacheEn
 

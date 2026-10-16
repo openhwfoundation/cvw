@@ -29,8 +29,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module subwordwrite #(parameter LLEN) (
-  input logic  [2:0]        LSUFunct3M,
-  input logic  [LLEN-1:0]   IMAFWriteDataM,
+  input  logic [2:0]        LSUFunct3M,
+  input  logic [LLEN-1:0]   IMAFWriteDataM,
   output logic [LLEN-1:0]   LittleEndianWriteDataM
 );
 
@@ -38,7 +38,7 @@ module subwordwrite #(parameter LLEN) (
 
   if (LLEN == 128) begin : sww
     always_comb
-      case(LSUFunct3M[2:0])
+      case (LSUFunct3M[2:0])
         3'b000:  LittleEndianWriteDataM = {16{IMAFWriteDataM[7:0]}}; // sb
         3'b001:  LittleEndianWriteDataM = {8{IMAFWriteDataM[15:0]}}; // sh
         3'b010:  LittleEndianWriteDataM = {4{IMAFWriteDataM[31:0]}}; // sw
@@ -47,7 +47,7 @@ module subwordwrite #(parameter LLEN) (
       endcase
   end else if (LLEN == 64) begin : sww
     always_comb
-      case(LSUFunct3M[1:0])
+      case (LSUFunct3M[1:0])
         2'b00:  LittleEndianWriteDataM = {8{IMAFWriteDataM[7:0]}};   // sb
         2'b01:  LittleEndianWriteDataM = {4{IMAFWriteDataM[15:0]}};  // sh
         2'b10:  LittleEndianWriteDataM = {2{IMAFWriteDataM[31:0]}};  // sw
@@ -55,7 +55,7 @@ module subwordwrite #(parameter LLEN) (
       endcase
   end else begin : sww // 32-bit
     always_comb
-      case(LSUFunct3M[1:0])
+      case (LSUFunct3M[1:0])
         2'b00:   LittleEndianWriteDataM = {4{IMAFWriteDataM[7:0]}};  // sb
         2'b01:   LittleEndianWriteDataM = {2{IMAFWriteDataM[15:0]}}; // sh
         2'b10:   LittleEndianWriteDataM = IMAFWriteDataM;            // sw

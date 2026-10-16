@@ -42,7 +42,7 @@ module adrdec #(parameter PA_BITS) (
 
   // determine if an address is in a range starting at the base
   // for example, if Base = 0x04002000 and range = 0x00000FFF,
-  // then anything address between 0x04002000 and 0x04002FFF should match (HSEL=1)
+  // then any address between 0x04002000 and 0x04002FFF should match (HSEL=1)
   assign Match = &((PhysicalAddress ~^ Base) | Range);
 
   // determine if legal size of access is being made (byte, halfword, word, doubleword)

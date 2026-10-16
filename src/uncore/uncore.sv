@@ -28,7 +28,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module uncore import cvw::*;  #(parameter cvw_t P)(
+module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
   input  logic                 TIMECLK,
@@ -68,14 +68,14 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   logic [P.XLEN-1:0]           HREADRam, HREADSDC;
 
   logic [12:0]                 HSELRegions;
-  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART,HSELSDC, HSELSPI, HSELPWM;
+  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART, HSELSDC, HSELSPI, HSELPWM;
   logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
-  logic                        HRESPRam,  HRESPSDC;
+  logic                        HRESPRam, HRESPSDC;
   logic                        HREADYRam, HRESPSDCD;
   logic [P.XLEN-1:0]           HREADBootRom;
   logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
   logic                        HSELNoneD;
-  logic                        UARTIntr,GPIOIntr, SPIIntr;
+  logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
   logic                        SDCIntM;
 
@@ -92,7 +92,6 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   logic                        HRESPBRIDGE, HREADYBRIDGE, HSELBRIDGE, HSELBRIDGED;
   /* SDC Interrupt (SPI Controller) */
   logic                        SDCIntr;
-
 
   // Determine which region of physical memory (if any) is being accessed
   // Use a trimmed down portion of the PMA checker - only the address decoders
@@ -116,7 +115,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
       .HTRANS, .HWDATA, .HWSTRB, .HREADRam, .HRESPRam, .HREADYRam);
   end else assign {HREADRam, HRESPRam, HREADYRam} = '0;
 
- if (P.BOOTROM_SUPPORTED) begin : bootrom
+  if (P.BOOTROM_SUPPORTED) begin : bootrom
     rom_ahb #(.P(P), .RANGE(P.BOOTROM_RANGE), .PRELOAD(P.BOOTROM_PRELOAD))
     bootrom(.HCLK, .HRESETn, .HSELRom(HSELBootRom), .HADDR, .HREADY, .HTRANS,
       .HREADRom(HREADBootRom), .HRESPRom(HRESPBootRom), .HREADYRom(HREADYBootRom));
@@ -160,7 +159,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   end
 
   if (P.SPI_SUPPORTED == 1) begin : spi
-    spi_apb  #(P) spi (
+    spi_apb #(P) spi (
       .PCLK, .PRESETn, .PSEL(PSEL[4]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PREADY(PREADY[4]), .PRDATA(PRDATA[4]),
       .SPIOut, .SPIIn, .SPICS, .SPICLK, .SPIIntr);

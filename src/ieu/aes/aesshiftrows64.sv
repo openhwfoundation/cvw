@@ -26,12 +26,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesshiftrows64(
-   /* verilator lint_off UNUSEDSIGNAL */
-   input  logic [127:0] a,
-   /* verilator lint_on UNUSEDSIGNAL */
-   output logic [63:0] y
+  /* verilator lint_off UNUSEDSIGNAL */
+  input  logic [127:0] a,
+  /* verilator lint_on UNUSEDSIGNAL */
+  output logic [63:0] y
 );
 
-   assign y = {a[31:24],   a[119:112], a[79:72],   a[39:32],
-               a[127:120], a[87:80],   a[47:40],   a[7:0]};
+  assign y = {a[31:24],   a[119:112], a[79:72],   a[39:32],
+              a[127:120], a[87:80],   a[47:40],   a[7:0]};
 endmodule
