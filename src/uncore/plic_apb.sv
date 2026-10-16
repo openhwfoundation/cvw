@@ -36,24 +36,24 @@
 // does not include source 0, which does not connect to anything according to spec
 // up to 63 sources supported; in the future, allow up to 1023 sources
 
-`define C 2
-// number of contexts
-// hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
-
-module plic_apb import cvw::*;  #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn,
-  input  logic                PSEL,
-  input  logic [27:0]         PADDR,
-  input  logic [P.XLEN-1:0]   PWDATA,
-  input  logic [P.XLEN/8-1:0] PSTRB,
-  input  logic                PWRITE,
-  input  logic                PENABLE,
-  output logic [P.XLEN-1:0]   PRDATA,
-  output logic                PREADY,
-  input  logic                UARTIntr,GPIOIntr, SPIIntr, SDCIntr,
-  input  logic [3:0]          PWMIntr,                        // one source per PWM comparator
-  output logic                MExtInt, SExtInt
+module plic_apb import cvw::*; #(parameter cvw_t P) (
+  input  logic                PCLK, PRESETn,                        // APB clock and reset (active low)
+  input  logic                PSEL,                                 // APB peripheral select
+  input  logic [27:0]         PADDR,                                // APB address
+  input  logic [P.XLEN-1:0]   PWDATA,                               // APB write data
+  input  logic [P.XLEN/8-1:0] PSTRB,                                // APB byte write strobes
+  input  logic                PWRITE,                               // APB write (1) or read (0)
+  input  logic                PENABLE,                              // APB enable (access phase)
+  output logic [P.XLEN-1:0]   PRDATA,                               // APB read data
+  output logic                PREADY,                               // APB ready
+  input  logic                UARTIntr, GPIOIntr, SPIIntr, SDCIntr, // Peripheral interrupts
+  input  logic [3:0]          PWMIntr,                              // PWM interrupts, one per comparator
+  output logic                MExtInt, SExtInt                      // Machine and supervisor external interrupts
 );
+
+  // number of contexts
+  // hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
+  localparam C = 2;
 
   // register map
   localparam PLIC_INTPRIORITY0   = 24'h000000;
@@ -68,43 +68,43 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
   localparam PLIC_THRESHOLD1     = 24'h201000;
   localparam PLIC_CLAIMCOMPLETE1 = 24'h201004;
 
-  logic                       memwrite, memread;
-  logic [23:0]                entry;
-  logic [31:0]                Din, Dout;
+  logic                                 memwrite, memread;
+  logic [23:0]                          entry;
+  logic [31:0]                          Din, Dout;
 
   // context-independent signals
-  logic [P.PLIC_NUM_SRC:1]               requests;
-  logic [P.PLIC_NUM_SRC:1][2:0]          intPriority;
-  logic [P.PLIC_NUM_SRC:1]               intInProgress, intPending, nextIntPending;
+  logic [P.PLIC_NUM_SRC:1]              requests;
+  logic [P.PLIC_NUM_SRC:1][2:0]         intPriority;
+  logic [P.PLIC_NUM_SRC:1]              intInProgress, intPending, nextIntPending;
 
   // context-dependent signals
-  logic [`C-1:0][2:0]        intThreshold;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       intEn;
-  logic [`C-1:0][5:0]        intClaim; // ID's are 6 bits if we stay within 63 sources
-  logic [`C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
-  logic [`C-1:0][7:1]        priorities_with_irqs;
-  logic [`C-1:0][7:1]        max_priority_with_irqs;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
-  logic [`C-1:0][7:1]        threshMask;
-  logic [P.PLIC_NUM_SRC-1:0] One;
+  logic [C-1:0][2:0]                    intThreshold;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       intEn;
+  logic [C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
+  logic [C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
+  logic [C-1:0][7:1]                    priorities_with_irqs;
+  logic [C-1:0][7:1]                    max_priority_with_irqs;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
+  logic [C-1:0][7:1]                    threshMask;
+  logic [P.PLIC_NUM_SRC-1:0]            One;
 
   // hacks to handle gracefully PLIC_NUM_SRC being smaller than 32
   // Otherwise Questa and other simulators produce part-select out of bounds even
   // though sources >=32 are never used
 
-  localparam PLIC_SRC_TOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
-  localparam PLIC_SRC_BOT = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
-  localparam PLIC_SRC_DINTOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC -32 : 0;
-  localparam PLIC_SRC_EXT = (P.PLIC_NUM_SRC >= 32) ? 63-P.PLIC_NUM_SRC : 31;
+  localparam PLIC_SRC_TOP    = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
+  localparam PLIC_SRC_BOT    = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
+  localparam PLIC_SRC_DINTOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC - 32 : 0;
+  localparam PLIC_SRC_EXT    = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
 
   // =======
-  // AHB I/O
+  // APB I/O
   // =======
 
   assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
   assign memread  = ~PWRITE & PSEL & ~PENABLE; // read once, in APB setup phase
   assign PREADY   = 1'b1;                     // PLIC never takes >1 cycle to respond
-  assign entry    = {PADDR[23:2],2'b0};
+  assign entry    = {PADDR[23:2], 2'b0};
   assign One[P.PLIC_NUM_SRC-1:1] = '0; assign One[0] = 1'b1; // Vivado does not like this as a single assignment.
 
   // account for subword read/write circuitry
@@ -128,7 +128,7 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
     // writing
     end else begin
       if (memwrite)
-        casez(entry)
+        casez (entry)
           24'h0000??:          intPriority[entry[7:2]] <= Din[2:0];
           PLIC_INTEN00:        intEn[0][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
           PLIC_INTEN10:        intEn[1][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
@@ -146,52 +146,52 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
 
       // Read synchronously because a read can have side effect of changing intInProgress
       if (memread) begin
-        casez(entry)
+        casez (entry)
           PLIC_INTPRIORITY0: Dout <= 32'b0;  // there is no intPriority[0]
-          24'h0000??:        Dout <= {29'b0,intPriority[entry[7:2]]};
-          PLIC_INTPENDING0:  Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}},intPending[PLIC_NUM_SRC_MIN_32:1],1'b0};
-          PLIC_INTEN00:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}},intEn[0][PLIC_NUM_SRC_MIN_32:1],1'b0};
-          PLIC_INTPENDING1:  if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}},intPending[PLIC_SRC_TOP:PLIC_SRC_BOT]};
-          PLIC_INTEN01:      if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}},intEn[0][PLIC_SRC_TOP:PLIC_SRC_BOT]};
-          PLIC_INTEN10:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}},intEn[1][PLIC_NUM_SRC_MIN_32:1],1'b0};
-          PLIC_INTEN11:      if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}},intEn[1][PLIC_SRC_TOP:PLIC_SRC_BOT]};
-          PLIC_THRESHOLD0:   Dout <= {29'b0,intThreshold[0]};
+          24'h0000??:        Dout <= {29'b0, intPriority[entry[7:2]]};
+          PLIC_INTPENDING0:  Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intPending[PLIC_NUM_SRC_MIN_32:1], 1'b0};
+          PLIC_INTEN00:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intEn[0][PLIC_NUM_SRC_MIN_32:1], 1'b0};
+          PLIC_INTPENDING1:  if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}}, intPending[PLIC_SRC_TOP:PLIC_SRC_BOT]};
+          PLIC_INTEN01:      if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}}, intEn[0][PLIC_SRC_TOP:PLIC_SRC_BOT]};
+          PLIC_INTEN10:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intEn[1][PLIC_NUM_SRC_MIN_32:1], 1'b0};
+          PLIC_INTEN11:      if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}}, intEn[1][PLIC_SRC_TOP:PLIC_SRC_BOT]};
+          PLIC_THRESHOLD0:   Dout <= {29'b0, intThreshold[0]};
           PLIC_CLAIMCOMPLETE0: begin
-            Dout <= {26'b0,intClaim[0]};
+            Dout <= {26'b0, intClaim[0]};
             if (intClaim[0] != 6'd0) // not an invalid request
               intInProgress <= intInProgress | (One << (intClaim[0]-1)); // claimed requests are currently in progress of being serviced until they are completed
           end
-          PLIC_THRESHOLD1:   Dout <= {29'b0,intThreshold[1]};
+          PLIC_THRESHOLD1:   Dout <= {29'b0, intThreshold[1]};
           PLIC_CLAIMCOMPLETE1: begin
-            Dout <= {26'b0,intClaim[1]};
+            Dout <= {26'b0, intClaim[1]};
             if (intClaim[1] != 6'd0) // not an invalid request
               intInProgress <= intInProgress | (One << (intClaim[1]-1));  // claimed requests are currently in progress of being serviced until they are completed
           end
           default:           Dout <= 32'h0; // invalid access
         endcase
       end else               Dout <= 32'h0;
-   end
+    end
   end
 
   // connect sources to requests
   always_comb begin
     requests = {P.PLIC_NUM_SRC{1'b0}};
-    if(P.PLIC_GPIO_ID != 0) requests[P.PLIC_GPIO_ID] = GPIOIntr;
-    if(P.PLIC_UART_ID != 0) requests[P.PLIC_UART_ID] = UARTIntr;
-    if(P.PLIC_SPI_ID != 0)  requests[P.PLIC_SPI_ID]  = SPIIntr;
-    if(P.PLIC_SDC_ID !=0)   requests[P.PLIC_SDC_ID]  = SDCIntr;
+    if (P.PLIC_GPIO_ID != 0) requests[P.PLIC_GPIO_ID] = GPIOIntr;
+    if (P.PLIC_UART_ID != 0) requests[P.PLIC_UART_ID] = UARTIntr;
+    if (P.PLIC_SPI_ID != 0)  requests[P.PLIC_SPI_ID]  = SPIIntr;
+    if (P.PLIC_SDC_ID != 0)  requests[P.PLIC_SDC_ID]  = SDCIntr;
     // the four PWM comparators occupy a contiguous block starting at PLIC_PWM_ID
-    if(P.PLIC_PWM_ID != 0)
-      for(int i=0; i<4; i++) requests[P.PLIC_PWM_ID+i] = PWMIntr[i];
+    if (P.PLIC_PWM_ID != 0)
+      for (int i = 0; i < 4; i++) requests[P.PLIC_PWM_ID+i] = PWMIntr[i];
   end
 
   // pending interrupt request
   assign nextIntPending = (intPending | requests) & ~intInProgress;
-  flopr #(P.PLIC_NUM_SRC) intPendingFlop(PCLK,~PRESETn,nextIntPending,intPending);
+  flopr #(P.PLIC_NUM_SRC) intPendingFlop(PCLK, ~PRESETn, nextIntPending, intPending);
 
   // context-dependent signals
   genvar ctx;
-  for (ctx=0; ctx<`C; ctx++) begin
+  for (ctx = 0; ctx < C; ctx++) begin
     // request matrix
     //   priority level (rows) X source ID (columns)
     //
@@ -199,9 +199,9 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
     //   has priority level <pri> and has an "active" interrupt request
     //   ("active" meaning it is enabled in context <ctx> and is pending)
     genvar src, pri;
-    for (pri=1; pri<=7; pri++) begin
-      for (src=1; src<=P.PLIC_NUM_SRC; src++) begin
-        assign irqMatrix[ctx][pri][src] = (intPriority[src]==pri) & intPending[src] & intEn[ctx][src];
+    for (pri = 1; pri <= 7; pri++) begin
+      for (src = 1; src <= P.PLIC_NUM_SRC; src++) begin
+        assign irqMatrix[ctx][pri][src] = (intPriority[src] == pri) & intPending[src] & intEn[ctx][src];
       end
     end
 
@@ -244,7 +244,7 @@ module plic_apb import cvw::*;  #(parameter cvw_t P) (
     integer k;
     always_comb begin
       intClaim[ctx] = 6'b0;
-      for (k=P.PLIC_NUM_SRC; k>0; k--) begin
+      for (k = P.PLIC_NUM_SRC; k > 0; k--) begin
         if (irqs_at_max_priority[ctx][k]) intClaim[ctx] = k[5:0];
       end
     end

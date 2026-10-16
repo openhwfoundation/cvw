@@ -28,19 +28,19 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privdec import cvw::*;  #(parameter cvw_t P) (
-  input  logic         clk, reset,
+module privdec import cvw::*; #(parameter cvw_t P) (
+  input  logic         clk, reset,                          // Clock and reset
   input  logic         StallM,                              // Memory stage stalled: the wfi stays in M
-  input  logic [31:7 ] InstrM,                              // privileged instruction function field
-  input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
-  input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
-  input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
-  input  logic [1:0]   PrivilegeModeW,                      // current privilege level
-  input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // status bits
-  input  logic         IntPendingM,                         // a locally enabled interrupt is pending: ends any wait
+  input  logic [31:7]  InstrM,                              // Instruction in Memory stage
+  input  logic         PrivilegedM,                         // Privileged instruction
+  input  logic         IllegalIEUFPUInstrM,                 // Illegal integer or FP instruction in Memory stage
+  input  logic         IllegalCSRAccessM,                   // Illegal CSR access: CSR does not exist or is inaccessible at this privilege level
+  input  logic [1:0]   PrivilegeModeW,                      // Current privilege mode
+  input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // mstatus.TSR, TVM, TW: trap sret, trap virtual memory, timeout wait
+  input  logic         IntPendingM,                         // A locally enabled interrupt is pending: ends any wait
   output logic         IllegalInstrFaultM,                  // Illegal instruction
-  output logic         EcallFaultM, BreakpointFaultM,       // Ecall or breakpoint; traps without retiring
-  output logic         sretM, mretM, RetM,                  // return instructions
+  output logic         EcallFaultM, BreakpointFaultM,       // ecall and ebreak; they trap without retiring
+  output logic         sretM, mretM, RetM,                  // sret, mret, either return instruction
   output logic         WaitM,                               // wfi in M is waiting for an interrupt: stall the pipeline
   output logic         WaitedM,                             // wfi in M has waited (not a delayed WaitM): it retires before an interrupt is taken
   output logic         sfencevmaM,                          // sfence.vma / sinval.vma instructions
@@ -86,7 +86,7 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // all of sinval.vma, sfence.w.inval, sfence.inval.ir are treated as sfence.vma
   assign sfencevmaM = PrivilegedM & P.VIRTMEM_SUPPORTED &
                       ((PrivilegeModeW == P.M_MODE & (vmaM | fenceinvalM)) |
-                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM  | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
   // rs2 (InstrM[24:20]) = x0 means flush all ASIDs including global mappings; rs2 != x0 is ASID-specific
   // and must preserve global (G=1) entries (RISC-V Privileged spec sfence.vma semantics).
   assign sfencevmaAllM = sfencevmaM & ~|InstrM[24:20];
@@ -130,6 +130,6 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // Fault on illegal instructions
   ///////////////////////////////////////////
 
-  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM|mretM|ecallM|ebreakM|wfiM|sfencevmaM);
+  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
   assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM | TWTimeoutM;
 endmodule

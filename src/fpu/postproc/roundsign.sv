@@ -28,23 +28,23 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module roundsign(
-  input logic         Xs,     // x sign
-  input logic         Ys,     // y sign
-  input logic         CvtCs,  // convert result sign
-  input logic         FmaSs,  // fma sum sign
-  input logic         Sqrt,   // sqrt oppertion? (when using divsqrt unit)
-  input logic         FmaOp,  // is fma operation
-  input logic         DivOp,  // is divsqrt operation
-  input logic         CvtOp,  // is cvt operation
-  output logic        Ms      // normalized result sign
+  input  logic        Xs,     // X sign
+  input  logic        Ys,     // Y sign
+  input  logic        CvtCs,  // Conversion result sign
+  input  logic        FmaSs,  // FMA sum sign
+  input  logic        Sqrt,   // Square root operation
+  input  logic        FmaOp,  // FMA operation
+  input  logic        DivOp,  // Divide or square root operation
+  input  logic        CvtOp,  // Conversion operation
+  output logic        Ms      // Normalized result sign
 );
 
   logic               Qs;     // divsqrt result sign
 
   // calculate divsqrt sign
-  assign Qs = Xs^(Ys&~Sqrt);
+  assign Qs = Xs ^ (Ys & ~Sqrt);
 
   // Select sign for rounding calculation
-  assign Ms = (FmaSs&FmaOp) | (CvtCs&CvtOp) | (Qs&DivOp);
+  assign Ms = (FmaSs & FmaOp) | (CvtCs & CvtOp) | (Qs & DivOp);
 
 endmodule

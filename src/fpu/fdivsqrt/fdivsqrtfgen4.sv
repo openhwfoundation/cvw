@@ -27,15 +27,15 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtfgen4 import cvw::*;  #(parameter cvw_t P) (
-  input  logic [3:0]        udigit,           // {2, 1, -1, -2}; all cold for zero
-  input  logic [P.DIVb+3:0] C, U, UM,         // Q4.DIVb (extended from shorter forms)
-  output logic [P.DIVb+3:0] F                 // Q4.DIVb
+module fdivsqrtfgen4 import cvw::*; #(parameter cvw_t P) (
+  input  logic [3:0]        udigit,           // Radix-4 result digit, one-hot {2, 1, -1, -2}; 0 if none hot
+  input  logic [P.DIVb+3:0] C, U, UM,         // Digit position marker, partial result, partial result minus 1 ulp (Q4.DIVb, extended)
+  output logic [P.DIVb+3:0] F                 // Square root residual adjustment term (Q4.DIVb)
 );
   logic [P.DIVb+3:0]        F2, F1, F0, FN1, FN2; // Q4.DIVb
 
   // Generate for both positive and negative digits
-  assign F2  = (~U << 2) & (C << 2);              //
+  assign F2  = (~U << 2) & (C << 2);
   assign F1  = ~(U << 1) & C;
   assign F0  = '0;
   assign FN1 = (UM << 1) | (C & ~(C << 3));

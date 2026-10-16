@@ -30,14 +30,14 @@
 module divstep #(parameter XLEN) (
   input  logic [XLEN-1:0] W,     // Residual in
   input  logic [XLEN-1:0] XQ,    // bits of dividend X and quotient Q in
-  input  logic [XLEN-1:0] DAbsB, // complement of absolute value of divisor D (for subtraction)
+  input  logic [XLEN-1:0] DAbsB, // negated absolute value of divisor D (-|D|), for subtraction
   output logic [XLEN-1:0] WOut,  // Residual out
   output logic [XLEN-1:0] XQOut  // bits of dividend and quotient out: discard one bit of X, append one bit of Q
 );
 
   logic [XLEN-1:0] WShift;       // Shift W left by one bit, bringing in most significant bit of X
   logic [XLEN-1:0] WPrime;       // WShift - D, for comparison and possible result
-  logic qi, qib;                  // Quotient digit and its complement
+  logic qi, qib;                 // Quotient digit and its complement
 
   assign {WShift, XQOut} = {W[XLEN-2:0], XQ, qi};  // shift W and X/Q left, insert quotient bit at bottom
   adder #(XLEN+1) wdsub({1'b0, WShift}, {1'b1, DAbsB}, {qib, WPrime}); // effective subtractor, carry out determines quotient bit

@@ -34,14 +34,14 @@
 
 module controllerinput #(
   parameter PA_BITS,
-  parameter SAVE_ENABLED = 1           // 1: Save manager inputs if Save = 1, 0: Don't save inputs
+  parameter SAVE_ENABLED = 1 // 1: Save manager inputs if Save = 1, 0: Don't save inputs
 )(
-  input  logic                HCLK,
-  input  logic                HRESETn,
-  input  logic                Save,     // Two or more managers requesting (HTRANS != 00) at the same time.  Save the non-granted manager inputs
-  input  logic                Restore,  // Restore a saved manager inputs when it is finally granted
-  input  logic                Disable,  // Suppress HREADY to the non-granted manager
-  output logic                Request,  // This manager is making a request
+  input  logic                HCLK,      // AHB clock
+  input  logic                HRESETn,   // AHB reset (active low)
+  input  logic                Save,      // Two or more managers requesting (HTRANS != 00) at the same time.  Save the non-granted manager inputs
+  input  logic                Restore,   // Restore the saved manager inputs when it is finally granted
+  input  logic                Disable,   // Suppress HREADY to the non-granted manager
+  output logic                Request,   // This manager is making a request
   // controller input
   input  logic [1:0]          HTRANSIn,  // Manager input. AHB transaction type, 00: IDLE, 10 NON_SEQ, 11 SEQ
   input  logic                HWRITEIn,  // Manager input. AHB 0: Read operation 1: Write operation
@@ -68,7 +68,7 @@ module controllerinput #(
     flopenr #(1+3+3+2+PA_BITS) SaveReg(HCLK, ~HRESETn, Save,
       {HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
       {HWRITESave, HSIZESave, HBURSTSave, HTRANSSave, HADDRSave});
-    mux2 #(1+3+3+2+PA_BITS) RestorMux({HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
+    mux2 #(1+3+3+2+PA_BITS) RestoreMux({HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
       {HWRITESave, HSIZESave, HBURSTSave, HTRANSSave, HADDRSave},
       Restore,
       {HWRITEOut, HSIZEOut, HBURSTOut, HTRANSOut, HADDROut});

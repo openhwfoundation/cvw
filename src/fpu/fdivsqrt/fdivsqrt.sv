@@ -27,30 +27,30 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
-  input  logic                 clk,
-  input  logic                 reset,
-  input  logic [P.FMTBITS-1:0] FmtE,
-  input  logic                 XsE,
-  input  logic [P.NF:0]        XmE, YmE,
-  input  logic [P.NE-1:0]      XeE, YeE,
-  input  logic                 XInfE, YInfE,
-  input  logic                 XZeroE, YZeroE,
-  input  logic                 XNaNE, YNaNE,
-  input  logic [P.NE-2:0]      BiasE,                               // Bias of exponent
-  input  logic [P.LOGFLEN-1:0] NfE,                          // Number of fractional bits in selected format
-  input  logic                 FDivStartE, IDivStartE,
-  input  logic                 StallM,
-  input  logic                 FlushE,
-  input  logic                 SqrtE, SqrtM,
-  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE, // these are the src A/B outputs before the mux choosing between them and PCE to put in srcA/B
-  input  logic [2:0]           Funct3E, Funct3M,
-  input  logic                 IntDivE, W64E,
-  output logic                 DivStickyM,
-  output logic                 FDivBusyE, IFDivStartE, FDivDoneE,
-  output logic [P.NE+1:0]      UeM,                         // Exponent result
-  output logic [P.DIVb:0]      UmM,                         // Significand result
-  output logic [P.XLEN-1:0]    FIntDivResultM               // Integer division result (IntDivResult in figure)
+module fdivsqrt import cvw::*; #(parameter cvw_t P) (
+  input  logic                 clk,                               // Clock
+  input  logic                 reset,                             // Reset
+  input  logic [P.FMTBITS-1:0] FmtE,                              // FP format in Execute stage
+  input  logic                 XsE,                               // X sign
+  input  logic [P.NF:0]        XmE, YmE,                          // X and Y significands
+  input  logic [P.NE-1:0]      XeE, YeE,                          // X and Y exponents
+  input  logic                 XInfE, YInfE,                      // X, Y are infinity
+  input  logic                 XZeroE, YZeroE,                    // X, Y are zero
+  input  logic                 XNaNE, YNaNE,                      // X, Y are NaN
+  input  logic [P.NE-2:0]      BiasE,                             // Bias of exponent
+  input  logic [P.LOGFLEN-1:0] NfE,                               // Number of fractional bits in selected format
+  input  logic                 FDivStartE, IDivStartE,            // Start FP divide/sqrt, start integer divide
+  input  logic                 StallM,                            // Stall Memory stage
+  input  logic                 FlushE,                            // Flush Execute stage
+  input  logic                 SqrtE, SqrtM,                      // Square root operation in Execute, Memory stages
+  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE,    // Source operands A and B after forwarding, before ALU source select
+  input  logic [2:0]           Funct3E, Funct3M,                  // funct3 field of instruction in Execute, Memory stages
+  input  logic                 IntDivE, W64E,                     // Integer divide or remainder, RV64 W-type instruction
+  output logic                 DivStickyM,                        // Divide/sqrt sticky bit
+  output logic                 FDivBusyE, IFDivStartE, FDivDoneE, // FPU divider busy, starting, done
+  output logic [P.NE+1:0]      UeM,                               // Divide/sqrt result exponent (biased)
+  output logic [P.DIVb:0]      UmM,                               // Divide/sqrt result significand (U1.DIVb)
+  output logic [P.XLEN-1:0]    FIntDivResultM                     // Integer divide result from FPU divider in Memory stage
 );
 
   // Floating-point division and square root module, with optional integer division and remainder
@@ -67,7 +67,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
 
   // Integer div/rem signals
   logic                        BZeroM;                       // Denominator is zero
-  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalizatoin shift amount
+  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalization shift amount
   logic                        ALTBM, AsM, BsM, W64M;        // Special handling for postprocessor
   logic [P.XLEN-1:0]           AM;                           // Original Numerator for postprocessor
   logic                        ISpecialCaseE;                // Integer div/remainder special cases
@@ -94,7 +94,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
     .clk, .reset, .StallM, .WS, .WC, .D, .FirstU, .FirstUM, .FirstC,
     .SqrtE, .SqrtM, .SpecialCaseM,
     .UmM, .WZeroE, .DivStickyM,
-    // Int-specific
+    // Int-specific; Funct3M[1] = 1 for REM/REMU, 0 for DIV/DIVU
     .IntNormShiftM, .ALTBM, .AsM, .BsM, .BZeroM, .W64M, .RemOpM(Funct3M[1]), .AM,
     .FIntDivResultM);
 endmodule

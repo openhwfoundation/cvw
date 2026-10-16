@@ -28,17 +28,17 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module privpiperegs (
-  input  logic         clk, reset,
-  input  logic         StallD, StallE, StallM,
-  input  logic         FlushD, FlushE, FlushM,
-  input  logic         InstrPageFaultF, InstrAccessFaultF,  // instruction faults
-  input  logic         HPTWInstrAccessFaultF,               // hptw fault during instruction page fetch
-  input  logic         HPTWInstrPageFaultF,                 // hptw fault during instruction page fetch
-  input  logic         IllegalIEUFPUInstrD,                 // illegal IEU instruction decoded
-  output logic         InstrPageFaultM, InstrAccessFaultM,  // delayed instruction faults
-  output logic         IllegalIEUFPUInstrM,                 // delayed illegal IEU instruction
-  output logic         HPTWInstrAccessFaultM,               // hptw fault during instruction page fetch
-  output logic         HPTWInstrPageFaultM                  // hptw fault during instruction page fetch
+  input  logic         clk, reset,                          // Clock and reset
+  input  logic         StallD, StallE, StallM,              // Stall Decode, Execute, Memory stages
+  input  logic         FlushD, FlushE, FlushM,              // Flush Decode, Execute, Memory stages
+  input  logic         InstrPageFaultF, InstrAccessFaultF,  // Instruction page and access faults in Fetch stage
+  input  logic         HPTWInstrAccessFaultF,               // HPTW access fault during instruction page table walk, in Fetch stage
+  input  logic         HPTWInstrPageFaultF,                 // HPTW page fault during instruction page table walk, in Fetch stage
+  input  logic         IllegalIEUFPUInstrD,                 // Illegal integer or FP instruction in Decode stage
+  output logic         InstrPageFaultM, InstrAccessFaultM,  // Instruction page and access faults in Memory stage
+  output logic         IllegalIEUFPUInstrM,                 // Illegal integer or FP instruction in Memory stage
+  output logic         HPTWInstrAccessFaultM,               // HPTW access fault during instruction page table walk, in Memory stage
+  output logic         HPTWInstrPageFaultM                  // HPTW page fault during instruction page table walk, in Memory stage
 );
 
   // Delayed fault signals

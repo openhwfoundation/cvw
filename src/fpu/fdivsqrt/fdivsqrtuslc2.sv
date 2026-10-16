@@ -28,8 +28,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtuslc2 (
-  input  logic [3:0] WS, WC,      // Q4.0 most significant bits of redundant residual
-  output logic       up, uz, un   // {+1, 0, -1}
+  input  logic [3:0] WS, WC,      // Most significant bits of residual in carry-save form (Q4.0)
+  output logic       up, uz, un   // Result digit is +1, 0, or -1
 );
 
   logic        sign;
@@ -37,14 +37,14 @@ module fdivsqrtuslc2 (
   // Carry chain logic determines if W = WS + WC = -1, < -1, > -1 to choose 0, -1, 1 respectively
 
   //if p2 * p1 * p0, W = -1 and choose digit of 0
-  assign uz = ((WS[2]^WC[2]) & (WS[1]^WC[1]) &
-        (WS[0]^WC[0]));
+  assign uz = ((WS[2] ^ WC[2]) & (WS[1] ^ WC[1]) &
+        (WS[0] ^ WC[0]));
 
   // Otherwise determine sign using carry chain: sign = p3 ^ g_2:0
-  assign sign = (WS[3]^WC[3])^
-      (WS[2] & WC[2] | ((WS[2]^WC[2]) &
-          (WS[1]&WC[1] | ((WS[1]^WC[1]) &
-            (WS[0]&WC[0])))));
+  assign sign = (WS[3] ^ WC[3]) ^
+      (WS[2] & WC[2] | ((WS[2] ^ WC[2]) &
+          (WS[1] & WC[1] | ((WS[1] ^ WC[1]) &
+            (WS[0] & WC[0])))));
 
   // Produce digit = +1, 0, or -1
   assign up = ~uz & ~sign;

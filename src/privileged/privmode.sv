@@ -27,16 +27,16 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privmode import cvw::*;  #(parameter cvw_t P) (
-  input  logic             clk, reset,
-  input  logic             StallW,
-  input  logic             TrapM,               // Trap
-  input  logic             mretM, sretM,        // return instruction
-  input  logic             DelegateM,           // trap delegated to supervisor mode
-  input  logic [1:0]       STATUS_MPP,          // machine trap previous privilege mode
+module privmode import cvw::*; #(parameter cvw_t P) (
+  input  logic             clk, reset,          // Clock and reset
+  input  logic             StallW,              // Stall Writeback stage
+  input  logic             TrapM,               // Trap is occurring
+  input  logic             mretM, sretM,        // mret and sret instructions
+  input  logic             DelegateM,           // Trap delegated to supervisor mode
+  input  logic [1:0]       STATUS_MPP,          // mstatus.MPP: machine previous privilege mode
   input  logic             STATUS_SPP,          // supervisor trap previous privilege mode
-  output logic [1:0]       NextPrivilegeModeM,  // next privilege mode, used when updating STATUS CSR on a trap
-  output logic [1:0]       PrivilegeModeW       // current privilege mode
+  output logic [1:0]       NextPrivilegeModeM,  // Next privilege mode, for updating STATUS on a trap or return
+  output logic [1:0]       PrivilegeModeW       // Current privilege mode
 );
 
   if (P.U_SUPPORTED) begin : privmode

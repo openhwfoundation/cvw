@@ -26,8 +26,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aplusbeq0 #(parameter WIDTH = 8) (
-  input  logic [WIDTH-1:0] a, b,
-  output logic             zero
+  input  logic [WIDTH-1:0] a, b, // Operands
+  output logic             zero  // a + b == 0
 );
 
   logic [WIDTH-1:0] x;

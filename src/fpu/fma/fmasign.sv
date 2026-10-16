@@ -28,14 +28,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmasign(
-  input  logic [2:0]  OpCtrl,     // operation control
-  input  logic        Xs, Ys, Zs, // sign of the inputs
-  output logic        Ps,         // the product's sign - takes operation into account
-  output logic        As,         // aligned addend sign used in fma - takes operation into account
-  output logic        InvA        // Effective subtraction: invert addend
+  input  logic [2:0]  OpCtrl,     // FPU operation control
+  input  logic        Xs, Ys, Zs, // X, Y, Z signs
+  output logic        Ps,         // Product sign
+  output logic        As,         // Aligned addend sign (Z sign adjusted for the operation)
+  output logic        InvA        // Invert addend for effective subtraction
 );
 
-  assign Ps   = Xs ^ Ys ^ (OpCtrl[1]&~OpCtrl[2]); // product sign.  Negate for FMNADD or FNMSUB
-  assign As   = Zs^OpCtrl[0];                     // flip addend sign for subtraction
-  assign InvA = As ^ Ps;                          // Effective subtraction when product and addend have opposite signs
+  assign Ps   = Xs ^ Ys ^ (OpCtrl[1] & ~OpCtrl[2]); // product sign.  Negate for fnmsub (010) or fnmadd (011)
+  assign As   = Zs ^ OpCtrl[0];                     // flip addend sign for subtraction
+  assign InvA = As ^ Ps;                            // Effective subtraction when product and addend have opposite signs
 endmodule

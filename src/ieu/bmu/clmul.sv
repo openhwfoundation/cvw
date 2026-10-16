@@ -30,19 +30,19 @@
 
 module clmul #(parameter WIDTH=32) (
   input  logic [WIDTH-1:0] X, Y,             // Operands
-  output logic [WIDTH-1:0] ClmulResult);     // ZBS result
+  output logic [WIDTH-1:0] ClmulResult);     // Carry-less multiply result
 
   logic [(WIDTH*WIDTH)-1:0] S;               // intermediary signals for carry-less multiply
 
-  integer i,j;
+  integer i, j;
 
   always_comb begin
-    for (i=0;i<WIDTH;i++) begin : outer
+    for (i=0; i<WIDTH; i++) begin : outer
       S[WIDTH*i] = X[0] & Y[i];
-      for (j=1;j<=i;j++) begin : inner
+      for (j=1; j<=i; j++) begin : inner
         S[WIDTH*i+j] = (X[j] & Y[i-j]) ^ S[WIDTH*i+j-1];
       end
-      ClmulResult[i] = S[WIDTH*i+j-1];
+      ClmulResult[i] = S[WIDTH*i+j-1]; // j = i+1 after the inner loop, so this is S[WIDTH*i+i]
     end
   end
 endmodule
