@@ -34,6 +34,7 @@
 --override cpu/Zicond=T
 --override cpu/Zfh=T
 --override cpu/Zfa=T
+--override cpu/Zfbfmin=T
 --override cpu/Zcb=T
 --override cpu/Zimop=T
 --override cpu/Zcmop=T
