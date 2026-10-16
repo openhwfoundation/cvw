@@ -22,7 +22,7 @@ main:
     sd zero, 56(a2)
     sd zero, 64(a2)
 
-    # A doubleword AMO at offset 4 is misaligned but sits in one cache line, so Zama16b performs it
+    # A doubleword AMO at offset 4 is misaligned but stays inside the first 16 byte granule, so it is performed
     addi a3, a2, 4
     li a4, 0x1234
     li a5, -1                   # sentinel the AMO must replace with the old value
@@ -31,25 +31,33 @@ main:
     ld a6, 4(a2)                # misaligned load is handled by Zicclsm
     SC_CHECK_EQ a6, a4, 2       # memory was updated
 
-    # Offset 12 crosses a 16 byte boundary but still lies in one cache line, so it is performed too
-    addi a3, a2, 12
+    # Offset 18 stays inside the second granule (bytes 16-31), so it is performed too
+    addi a3, a2, 18
     li a4, 0x5678
     li a5, -1
     amoadd.d a5, a4, (a3)
     SC_CHECK_EQ a5, zero, 3
-    ld a6, 12(a2)
+    ld a6, 18(a2)
     SC_CHECK_EQ a6, a4, 4
 
-    # A doubleword AMO at offset 60 runs off the end of the line, so align.sv would split it and it
-    # still takes a store/AMO access fault, which the handler skips
-    addi a3, a2, 60
+    # Offset 12 crosses the 16 byte boundary although it stays in one cache line, so it takes a
+    # store/AMO access fault, which the handler skips
+    addi a3, a2, 12
     li a4, 0x9ABC
     li a5, -1                   # sentinel must survive the skipped instruction
     amoadd.d a5, a4, (a3)
     li a7, -1
     SC_CHECK_EQ a5, a7, 5       # destination untouched
+    lw a6, 12(a2)
+    SC_CHECK_EQ a6, zero, 6     # memory untouched (bytes 12-15; 16-19 hold part of the offset 18 result)
+
+    # Offset 60 also runs off the end of the line
+    addi a3, a2, 60
+    li a5, -1
+    amoadd.d a5, a4, (a3)
+    SC_CHECK_EQ a5, a7, 7       # destination untouched
     ld a6, 56(a2)
-    SC_CHECK_EQ a6, zero, 6     # memory untouched
+    SC_CHECK_EQ a6, zero, 8     # memory untouched
 
     SC_PASS
     j done

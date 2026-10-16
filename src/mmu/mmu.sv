@@ -76,7 +76,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        ReadNoAmoAccessM;         // Read that is not part of atomic operation causes Load faults.  Otherwise StoreAmo faults
   logic [1:0]                  PBMemoryType;             // PBMT field of PTE during TLB hit, or 00 otherwise
   logic                        MisalignedCausesAccessFaultM; // Misaligned access throws an access fault instead of a misaligned fault
-  logic                        CrossesLineM;             // Access crosses a cache line, so the LSU splits it and it cannot be atomic
+  logic                        CrossesGranuleM;          // Misaligned access crosses a 16-byte boundary, so Zama16b does not make it atomic
   logic [1:0]                  EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
 
@@ -136,15 +136,14 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   assign ReadNoAmoAccessM  = ReadAccessM & ~WriteAccessM;// AMO causes StoreAmo rather than Load fault
 
   // Misaligned faults
-  localparam LINEOFFBITS = $clog2(P.DCACHE_LINELENINBITS/8); // bits of address within a cache line
   always_comb // exclusion-tag: immu-wordaccess
     case(Size)
-      3'b000:  begin DataMisalignedM = 1'b0;              CrossesLineM = 1'b0;                   end // lb, sb, lbu
-      3'b001:  begin DataMisalignedM = VAdr[0];           CrossesLineM = &VAdr[LINEOFFBITS-1:1]; end // lh, sh, lhu
-      3'b010:  begin DataMisalignedM = VAdr[1] | VAdr[0]; CrossesLineM = &VAdr[LINEOFFBITS-1:2]; end // lw, sw, flw, fsw, lwu
-      3'b011:  begin DataMisalignedM = |VAdr[2:0];        CrossesLineM = &VAdr[LINEOFFBITS-1:3]; end // ld, sd, fld, fsd
-      3'b100:  begin DataMisalignedM = |VAdr[3:0];        CrossesLineM = 1'b1;                   end // flq, fsq, amocas.q; align.sv does not split a misaligned amocas.q, so Zama16b never excuses it
-      default: begin DataMisalignedM = 1'b0;              CrossesLineM = 1'b0;                   end // no other sizes exist
+      3'b000:  begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // lb, sb, lbu
+      3'b001:  begin DataMisalignedM = VAdr[0];           CrossesGranuleM = &VAdr[3:1];  end // lh, sh, lhu
+      3'b010:  begin DataMisalignedM = VAdr[1] | VAdr[0]; CrossesGranuleM = &VAdr[3:2];  end // lw, sw, flw, fsw, lwu
+      3'b011:  begin DataMisalignedM = |VAdr[2:0];        CrossesGranuleM = VAdr[3];     end // ld, sd, fld, fsd
+      3'b100:  begin DataMisalignedM = |VAdr[3:0];        CrossesGranuleM = 1'b1;        end // flq, fsq, amocas.q: a misaligned 16-byte access always crosses
+      default: begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // no other sizes exist
     endcase
 
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
@@ -158,9 +157,10 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // handled in hardware and either the access is atomic (not handled in hardware without Zama16b; see privileged spec 3.6.3.3)
   // or the region is non-idempotent, where the spec recommends an access fault so software does not emulate the
   // access with multiple smaller accesses that could have side effects
-  // Zama16b excuses a misaligned atomic that the LSU can do in one cache access
+  // Zama16b excuses a misaligned AMO (which both reads and writes) that stays within a naturally aligned 16-byte
+  // granule; it does not cover LR/SC, so a misaligned LR or SC still faults
   assign MisalignedCausesAccessFaultM = DataMisalignedM & P.ZICCLSM_SUPPORTED &
-                                        ((AtomicAccessM & Cacheable & ~(P.ZAMA16B_SUPPORTED & ~CrossesLineM)) | ~Idempotent);
+                                        ((AtomicAccessM & Cacheable & ~(P.ZAMA16B_SUPPORTED & ReadAccessM & WriteAccessM & ~CrossesGranuleM)) | ~Idempotent);
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.

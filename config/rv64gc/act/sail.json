@@ -407,7 +407,8 @@
             "lrsc": "AccessFault"
           },
           "atomic_support": "AMOCASQ",
-          "misaligned_atomicity_granule_size_exp": 0,
+          // Zama16b: Wally performs a misaligned AMO only within a naturally aligned 16-byte granule
+          "misaligned_atomicity_granule_size_exp": 4,
           "vector_misaligned_atomicity_granule_size_exp": 0,
           "reservability": "RsrvEventual",
           "supports_cbo_zero": true,
@@ -735,7 +736,7 @@
     // cacheable main memory region is >= 4, otherwise you will get a
     // config validation error.
     "Zama16b": {
-      "supported": false
+      "supported": true
     },
     "Zawrs": {
       "supported": true,
@@ -950,10 +951,10 @@
     },
     "Stateen": {
       "Smstateen": {
-        "supported": false
+        "supported": true
       },
       "Ssstateen": {
-        "supported": false
+        "supported": true
       },
       "C_readonly_zero": true,
       "SE0_readonly_zero": false
