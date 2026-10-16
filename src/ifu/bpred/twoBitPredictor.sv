@@ -28,16 +28,16 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
-                         parameter k = 10) (
-  input  logic             clk,
-  input  logic             reset,
-  input  logic             StallF, StallD, StallE, StallM, StallW,
-  input  logic             FlushD, FlushE, FlushM, FlushW,
-  input  logic [XLEN-1:0]  PCNextF, PCM,
-  output logic [1:0]       BPDirF,
-  output logic             BPDirWrongE,
-  input  logic             BranchE, BranchM,
-  input  logic             PCSrcE
+                                        parameter k = 10) (
+  input  logic             clk,              // Clock
+  input  logic             reset,            // Reset
+  input  logic             StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic             FlushD, FlushE, FlushM, FlushW, // Flush Decode, Execute, Memory, Writeback stages
+  input  logic [XLEN-1:0]  PCNextF, PCM,     // Next PC to fetch, PC in Memory stage
+  output logic [1:0]       BPDirF,           // Branch direction prediction (2-bit counter state) in Fetch stage
+  output logic             BPDirWrongE,      // Branch direction mispredicted in Execute stage
+  input  logic             BranchE, BranchM, // Branch instruction in Execute, Memory stages
+  input  logic             PCSrcE            // Select next PC: 1 branch/jump target IEUAdrE, 0 PC + 2/4
 );
 
   logic [k-1:0]            IndexNextF, IndexM;
@@ -53,7 +53,6 @@ module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
   assign IndexNextF = {PCNextF[k+1] ^ PCNextF[1], PCNextF[k:2]};
   assign IndexM = {PCM[k+1] ^ PCM[1], PCM[k:2]};
 
-
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**k), .WIDTH(2)) BHT(.clk(clk),
     .ce1(~StallF), .ce2(~StallW & ~FlushW),
     .ra1(IndexNextF),
@@ -63,13 +62,12 @@ module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
     .we2(BranchM),
     .bwe2(1'b1));
 
-  flopenrc #(2) PredictionRegD(clk, reset,  FlushD, ~StallD, BPDirF, BPDirD);
-  flopenrc #(2) PredictionRegE(clk, reset,  FlushE, ~StallE, BPDirD, BPDirE);
+  flopenrc #(2) PredictionRegD(clk, reset, FlushD, ~StallD, BPDirF, BPDirD);
+  flopenrc #(2) PredictionRegE(clk, reset, FlushE, ~StallE, BPDirD, BPDirE);
 
   assign BPDirWrongE = PCSrcE != BPDirE[1] & BranchE;
 
   satCounter2 BPDirUpdateE(.BrDir(PCSrcE), .OldState(BPDirE), .NewState(NewBPDirE));
-  flopenrc #(2) NewPredictionRegM(clk, reset,  FlushM, ~StallM, NewBPDirE, NewBPDirM);
-
+  flopenrc #(2) NewPredictionRegM(clk, reset, FlushM, ~StallM, NewBPDirE, NewBPDirM);
 
 endmodule

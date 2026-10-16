@@ -28,20 +28,20 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module icpred import cvw::*;  #(parameter cvw_t P,
-                                parameter INSTR_CLASS_PRED = 1)(
-  input  logic             clk, reset,
-  input  logic             StallD, StallE, StallM, StallW,
-  input  logic             FlushD, FlushE, FlushM,
-  input  logic [31:0]      PostSpillInstrRawF, InstrD,        // Instruction
-  input  logic             BranchD, BranchE,
-  input  logic             JumpD, JumpE,
-  output logic             BranchM, BranchW,
-  output logic             JumpM, JumpW,
-  output logic             CallD, CallE, CallM, CallW,
-  output logic             ReturnD, ReturnE, ReturnM, ReturnW,
-  input  logic             BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF,
-  output logic             BPCallF, BPReturnF, BPJumpF, BPBranchF,
-  output logic             IClassWrongM, BPReturnWrongD
+                                parameter INSTR_CLASS_PRED = 1) (
+  input  logic             clk, reset,                                 // Clock and reset
+  input  logic             StallD, StallE, StallM, StallW,             // Stall Decode, Execute, Memory, Writeback stages
+  input  logic             FlushD, FlushE, FlushM,                     // Flush Decode, Execute, Memory stages
+  input  logic [31:0]      PostSpillInstrRawF, InstrD,                 // Fetched instruction, instruction in Decode stage
+  input  logic             BranchD, BranchE,                           // Branch instruction in Decode, Execute stages
+  input  logic             JumpD, JumpE,                               // Jump instruction in Decode, Execute stages
+  output logic             BranchM, BranchW,                           // Branch instruction in Memory, Writeback stages
+  output logic             JumpM, JumpW,                               // Jump instruction in Memory, Writeback stages
+  output logic             CallD, CallE, CallM, CallW,                 // Call instruction in Decode, Execute, Memory, Writeback stages
+  output logic             ReturnD, ReturnE, ReturnM, ReturnW,         // Return instruction in Decode, Execute, Memory, Writeback stages
+  input  logic             BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF, // Instruction class predicted by BTB
+  output logic             BPCallF, BPReturnF, BPJumpF, BPBranchF,     // Predicted instruction class in Fetch stage
+  output logic             IClassWrongM, BPReturnWrongD                // Instruction class prediction was wrong, return prediction was wrong in Decode stage
 );
 
   logic                    IClassWrongD;
@@ -52,12 +52,13 @@ module icpred import cvw::*;  #(parameter cvw_t P,
     // This section is mainly for testing, verification, and PPA comparison.
     // An alternative to using the BTB to store the instruction class is to partially decode
     // the instructions in the Fetch stage into, Call, Return, Jump, and Branch instructions.
-    // This logic is not described in the text book as of 23 February 2023.
+    // This logic is not described in the textbook as of 23 February 2023.
     logic     cjal, cj, cjr, cjalr, CJumpF, CBranchF;
     logic     NCJumpF, NCBranchF;
 
-    if(P.ZCA_SUPPORTED) begin
+    if (P.ZCA_SUPPORTED) begin
       logic [4:0] CompressedOpcF;
+      // CompressedOpcF = {op, funct3}: 01001 c.jal (RV32 only), 01101 c.j, 10100 c.jr/c.jalr (rs2 = 0, rs1 != 0), 0111x c.beqz/c.bnez
       assign CompressedOpcF = {PostSpillInstrRawF[1:0], PostSpillInstrRawF[15:13]};
       assign cjal = CompressedOpcF == 5'h09 & P.XLEN == 32;
       assign cj = CompressedOpcF == 5'h0d;
@@ -69,12 +70,13 @@ module icpred import cvw::*;  #(parameter cvw_t P,
       assign {cjal, cj, cjr, cjalr, CJumpF, CBranchF} = '0;
     end
 
+    // opcodes: 1100111 jalr, 1101111 jal, 1100011 branch
     assign NCJumpF = PostSpillInstrRawF[6:0] == 7'h67 | PostSpillInstrRawF[6:0] == 7'h6F;
     assign NCBranchF = PostSpillInstrRawF[6:0] == 7'h63;
 
     assign BPBranchF = NCBranchF | (P.ZCA_SUPPORTED & CBranchF);
     assign BPJumpF = NCJumpF | (P.ZCA_SUPPORTED & (CJumpF));
-    assign BPReturnF = (NCJumpF & (PostSpillInstrRawF[19:15] & 5'h1B) == 5'h01 & PostSpillInstrRawF[11:7] == 5'b0) | // return must return to ra or r5
+    assign BPReturnF = (NCJumpF & (PostSpillInstrRawF[19:15] & 5'h1B) == 5'h01 & PostSpillInstrRawF[11:7] == 5'b0) | // return must return to ra or x5
         (P.ZCA_SUPPORTED & cjr & ((PostSpillInstrRawF[11:7] & 5'h1B) == 5'h01));
 
     assign BPCallF = (NCJumpF & (PostSpillInstrRawF[11:07] & 5'h1B) == 5'h01) | // call(r) must link to ra or x5
@@ -85,12 +87,12 @@ module icpred import cvw::*;  #(parameter cvw_t P,
     assign {BPCallF, BPReturnF, BPJumpF, BPBranchF} = {BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF};
   end
 
-  assign ReturnD = JumpD & (InstrD[19:15] & 5'h1B) == 5'h01; // returnurn must returnurn to ra or x5
+  assign ReturnD = JumpD & (InstrD[19:15] & 5'h1B) == 5'h01; // return must return to ra or x5
   assign CallD = JumpD & (InstrD[11:7] & 5'h1B) == 5'h01; // call(r) must link to ra or x5
 
-  flopenrc #(2) InstrClassRegE(clk, reset,  FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
-  flopenrc #(4) InstrClassRegM(clk, reset,  FlushM, ~StallM, {CallE, ReturnE, JumpE, BranchE}, {CallM, ReturnM, JumpM, BranchM});
-  flopenrc #(4) InstrClassRegW(clk, reset,  FlushM, ~StallW, {CallM, ReturnM, JumpM, BranchM}, {CallW, ReturnW, JumpW, BranchW});
+  flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
+  flopenrc #(4) InstrClassRegM(clk, reset, FlushM, ~StallM, {CallE, ReturnE, JumpE, BranchE}, {CallM, ReturnM, JumpM, BranchM});
+  flopenrc #(4) InstrClassRegW(clk, reset, FlushM, ~StallW, {CallM, ReturnM, JumpM, BranchM}, {CallW, ReturnW, JumpW, BranchW});
 
   // branch predictor
   flopenrc #(1) BPClassWrongRegM(clk, reset, FlushM, ~StallM, IClassWrongE, IClassWrongM);

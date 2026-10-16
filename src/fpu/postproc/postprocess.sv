@@ -29,41 +29,41 @@
 
 module postprocess import cvw::*;  #(parameter cvw_t P) (
   // general signals
-  input logic                              Xs, Ys,              // input signs
-  input logic  [P.NF:0]                    Xm, Ym, Zm,          // input mantissas
-  input logic  [2:0]                       Frm,                 // rounding mode 000 = rount to nearest, ties to even   001 = round twords zero  010 = round down  011 = round up  100 = round to nearest, ties to max magnitude
-  input logic  [P.FMTBITS-1:0]             Fmt,                 // precision 1 = double 0 = single
-  input logic  [2:0]                       OpCtrl,              // choose which operation (look below for values)
-  input logic                              XZero, YZero,        // inputs are zero
-  input logic                              XInf, YInf, ZInf,    // inputs are infinity
-  input logic                              XNaN, YNaN, ZNaN,    // inputs are NaN
-  input logic                              XSNaN, YSNaN, ZSNaN, // inputs are signaling NaNs
-  input logic  [1:0]                       PostProcSel,         // select result to be written to fp register
-  //fma signals
-  input logic                              FmaAs,               // the modified Z sign - depends on instruction
-  input logic                              FmaPs,               // the product's sign
-  input logic                              FmaSs,               // Sum sign
-  input logic  [P.NE+1:0]                  FmaSe,               // the sum's exponent
+  input logic                              Xs, Ys,              // X and Y signs
+  input logic  [P.NF:0]                    Xm, Ym, Zm,          // X, Y, Z significands
+  input logic  [2:0]                       Frm,                 // Rounding mode: 000 RNE, 001 RTZ, 010 RDN, 011 RUP, 100 RMM
+  input logic  [P.FMTBITS-1:0]             Fmt,                 // FP format: 00 single, 01 double, 10 half, 11 quad
+  input logic  [2:0]                       OpCtrl,              // FPU operation control
+  input logic                              XZero, YZero,        // X, Y are zero
+  input logic                              XInf, YInf, ZInf,    // X, Y, Z are infinity
+  input logic                              XNaN, YNaN, ZNaN,    // X, Y, Z are NaN
+  input logic                              XSNaN, YSNaN, ZSNaN, // X, Y, Z are signaling NaN
+  input logic  [1:0]                       PostProcSel,         // Postprocessor result select
+  // fma signals
+  input logic                              FmaAs,               // FMA aligned addend sign
+  input logic                              FmaPs,               // FMA product sign
+  input logic                              FmaSs,               // FMA sum sign
+  input logic  [P.NE+1:0]                  FmaSe,               // FMA sum exponent
   input logic  [P.FMALEN-1:0]              FmaSm,               // the positive sum
-  input logic                              FmaASticky,          // sticky bit that is calculated during alignment
-  input logic  [$clog2(P.FMALEN+1)-1:0]    FmaSCnt,             // the normalization shift count
-  //divide signals
-  input logic                              DivSticky,           // divider sticky bit
-  input logic  [P.NE+1:0]                  DivUe,               // divsqrt exponent
+  input logic                              FmaASticky,          // FMA addend sticky bit
+  input logic  [$clog2(P.FMALEN+1)-1:0]    FmaSCnt,             // FMA normalization shift count
+  // divide signals
+  input logic                              DivSticky,           // Divide/sqrt sticky bit
+  input logic  [P.NE+1:0]                  DivUe,               // Divide/sqrt result exponent
   input logic  [P.DIVb:0]                  DivUm,               // divsqrt significand
   // conversion signals
-  input logic                              CvtCs,               // the result's sign
-  input logic  [P.NE:0]                    CvtCe,               // the calculated exponent
-  input logic                              CvtResSubnormUf,     // the convert result is subnormal or underflows
+  input logic                              CvtCs,               // Conversion result sign
+  input logic  [P.NE:0]                    CvtCe,               // Conversion calculated exponent
+  input logic                              CvtResSubnormUf,     // Conversion result is subnormal or underflows
   input logic  [P.LOGCVTLEN-1:0]           CvtShiftAmt,         // how much to shift by
-  input logic                              ToInt,               // is fp->int (since it's writing to the integer register)
-  input logic                              Zfa,                 // Zfa operation (fcvtmod.w.d)
+  input logic                              ToInt,               // FP to integer conversion
+  input logic                              Zfa,                 // Zfa variant of FP instruction
   input logic  [P.CVTLEN-1:0]              CvtLzcIn,            // input to the Leading Zero Counter (without msb)
-  input logic                              IntZero,             // is the integer input zero
+  input logic                              IntZero,             // Integer input is zero
   // final results
-  output logic [P.FLEN-1:0]                PostProcRes,         // postprocessor final result
-  output logic [4:0]                       PostProcFlg,         // postprocesser flags
-  output logic [P.XLEN-1:0]                FCvtIntRes           // the integer conversion result
+  output logic [P.FLEN-1:0]                PostProcRes,         // Postprocessor result
+  output logic [4:0]                       PostProcFlg,         // Postprocessor exception flags
+  output logic [P.XLEN-1:0]                FCvtIntRes           // Float-to-integer conversion result
   );
 
   // general signals
@@ -88,7 +88,7 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
   logic                        FmaSZero;             // is the sum zero
   logic [P.NE+1:0]             NormSumExp;           // exponent of the normalized sum not taking into account Subnormal or zero results
   logic                        FmaPreResultSubnorm;  // is the result subnormal - calculated before LZA correction
-  logic [$clog2(P.FMALEN+1)-1:0] FmaShiftAmt;          // normalization shift amount for fma
+  logic [$clog2(P.FMALEN+1)-1:0] FmaShiftAmt;        // normalization shift amount for fma
   // division signals
   logic [P.LOGNORMSHIFTSZ-1:0] DivShiftAmt;          // divsqrt shift amount
   logic [P.NE+1:0]             Ue;                   // divsqrt corrected exponent after correction shift
@@ -114,33 +114,37 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
   logic                        NaNIn;                // are any of the inputs NaN
 
   // signals to help readability
+  // OpCtrl depends on the unit selected by PostProcSel (see fctrl.sv):
+  //   cvt int: {int->fp, 64-bit int, signed int}; cvt fp->fp: OpCtrl[1:0] = output format
+  //   fma: {not multiply-add, negate product, negate Z}, so 100 = fmul
+  //   divsqrt: OpCtrl[0] = 1 for sqrt
   assign Signed  = OpCtrl[0];
   assign Int64   = OpCtrl[1];
   assign IntToFp = OpCtrl[2];
-  assign Mult    = OpCtrl[2]&~OpCtrl[1]&~OpCtrl[0];
+  assign Mult    = OpCtrl[2] & ~OpCtrl[1] & ~OpCtrl[0];
   assign CvtOp   = (PostProcSel == 2'b00);
   assign FmaOp   = (PostProcSel == 2'b10);
   assign DivOp   = (PostProcSel == 2'b01);
-  assign Sqrt    =  OpCtrl[0];
+  assign Sqrt    = OpCtrl[0];
 
   // is there an input of infinity or NaN being used
-  assign InfIn = XInf|YInf|ZInf;
-  assign NaNIn = XNaN|YNaN|ZNaN;
+  assign InfIn = XInf | YInf | ZInf;
+  assign NaNIn = XNaN | YNaN | ZNaN;
 
   // choose the output format depending on the operation
   //      - fp -> fp: OpCtrl contains the precision of the output
   //      - otherwise: Fmt contains the precision of the output
   if (P.FPSIZES == 2)
-      assign OutFmt = IntToFp|~CvtOp ? Fmt : (OpCtrl[1:0] == P.FMT);
+    assign OutFmt = IntToFp | ~CvtOp ? Fmt : (OpCtrl[1:0] == P.FMT);
   else if (P.FPSIZES == 3 | P.FPSIZES == 4)
-      assign OutFmt = IntToFp|~CvtOp ? Fmt : OpCtrl[1:0];
+    assign OutFmt = IntToFp | ~CvtOp ? Fmt : OpCtrl[1:0];
   else assign OutFmt = 0; // FPSIZES = 1
 
   ///////////////////////////////////////////////////////////////////////////////
   // Normalization
   ///////////////////////////////////////////////////////////////////////////////
 
-  // final claulations before shifting
+  // final calculations before shifting
   cvtshiftcalc #(P) cvtshiftcalc(.ToInt, .CvtCe, .CvtResSubnormUf, .Xm, .CvtLzcIn,
       .XZero, .IntToFp, .OutFmt, .CvtResUf, .CvtShiftIn);
 
@@ -151,16 +155,16 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
 
   // select which unit's output to shift
   always_comb
-    case(PostProcSel)
+    case (PostProcSel)
       2'b10: begin // fma
         ShiftAmt = {{P.LOGNORMSHIFTSZ-$clog2(P.FMALEN-1){1'b0}}, FmaShiftAmt};
-        ShiftIn  =  {{2'b00, FmaSm}, {P.NORMSHIFTSZ-(P.FMALEN+2){1'b0}}};
+        ShiftIn  = {{2'b00, FmaSm}, {P.NORMSHIFTSZ-(P.FMALEN+2){1'b0}}};
       end
       2'b00: begin // cvt
         ShiftAmt = {{P.LOGNORMSHIFTSZ-$clog2(P.CVTLEN+1){1'b0}}, CvtShiftAmt};
-        ShiftIn  =  {CvtShiftIn, {P.NORMSHIFTSZ-(P.CVTLEN+P.NF+1){1'b0}}};
+        ShiftIn  = {CvtShiftIn, {P.NORMSHIFTSZ-(P.CVTLEN+P.NF+1){1'b0}}};
       end
-      2'b01: begin //divsqrt
+      2'b01: begin // divsqrt
         ShiftAmt = DivShiftAmt;
         ShiftIn  = {{P.NF{1'b0}}, DivUm, {P.NORMSHIFTSZ-(P.DIVb+1+P.NF){1'b0}}};
       end
@@ -191,7 +195,7 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
   roundsign roundsign(.FmaOp, .DivOp, .CvtOp, .Sqrt, .FmaSs, .Xs, .Ys, .CvtCs, .Ms);
 
   round #(P) rounder(.OutFmt, .Frm, .FmaASticky, .Plus1, .PostProcSel, .CvtCe, .Ue,
-      .Ms, .FmaMe, .FmaOp, .CvtOp, .CvtResSubnormUf, .Mf, .ToInt,  .CvtResUf,
+      .Ms, .FmaMe, .FmaOp, .CvtOp, .CvtResSubnormUf, .Mf, .ToInt, .CvtResUf,
       .DivSticky, .DivOp, .UfPlus1, .FullRe, .Rf, .Re, .Sticky, .Round, .Guard, .Me);
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -206,10 +210,10 @@ module postprocess import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////////////////////////////////////////
 
   flags #(P) flags(.XSNaN, .YSNaN, .ZSNaN, .XInf, .YInf, .ZInf, .InfIn, .XZero, .YZero,
-              .Xs, .Sqrt, .ToInt, .IntToFp, .Int64, .Signed, .OutFmt, .CvtCe,
-              .NaNIn, .FmaAs, .FmaPs, .Round, .IntInvalid, .DivByZero,
-              .Guard, .Sticky, .UfPlus1, .CvtOp, .DivOp, .FmaOp, .FullRe, .Plus1,
-              .Me, .CvtNegResMsbs, .Invalid, .Overflow, .PostProcFlg);
+      .Xs, .Sqrt, .ToInt, .IntToFp, .Int64, .Signed, .OutFmt, .CvtCe,
+      .NaNIn, .FmaAs, .FmaPs, .Round, .IntInvalid, .DivByZero,
+      .Guard, .Sticky, .UfPlus1, .CvtOp, .DivOp, .FmaOp, .FullRe, .Plus1,
+      .Me, .CvtNegResMsbs, .Invalid, .Overflow, .PostProcFlg);
 
   ///////////////////////////////////////////////////////////////////////////////
   // Select the result

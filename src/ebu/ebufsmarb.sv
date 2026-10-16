@@ -30,28 +30,27 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ebufsmarb (
-  input  logic       HCLK,
-  input  logic       HRESETn,
-  input  logic [2:0] HBURST,
- //  AHB burst length
+  input  logic       HCLK,       // AHB clock
+  input  logic       HRESETn,    // AHB reset (active low)
+  input  logic [2:0] HBURST,     // AHB burst type
 
-  input  logic       HREADY,
+  input  logic       HREADY,     // AHB ready
 
-  input  logic       LSUReq,
-  input  logic       IFUReq,
+  input  logic       LSUReq,     // LSU requests the bus
+  input  logic       IFUReq,     // IFU requests the bus
 
-  output logic       IFUSave,
-  output logic       IFURestore,
-  output logic       IFUDisable,
-  output logic       IFUSelect,
-  output logic       LSUDisable,
-  output logic       LSUSelect);
+  output logic       IFUSave,    // Save the IFU request while the LSU is granted
+  output logic       IFURestore, // Restore the saved IFU request
+  output logic       IFUDisable, // Suppress HREADY to the IFU
+  output logic       IFUSelect,  // Grant the bus to the IFU
+  output logic       LSUDisable, // Suppress HREADY to the LSU
+  output logic       LSUSelect); // Grant the bus to the LSU
 
   typedef enum       logic [1:0] {IDLE, ARBITRATE} statetype;
   statetype          CurrState, NextState;
 
   logic              both;                       // Both the LSU and IFU request at the same time
-  logic              IFUReqDelay;                    // 1 cycle delayed IFU request. Part of arbitration
+  logic              IFUReqDelay;                // 1 cycle delayed IFU request. Part of arbitration
   logic              FinalBeat, FinalBeatD;      // Indicates the last beat of a burst
   logic              BeatCntEn;
   logic [3:0]        BeatCount;                  // Position within a burst transfer
@@ -89,9 +88,8 @@ module ebufsmarb (
   // This is necessary because the pipeline is stalled for the entire duration of both transactions,
   // and the LSU memory request will still be active.
   flopr #(1) ifureqreg(HCLK, ~HRESETn, IFUReq, IFUReqDelay);
-  //assign LSUDisable = (CurrState != ARBITRATE) & (IFUReqDelay & ~(HREADY & FinalBeatD));
   assign LSUDisable = (CurrState != ARBITRATE) & IFUReqDelay;
-  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1: LSUReq;
+  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // Burst mode logic

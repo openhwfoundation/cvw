@@ -28,54 +28,54 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module uncore import cvw::*;  #(parameter cvw_t P)(
+module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
-  input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
-  input  logic [P.PA_BITS-1:0] HADDR,
-  input  logic [P.AHBW-1:0]    HWDATA,
-  input  logic [P.XLEN/8-1:0]  HWSTRB,
-  input  logic                 HWRITE,
-  input  logic [2:0]           HSIZE,
-  input  logic [2:0]           HBURST,
-  input  logic [3:0]           HPROT,
-  input  logic [1:0]           HTRANS,
-  input  logic                 HMASTLOCK,
-  input  logic [P.AHBW-1:0]    HRDATAEXT,
-  input  logic                 HREADYEXT, HRESPEXT,
-  output logic [P.AHBW-1:0]    HRDATA,
-  output logic                 HREADY, HRESP,
-  output logic                 HSELEXT,
+  input  logic                 HCLK, HRESETn,             // AHB clock and reset (active low)
+  input  logic                 TIMECLK,                   // Optional clock for CLINT MTIME counter
+  input  logic [P.PA_BITS-1:0] HADDR,                     // AHB address
+  input  logic [P.AHBW-1:0]    HWDATA,                    // AHB write data
+  input  logic [P.XLEN/8-1:0]  HWSTRB,                    // AHB byte write enables
+  input  logic                 HWRITE,                    // AHB write (1) or read (0)
+  input  logic [2:0]           HSIZE,                     // AHB transfer size
+  input  logic [2:0]           HBURST,                    // AHB burst type
+  input  logic [3:0]           HPROT,                     // AHB protection.  Wally does not use
+  input  logic [1:0]           HTRANS,                    // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  input  logic                 HMASTLOCK,                 // AHB master lock.  Wally does not use
+  input  logic [P.AHBW-1:0]    HRDATAEXT,                 // AHB read data from external memory
+  input  logic                 HREADYEXT, HRESPEXT,       // AHB ready and response from external memory
+  output logic [P.AHBW-1:0]    HRDATA,                    // AHB read data
+  output logic                 HREADY, HRESP,             // AHB ready and response
+  output logic                 HSELEXT,                   // AHB select for external memory
   // peripheral pins
-  output logic                 MTimerInt, MSwInt,         // Timer and software interrupts from CLINT
-  output logic                 MExtInt, SExtInt,          // External interrupts from PLIC
-  output logic [63:0]          MTIME_CLINT,               // MTIME, from CLINT
-  input  logic [31:0]          GPIOIN,                    // GPIO pin input value
-  output logic [31:0]          GPIOOUT, GPIOEN,           // GPIO pin output value and enable
+  output logic                 MTimerInt, MSwInt,         // Machine timer and software interrupts
+  output logic                 MExtInt, SExtInt,          // Machine and supervisor external interrupts
+  output logic [63:0]          MTIME_CLINT,               // MTIME from CLINT
+  input  logic [31:0]          GPIOIN,                    // GPIO input values
+  output logic [31:0]          GPIOOUT, GPIOEN,           // GPIO output values and output enables
   input  logic                 UARTSin,                   // UART serial input
   output logic                 UARTSout,                  // UART serial output
-  input  logic                 SPIIn,
-  output logic                 SPIOut,
-  output logic [3:0]           SPICS,
-  output logic                 SPICLK,
-  input  logic                 SDCIn,
-  output logic                 SDCCmd,
-  output logic [3:0]           SDCCS,
-  output logic                 SDCCLK,
-  output logic [3:0]           PWMGPIO
+  input  logic                 SPIIn,                     // SPI pins in
+  output logic                 SPIOut,                    // SPI pins out
+  output logic [3:0]           SPICS,                     // SPI chip select pins
+  output logic                 SPICLK,                    // SPI clock
+  input  logic                 SDCIn,                     // SD card data[0], to SPI data in
+  output logic                 SDCCmd,                    // SD card command, from SPI data out
+  output logic [3:0]           SDCCS,                     // SD card chip select, from SPI chip select
+  output logic                 SDCCLK,                    // SD card clock, from SPI clock
+  output logic [3:0]           PWMGPIO                    // PWM GPIO output
 );
 
   logic [P.XLEN-1:0]           HREADRam, HREADSDC;
 
   logic [12:0]                 HSELRegions;
-  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART,HSELSDC, HSELSPI, HSELPWM;
+  logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART, HSELSDC, HSELSPI, HSELPWM;
   logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
-  logic                        HRESPRam,  HRESPSDC;
+  logic                        HRESPRam, HRESPSDC;
   logic                        HREADYRam, HRESPSDCD;
   logic [P.XLEN-1:0]           HREADBootRom;
   logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
   logic                        HSELNoneD;
-  logic                        UARTIntr,GPIOIntr, SPIIntr;
+  logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
   logic                        SDCIntM;
 
@@ -92,7 +92,6 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   logic                        HRESPBRIDGE, HREADYBRIDGE, HSELBRIDGE, HSELBRIDGED;
   /* SDC Interrupt (SPI Controller) */
   logic                        SDCIntr;
-
 
   // Determine which region of physical memory (if any) is being accessed
   // Use a trimmed down portion of the PMA checker - only the address decoders
@@ -116,7 +115,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
       .HTRANS, .HWDATA, .HWSTRB, .HREADRam, .HRESPRam, .HREADYRam);
   end else assign {HREADRam, HRESPRam, HREADYRam} = '0;
 
- if (P.BOOTROM_SUPPORTED) begin : bootrom
+  if (P.BOOTROM_SUPPORTED) begin : bootrom
     rom_ahb #(.P(P), .RANGE(P.BOOTROM_RANGE), .PRELOAD(P.BOOTROM_PRELOAD))
     bootrom(.HCLK, .HRESETn, .HSELRom(HSELBootRom), .HADDR, .HREADY, .HTRANS,
       .HREADRom(HREADBootRom), .HRESPRom(HRESPBootRom), .HREADYRom(HREADYBootRom));
@@ -160,7 +159,7 @@ module uncore import cvw::*;  #(parameter cvw_t P)(
   end
 
   if (P.SPI_SUPPORTED == 1) begin : spi
-    spi_apb  #(P) spi (
+    spi_apb #(P) spi (
       .PCLK, .PRESETn, .PSEL(PSEL[4]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PREADY(PREADY[4]), .PRDATA(PRDATA[4]),
       .SPIOut, .SPIIn, .SPICS, .SPICLK, .SPIIntr);

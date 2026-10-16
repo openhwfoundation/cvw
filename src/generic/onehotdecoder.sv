@@ -26,8 +26,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module onehotdecoder #(parameter WIDTH = 2) (
-  input  logic [WIDTH-1:0]    bin,
-  output logic [2**WIDTH-1:0] decoded
+  input  logic [WIDTH-1:0]    bin,    // Binary input
+  output logic [2**WIDTH-1:0] decoded // One-hot output
 );
 
   always_comb begin

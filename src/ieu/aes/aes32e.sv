@@ -26,9 +26,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aes32e(
-  input  logic [7:0]  SboxIn,
-  input  logic        finalround,
-  output logic [31:0] result
+  input  logic [7:0]  SboxIn,     // S-box input byte
+  input  logic        finalround, // Final round of AES (skip MixColumns)
+  output logic [31:0] result      // Result
 );
 
   logic [7:0]         SboxOut;

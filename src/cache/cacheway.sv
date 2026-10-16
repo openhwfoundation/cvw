@@ -29,37 +29,37 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module cacheway import cvw::*; #(parameter cvw_t P,
-                  parameter PA_BITS, NUMSETS=512, LINELEN = 256, TAGLEN = 26,
+                  parameter PA_BITS, NUMSETS = 512, LINELEN = 256, TAGLEN = 26,
                   OFFSETLEN = 5, INDEXLEN = 9, READ_ONLY_CACHE = 0) (
-  input  logic                        clk,
-  input  logic                        reset,
+  input  logic                        clk,            // Clock
+  input  logic                        reset,          // Reset
   input  logic                        FlushStage,     // Pipeline flush of second stage (prevent writes and bus operations)
-  input  logic                        InvalidateFlushStage,     // Pipeline flush of second stage (prevent writes and bus operations)
+  input  logic                        InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
   input  logic                        CacheEn,        // Enable the cache memory arrays.  Disable hold read data constant
-  input  logic [$clog2(NUMSETS)-1:0]  CacheSetData,       // Cache address, the output of the address select mux, NextAdr, PAdr, or FlushAdr
-  input  logic [$clog2(NUMSETS)-1:0]  CacheSetTag,       // Cache address, the output of the address select mux, NextAdr, PAdr, or FlushAdr
+  input  logic [$clog2(NUMSETS)-1:0]  CacheSetData,   // Data array set, the output of the address select mux: NextSet, PAdr, or FlushAdr
+  input  logic [$clog2(NUMSETS)-1:0]  CacheSetTag,    // Tag array set, the output of the address select mux: NextSet, PAdr, or FlushAdr
   input  logic [PA_BITS-1:0]          PAdr,           // Physical address
   input  logic [LINELEN-1:0]          LineWriteData,  // Final data written to cache (D$ only)
   input  logic                        SetValid,       // Set the valid bit in the selected way and set
   input  logic                        ClearValid,     // Clear the valid bit in the selected way and set
   input  logic                        SetDirty,       // Set the dirty bit in the selected way and set
-  input  logic                        SelVictim,      // Overrides HitWay Tag matching.  Selects selects the victim tag/data regardless of hit
+  input  logic                        SelVictim,      // Overrides HitWay Tag matching.  Selects the victim tag/data regardless of hit
   input  logic                        ClearDirty,     // Clear the dirty bit in the selected way and set
-  input  logic                        FlushCache,       // [0] Use SelAdr, [1] SRAM reads/writes from FlushAdr
-  input  logic                        VictimWay,      // LRU selected this way as victim to evict
+  input  logic                        FlushCache,     // Flush all dirty lines back to memory
+  input  logic                        VictimWay,      // LRU victim way to evict
   input  logic                        FlushWay,       // This way is selected for flush and possible writeback if dirty
-  input  logic                        InvalidateCache,// Clear all valid bits
+  input  logic                        InvalidateCache, // Clear all valid bits
   input  logic [LINELEN/8-1:0]        LineByteMask,   // Final byte enables to cache (D$ only)
 
-  output logic [LINELEN-1:0]          ReadDataLineWay,// This way's read data if valid
-  output logic                        HitWay,         // This way hits
-  output logic                        ValidWay,       // This way is valid
+  output logic [LINELEN-1:0]          ReadDataLineWay, // This way's read data if valid
+  output logic                        HitWay,         // Way is valid and its tag matches PAdr
+  output logic                        ValidWay,       // Way is valid in the selected set
   output logic                        HitDirtyWay,    // The hit way is dirty
-  output logic                        DirtyWay   ,    // The selected way is dirty
+  output logic                        DirtyWay,       // The selected way is dirty
   output logic [TAGLEN-1:0]           TagWay);        // This way's tag if valid
 
-  logic [NUMSETS-1:0]                ValidBits;
-  logic [NUMSETS-1:0]                DirtyBits;
+  logic [NUMSETS-1:0]                 ValidBits;
+  logic [NUMSETS-1:0]                 DirtyBits;
   logic [LINELEN-1:0]                 ReadDataLine;
   logic [TAGLEN-1:0]                  ReadTag;
   logic                               Dirty;
@@ -82,10 +82,8 @@ module cacheway import cvw::*; #(parameter cvw_t P,
     // nonzero ways will never see FlushCache=0 while FlushWay=1 since FlushWay only advances on a subset of FlushCache assertion cases.
   end else begin : flushlogic // no flush operation for read-only caches.
     assign SelecteDirty = VictimWay;
-  mux2 #(1) selectedwaymux(HitWay, SelecteDirty, SelVictim , SelectedWay);
+    mux2 #(1) selectedwaymux(HitWay, SelecteDirty, SelVictim, SelectedWay);
   end
-
-
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Write Enable demux
@@ -130,15 +128,15 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   for (words = 0; words < NUMSRAM; words++) begin : word
     if (READ_ONLY_CACHE) begin : wordram // no byte-enable needed for i$.
       ram1p1rwe #(.USE_SRAM(P.USE_SRAM), .DEPTH(NUMSETS), .WIDTH(P.CACHE_SRAMLEN)) CacheDataMem(.clk, .ce(CacheEn), .addr(CacheSetData),
-      .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
-      .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
-      .we(SelectedWriteWordEn));
+        .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
+        .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
+        .we(SelectedWriteWordEn));
     end else begin : wordram // D$ needs byte enables
-     ram1p1rwbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(NUMSETS), .WIDTH(P.CACHE_SRAMLEN)) CacheDataMem(.clk, .ce(CacheEn), .addr(CacheSetData),
-      .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
-      .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
-      .we(SelectedWriteWordEn), .bwe(FinalByteMask[SRAMLENINBYTES*(words+1)-1:SRAMLENINBYTES*words]));
-     end
+      ram1p1rwbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(NUMSETS), .WIDTH(P.CACHE_SRAMLEN)) CacheDataMem(.clk, .ce(CacheEn), .addr(CacheSetData),
+        .dout(ReadDataLine[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
+        .din(LineWriteData[P.CACHE_SRAMLEN*(words+1)-1:P.CACHE_SRAMLEN*words]),
+        .we(SelectedWriteWordEn), .bwe(FinalByteMask[SRAMLENINBYTES*(words+1)-1:SRAMLENINBYTES*words]));
+    end
   end
 
   // AND portion of distributed read multiplexers
@@ -149,10 +147,10 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   always_ff @(posedge clk) begin // Valid bit array,
-    if (reset) ValidBits        <= '0;
+    if (reset) ValidBits <= '0;
     if (CacheEn) begin
       ValidWay <= ValidBits[CacheSetTag];
-      if(InvalidateCache & ~InvalidateFlushStage)    ValidBits <= '0; // exclusion-tag: dcache invalidateway
+      if (InvalidateCache & ~InvalidateFlushStage) ValidBits <= '0; // exclusion-tag: dcache invalidateway
       else if (SetValidEN) ValidBits[CacheSetData] <= SetValidWay;
       else if (ClearValidEN) ValidBits[CacheSetData] <= '0; // exclusion-tag: icache ClearValidBits
     end

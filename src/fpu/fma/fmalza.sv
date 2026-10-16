@@ -29,11 +29,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmalza #(WIDTH, NF) (
-  input logic [WIDTH-1:0]             A,              // addend
-  input logic [2*NF+1:0]              Pm,             // product
+  input logic [WIDTH-1:0]             A,              // Aligned addend significand
+  input logic [2*NF+1:0]              Pm,             // Product significand
   input logic                         Cin,            // carry in
   input logic                         sub,            // subtraction
-  output logic [$clog2(WIDTH+1)-1:0]  SCnt            // normalization shift count for the positive result
+  output logic [$clog2(WIDTH+1)-1:0]  SCnt            // Normalization shift count
 );
 
   logic [WIDTH:0]                     F;              // most significant bit of F indicates leading digit
@@ -43,18 +43,18 @@ module fmalza #(WIDTH, NF) (
 
   assign B = {{(NF+2){1'b0}}, Pm, 2'b0};              // Zero extend product
 
-  assign P = A^B;
-  assign G = A&B;
-  assign K = ~A&~B;
+  assign P = A ^ B;
+  assign G = A & B;
+  assign K = ~A & ~B;
 
-  assign Pp1 = {sub, P[WIDTH-1:1]};                   // shift P right by 1 (for P_i+1) , use subtract flag in most significant bit
+  assign Pp1 = {sub, P[WIDTH-1:1]};                   // shift P right by 1 (for P_i+1), use subtract flag in most significant bit
   assign Gm1 = {G[WIDTH-2:0], Cin};                   // shift G left by 1 (for G_i-1) and bring in Cin
-  assign Km1 = {K[WIDTH-2:0], ~Cin};                  // shift K left by 1 (for K_i-1) and bring in Cin
+  assign Km1 = {K[WIDTH-2:0], ~Cin};                  // shift K left by 1 (for K_i-1) and bring in ~Cin
 
   // Apply function to determine Leading pattern
   //      - note: Schmookler01 uses the numbering system where 0 is the most significant bit
-  assign F[WIDTH]     = ~sub&P[WIDTH-1];
-  assign F[WIDTH-1:0] = (Pp1&(G&~Km1 | K&~Gm1)) | (~Pp1&(K&~Km1 | G&~Gm1));
+  assign F[WIDTH]     = ~sub & P[WIDTH-1];
+  assign F[WIDTH-1:0] = (Pp1 & (G & ~Km1 | K & ~Gm1)) | (~Pp1 & (K & ~Km1 | G & ~Gm1));
 
   lzc #(WIDTH+1) lzc (.num(F), .ZeroCnt(SCnt));
 endmodule

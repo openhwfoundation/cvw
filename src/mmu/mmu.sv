@@ -29,38 +29,38 @@
 
 module mmu import cvw::*;  #(parameter cvw_t P,
                              parameter TLB_ENTRIES = 8, IMMU = 0) (
-  input  logic                 clk, reset,
-  input  logic [P.XLEN-1:0]    SATP_REGW,          // Current value of satp CSR (from privileged unit)
-  input  logic                 STATUS_MXR,         // Status CSR: make executable page readable
-  input  logic                 STATUS_SUM,         // Status CSR: Supervisor access to user memory
-  input  logic                 STATUS_MPRV,        // Status CSR: modify machine privilege
-  input  logic [1:0]           STATUS_MPP,         // Status CSR: previous machine privilege level
+  input  logic                 clk, reset,         // Clock and reset
+  input  logic [P.XLEN-1:0]    SATP_REGW,          // satp CSR
+  input  logic                 STATUS_MXR,         // mstatus.MXR: make executable pages readable
+  input  logic                 STATUS_SUM,         // mstatus.SUM: supervisor access to user memory
+  input  logic                 STATUS_MPRV,        // mstatus.MPRV: modify privilege for loads and stores
+  input  logic [1:0]           STATUS_MPP,         // mstatus.MPP: machine previous privilege mode
   input  logic                 ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                 ENVCFG_ADUE,        // HPTW A/D Update enable
-  input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processeor
-  input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
-  input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
-  input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits , 11 = 64 bits
-  input  logic [P.XLEN-1:0]    PTE,                // page table entry
-  input  logic [2:0]           PageTypeWriteVal,   // page type
-  input  logic                 TLBWrite,           // write TLB entry
-  input  logic                 TLBFlush,           // Invalidate all TLB entries (ASID-specific preserves global)
-  input  logic                 TLBFlushAll,        // Flush global (G=1) entries too; when 0, G=1 entries are preserved
-  output logic [P.PA_BITS-1:0] PhysicalAddress,    // PAdr when no translation, or translated VAdr (TLBPAdr) when there is translation
-  output logic                 TLBMiss,            // Miss TLB
+  input  logic [1:0]           PrivilegeModeW,     // Current privilege mode
+  input  logic                 DisableTranslation, // Disable translation for D$ flush and HPTW accesses, which use physical addresses
+  input  logic [P.XLEN+1:0]    VAdr,               // Address before translation (virtual or physical)
+  input  logic [1:0]           Size,               // Access size (log2 bytes)
+  input  logic [P.XLEN-1:0]    PTE,                // Page table entry
+  input  logic [2:0]           PageTypeWriteVal,   // Page type to write to TLB
+  input  logic                 TLBWrite,           // Write TLB entry
+  input  logic                 TLBFlush,           // Invalidate TLB entries (ASID-specific flush preserves global entries)
+  input  logic                 TLBFlushAll,        // Flush global (G = 1) entries too
+  output logic [P.PA_BITS-1:0] PhysicalAddress,    // Physical address
+  output logic                 TLBMiss,            // TLB miss
   output logic                 Cacheable,          // PMA indicates memory address is cacheable
   output logic                 Idempotent,         // PMA indicates memory address is idempotent
   output logic                 SelTIM,             // Select a tightly integrated memory
   // Faults
-  output logic                 InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // access fault sources
-  output logic                 InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // page fault sources
-  output logic                 UpdateDA,                                                  // page fault due to setting dirty or access bit
-  output logic                 LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // misaligned fault sources
+  output logic                 InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // Instruction, load, store/AMO access faults
+  output logic                 InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // Instruction, load, store/AMO page faults
+  output logic                 UpdateDA,                                                  // TLB hit needs to set the dirty or access bit
+  output logic                 LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // Load and store/AMO address misaligned faults
   // PMA checker signals
-  input  logic [3:0]           CMOpM,                                                     // Cache management instructions
-  input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
-  input var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
-  input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0]                   // PMP addresses
+  input  logic [3:0]           CMOpM,                                                     // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // Access type: atomic, execute, write, read
+  input var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration CSRs
+  input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0]                   // PMP address CSRs
 );
 
   logic [P.PA_BITS-1:0]        TLBPAdr;                  // physical address for TLB
@@ -80,7 +80,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
 
   // Get Effective Privilege Mode
-  // for DLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
+  // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
   assign EffectivePrivilegeModeW = IMMU ? PrivilegeModeW : (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW);
 
   // only instantiate TLB if Virtual Memory is supported
@@ -132,11 +132,11 @@ module mmu import cvw::*;  #(parameter cvw_t P,
     assign PMPLoadAccessFaultM      = 1'b0;
   end
 
-  assign ReadNoAmoAccessM  = ReadAccessM & ~WriteAccessM;// AMO causes StoreAmo rather than Load fault
+  assign ReadNoAmoAccessM = ReadAccessM & ~WriteAccessM; // AMO causes StoreAmo rather than Load fault
 
   // Misaligned faults
   always_comb // exclusion-tag: immu-wordaccess
-    case(Size)
+    case (Size)
       2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu
       2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu
       2'b10:  DataMisalignedM = VAdr[1] | VAdr[0]; // lw, sw, flw, fsw, lwu

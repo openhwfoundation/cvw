@@ -28,15 +28,15 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Q4.DIVb
-  input  logic [P.DIVb:0]   U,UM,               // U1.DIVb
-  input  logic [P.DIVb+3:0] WS, WC,             // Q4.DIVb
-  input  logic [P.DIVb+1:0] C,                  // Q2.DIVb
-  input  logic              SqrtE,
-  output logic [P.DIVb+1:0] CNext,              // Q2.DIVb
-  output logic              un,
-  output logic [P.DIVb:0]   UNext, UMNext,      // U1.DIVb
-  output logic [P.DIVb+3:0] WSNext, WCNext      // Q4.DIVb
+  input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Divisor, 2x divisor, and their complements (Q4.DIVb)
+  input  logic [P.DIVb:0]   U, UM,              // Partial result and partial result minus 1 ulp (U1.DIVb)
+  input  logic [P.DIVb+3:0] WS, WC,             // Residual in carry-save form (Q4.DIVb)
+  input  logic [P.DIVb+1:0] C,                  // Digit position marker (Q2.DIVb)
+  input  logic              SqrtE,              // Square root operation in Execute stage
+  output logic [P.DIVb+1:0] CNext,              // Next digit position marker (Q2.DIVb)
+  output logic              un,                 // Result digit is -1
+  output logic [P.DIVb:0]   UNext, UMNext,      // Next partial result and next partial result minus 1 ulp (U1.DIVb)
+  output logic [P.DIVb+3:0] WSNext, WCNext      // Next residual in carry-save form (Q4.DIVb)
 );
 
   logic [P.DIVb+3:0]        Dsel;               // Q4.DIVb
@@ -52,7 +52,7 @@ module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
 
   // Digit Selection logic
   assign j0     = ~C[P.DIVb+1];             // first step of R digit selection: C = 00...0
-  assign j1     = ~C[P.DIVb-1]; // second step of R digit selection: C = 1100...0; simplified from  C[P.DIVb] & ~C[P.DIVb-1] because j=0 case takes priority
+  assign j1     = ~C[P.DIVb-1];             // second step of R digit selection: C = 1100...0; simplified from C[P.DIVb] & ~C[P.DIVb-1] because j=0 case takes priority
   assign Smsbs  = U[P.DIVb:P.DIVb-4];       // U1.4 most significant bits of square root
   assign Dmsbs  = D[P.DIVb-1:P.DIVb-3];     // U0.3 most significant fractional bits of divisor after leading 1
   assign WCmsbs = WC[P.DIVb+3:P.DIVb-4];    // Q4.4 most significant bits of residual
@@ -75,7 +75,7 @@ module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
     endcase
 
   // Residual Update
-  //  {WS, WC}}Next = (WS + WC - qD or F) << 2
+  //  {WS, WC}Next = (WS + WC - qD or F) << 2
   assign AddIn = SqrtE ? F : Dsel;
   assign CarryIn = ~SqrtE & (udigit[3] | udigit[2]); // +1 for 2's complement of -D and -2D
   csa #(P.DIVb+4) csa(WS, WC, AddIn, CarryIn, WSA, WCA);

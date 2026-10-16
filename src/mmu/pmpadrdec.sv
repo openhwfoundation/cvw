@@ -32,15 +32,15 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmpadrdec import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.PA_BITS-1:0]  PhysicalAddress,
-  input  logic [1:0]            Size,
-  input  logic [7:0]            PMPCfg,
-  input  logic [P.PA_BITS-3:0]  PMPAdr,
-  input  logic                  FirstMatch,
-  input  logic                  PAgePMPAdrIn,
-  output logic                  PAgePMPAdrOut,
-  output logic                  Match,
-  output logic                  L, X, W, R
+  input  logic [P.PA_BITS-1:0]  PhysicalAddress, // Physical address
+  input  logic [1:0]            Size,            // Access size (log2 bytes)
+  input  logic [7:0]            PMPCfg,          // pmpcfg field for this entry
+  input  logic [P.PA_BITS-3:0]  PMPAdr,          // pmpaddr CSR for this entry
+  input  logic                  FirstMatch,      // This entry is the highest-priority PMP match (unused)
+  input  logic                  PAgePMPAdrIn,    // Address is at least the previous pmpaddr, for TOR matching
+  output logic                  PAgePMPAdrOut,   // Address is at least this pmpaddr, for next entry TOR matching
+  output logic                  Match,           // Address matches this entry
+  output logic                  L, X, W, R       // PMP entry lock, execute, write, read permissions
 );
 
   // define PMP addressing mode codes

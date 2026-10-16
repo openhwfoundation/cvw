@@ -28,8 +28,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmamult import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.NF:0]     Xm, Ym, // x and y significand
-  output logic [2*P.NF+1:0] Pm      // product's significand
+  input  logic [P.NF:0]     Xm, Ym, // X and Y significands
+  output logic [2*P.NF+1:0] Pm      // Product significand
 );
 
   assign Pm = Xm * Ym;

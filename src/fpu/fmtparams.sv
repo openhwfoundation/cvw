@@ -29,9 +29,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmtparams import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FMTBITS-1:0] Fmt,
-  output logic [P.NE-2:0]      Bias,
-  output logic [P.LOGFLEN-1:0] Nf
+  input  logic [P.FMTBITS-1:0] Fmt,   // FP format: 00 single, 01 double, 10 half, 11 quad
+  output logic [P.NE-2:0]      Bias,  // Exponent bias
+  output logic [P.LOGFLEN-1:0] Nf     // Number of fractional bits in selected format
 );
 
   if (P.FPSIZES == 1) begin
@@ -41,18 +41,18 @@ module fmtparams import cvw::*;  #(parameter cvw_t P) (
   end else if (P.FPSIZES == 3) begin
     always_comb
       case (Fmt)
-        P.FMT:  Bias =  (P.NE-1)'(P.BIAS);
-        P.FMT1: Bias = (P.NE-1)'(P.BIAS1);
-        P.FMT2: Bias = (P.NE-1)'(P.BIAS2);
+        P.FMT:   Bias = (P.NE-1)'(P.BIAS);
+        P.FMT1:  Bias = (P.NE-1)'(P.BIAS1);
+        P.FMT2:  Bias = (P.NE-1)'(P.BIAS2);
         default: Bias = 'x;
       endcase
   end else if (P.FPSIZES == 4) begin
     always_comb
       case (Fmt)
-        2'h3: Bias =  (P.NE-1)'(P.Q_BIAS);
-        2'h1: Bias =  (P.NE-1)'(P.D_BIAS);
-        2'h0: Bias =  (P.NE-1)'(P.S_BIAS);
-        2'h2: Bias =  (P.NE-1)'(P.H_BIAS);
+        2'h3: Bias = (P.NE-1)'(P.Q_BIAS);
+        2'h1: Bias = (P.NE-1)'(P.D_BIAS);
+        2'h0: Bias = (P.NE-1)'(P.S_BIAS);
+        2'h2: Bias = (P.NE-1)'(P.H_BIAS);
       endcase
   end
 
@@ -75,7 +75,7 @@ module fmtparams import cvw::*;  #(parameter cvw_t P) (
       endcase
   else if (P.FPSIZES == 4)
     always_comb
-      case(Fmt)
+      case (Fmt)
         P.S_FMT: Nf = P.S_NF;
         P.D_FMT: Nf = P.D_NF;
         P.H_FMT: Nf = P.H_NF;

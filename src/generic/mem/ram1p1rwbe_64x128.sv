@@ -26,17 +26,17 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ram1p1rwbe_64x128(
-  input  logic          CLK,
-  input  logic          CEB,
-  input  logic          WEB,
-  input  logic [5:0]    A,
-  input  logic [127:0]  D,
-  input  logic [127:0]  BWEB,
-  output logic [127:0]  Q
+  input  logic          CLK,  // SRAM clock
+  input  logic          CEB,  // SRAM chip enable (active low)
+  input  logic          WEB,  // SRAM write enable (active low)
+  input  logic [5:0]    A,    // SRAM address
+  input  logic [127:0]  D,    // SRAM write data
+  input  logic [127:0]  BWEB, // SRAM bit write enables (active low)
+  output logic [127:0]  Q     // SRAM read data
 );
 
-   // replace "generic64x128RAM" with "TS1N..64X128.." module from your memory vendor
-   //generic64x128RAM sramIP (.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
-   TS1N28HPCPSVTB64X128M4SW sramIP(.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
+  // replace "generic64x128RAM" with "TS1N..64X128.." module from your memory vendor
+  // generic64x128RAM sramIP (.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
+  TS1N28HPCPSVTB64X128M4SW sramIP(.CLK, .CEB, .WEB, .A, .D, .BWEB, .Q);
 
 endmodule

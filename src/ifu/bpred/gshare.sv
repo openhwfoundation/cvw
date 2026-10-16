@@ -31,17 +31,17 @@
 
 module gshare import cvw::*; #(parameter cvw_t P,
                                parameter XLEN,
-                parameter k = 10,
-                parameter integer TYPE = 1) (
-  input logic             clk,
-  input logic             reset,
-  input logic             StallF, StallD, StallE, StallM, StallW,
-  input logic             FlushD, FlushE, FlushM, FlushW,
-  output logic [1:0]      BPDirF,
-  output logic            BPDirWrongE,
+                               parameter k = 10,
+                               parameter integer TYPE = 1) (
+  input  logic            clk,                                    // Clock
+  input  logic            reset,                                  // Reset
+  input  logic            StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic            FlushD, FlushE, FlushM, FlushW,         // Flush Decode, Execute, Memory, Writeback stages
+  output logic [1:0]      BPDirF,                                 // Branch direction prediction (2-bit counter state) in Fetch stage
+  output logic            BPDirWrongE,                            // Branch direction mispredicted in Execute stage
   // update
-  input logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
-  input logic             BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE
+  input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,            // Next PC to fetch, PC in Fetch, Decode, Execute, Memory stages
+  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE // Predicted branch in Fetch stage, branch in later stages, taken in Execute stage
 );
 
   logic                   MatchD, MatchE, MatchM, MatchW;
@@ -56,18 +56,18 @@ module gshare import cvw::*; #(parameter cvw_t P,
   logic [k-1:0]           GHRNextM, GHRNextF;
   logic                   PCSrcM;
 
-  if(TYPE == 1) begin
-  assign IndexNextF = GHRNextF ^ {PCNextF[k+1] ^ PCNextF[1], PCNextF[k:2]};
-  assign IndexF = GHRF ^ {PCF[k+1] ^ PCF[1], PCF[k:2]};
-  assign IndexD = GHRD ^ {PCD[k+1] ^ PCD[1], PCD[k:2]};
-  assign IndexE = GHRE ^ {PCE[k+1] ^ PCE[1], PCE[k:2]};
-  assign IndexM = GHRM ^ {PCM[k+1] ^ PCM[1], PCM[k:2]};
-  end else if(TYPE == 0) begin
-  assign IndexNextF = GHRNextF;
-  assign IndexF = GHRF;
-  assign IndexD = GHRD;
-  assign IndexE = GHRE;
-  assign IndexM = GHRM;
+  if (TYPE == 1) begin // gshare: index is global history XOR PC
+    assign IndexNextF = GHRNextF ^ {PCNextF[k+1] ^ PCNextF[1], PCNextF[k:2]};
+    assign IndexF = GHRF ^ {PCF[k+1] ^ PCF[1], PCF[k:2]};
+    assign IndexD = GHRD ^ {PCD[k+1] ^ PCD[1], PCD[k:2]};
+    assign IndexE = GHRE ^ {PCE[k+1] ^ PCE[1], PCE[k:2]};
+    assign IndexM = GHRM ^ {PCM[k+1] ^ PCM[1], PCM[k:2]};
+  end else if (TYPE == 0) begin // global: index is global history only
+    assign IndexNextF = GHRNextF;
+    assign IndexF = GHRF;
+    assign IndexD = GHRD;
+    assign IndexE = GHRE;
+    assign IndexM = GHRM;
   end
 
   flopenrc #(k) IndexWReg(clk, reset, FlushW, ~StallW, IndexM, IndexW);
@@ -79,9 +79,9 @@ module gshare import cvw::*; #(parameter cvw_t P,
   assign MatchX = MatchD | MatchE | MatchM | MatchW;
 
   assign FwdNewBPDirF = MatchD ? {2{BPDirD[1]}} :
-                                   MatchE ? {NewBPDirE} :
-                                   MatchM ? {NewBPDirM} :
-                   NewBPDirW ;
+                        MatchE ? {NewBPDirE} :
+                        MatchM ? {NewBPDirM} :
+                        NewBPDirW;
 
   assign BPDirF = MatchX ? FwdNewBPDirF : PHTBPDirF;
 
@@ -94,17 +94,19 @@ module gshare import cvw::*; #(parameter cvw_t P,
     .we2(BranchM),
     .bwe2(1'b1));
 
-  flopenrc #(2) PredictionRegD(clk, reset,  FlushD, ~StallD, BPDirF, BPDirD);
-  flopenrc #(2) PredictionRegE(clk, reset,  FlushE, ~StallE, BPDirD, BPDirE);
+  flopenrc #(2) PredictionRegD(clk, reset, FlushD, ~StallD, BPDirF, BPDirD);
+  flopenrc #(2) PredictionRegE(clk, reset, FlushE, ~StallE, BPDirD, BPDirE);
 
   satCounter2 BPDirUpdateE(.BrDir(PCSrcE), .OldState(BPDirE), .NewState(NewBPDirE));
-  flopenrc #(2) NewPredictionRegM(clk, reset,  FlushM, ~StallM, NewBPDirE, NewBPDirM);
-  flopenrc #(2) NewPredictionRegW(clk, reset,  FlushW, ~StallW, NewBPDirM, NewBPDirW);
+  flopenrc #(2) NewPredictionRegM(clk, reset, FlushM, ~StallM, NewBPDirE, NewBPDirM);
+  flopenrc #(2) NewPredictionRegW(clk, reset, FlushW, ~StallW, NewBPDirM, NewBPDirW);
 
   assign BPDirWrongE = PCSrcE != BPDirE[1] & BranchE;
 
+  // Speculative global history: shift in the predicted direction of branches in F and D
+  // and the resolved direction of branches in E and M
   assign GHRNextF = BPBranchF ? {BPDirF[1], GHRF[k-1:1]} : GHRF;
-  assign GHRF = BranchD  ? {BPDirD[1], GHRD[k-1:1]} : GHRD;
+  assign GHRF = BranchD ? {BPDirD[1], GHRD[k-1:1]} : GHRD;
   assign GHRD = BranchE ? {PCSrcE, GHRE[k-1:1]} : GHRE;
   assign GHRE = BranchM ? {PCSrcM, GHRM[k-1:1]} : GHRM;
 

@@ -27,9 +27,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zknh32 (
-  input  logic [31:0] A, B,
-  input  logic [3:0]  ZKNHSelect,
-  output logic [31:0] ZKNHResult
+  input  logic [31:0] A, B,       // Operands
+  input  logic [3:0]  ZKNHSelect, // SHA operation select
+  output logic [31:0] ZKNHResult  // SHA result
 );
 
   logic [31:0]        sha256res, sha512res;

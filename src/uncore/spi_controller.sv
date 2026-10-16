@@ -28,33 +28,33 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_controller (
-  input logic        PCLK,
-  input logic        PRESETn,
+  input  logic        PCLK,              // APB clock
+  input  logic        PRESETn,           // APB reset (active low)
 
   // Start Transmission
-  input logic        TransmitStart,
-  input logic        TransmitRegLoaded,
-  input logic        ResetSCLKenable,
+  input  logic        TransmitStart,     // Start transmission
+  input  logic        TransmitRegLoaded, // Transmit shift register loaded
+  input  logic        ResetSCLKenable,   // Reset the SCLK divider counter
 
   // Registers
-  input logic [11:0] SckDiv,
-  input logic [1:0]  SckMode,
-  input logic [1:0]  CSMode,
-  input logic [15:0] Delay0,
-  input logic [15:0] Delay1,
-  input logic [3:0]  FrameLength,
+  input  logic [11:0] SckDiv,            // SCLK divider
+  input  logic [1:0]  SckMode,           // SCLK mode: {polarity, phase}
+  input  logic [1:0]  CSMode,            // Chip select mode
+  input  logic [15:0] Delay0,            // Delay register 0: {sckcs, cssck}
+  input  logic [15:0] Delay1,            // Delay register 1: {interxfr, intercs}
+  input  logic [3:0]  FrameLength,       // Bits per frame
 
   // Is the Transmit FIFO Empty?
-  input logic        TransmitFIFOEmpty,
+  input  logic        TransmitFIFOEmpty, // Transmit FIFO is empty
 
   // Control signals
-  output logic       SCLKenable,
-  output logic       ShiftEdge,
-  output logic       SampleEdge,
-  output logic       EndOfFrame,
-  output logic       Transmitting,
-  output logic       InactiveState,
-  output logic       SPICLK
+  output logic        SCLKenable,        // SCLK divider tick
+  output logic        ShiftEdge,         // Shift out transmit data on this SCLK edge
+  output logic        SampleEdge,        // Sample the receive data on this SCLK edge
+  output logic        EndOfFrame,        // End of frame
+  output logic        Transmitting,      // Controller is transmitting
+  output logic        InactiveState,     // Controller is inactive or between chip selects
+  output logic        SPICLK             // SPI clock
 );
 
   // CSMode Stuff
@@ -84,7 +84,6 @@ module spi_controller (
   // Transmit Stuff
   logic       ContinueTransmit;
   logic       EndTransmission;
-  // logic       TransmitRegLoaded; // TODO: Could be replaced by TransmitRegLoaded?
   logic       NextEndDelay;
   logic       CurrentEndDelay;
 
@@ -169,7 +168,7 @@ module spi_controller (
       // We never want to trigger the clock if the NextState is NOT TRANSMIT
       if (TransmitStart & ~DelayState) begin
         SPICLK <= SckMode[1];
-        end else if (SCLKenable) begin
+      end else if (SCLKenable) begin
         SPICLK <= (NextState == TRANSMIT) & (~Phase & Transmitting | Phase) ? ~SPICLK : SckMode[1];
       end
 
@@ -206,6 +205,7 @@ module spi_controller (
   // Delay ShiftEdge and SampleEdge by a half PCLK period
   // Aligned EXACTLY ON THE MIDDLE of the leading and trailing edges.
   // Sweeeeeeeeeet...
+  // SckMode = {pol, pha}; when pol ^ pha, shift and sample on the opposite SPICLK level
   assign InvertClock = ^SckMode;
   always_ff @(negedge PCLK) begin
     if (~PRESETn | TransmitStart) begin
@@ -238,7 +238,7 @@ module spi_controller (
       CSSCK: if (EndOfCSSCK) NextState = TRANSMIT;
              else NextState = CSSCK;
       TRANSMIT: begin // TRANSMIT case --------------------------------
-        case(CSMode)
+        case (CSMode)
           AUTOMODE: begin
             if (EndTransmission & ~HasSCKCS) NextState = INACTIVE;
             else if (EndOfFrame & HasSCKCS) NextState = SCKCS;
@@ -284,7 +284,7 @@ module spi_controller (
       end
       INTERXFR: begin // INTERXFR case --------------------------------
         if (EndOfINTERXFR) begin
-          if (TransmitRegLoaded)  NextState = TRANSMIT;
+          if (TransmitRegLoaded) NextState = TRANSMIT;
           else NextState = HOLD;
         end else begin
           NextState = INTERXFR;

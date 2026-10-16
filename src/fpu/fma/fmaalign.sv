@@ -28,12 +28,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmaalign import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.NE-1:0]      Xe, Ye, Ze,          // biased exponents in B(NE.0) format
-  input  logic [P.NF:0]        Zm,                  // significand in U(0.NF) format]
-  input  logic                 XZero, YZero, ZZero, // is the input zero
-  output logic [P.FMALEN-1:0]  Am,                  // addend aligned for addition in U(NF+5.2NF+1)
-  output logic                 ASticky,             // Sticky bit calculated from the aligned addend
-  output logic                 KillProd             // should the product be set to zero
+  input  logic [P.NE-1:0]      Xe, Ye, Ze,          // X, Y, Z biased exponents (B(NE.0))
+  input  logic [P.NF:0]        Zm,                  // Z significand
+  input  logic                 XZero, YZero, ZZero, // X, Y, Z are zero
+  output logic [P.FMALEN-1:0]  Am,                  // Aligned addend significand (U(NF+5.2NF+1))
+  output logic                 ASticky,             // Sticky bit from the aligned addend
+  output logic                 KillProd             // Set the product to zero
 );
 
   logic [P.NE+1:0]             ACnt;                // how far to shift the addend to align with the product in Q(NE+2.0) format
@@ -46,41 +46,41 @@ module fmaalign import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////////////////////////////////////////
 
   // determine the shift count for alignment
-  //      - negative means Z is larger, so shift Z left
-  //      - positive means the product is larger, so shift Z right
+  //      - ACnt = Pe - Ze + NF+3 is the right shift of Z; NF+3 aligns Z with the product when Ze = Pe
+  //      - negative means Z is so much larger that the product only affects the sticky bit
   // This could have been done using Pe, but ACnt is on the critical path so we replicate logic for speed
   assign ACnt = {2'b0, Xe} + {2'b0, Ye} - {2'b0, (P.NE)'(P.BIAS)} + (P.NE+2)'(P.NF+3) - {2'b0, Ze};
 
   // Default Addition with only initial left shift
   // extra bit at end and beginning so the correct guard bit is calculated when subtracting
   //  |   54'b0    |  106'b(product)  | 2'b0 |
-  //  | addnend    |
+  //  | addend     |
 
-  assign ZmPreshifted = {Zm,(P.FMALEN-1)'(0)};
-  assign KillProd     = (ACnt[P.NE+1]&~ZZero)|XZero|YZero;
-  assign KillZ        = $signed(ACnt)>$signed((P.NE+2)'(3)*(P.NE+2)'(P.NF)+(P.NE+2)'(5));
+  assign ZmPreshifted = {Zm, (P.FMALEN-1)'(0)};
+  assign KillProd     = (ACnt[P.NE+1] & ~ZZero) | XZero | YZero;                            // ACnt < 0 with nonzero Z, or product is zero
+  assign KillZ        = $signed(ACnt) > $signed((P.NE+2)'(3)*(P.NE+2)'(P.NF)+(P.NE+2)'(5)); // ACnt > 3NF+5: Z shifted entirely into the sticky bits
 
   always_comb begin
-    // If the product is too small to effect the sum, kill the product
+    // If the product is too small to affect the sum, kill the product
     //  |   54'b0    |  106'b(product)  | 2'b0 |
-    //  | addnend    |
+    //  | addend     |
     if (KillProd) begin
         ZmShifted = {(P.NF+3)'(0), Zm, (2*P.NF+2)'(0)};
-        ASticky   = ~(XZero|YZero);
+        ASticky   = ~(XZero | YZero);
 
-    // If the addend is too small to effect the addition
+    // If the addend is too small to affect the addition
     //      - The addend has to shift two past the end of the product to be considered too small
     //      - The 2 extra bits are needed for rounding
 
     //  |   54'b0    |  106'b(product)  | 2'b0 |
-    //  | addnend    |
-    end else if (KillZ)  begin
+    //  | addend     |
+    end else if (KillZ) begin
         ZmShifted = '0;
         ASticky   = ~ZZero;
 
     // If the Addend is shifted right
     //  |   54'b0    |  106'b(product)  | 2'b0 |
-    //  | addnend    |
+    //  | addend     |
     end else begin
         ZmShifted = ZmPreshifted >> ACnt;
         ASticky   = |(ZmShifted[P.NF-1:0]);

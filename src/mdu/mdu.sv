@@ -28,19 +28,19 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module mdu import cvw::*;  #(parameter cvw_t P) (
-  input  logic              clk, reset,
-  input  logic              StallM, StallW,
-  input  logic              FlushE, FlushM, FlushW,
-  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // inputs A and B from IEU forwarding mux output
-  input  logic [2:0]        Funct3E, Funct3M,               // type of MDU operation
-  input  logic              IntDivE, W64E,                  // Integer division/remainder, and W-type instructions
+  input  logic              clk, reset,                     // Clock and reset
+  input  logic              StallM, StallW,                 // Stall Memory, Writeback stages
+  input  logic              FlushE, FlushM, FlushW,         // Flush Execute, Memory, Writeback stages
+  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  input  logic [2:0]        Funct3E, Funct3M,               // funct3 field of instruction in Execute, Memory stages
+  input  logic              IntDivE, W64E,                  // Integer divide or remainder, RV64 W-type instruction
   input  logic              MDUActiveE,                     // Mul/Div instruction being executed
-  output logic [P.XLEN-1:0] MDUResultW,                     // multiply/divide result
-  output logic              DivBusyE                        // busy signal to stall pipeline in Execute stage
+  output logic [P.XLEN-1:0] MDUResultW,                     // Multiply/divide result
+  output logic              DivBusyE                        // Integer divider busy
 );
 
   logic [P.XLEN*2-1:0]      ProdM;                          // double-width product from mul
-  logic [P.XLEN-1:0]        QuotM, RemM;                    // quotient and remainder from intdivrestoring
+  logic [P.XLEN-1:0]        QuotM, RemM;                    // quotient and remainder from divider
   logic [P.XLEN-1:0]        PrelimResultM;                  // selected result before W truncation
   logic [P.XLEN-1:0]        MDUResultM;                     // result after W truncation
   logic                     W64M;                           // W-type instruction
