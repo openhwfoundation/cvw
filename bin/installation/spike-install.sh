@@ -27,7 +27,7 @@
 ## and limitations under the License.
 ################################################################################################
 
-SPIKE_VERSION=76ced61f540a55d6d26a23e6dadd02f83ea634ca # Last commit as of March 23, 2026
+SPIKE_VERSION=5a760667bf0d0ab893173b9eeff9c109c8d7dd9a # Last commit as of October 16, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script

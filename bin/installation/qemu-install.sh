@@ -27,7 +27,7 @@
 ## and limitations under the License.
 ################################################################################################
 
-QEMU_VERSION=v11.0.2 # Last release as of July 2, 2026
+QEMU_VERSION=v11.1.2 # Last release as of October 16, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script
