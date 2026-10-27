@@ -115,6 +115,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   localparam HIDELEG    = 12'h603;
   localparam HIE        = 12'h604;
   localparam MIE        = 12'h304;
+  localparam MIP        = 12'h344;
   localparam VSIE       = 12'h204;
   localparam HTIMEDELTA = 12'h605;
   localparam HTIMEDELTAH = 12'h615;
@@ -150,6 +151,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   // Write Enables for CSR instructions
   logic WriteMTINSTM;
   logic WriteMTVAL2M;
+  logic WriteMIPM;
   logic WriteHSTATUSM, WriteVSSTATUSM;
   logic WriteHEDELEGM, WriteHEDELEGHM;
   logic WriteHIDELEGM;
@@ -244,6 +246,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign NextMtval2M = TrapToM   ? '0 : CSRWriteValM;
 
   // Write enables for each CSR (from CSR instruction)
+  assign WriteMIPM        = CSRMWriteM & (CSRAdrM == MIP);
   assign WriteMTINSTM     = CSRMWriteM & (CSRAdrM == MTINST);
   assign WriteMTVAL2M     = CSRMWriteM & (CSRAdrM == MTVAL2);
   assign WriteHSTATUSM    = ValidHWriteM & (CSRAdrM == HSTATUS);
@@ -277,9 +280,11 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign WriteVSATPM = P.VIRTMEM_SUPPORTED & ValidVSWriteM & (CSRAdrM == VSATP) &
                        LegalVSatpModeM;
 
-  // Access to vstimecmp in V=1 is gated by mcounteren.TM, hcounteren.TM, and henvcfg.STCE.
-  // henvcfg.STCE is already constrained by menvcfg.STCE in the architectural HENVCFG view below.
-  assign AllowVSTimecmpAccessM = ~VirtModeW | (MCOUNTEREN_TM & HCOUNTEREN_REGW[1] & HENVCFG_REGW[63]);
+  // vstimecmp is accessible from M-mode, from HS when MENVCFG_STCE & MCOUNTEREN_TM,
+  // from VS when also HENVCFG_STCE & HCOUNTEREN_TM.
+  assign AllowVSTimecmpAccessM = (PrivilegeModeW == P.M_MODE) |
+    (PrivilegeModeW == P.S_MODE) & MENVCFG_STCE & MCOUNTEREN_TM &
+    (~VirtModeW | HENVCFG_REGW[63] & HCOUNTEREN_REGW[1]);
   assign WriteVSTIMECMPM  = P.SSTC_SUPPORTED & ValidVSWriteM & (CSRAdrM == VSTIMECMP) & AllowVSTimecmpAccessM;
   assign WriteVSTIMECMPHM = P.SSTC_SUPPORTED & (P.XLEN == 32) & (ValidVSWriteM & (CSRAdrM == VSTIMECMPH)) & AllowVSTimecmpAccessM;
 
@@ -468,8 +473,10 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
       NextHVIPM[2] = CSRWriteValM[2];
     if (WriteVSIPM)
       NextHVIPM[2] = CSRWriteValM[1];
+    if (WriteMIPM)
+      NextHVIPM[2] = CSRWriteValM[2];
   end
-  flopenr #(12) HVIPreg(clk, reset, (WriteHVIPM | WriteHIPM | WriteVSIPM), NextHVIPM, HVIP_REGW);
+  flopenr #(12) HVIPreg(clk, reset, (WriteHVIPM | WriteHIPM | WriteVSIPM | WriteMIPM), NextHVIPM, HVIP_REGW);
   assign VSIP_REGW = (HIP_PENDING[11:0] & HIDELEG_REGW[11:0]) >> 1;
 
   // hgeie bits GEILEN:1 are writable; all others are read-only zero.

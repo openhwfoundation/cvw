@@ -158,40 +158,44 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////
 
   always_comb
-    if      (reset)                                           CauseM = 5'd0; // hard reset 3.3
-    else if (ValidIntsM[11])                                  CauseM = 5'd11; // Machine External Int
-    else if (ValidIntsM[3])                                   CauseM = 5'd3;  // Machine Sw Int
-    else if (ValidIntsM[7])                                   CauseM = 5'd7;  // Machine Timer Int
+    if      (reset)                                               CauseM = 5'd0; // hard reset 3.3
+    else if (ValidIntsM[11])                                      CauseM = 5'd11; // Machine External Int
+    else if (ValidIntsM[3])                                       CauseM = 5'd3;  // Machine Sw Int
+    else if (ValidIntsM[7])                                       CauseM = 5'd7;  // Machine Timer Int
     // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
-    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                CauseM = 5'd9;  // not delegated Supervisor External Int
-    else if (~MIDELEG_REGW[1] & ValidIntsM[1])                CauseM = 5'd1;  // not delegated Supervisor Sw Int
-    else if (~MIDELEG_REGW[5] & ValidIntsM[5])                CauseM = 5'd5;  // not delegated Supervisor Timer Int
-    else if (ValidIntsM[9])                                   CauseM = 5'd9;  // delegated Supervisor External Int
-    else if (ValidIntsM[1])                                   CauseM = 5'd1;  // delegated Supervisor Sw Int
-    else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int
-    else if (P.H_SUPPORTED & ValidIntsM[12])                  CauseM = 5'd12; // Supervisor Guest External Int
-    else if (P.H_SUPPORTED & ValidIntsM[10])                  CauseM = 5'd10; // Virtual Supervisor External Int
-    else if (P.H_SUPPORTED & ValidIntsM[2])                   CauseM = 5'd2;  // Virtual Supervisor Software Int
-    else if (P.H_SUPPORTED & ValidIntsM[6])                   CauseM = 5'd6;  // Virtual Supervisor Timer Int
-    else if (BothInstrPageFaultM)                             CauseM = 5'd12;
-    else if (P.H_SUPPORTED & VirtualInstrFaultM)              CauseM = 5'd22; // Virtual Instruction Fault
-    else if (BothInstrAccessFaultM)                           CauseM = 5'd1;
-    else if (IllegalInstrFaultM)                              CauseM = 5'd2;
+    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                    CauseM = 5'd9;  // not delegated Supervisor External Int
+    else if (~MIDELEG_REGW[1] & ValidIntsM[1])                    CauseM = 5'd1;  // not delegated Supervisor Sw Int
+    else if (~MIDELEG_REGW[5] & ValidIntsM[5])                    CauseM = 5'd5;  // not delegated Supervisor Timer Int
+    else if (ValidIntsM[9])                                       CauseM = 5'd9;  // delegated Supervisor External Int
+    else if (ValidIntsM[1])                                       CauseM = 5'd1;  // delegated Supervisor Sw Int
+    else if (ValidIntsM[5])                                       CauseM = 5'd5;  // delegated Supervisor Timer Int
+    else if (P.H_SUPPORTED & ValidIntsM[12])                      CauseM = 5'd12; // Supervisor Guest External Int must be taken in HS
+    // if any of the VS mode interrupts are delegated to VS mode they would have lower priority
+    else if (P.H_SUPPORTED & ValidIntsM[10] & ~HIDELEG_REGW[10])  CauseM = 5'd10; // undelegated Virtual Supervisor External Int
+    else if (P.H_SUPPORTED & ValidIntsM[2] & ~HIDELEG_REGW[2])    CauseM = 5'd2;  // undelegated Virtual Supervisor Software Int
+    else if (P.H_SUPPORTED & ValidIntsM[6] & ~HIDELEG_REGW[6])    CauseM = 5'd6;  // undelegated Virtual Supervisor Timer Int
+    else if (P.H_SUPPORTED & ValidIntsM[10])                      CauseM = 5'd10; // delegated Virtual Supervisor External Int
+    else if (P.H_SUPPORTED & ValidIntsM[2])                       CauseM = 5'd2;  // delegated Virtual Supervisor Software Int
+    else if (P.H_SUPPORTED & ValidIntsM[6])                       CauseM = 5'd6;  // delegated Virtual Supervisor Timer Int
+    else if (BothInstrPageFaultM)                                 CauseM = 5'd12;
+    else if (P.H_SUPPORTED & VirtualInstrFaultM)                  CauseM = 5'd22; // Virtual Instruction Fault
+    else if (BothInstrAccessFaultM)                               CauseM = 5'd1;
+    else if (IllegalInstrFaultM)                                  CauseM = 5'd2;
     // coverage off
     // Misaligned instructions cannot occur in rv64gc
-    else if (InstrMisalignedFaultM)                           CauseM = 5'd0;
+    else if (InstrMisalignedFaultM)                               CauseM = 5'd0;
     // coverage on
-    else if (BreakpointFaultM)                                CauseM = 5'd3;
-    else if (EcallFaultM)                                     CauseM = (P.H_SUPPORTED & VirtModeW & (PrivilegeModeW == P.S_MODE)) ? 5'd10
+    else if (BreakpointFaultM)                                    CauseM = 5'd3;
+    else if (EcallFaultM)                                         CauseM = (P.H_SUPPORTED & VirtModeW & (PrivilegeModeW == P.S_MODE)) ? 5'd10
                                                                                                                   : {1'b0, 2'b10, PrivilegeModeW};
-    else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED) CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
-    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;
+    else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
+    else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)         CauseM = 5'd4;
     // TODO: Add guest-page-fault cause generation (20/21/23) when two-stage translation fault signals are integrated.
-    else if (StoreAmoPageFaultM)                              CauseM = 5'd15;
-    else if (LoadPageFaultM)                                  CauseM = 5'd13;
-    else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;
-    else if (LoadAccessFaultM)                                CauseM = 5'd5;
-    else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)  CauseM = 5'd6; // See priority in Privileged Spec 3.1.15
-    else if (LoadMisalignedFaultM & P.ZICCLSM_SUPPORTED)      CauseM = 5'd4;
-    else                                                      CauseM = 5'd0;
+    else if (StoreAmoPageFaultM)                                  CauseM = 5'd15;
+    else if (LoadPageFaultM)                                      CauseM = 5'd13;
+    else if (StoreAmoAccessFaultM)                                CauseM = 5'd7;
+    else if (LoadAccessFaultM)                                    CauseM = 5'd5;
+    else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)      CauseM = 5'd6; // See priority in Privileged Spec 3.1.15
+    else if (LoadMisalignedFaultM & P.ZICCLSM_SUPPORTED)          CauseM = 5'd4;
+    else                                                          CauseM = 5'd0;
 endmodule

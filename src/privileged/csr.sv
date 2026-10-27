@@ -266,7 +266,9 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     CSRSrcM = InstrM[14] ? {{(P.XLEN-5){1'b0}}, InstrM[19:15]} : SrcAM;
 
     // CSR set and clear for MIP/SIP should only touch internal state, not interrupt inputs
-    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable};
+    // mip.VSSIP aliases to hvip.VSSIP (stored in csrh), MIP_REGW_writeable[2] is always zero, OR with the hvip.VSSIP bit
+    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable} |
+        {{(P.XLEN-12){1'b0}}, (HVIP_REGW & 12'h4)};
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
@@ -289,7 +291,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   if (P.H_SUPPORTED) begin: csradr_h
     csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM, .TrapM, .ExceptionM,
       .VirtModeW, .PrivilegeModeW, .MCOUNTEREN_REGW, .HCOUNTEREN_REGW, .HENVCFG_REGW,
-      .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM);
+      .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM);
   end else begin: csradr_noh
     assign CSRAdrM = CSRAdrM_In;
     assign VirtualCSRAccessM = 1'b0;
