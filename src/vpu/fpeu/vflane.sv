@@ -29,25 +29,24 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   input  logic                           clk, reset,
   input  logic                           StallM,                     // stall the M stage
   input  logic                           FlushE, FlushM,             // flush the E and M stages
-  input  logic [P.FLEN-1:0]              X, Y, Z,                    // three operands in computation order, NaN boxed to FLEN
-  input  logic                           XWide, YWide, ZWide,        // is the operand widened (EEW = 2*SEW)
-  input  logic [2:0]                     Unit,                       // functional unit: 000 FMA  001 divide/sqrt  010 convert  011 compare/min/max  100 sign injection  101 classify  110 rec7/rsqrt7
-  input  logic [2:0]                     OpCtrl,                     // operation control, meaning depends on Unit (see below)
+  input  logic [P.ELEN-1:0]              Vs2, Vs1, Vd,               // inputs
+  input  logic [2:0]                     Vs2EEW, Vs1EEW, VdEEW,      // EEWs
+  input  logic [1:0]                     OperandOrderE,              // operand order
+  input  logic [2:0]                     UnitE,                      // functional unit: 000 FMA  001 divide/sqrt  010 convert  011 compare/min/max  100 sign injection  101 classify  110 rec7/rsqrt7
+  input  logic [2:0]                     OpCtrlE,                    // operation control, meaning depends on Unit (see below)
   input  logic                           ToInt,                      // convert unit: is fp->int
-  input  logic                           Red,                        // reduction element: accumulator replaces Z (FMA) or Y (compare)
+  input  logic                           VReductionE,                // reduction element: accumulator replaces Z (FMA) or Y (compare)
   input  logic                           First,                      // first element of a reduction: use Z rather than the accumulator
   input  logic [2:0]                     Frm,                        // rounding mode 000 = round to nearest, ties to even   001 = round twords zero  010 = round down  011 = round up  100 = round to nearest, ties to max magnitude  110 = round to odd
   input  logic                           FPUActive,                  // kill inputs when FPU not active
   input  logic                           FDivStartE,                 // start a divide or square root
-  input  logic [2:0]                     Vsew,
-  input  logic [1:0]                     WideNarrow,                 // equivalent to R1[4:3], 00 Nonwidening, 01 Wide, 10 Narrow, 11 Reserved
   output logic                           FDivBusyE, FDivDoneE,       // divide/sqrt is busy or finishing (to sequencer)
-  output logic [P.FLEN-1:0]              VfRes,                      // result at OutFmt precision
-  output logic [4:0]                     VfFlg,                      // fp flags
-  output logic [P.ELEN-1:0]              VfIntRes                    // integer result: fp->int, classify, or compare bit in bit 0
+  output logic [P.ELEN-1:0]              VfRes,                      // result at OutFmt precision
+  output logic [4:0]                     VfFlg                       // fp flags
 );
 
-  logic [P.FMTBITS-1:0] SewFmt, WideFmt, OutFmt, XFmt, YFmt, ZFmt;
+  logic [P.FMTBITS-1:0] Vs2Fmt, Vs1Fmt, OutFmt, XFmt, YFmt, ZFmt, YSrcFmt, ZSrcFmt;
+  logic [P.ELEN-1:0]    X, Y, Z;
 
   logic                 FmaOpE, DivOpE, CvtOpE, CmpOpE, SgnOpE, ClassOpE, RecOpE;
   logic                 FmaAddSubE;                                  // OpCtrl == 110 (add) or 111 (sub)
@@ -56,61 +55,61 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic                 RedFmaE, RedCmpE;                            // reduction using the FMA or compare unit
   logic                 CmpNeE;                                      // not equal compare
 
-  assign FmaOpE     = (Unit == 3'b000);
-  assign DivOpE     = (Unit == 3'b001);
-  assign CvtOpE     = (Unit == 3'b010);
-  assign CmpOpE     = (Unit == 3'b011);
-  assign SgnOpE     = (Unit == 3'b100);
-  assign ClassOpE   = (Unit == 3'b101);
-  assign RecOpE     = (Unit == 3'b110);
-  assign FmaAddSubE = FmaOpE & OpCtrl[2] &  OpCtrl[1];
-  assign FmaMulE    = FmaOpE & OpCtrl[2] & ~OpCtrl[1];
-  assign IntToFpE   = CvtOpE & OpCtrl[2];
+  assign FmaOpE     = (UnitE == 3'b000);
+  assign DivOpE     = (UnitE == 3'b001);
+  assign CvtOpE     = (UnitE == 3'b010);
+  assign CmpOpE     = (UnitE == 3'b011);
+  assign SgnOpE     = (UnitE == 3'b100);
+  assign ClassOpE   = (UnitE == 3'b101);
+  assign RecOpE     = (UnitE == 3'b110);
+  assign FmaAddSubE = FmaOpE & OpCtrlE[2] &  OpCtrlE[1];
+  assign FmaMulE    = FmaOpE & OpCtrlE[2] & ~OpCtrlE[1];
+  assign IntToFpE   = CvtOpE & OpCtrlE[2];
   assign ToIntE     = CvtOpE & ToInt;
-  assign FtoFE      = CvtOpE & ~ToInt & ~OpCtrl[2];
-  assign RedFmaE    = Red & FmaOpE;
-  assign RedCmpE    = Red & CmpOpE;
-  assign CmpNeE     = CmpOpE & (OpCtrl == 3'b111);
+  assign FtoFE      = CvtOpE & ~ToInt & ~OpCtrlE[2];
+  assign RedFmaE    = VReductionE & FmaOpE;
+  assign RedCmpE    = VReductionE & CmpOpE;
+  assign CmpNeE     = CmpOpE & (OpCtrlE == 3'b111);
 
-  // SewFmt  = FP format with width SEW,   WideFmt = FP format with width 2*SEW
+  assign Vs2Fmt = (Vs2EEW == 3'b011) ? P.D_FMT : P.S_FMT;
+  assign Vs1Fmt = (Vs1EEW == 3'b011) ? P.D_FMT : P.S_FMT;
+  assign OutFmt = (VdEEW  == 3'b011) ? P.D_FMT : P.S_FMT;
+
   always_comb
-    case (Vsew)
-      3'b000:  begin SewFmt = 'x;      WideFmt = 'x;      end
-      3'b001:  begin SewFmt = P.H_FMT; WideFmt = P.S_FMT; end
-      3'b010:  begin SewFmt = P.S_FMT; WideFmt = P.D_FMT; end
-      3'b011:  begin SewFmt = P.D_FMT; WideFmt = 'x;      end  // 2*SEW > ELEN=64, reserved
-      default: begin SewFmt = 'x;      WideFmt = 'x;      end
+    case (OperandOrderE)
+      2'b00:   begin X = Vs2; Y = Vs1; Z = Vd;  XFmt = Vs2Fmt; YSrcFmt = Vs1Fmt; ZSrcFmt = OutFmt; end
+      2'b01:   begin X = Vs1; Y = Vs2; Z = Vd;  XFmt = Vs1Fmt; YSrcFmt = Vs2Fmt; ZSrcFmt = OutFmt; end
+      2'b10:   begin X = Vs1; Y = Vd;  Z = Vs2; XFmt = Vs1Fmt; YSrcFmt = OutFmt; ZSrcFmt = Vs2Fmt; end
+      default: begin X = Vs2; Y = Vs1; Z = Vs1; XFmt = Vs2Fmt; YSrcFmt = Vs1Fmt; ZSrcFmt = Vs1Fmt; end
     endcase
 
-  assign OutFmt = (WideNarrow == 2'b01) ? WideFmt : SewFmt; // fmt is wide for widening operations
-
-  assign XFmt = (XWide | (WideNarrow == 2'b10)) ? WideFmt : SewFmt; // X is wide for narrowing convert (WideNarrow == 10)
-  assign YFmt = (FmaAddSubE | RedCmpE) ? OutFmt : (YWide ? WideFmt : SewFmt);
-  assign ZFmt = RedFmaE ? OutFmt : (FmaAddSubE ? (YWide ? WideFmt : SewFmt) : (FmaMulE ? OutFmt : (ZWide ? WideFmt : SewFmt)));
+  assign YFmt = (FmaAddSubE | RedCmpE) ? OutFmt : YSrcFmt;
+  assign ZFmt = RedFmaE ? OutFmt : (FmaAddSubE ? YSrcFmt : (FmaMulE ? OutFmt : ZSrcFmt));
 
   logic [P.FLEN-1:0] BoxedOne, BoxedZero;
   assign BoxedOne  = (OutFmt == P.D_FMT)
                      ? {{(P.FLEN-P.D_LEN){1'b1}}, 2'b00, {(P.D_NE-1){1'b1}}, {P.D_NF{1'b0}}}
-                     : ((OutFmt == P.S_FMT)
-                        ? {{(P.FLEN-P.S_LEN){1'b1}}, 2'b00, {(P.S_NE-1){1'b1}}, {P.S_NF{1'b0}}}
-                        : {{(P.FLEN-P.H_LEN){1'b1}}, 2'b00, {(P.H_NE-1){1'b1}}, {P.H_NF{1'b0}}});
+                     : {{(P.FLEN-P.S_LEN){1'b1}}, 2'b00, {(P.S_NE-1){1'b1}}, {P.S_NF{1'b0}}};
   assign BoxedZero = (OutFmt == P.D_FMT)
                      ? {{(P.FLEN-P.D_LEN){1'b1}}, {P.D_LEN{1'b0}}}
-                     : ((OutFmt == P.S_FMT)
-                        ? {{(P.FLEN-P.S_LEN){1'b1}}, {P.S_LEN{1'b0}}}
-                        : {{(P.FLEN-P.H_LEN){1'b1}}, {P.H_LEN{1'b0}}});
+                     : {{(P.FLEN-P.S_LEN){1'b1}}, {P.S_LEN{1'b0}}};
 
-  logic              RedM;                                           // a reduction element is in the M stage
+  logic              VReductionM;                                    // a reduction element is in the M stage
   logic [P.FLEN-1:0] AccReg;                                         // result of the last completed reduction element
   logic [P.FLEN-1:0] Accumulated;
 
-  assign Accumulated = First ? Z : (RedM ? VfRes : AccReg);
+  assign Accumulated = First ? Z : (VReductionM ? VfRes : AccReg);
 
   logic [P.FLEN-1:0] FmaXin, FmaYin, FmaZin;
 
-  assign FmaXin = X;
-  assign FmaYin = FmaAddSubE ? BoxedOne : (RedCmpE ? Accumulated : Y);
-  assign FmaZin = RedFmaE ? Accumulated : (FmaAddSubE ? Y : (FmaMulE ? BoxedZero : Z));
+  logic [P.FLEN-1:0] YSel, ZSel;
+
+  assign YSel = FmaAddSubE ? BoxedOne : (RedCmpE ? Accumulated : Y);
+  assign ZSel = RedFmaE ? Accumulated : (FmaAddSubE ? Y : (FmaMulE ? BoxedZero : Z));
+
+  assign FmaXin = (XFmt == P.D_FMT) ? X : {{(P.FLEN-P.S_LEN){1'b1}}, X[P.S_LEN-1:0]};
+  assign FmaYin = (YFmt == P.D_FMT) ? YSel : {{(P.FLEN-P.S_LEN){1'b1}}, YSel[P.S_LEN-1:0]};
+  assign FmaZin = (ZFmt == P.D_FMT) ? ZSel : {{(P.FLEN-P.S_LEN){1'b1}}, ZSel[P.S_LEN-1:0]};
 
   // Unpack all three per-operand format
   logic              XEnE, YEnE, ZEnE;                               // operand is used by the current operation
@@ -125,7 +124,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.FLEN-1:0] XPostBoxE;
 
   assign XEnE = ~IntToFpE;                                           // integer input to convert is not a float
-  assign YEnE = FmaOpE | CmpOpE | SgnOpE | (DivOpE & ~OpCtrl[0]);
+  assign YEnE = FmaOpE | CmpOpE | SgnOpE | (DivOpE & ~OpCtrlE[0]);
   assign ZEnE = FmaOpE;
 
   unpackinput #(FP) unpackX (
@@ -164,7 +163,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     .Xe(XeE), .Ye(YeE), .Ze(ZeE),
     .Xm(XmE), .Ym(YmE), .Zm(ZmE),
     .XZero(XZeroE), .YZero(YZeroE), .ZZero(ZZeroE),
-    .OpCtrl,
+    .OpCtrl(OpCtrlE),
     .As(AsE), .Ps(PsE), .Ss(SsE), .Se(SeE), .Sm(SmE),
     .InvA(), .SCnt(SCntE), .ASticky(FmaAStickyE)
   );
@@ -181,9 +180,9 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
 
   assign DivStartE = FDivStartE & FPUActive & DivOpE;
 
-  fmtparams #(P) fmtparams (.Fmt(OutFmt), .Bias(BiasE), .Nf(NfE));
+  fmtparams #(FP) fmtparams (.Fmt(OutFmt), .Bias(BiasE), .Nf(NfE));
 
-  fdivsqrt #(P) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrl[0]), .SqrtM,
+  fdivsqrt #(P) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrlE[0]), .SqrtM,
     .XInfE, .YInfE, .XZeroE, .YZeroE, .XNaNE, .YNaNE, .BiasE, .NfE, .FDivStartE(DivStartE), .IDivStartE(1'b0), .XsE,
     .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3E(3'b000), .Funct3M(3'b000), .IntDivE(1'b0), .W64E(1'b0),
     .StallM, .FlushE, .DivStickyM, .FDivBusyE, .IFDivStartE, .FDivDoneE, .UeM,
@@ -197,11 +196,11 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.CVTLEN-1:0]    CvtLzcInE;
 
   // OpCtrl[1:0] interpreted as Fmt for fp->fp conversion
-  assign VfcvtOpCtrlE = FtoFE ? {1'b0, OutFmt} : OpCtrl;
+  assign VfcvtOpCtrlE = FtoFE ? {1'b0, OutFmt} : OpCtrlE;
 
   fcvt #(P) fcvt (
     .Xs(XsE), .Xe(XeE), .Xm(XmE), .Int(X[P.ELEN-1:0]), .OpCtrl(VfcvtOpCtrlE),
-    .ToInt(ToIntE), .XZero(XZeroE), .Fmt(OutFmt), .Ce(CeE), .ShiftAmt(CvtShiftAmtE),
+    .ToInt(ToIntE), .XZero(XZeroE), .Fmt(IntToFpE ? OutFmt : XFmt), .Ce(CeE), .ShiftAmt(CvtShiftAmtE),
     .ResSubnormUf(CvtResSubnormUfE), .Cs(CsE), .IntZero(IntZeroE), .LzcIn(CvtLzcInE)
   );
 
@@ -212,7 +211,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [2:0]        CmpOpCtrlE;                                     // fcmp has no not equal
   logic              CmpMaskE;                                       // compare result bit
 
-  assign CmpOpCtrlE = CmpNeE ? 3'b010 : OpCtrl;
+  assign CmpOpCtrlE = CmpNeE ? 3'b010 : OpCtrlE;
   assign CmpMaskE   = CmpIntResE[0] ^ CmpNeE;
 
   fcmp #(P) fcmp (
@@ -231,7 +230,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.FLEN-1:0] SgnResE;
 
   fsgninj #(P) fsgninj(
-    .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(OutFmt), .OpCtrl(OpCtrl[1:0]),
+    .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(OutFmt), .OpCtrl(OpCtrlE[1:0]),
     .SgnRes(SgnResE)
   );
 
@@ -248,8 +247,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [4:0]        VfrecFlgE;
 
   vfrecrsqrt7 #(P) vfrecrsqrt7 (
-    .IsSqrt(OpCtrl[0]), .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XZero(XZeroE), .XInf(XInfE), .XSubnorm(XSubnormE),
-    .Xe(XeE), .Xm(XmE), .Vsew, .Frm,
+    .IsSqrt(OpCtrlE[0]), .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XZero(XZeroE), .XInf(XInfE), .XSubnorm(XSubnormE),
+    .Xe(XeE), .Xm(XmE), .Vsew(VdEEW), .Frm,
     .VfrecRes(VfrecResE), .VfrecFlg(VfrecFlgE)
   );
 
@@ -266,12 +265,12 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [1:0]            PostProcSelE;                               // select the postprocessor input: 00 convert  01 divide/sqrt  10 FMA
   logic [2:0]            PostOpCtrlE;                                // postprocessor operation control
   logic                  UsePostProcE;                               // result comes from the postprocessor
-  logic                  RedE;                                       // reduction element in flight
+  logic                  IntSelE;
 
   assign PostProcSelE = FmaOpE ? 2'b10 : (DivOpE ? 2'b01 : 2'b00);
-  assign PostOpCtrlE  = FmaOpE ? OpCtrl : (DivOpE ? {2'b00, OpCtrl[0]} : VfcvtOpCtrlE);
+  assign PostOpCtrlE  = FmaOpE ? OpCtrlE : (DivOpE ? {2'b00, OpCtrlE[0]} : VfcvtOpCtrlE);
   assign UsePostProcE = FmaOpE | DivOpE | CvtOpE;
-  assign RedE         = Red & FPUActive & (FmaOpE | CmpOpE);
+  assign IntSelE      = ClassOpE | (CmpOpE & ~(OpCtrlE[2] & (OpCtrlE[1] ^ OpCtrlE[0])));
 
   ///////////////////////////////////////////////////////////////////////////////
   // E to M pipe registers
@@ -296,7 +295,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [2:0]                    PostOpCtrlM;
   logic [P.FMTBITS-1:0]          FmtM;
   logic [2:0]                    FrmM;
-  logic                          ToIntM, UsePostProcM, ActiveM;
+  logic                          ToIntM, UsePostProcM, ActiveM, IntSelM;
 
   assign StallUnpackedM = StallM | (FDivBusyE & ~IFDivStartE | FDivDoneE); // stall during divsqrt
 
@@ -316,12 +315,12 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   flopenrc #(P.NE+1+P.LOGCVTLEN+P.CVTLEN+3) EMRegCvt(clk, reset, FlushM, ~StallM,
     {CeE, CvtShiftAmtE, CvtResSubnormUfE, CsE, IntZeroE, CvtLzcInE},
     {CeM, CvtShiftAmtM, CvtResSubnormUfM, CsM, IntZeroM, CvtLzcInM});
-  flopenrc #(12+P.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
-    {PostProcSelE, PostOpCtrlE, OutFmt, Frm, ToIntE, UsePostProcE, RedE, FPUActive},
-    {PostProcSelM, PostOpCtrlM, FmtM, FrmM, ToIntM, UsePostProcM, RedM, ActiveM});
+  flopenrc #(13+P.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
+    {PostProcSelE, PostOpCtrlE, OutFmt, Frm, ToIntE, UsePostProcE, VReductionE, FPUActive, IntSelE},
+    {PostProcSelM, PostOpCtrlM, FmtM, FrmM, ToIntM, UsePostProcM, VReductionM, ActiveM, IntSelM});
 
   // reduction accumulator: holds the result of the last completed reduction element
-  flopenr #(P.FLEN) MRegAcc(clk, reset, RedM & ~StallM, VfRes, AccReg);
+  flopenr #(P.FLEN) MRegAcc(clk, reset, VReductionM & ~StallM, VfRes, AccReg);
 
   assign SqrtM = PostOpCtrlM[0];
 
@@ -371,8 +370,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   );
 
   // final results
-  assign VfRes    = UsePostProcM ? PostProcResM : PreFpResM;
-  assign VfIntRes = ToIntM ? FCvtIntResM : PreIntResM;
+  assign VfRes    = ToIntM ? FCvtIntResM : (IntSelM ? PreIntResM : (UsePostProcM ? PostProcResM : PreFpResM));
   assign VfFlg    = {5{ActiveM}} & (UsePostProcM ? PostProcFlgM : PreFlgM);
 
 endmodule
