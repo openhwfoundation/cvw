@@ -111,6 +111,10 @@ def _fdiv(i):
 
 
 derivconfigtests = [
+        # cycle-accounting monitor (testbench/common/perfmon.sv), which reads the RTL by hierarchical names; the
+        # glob keeps its log apart from the standard rv64gc run of rv64i/I
+        ["rv64gc", "rv64gc", ["rv64i/I/I-*"], "--params PERF_MONITOR=1 --args +PERF_FILE={}_perf.csv"],
+
         # memory system
         ["tlb2_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
         ["tlb16_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
