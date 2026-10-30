@@ -17,7 +17,7 @@ coveragetests:
 deriv:
 	derivgen.pl
 
-.PHONY: QuestaFunctCoverage QuestaCodeCoverage
+.PHONY: QuestaFunctCoverage QuestaCodeCoverage VcsFunctCoverage VcsCodeCoverage
 
 # Merge the per-test functional coverage databases written by wsim --fcov and report the total.
 QuestaFunctCoverage:
@@ -52,6 +52,40 @@ QuestaCodeCoverage:
 	vcover report -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_coverage_hierarchical.rpt
 	vcover report -below 100 -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_uncovered_hierarchical.rpt
 	vcover report -details -threshH 100 -html -output covhtmlreport/$(CONFIG) $(COVUCDB)
+
+# VCS counterparts of the two targets above, for wsim --sim vcs --ccov/--fcov and regression-wally
+# --coveragesim vcs.  Each simulation writes its own coverage database, a .vdb directory, which urg merges.
+# The code coverage exclusions of CONFIG are those of questa/coverage-exclusions-$(CONFIG).do and the RTL's
+# "// coverage off" pragmas, translated by vcs/exclusions2el into a URG exclusion file for the merged
+# database; vcs/cov/exclusions-$(CONFIG).log says what each exclusion became, or why VCS has no counterpart.
+# Reports: vcs/cov/$(CONFIG)_coverage_hierarchical.rpt (per-instance summary), and in vcs/cov/$(CONFIG):
+# report (details, text and HTML), uncovered (details of what is not covered) and unexcluded (no exclusions).
+URG = urg -full64
+VCSCOV = vcs/cov/$(CONFIG)
+
+VcsFunctCoverage:
+	rm -rf vcs/fcov && mkdir -p vcs/fcov
+	ls -d $(CURDIR)/vcs/fcov_ucdb/rv64gc*.vdb > vcs/fcov/vdbs.txt
+	cd vcs/fcov && $(URG) -f vdbs.txt -dbname fcov -format text -report report -log urg.log > /dev/null 2>&1
+	cd vcs/fcov && $(URG) -dir fcov.vdb -format text -show brief -report uncovered -log uncovered.log > /dev/null 2>&1
+	cp vcs/fcov/report/groups.txt vcs/fcov/fcov.summary.log
+	@echo "VCS TOTAL COVERGROUP COVERAGE: $$(grep -A2 '^Total Groups Coverage Summary' vcs/fcov/report/groups.txt | tail -n 1 | awk '{print $$1}')%"
+
+# urg names a merged database after -dbname in the current directory (a / in the name separates a test name),
+# so the merges run in vcs/cov/$(CONFIG) and vcs/fcov
+VcsCodeCoverage:
+	rm -rf $(VCSCOV) && mkdir -p $(VCSCOV)
+	ls -d $(CURDIR)/vcs/ucdb/$(CONFIG)_*.vdb > $(VCSCOV)/vdbs.txt
+	cd $(VCSCOV) && $(URG) -f vdbs.txt -dbname merged -noreport -log merge.log > /dev/null 2>&1
+	cd $(VCSCOV) && $(URG) -dir merged.vdb -dump full_exclusions -format text -show ratios -report unexcluded -log unexcluded.log > /dev/null 2>&1
+	vcs/exclusions2el --wally $(WALLY) --do questa/coverage-exclusions-$(CONFIG).do --dump $(VCSCOV) \
+	  --modinfo $(VCSCOV)/unexcluded/modinfo.txt --out vcs/cov/exclusions-$(CONFIG).el --log vcs/cov/exclusions-$(CONFIG).log
+	cd $(VCSCOV) && $(URG) -dir merged.vdb -elfile ../exclusions-$(CONFIG).el -format both -show ratios -report report -log report.log > /dev/null 2>&1
+	cd $(VCSCOV) && $(URG) -dir merged.vdb -elfile ../exclusions-$(CONFIG).el -format text -show brief -report uncovered -log uncovered.log > /dev/null 2>&1
+	cp $(VCSCOV)/report/hierarchy.txt vcs/cov/$(CONFIG)_coverage_hierarchical.rpt
+	cp $(VCSCOV)/unexcluded/hierarchy.txt vcs/cov/$(CONFIG)_coverage_hierarchical_unexcluded.rpt
+	@grep -A2 "^Total Coverage Summary" $(VCSCOV)/report/dashboard.txt
+	@grep "^Warning" vcs/cov/exclusions-$(CONFIG).log || true
 
 benchmarks:
 	$(MAKE) -C ${WALLY}benchmarks/embench build
