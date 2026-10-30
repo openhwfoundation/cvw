@@ -40,7 +40,6 @@ jobs:
           - name: ubuntu-20.04
             image: ubuntu:20.04
             imageFamily: debian
-            regressionFail: true
             os: ubuntu-latest
           - name: ubuntu-22.04
             image: ubuntu:22.04
@@ -60,10 +59,6 @@ jobs:
             imageFamily: debian
             os: ubuntu-24.04-arm
           # Debian Installations
-          - name: debian-11
-            image: debian:11
-            imageFamily: debian
-            os: ubuntu-latest
           - name: debian-12
             image: debian:12
             imageFamily: debian
@@ -76,7 +71,6 @@ jobs:
           - name: rocky-8
             image: rockylinux/rockylinux:8
             imageFamily: redhat
-            regressionFail: true
             os: ubuntu-latest
           - name: rocky-9
             image: rockylinux/rockylinux:9
@@ -89,7 +83,6 @@ jobs:
           - name: almalinux-8
             image: almalinux:8
             imageFamily: redhat
-            regressionFail: true
             os: ubuntu-latest
           - name: almalinux-9
             image: almalinux:9
@@ -107,6 +100,11 @@ jobs:
           - name: opensuse-16.0
             image: opensuse/leap:16.0
             imageFamily: suse
+            os: ubuntu-latest
+          # Fedora installations
+          - name: fedora-44
+            image: fedora:44
+            imageFamily: redhat
             os: ubuntu-latest
           # User level installation
           - name: user-install
@@ -149,7 +147,7 @@ jobs:
       - name: Clone Necessary Submodules
         run: |
               git config --global --add safe.directory '*'
-              git submodule update --init addins/riscv-arch-test addins/riscv-arch-test-cvw addins/verilog-ethernet
+              git submodule update --init addins/riscv-arch-test addins/verilog-ethernet
       # Free up space on the host machine, either from the container or the host
       - name: Free Up Storage
         run: |
@@ -200,24 +198,24 @@ jobs:
             rm -rf $RISCV/buildroot/ || sudo rm -rf $RISCV/buildroot/
             rm -rf $RISCV/logs || sudo rm -rf $RISCV/logs
             df -h
-      # Make riscof and zsbl only as that is the only testsuite used by standard regression
+      # Build only what the smoke test below needs: the self-checking peripheral tests, the ZSBL,
+      # the derivative configurations and the coverage tests.  The riscv-arch-test suite is built by
+      # regression-wally itself and needs the reference-model toolchain, so it is not built here.
       - name: make tests
         run: |
               source setup.sh
-              make riscof zsbl deriv coverage --jobs $(nproc --ignore 1)
-      # Run standard regression, skipping distros that are known to be broken with Verilator
+              make periph zsbl deriv coverage --jobs $(nproc --ignore 1)
+      # Run standard regression (disabled for space reasons)
       # - name: Regression
-      #   if: ${{ matrix.regressionFail != true }}
       #   run: |
       #         source setup.sh
       #         regression-wally
-      - name: Lint + wsim Test Only (for distros with broken Verilator sim)
-        # if: ${{ matrix.regressionFail == true }}
+      - name: Lint + wsim Test Only
         run: |
               source setup.sh
               mkdir -p $WALLY/sim/verilator/logs/
               lint-wally
-              wsim rv32i arch32i --sim verilator | tee $WALLY/sim/verilator/logs/rv32i_arch32i.log
+              wsim rv32imc $WALLY/tests/periph/rv32/WALLY-periph-m-01.elf --sim verilator | tee $WALLY/sim/verilator/logs/rv32imc_WALLY-periph-m-01.log
       # Upload regression logs for debugging
       - name: Upload regression logs
         uses: actions/upload-artifact@v7

@@ -7,25 +7,16 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module riscvassertions import cvw::*; #(parameter cvw_t P);
   initial begin
     assert (P.PMP_ENTRIES == 0 | P.PMP_ENTRIES==16 | P.PMP_ENTRIES==64) else $fatal(1, "Illegal number of PMP entries: PMP_ENTRIES must be 0, 16, or 64");
+    assert (P.ZICSR_SUPPORTED | !P.F_SUPPORTED) else $fatal(1, "Can't support float (F) without supporting Zicsr (fcsr and mstatus.FS)");
     assert (P.F_SUPPORTED | !P.D_SUPPORTED) else $fatal(1, "Can't support double fp (D) without supporting float (F)");
     assert (P.D_SUPPORTED | !P.Q_SUPPORTED) else $fatal(1, "Can't support quad fp (Q) without supporting double (D)");
     assert (P.F_SUPPORTED | !P.ZFH_SUPPORTED) else $fatal(1, "Can't support half-precision fp (ZFH) without supporting float (F)");
+    assert (P.F_SUPPORTED | !P.ZFA_SUPPORTED) else $fatal(1, "Can't support additional fp instructions (ZFA) without supporting float (F)");
 
     assert (P.I_SUPPORTED ^ P.E_SUPPORTED) else $fatal(1, "Exactly one of I and E must be supported");
 
@@ -38,6 +29,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.M_SUPPORTED == 0) | (P.ZMMUL_SUPPORTED == 1)) else $fatal(1, "M requires ZMMUL");
     assert ((P.ZICNTR_SUPPORTED == 0) | (P.ZICSR_SUPPORTED == 1)) else $fatal(1, "ZICNTR_SUPPORTED requires ZICSR_SUPPORTED");
     assert ((P.ZIHPM_SUPPORTED == 0) | (P.ZICNTR_SUPPORTED == 1)) else $fatal(1, "ZIPHM_SUPPORTED requires ZICNTR_SUPPORTED");
+    assert ((P.ZICSR_SUPPORTED == 0) | ((P.COUNTERS >= 3) & (P.COUNTERS <= 32))) else $fatal(1, "COUNTERS must be between 3 and 32 when ZICSR is supported");
 
     assert (P.XLEN == 32 | P.SV32_SUPPORTED == 0) else $fatal(1, "SV32_SUPPORTED requires XLEN = 32");
     assert (P.XLEN == 64 | P.SV39_SUPPORTED == 0) else $fatal(1, "SV39_SUPPORTED requires XLEN = 64");

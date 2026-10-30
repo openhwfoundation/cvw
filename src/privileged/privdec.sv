@@ -10,43 +10,37 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privdec import cvw::*;  #(parameter cvw_t P) (
+module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         clk, reset,
-  input  logic         StallW, FlushW,
-  input  logic [31:7 ] InstrM,                              // privileged instruction function field
+  input  logic         StallM,                              // Memory stage stalled: the wfi stays in M
+  input  logic [31:7]  InstrM,                              // privileged instruction function field
   input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
   input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
   input  logic [1:0]   PrivilegeModeW,                      // current privilege level
   input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // status bits
-  input  logic         TrapM,                               // Trap is occurring
+  input  logic         IntPendingM,                         // a locally enabled interrupt is pending: ends any wait
   output logic         IllegalInstrFaultM,                  // Illegal instruction
-  output logic         EcallFaultM, BreakpointFaultM,       // Ecall or breakpoint; must retire, so don't flush it when the trap occurs
+  output logic         EcallFaultM, BreakpointFaultM,       // Ecall or breakpoint; traps without retiring
   output logic         sretM, mretM, RetM,                  // return instructions
-  output logic         wfiM, wfiW, sfencevmaM               // wfi / sfence.vma / sinval.vma instructions
+  output logic         WaitM,                               // wfi in M is waiting for an interrupt: stall the pipeline
+  output logic         WaitedM,                             // wfi in M has waited (not a delayed WaitM): it retires before an interrupt is taken
+  output logic         sfencevmaM,                          // sfence.vma / sinval.vma instructions
+  output logic         sfencevmaAllM                        // sfence.vma with rs2=x0: flush all TLB entries including global
 );
 
   logic                rs1zeroM, rdzeroM;                   // rs1 / rd field = 0
   logic                IllegalPrivilegedInstrM;             // privileged instruction isn't a legal one or in legal mode
-  logic                WFITimeoutM;                         // WFI reaches timeout threshold
+  logic                wfiM;                                // wfi instruction
+  logic                TWTimeoutM;                          // mstatus.TW time limit reached: illegal instruction
+  logic                WaitedNextM;                         // WaitedM for the next cycle
   logic                ebreakM, ecallM;                     // ebreak / ecall instructions
   logic                sinvalvmaM;                          // sinval.vma
   logic                presfencevmaM;                       // sfence.vma before checking privilege mode
@@ -81,28 +75,38 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // all of sinval.vma, sfence.w.inval, sfence.inval.ir are treated as sfence.vma
   assign sfencevmaM = PrivilegedM & P.VIRTMEM_SUPPORTED &
                       ((PrivilegeModeW == P.M_MODE & (vmaM | fenceinvalM)) |
-                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM  | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+  // rs2 (InstrM[24:20]) = x0 means flush all ASIDs including global mappings; rs2 != x0 is ASID-specific
+  // and must preserve global (G=1) entries (RISC-V Privileged spec sfence.vma semantics).
+  assign sfencevmaAllM = sfencevmaM & ~|InstrM[24:20];
 
   ///////////////////////////////////////////
-  // WFI timeout Privileged Spec 3.1.6.5
+  // Wait: wfi (Privileged Spec 3.3.3, mstatus.TW 3.1.6.6)
+  // The waiting wfi stays in M while WaitM stalls the whole pipeline, so the instruction
+  // in W keeps forwarding.  The wait ends when a locally enabled interrupt is pending (any
+  // privilege level, regardless of global enables), or when the mstatus.TW time limit
+  // (WFI_TIMEOUT_BIT) raises an illegal instruction.  The signals are named for any instruction that
+  // waits in M; here that is only wfi (Zawrs adds wrs.nto and wrs.sto).
   ///////////////////////////////////////////
 
-  if (P.U_SUPPORTED) begin : wfi
-    logic [P.WFI_TIMEOUT_BIT:0] WFICount, WFICountPlus1;
-    logic                       WFICountEn, WFICountRst;
-    // Clear counter when reset or when trap is taken
-    assign WFICountRst = reset | TrapM;
-    // Stop incrementing the counter once reach the timeout limit
-    assign WFICountEn = ~WFITimeoutM;
-    assign WFICountPlus1 = wfiM ? WFICount + 1 : '0; // Count while WFI
-    flopenr #(P.WFI_TIMEOUT_BIT+1) wficountreg(clk, WFICountRst, WFICountEn, WFICountPlus1, WFICount);
-  // coverage off -item e 1 -fecexprrow 1
-  // WFI Timeout trap will not occur when STATUS_TW is low while in supervisor mode, so the system gets stuck waiting for an interrupt and triggers a watchdog timeout.
-    assign WFITimeoutM = ((STATUS_TW & PrivilegeModeW != P.M_MODE) | (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) & WFICount[P.WFI_TIMEOUT_BIT];
-  // coverage on
-  end else assign WFITimeoutM = 1'b0;
+  assign WaitM = wfiM & ~IntPendingM & ~TWTimeoutM;
 
-  flopenrc #(1) wfiWReg(clk, reset, FlushW, ~StallW, wfiM, wfiW);
+  // Counter of waiting cycles, held while the wfi stays in M and cleared when M advances,
+  // so it never outlives its wfi.  It saturates at WFI_TIMEOUT_BIT, the time limit.
+  if (P.U_SUPPORTED) begin : waitcnt
+    logic [P.WFI_TIMEOUT_BIT:0] WaitCount, WaitCountNext;
+    assign WaitCountNext = StallM ? WaitCount + {{P.WFI_TIMEOUT_BIT{1'b0}}, WaitM & ~WaitCount[P.WFI_TIMEOUT_BIT]} : '0;
+    flopr #(P.WFI_TIMEOUT_BIT+1) waitcountreg(clk, reset, WaitCountNext, WaitCount);
+    assign TWTimeoutM = wfiM & ((STATUS_TW & PrivilegeModeW != P.M_MODE) | (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) &
+                        WaitCount[P.WFI_TIMEOUT_BIT];
+  end else assign TWTimeoutM = 1'b0;
+
+  // Set once the wfi in M has waited, and held until M advances.  An interrupt that ends the wait is then
+  // taken on the next instruction (mepc = pc + 4), while one already enabled and pending is taken on the wfi
+  // itself.  This is not WaitM delayed a cycle: the cycle the wait ends, M can still be stalled for
+  // another reason (IFU or external stall), and the wfi must keep WaitedM until it moves to W.
+  assign WaitedNextM = StallM & (WaitM | WaitedM);
+  flopr #(1) waitedreg(clk, reset, WaitedNextM, WaitedM);
 
   ///////////////////////////////////////////
   // Extract exceptions by name and handle them
@@ -115,7 +119,6 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // Fault on illegal instructions
   ///////////////////////////////////////////
 
-  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM|mretM|ecallM|ebreakM|wfiM|sfencevmaM);
-  assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM |
-                              WFITimeoutM;
+  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
+  assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM | TWTimeoutM;
 endmodule

@@ -10,22 +10,12 @@
 ##          in config/deriv that are variants of the base configurations.
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 ##
 ## SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ##
-## Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-## except in compliance with the License, or, at your option, the Apache License version 2.0. You
-## may obtain a copy of the License at
-##
-## https:##solderpad.org/licenses/SHL-2.1/
-##
-## Unless required by applicable law or agreed to in writing, any work distributed under the
-## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-## either express or implied. See the License for the specific language governing permissions
-## and limitations under the License.
 ################################################################################################
 
 # Format:
@@ -64,6 +54,9 @@ EXT_MEM_RANGE       64'h0FFFFFFF
 
 deriv fpgagenesys2 fpga
 EXT_MEM_RANGE       64'h3FFFFFFF
+
+deriv fpgaqmtechk7 fpga
+EXT_MEM_RANGE       64'h0FFFFFFF
 
 deriv fpgavcu108 fpga
 EXT_MEM_RANGE       64'h7FFFFFFF
@@ -120,22 +113,53 @@ PMP_ENTRIES         32'd0
 deriv syn_sram_rv64gc_pmp0 syn_sram_rv64gc
 PMP_ENTRIES         32'd0
 
+# noPriv keeps Zicsr for the machine-mode CSRs, which F and the cache block operations need
 deriv syn_rv64gc_noPriv syn_rv64gc_pmp0
-ZICSR_SUPPORTED     0
+S_SUPPORTED         0
+BIGENDIAN_SUPPORTED 0
+VECTORED_INTERRUPTS_SUPPORTED 0
+U_SUPPORTED         0
+SSTC_SUPPORTED      0
+ZICNTR_SUPPORTED    0
+ZIHPM_SUPPORTED     0
+SV39_SUPPORTED      0
+SV48_SUPPORTED      0
+SV57_SUPPORTED      0
+SVPBMT_SUPPORTED    0
+SVNAPOT_SUPPORTED   0
+SVINVAL_SUPPORTED   0
+SVADU_SUPPORTED     0
 deriv syn_sram_rv64gc_noPriv syn_sram_rv64gc_pmp0
-ZICSR_SUPPORTED     0
+S_SUPPORTED         0
+BIGENDIAN_SUPPORTED 0
+VECTORED_INTERRUPTS_SUPPORTED 0
+U_SUPPORTED         0
+SSTC_SUPPORTED      0
+ZICNTR_SUPPORTED    0
+ZIHPM_SUPPORTED     0
+SV39_SUPPORTED      0
+SV48_SUPPORTED      0
+SV57_SUPPORTED      0
+SVPBMT_SUPPORTED    0
+SVNAPOT_SUPPORTED   0
+SVINVAL_SUPPORTED   0
+SVADU_SUPPORTED     0
 
 deriv syn_rv64gc_noFPU syn_rv64gc_noPriv
 F_SUPPORTED         0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
+ZFH_SUPPORTED       0
+ZFA_SUPPORTED       0
 
 deriv syn_sram_rv64gc_noFPU syn_sram_rv64gc_noPriv
 F_SUPPORTED         0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
+ZFH_SUPPORTED       0
+ZFA_SUPPORTED       0
 
 deriv syn_rv64gc_noMulDiv syn_rv64gc_noFPU
 M_SUPPORTED         0
@@ -585,6 +609,41 @@ ZALRSC_SUPPORTED    0
 
 deriv zalrsc_rv64gc rv64gc
 ZAAMO_SUPPORTED     0
+
+# Zicbom and Zicboz are independent extensions, so cover each one without the other.
+# zicbom_* also covers Zaamo without Zicboz, because ZAAMO_SUPPORTED stays on.
+deriv zicbom_rv32gc rv32gc
+ZICBOZ_SUPPORTED    0
+
+deriv zicboz_rv32gc rv32gc
+ZICBOM_SUPPORTED    0
+
+deriv zicbom_rv64gc rv64gc
+ZICBOZ_SUPPORTED    0
+
+deriv zicboz_rv64gc rv64gc
+ZICBOM_SUPPORTED    0
+
+# Only mhpmcounter3 and mhpmcounter4 are implemented.  mhpmcounter5-31 and their event
+# selectors must still read as zero rather than trapping, so this covers the upper counter
+# decode that a full 32-counter configuration cannot reach.
+deriv counters5_rv64gc rv64gc
+COUNTERS            12'd5
+
+# All mhpmcounters are read-only zero
+deriv counters3_rv64gc rv64gc
+COUNTERS            12'd3
+
+# Only mhpmcounter3-4 are implemented, and are not accessible from user mode
+deriv counters5_nohpm_rv64gc rv64gc
+ZIHPM_SUPPORTED     0
+COUNTERS            12'd5
+
+# Only mhpmcounter3-4 are implemented, and no coutners or hpms are not accessible from user mode
+deriv counters5_nocntr_rv32gc rv32gc
+ZICNTR_SUPPORTED     0
+ZIHPM_SUPPORTED     0
+COUNTERS            12'd5
 
 deriv zba_rv32gc rv32gc
 ZBA_SUPPORTED     1
@@ -1449,6 +1508,7 @@ ZICBOZ_SUPPORTED    0
 SVPBMT_SUPPORTED    0
 SVNAPOT_SUPPORTED   0
 SVINVAL_SUPPORTED   0
+SVADU_SUPPORTED     0
 BOOTROM_BASE        64'h700012340080
 BOOTROM_RANGE       64'h10
 CLINT_SUPPORTED     0
@@ -1491,3 +1551,126 @@ ZICCLSM_SUPPORTED 1
 # New rv64gc config for cache simulation purposes
 # Ensures we do not override the rv64gc wkdir/logs/etc between cache and regular runs
 derive cache_rv64gc rv64gc
+
+# Various cache ways without VM
+derive rv32gc_novm_cache_1way_16KB_128Bline  rv32gc
+SV32_SUPPORTED         0
+SVINVAL_SUPPORTED      0
+SVADU_SUPPORTED        0
+DCACHE_NUMWAYS         32'd1
+DCACHE_WAYSIZEINBYTES  32'd16384
+DCACHE_LINELENINBITS   32'd128
+ICACHE_NUMWAYS         32'd1
+ICACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_LINELENINBITS   32'd128
+
+derive rv32gc_novm_cache_1way_16KB_256Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_16KB_512Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_1way_32KB_128Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd32768
+ICACHE_WAYSIZEINBYTES  32'd32768
+
+derive rv32gc_novm_cache_1way_32KB_256Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_32KB_512Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_1way_64KB_128Bline  rv32gc_novm_cache_1way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd65536
+ICACHE_WAYSIZEINBYTES  32'd65536
+
+
+derive rv32gc_novm_cache_1way_64KB_256Bline  rv32gc_novm_cache_1way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_1way_64KB_512Bline  rv32gc_novm_cache_1way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_16KB_128Bline  rv32gc_novm_cache_1way_16KB_128Bline
+DCACHE_NUMWAYS         32'd2
+DCACHE_WAYSIZEINBYTES  32'd8192
+ICACHE_NUMWAYS         32'd2
+ICACHE_WAYSIZEINBYTES  32'd8192
+
+derive rv32gc_novm_cache_2way_16KB_256Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_16KB_512Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_32KB_128Bline  rv32gc_novm_cache_2way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_WAYSIZEINBYTES  32'd16384
+
+derive rv32gc_novm_cache_2way_32KB_256Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_32KB_512Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_2way_64KB_128Bline  rv32gc_novm_cache_2way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd32768
+ICACHE_WAYSIZEINBYTES  32'd32768
+
+derive rv32gc_novm_cache_2way_64KB_256Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_2way_64KB_512Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_16KB_128Bline  rv32gc_novm_cache_2way_64KB_128Bline
+DCACHE_NUMWAYS         32'd4
+DCACHE_WAYSIZEINBYTES  32'd4096
+DCACHE_LINELENINBITS   32'd128
+ICACHE_NUMWAYS         32'd4
+ICACHE_WAYSIZEINBYTES  32'd4096
+ICACHE_LINELENINBITS   32'd128
+
+derive rv32gc_novm_cache_4way_16KB_256Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_16KB_512Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_32KB_128Bline  rv32gc_novm_cache_4way_16KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd8192
+ICACHE_WAYSIZEINBYTES  32'd8192
+
+derive rv32gc_novm_cache_4way_32KB_256Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_32KB_512Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512
+
+derive rv32gc_novm_cache_4way_64KB_128Bline  rv32gc_novm_cache_4way_32KB_128Bline
+DCACHE_WAYSIZEINBYTES  32'd16384
+ICACHE_WAYSIZEINBYTES  32'd16384
+
+derive rv32gc_novm_cache_4way_64KB_256Bline  rv32gc_novm_cache_4way_64KB_128Bline
+DCACHE_LINELENINBITS   32'd256
+ICACHE_LINELENINBITS   32'd256
+
+derive rv32gc_novm_cache_4way_64KB_512Bline  rv32gc_novm_cache_4way_64KB_256Bline
+DCACHE_LINELENINBITS   32'd512
+ICACHE_LINELENINBITS   32'd512

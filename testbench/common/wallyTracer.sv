@@ -8,17 +8,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `define STD_LOG 0
@@ -68,9 +57,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic                  frf_we4;
   logic                  CSRWriteM, CSRWriteW;
   logic [11:0]           CSRAdrM, CSRAdrW;
-  logic                  wfiM;
   logic                  InterruptM, InterruptW;
-  logic                  MExtInt, SExtInt, MTimerInt, MSwInt;
   logic                  valid;
   logic                  HPTWUpdateDA, DA_updated, capture_PTE;
 
@@ -114,22 +101,12 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign PrivilegeModeW = testbench.dut.core.priv.priv.privmode.PrivilegeModeW;
     assign STATUS_SXL     = testbench.dut.core.priv.priv.csr.csrsr.STATUS_SXL;
     assign STATUS_UXL     = testbench.dut.core.priv.priv.csr.csrsr.STATUS_UXL;
-    assign wfiM           = testbench.dut.core.priv.priv.wfiM;
     assign InterruptM     = testbench.dut.core.priv.priv.InterruptM;
-    assign MExtInt        = testbench.dut.MExtInt;
-    assign SExtInt        = testbench.dut.SExtInt;
-    assign MTimerInt      = testbench.dut.MTimerInt;
-    assign MSwInt         = testbench.dut.MSwInt;
   end else begin
     assign PrivilegeModeW = 2'b11;
     assign STATUS_SXL     = 0;
     assign STATUS_UXL     = 0;
-    assign wfiM           = 0;
     assign InterruptM     = 0;
-    assign MExtInt        = 0;
-    assign SExtInt        = 0;
-    assign MTimerInt      = 0;
-    assign MSwInt         = 0;
   end
 
   //For VM Verification
@@ -215,8 +192,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, testbench.dut.core.priv.priv.csr.csrm.MCOUNTINHIBIT_REGW);
     // mhpmevent3-31 not connected (232-33F)
     if (P.ZICNTR_SUPPORTED) begin
-      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[0]); // MCYCLE
-      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2]); // MINSTRET
+      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0]); // MCYCLE
+      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2]); // MINSTRET
       // mhpmcounter3-31 not connected (B03-B1F)
       // cycle, time, instret not connected (C00-C02)
       // hpmcounter3-31 not connected (C03-C1F)
@@ -403,6 +380,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rvvi.halt[0][0]     = HaltW;
   assign rvvi.intr[0][0]     = InterruptW;
   assign rvvi.mode[0][0]     = PrivilegeModeW;
+  assign rvvi.mode_virt[0][0] = 1'b0;  // no hypervisor, so never in a virtual mode
+  assign rvvi.debug_mode[0][0] = 1'b0; // no debug mode
   assign rvvi.ixl[0][0]      = PrivilegeModeW == 2'b11 ? 2'b10 :
                                PrivilegeModeW == 2'b01 ? STATUS_SXL : STATUS_UXL;
   assign rvvi.pc_wdata[0][0] = ~FlushW ? PCM :
@@ -418,14 +397,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign rvvi.f_wdata[0][0][index] = frf[index];
     assign rvvi.f_wb[0][0][index]    = frf_wb[index];
   end
-
-`ifdef FCOV
-  // Interrupts
-  assign rvvi.m_ext_intr[0][0]   = MExtInt;
-  assign rvvi.s_ext_intr[0][0]   = SExtInt;
-  assign rvvi.m_timer_intr[0][0] = MTimerInt;
-  assign rvvi.m_soft_intr[0][0]  = MSwInt;
-`endif
 
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
@@ -504,16 +475,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       //     end
       //   end
       // end
-    end
-    if(HaltW) begin
-`ifdef FCOV
-      $display("Functional coverage test complete.");
-`endif
-`ifdef QUESTA
-      $stop;  // if this is changed to $finish for Questa, wally.do does not go to the next step to run coverage and terminates without allowing GUI debug
-`else
-      $finish;
-`endif
     end
   end
 endmodule

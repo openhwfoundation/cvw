@@ -12,41 +12,34 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module tlbcamline import cvw::*;  #(parameter cvw_t P,
                                     parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
-  input  logic                  clk, reset,
-  input  logic [P.VPN_BITS-1:0]  VPN, // The requested page number to compare against the key
+  input  logic                   clk, reset,
+  input  logic [P.VPN_BITS-1:0]  VPN,          // The requested page number to compare against the key
   input  logic [P.ASID_BITS-1:0] SATP_ASID,
-  input  logic                  SV39Mode,
-  input  logic                  SV48Mode,
-  input  logic                  WriteEnable,  // Write a new entry to this line
-  input  logic                  PTE_G,
-  input  logic                  PTE_NAPOT,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
-  input  logic [2:0]            PageTypeWriteVal,
-  input  logic                  TLBFlush,   // Flush this line (set valid to 0)
-  output logic [2:0]            PageTypeRead,
-  output logic                  Match
+  input  logic                   SV39Mode,
+  input  logic                   SV48Mode,
+  input  logic                   WriteEnable,  // Write a new entry to this line
+  input  logic                   PTE_G,
+  input  logic                   PTE_NAPOT,    // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic [2:0]             PageTypeWriteVal,
+  input  logic                   TLBFlush,     // Flush this line (set valid to 0)
+  input  logic                   TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
+  input  logic                   TLBWrite,     // a PTE is being written into the TLB
+  input  logic                   WritePTE_G,   // G bit of the PTE being written
+  input  logic                   WritePTE_NAPOT, // the PTE being written is a NAPOT entry
+  output logic [2:0]             PageTypeRead,
+  output logic                   Match
 );
 
-  // PageTypeRead is a key for a tera, giga, mega, or kilopage.
+  // PageTypeRead is a key for a peta, tera, giga, mega, or kilopage.
   // PageType == 3'b000 --> kilopage
   // PageType == 3'b001 --> megapage
   // PageType == 3'b010 --> gigapage
@@ -60,7 +53,7 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   // Split up key and query into sections for each page table level.
   logic [P.ASID_BITS-1:0] Key_ASID;
   logic [SEGMENT_BITS-1:0] Key0, Key1, Query0, Query1;
-  logic MatchASID, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
+  logic MatchASID, Match0Upper, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
 
   assign Key_ASID = Key[KEY_BITS-1:KEY_BITS-P.ASID_BITS];
   assign MatchASID = (SATP_ASID == Key_ASID) | PTE_G;
@@ -73,7 +66,8 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   assign Key0   = Key[SEGMENT_BITS-1:0];
   assign Query0 = VPN[SEGMENT_BITS-1:0];
   // In Svnapot, if N bit is set and bottom 4 bits of PPN = 1000, then these bits don't need to match
-  assign MatchNAPOT = P.SVNAPOT_SUPPORTED & PTE_NAPOT & (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]);
+  assign Match0Upper = (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]);
+  assign MatchNAPOT = P.SVNAPOT_SUPPORTED & PTE_NAPOT & Match0Upper;
   assign Match0 = (Query0 == Key0) | (PageType > 3'd0) | MatchNAPOT; // always match for megapage or larger
 
   // segment 1
@@ -104,12 +98,25 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
 
   assign Match = Match0 & Match1 & Match2 & Match3 & Match4 & MatchASID & Valid;
 
+  // Overlap: this line and the PTE being written cover a common address.  It ignores the VPN segments covered by
+  // either page, and a global PTE overlaps lines of every ASID.  A TLB write invalidates every other overlapping
+  // line, so no address ever matches two entries (lookups OR the matching entries together).
+  logic Overlap;
+  assign Overlap = (Match0 | (PageTypeWriteVal > 3'd0) | (WritePTE_NAPOT & Match0Upper)) &
+                   (Match1 | (PageTypeWriteVal > 3'd1)) & (Match2 | (PageTypeWriteVal > 3'd2)) &
+                   (Match3 | (PageTypeWriteVal > 3'd3)) & Match4 & (MatchASID | WritePTE_G) & Valid;
+
   // On a write, update the type of the page referred to by this line.
   flopenr #(3) pagetypeflop(clk, reset, WriteEnable, PageTypeWriteVal, PageType);
   assign PageTypeRead = PageType & {3{Match}};
 
   // On a write, set the valid bit high and update the stored key.
-  // On a flush, zero the valid bit and leave the key unchanged.
-  flopenr #(1) validbitflop(clk, reset, WriteEnable | TLBFlush, ~TLBFlush, Valid);
+  // On a flush, zero the valid bit and leave the key unchanged, unless the entry is global (G=1)
+  // and the flush is ASID-specific (TLBFlushAll=0): global mappings survive an ASID-scoped sfence.vma.
+  logic ShouldFlush;
+  assign ShouldFlush = TLBFlush & (~PTE_G | TLBFlushAll);
+  logic Invalidate;
+  assign Invalidate = ShouldFlush | (TLBWrite & Overlap & ~WriteEnable);
+  flopenr #(1) validbitflop(clk, reset, WriteEnable | Invalidate, ~Invalidate, Valid);
   flopenr #(KEY_BITS) keyflop(clk, reset, WriteEnable, {SATP_ASID, VPN}, Key);
 endmodule

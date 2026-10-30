@@ -10,22 +10,11 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // HCLK and clk must be the same clock!
@@ -39,7 +28,7 @@ module busfsm #(
   input  logic       Stall,        // Core pipeline is stalled
   input  logic       Flush,        // Pipeline stage flush. Prevents bus transaction from starting
   input  logic [1:0] BusRW,        // Memory operation read/write control: 10: read, 01: write
-  input  logic       BusAtomic,    // Uncache atomic memory operation
+  input  logic       BusAtomic,    // Uncached atomic memory operation
   output logic       CaptureEn,    // Enable updating the Fetch buffer with valid data from HRDATA
   output logic       BusStall,     // Bus is busy with an in flight memory operation
   output logic       BusCommitted, // Bus is busy with an in flight memory operation and it is not safe to take an interrupt
@@ -59,20 +48,20 @@ module busfsm #(
     else                  CurrState <= NextState;
 
   always_comb begin
-      case(CurrState)
-        ADR_PHASE:  if(HREADY & |BusRW)          NextState = DATA_PHASE;
-                    else                         NextState = ADR_PHASE;
-        DATA_PHASE: if(HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE;
-                    else if(HREADY & ~BusAtomic) NextState = MEM3;
-                    else                         NextState = DATA_PHASE;
-        ATOMIC_READ_DATA_PHASE: if(HREADY)       NextState = ATOMIC_PHASE;
-                    else                         NextState = ATOMIC_READ_DATA_PHASE;
-        ATOMIC_PHASE: if(HREADY)                 NextState = MEM3;
-                      else                       NextState = ATOMIC_PHASE;
-        MEM3:       if(Stall)                    NextState = MEM3;
-                    else                         NextState = ADR_PHASE;
-        default:                                 NextState = ADR_PHASE;
-      endcase
+    case (CurrState)
+      ADR_PHASE:  if (HREADY & |BusRW)          NextState = DATA_PHASE;
+                  else                          NextState = ADR_PHASE;
+      DATA_PHASE: if (HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE;
+                  else if (HREADY & ~BusAtomic) NextState = MEM3;
+                  else                          NextState = DATA_PHASE;
+      ATOMIC_READ_DATA_PHASE: if (HREADY)       NextState = ATOMIC_PHASE;
+                  else                          NextState = ATOMIC_READ_DATA_PHASE;
+      ATOMIC_PHASE: if (HREADY)                 NextState = MEM3;
+                    else                        NextState = ATOMIC_PHASE;
+      MEM3:       if (Stall)                    NextState = MEM3;
+                  else                          NextState = ADR_PHASE;
+      default:                                  NextState = ADR_PHASE;
+    endcase
   end
 
   assign BusStall = (CurrState == ADR_PHASE & |BusRW) |

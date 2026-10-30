@@ -147,6 +147,22 @@ static void init_tls()
 
 void _init(int cid, int nc)
 {
+  // mhpmcounter3-17 count only while their mhpmevent is nonzero
+  write_csr(mhpmevent3, 1);
+  write_csr(mhpmevent4, 1);
+  write_csr(mhpmevent5, 1);
+  write_csr(mhpmevent6, 1);
+  write_csr(mhpmevent7, 1);
+  write_csr(mhpmevent8, 1);
+  write_csr(mhpmevent9, 1);
+  write_csr(mhpmevent10, 1);
+  write_csr(mhpmevent11, 1);
+  write_csr(mhpmevent12, 1);
+  write_csr(mhpmevent13, 1);
+  write_csr(mhpmevent14, 1);
+  write_csr(mhpmevent15, 1);
+  write_csr(mhpmevent16, 1);
+  write_csr(mhpmevent17, 1);
   init_tls();
   thread_entry(cid, nc);
 

@@ -10,28 +10,17 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module packoutput import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FLEN-1:0]       Unpacked,
-  input  logic [P.FMTBITS-1:0]    Fmt,
-  output logic [P.FLEN-1:0]       Packed
+  input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
+  input  logic [P.FMTBITS-1:0]    Fmt,       // output format
+  output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
 );
 
   logic             Sign;
@@ -43,6 +32,8 @@ module packoutput import cvw::*;  #(parameter cvw_t P) (
   logic [P.H_NF-1:0] Fract3;
 
   // Pack exponent and fraction, with NaN-boxing to full FLEN
+  // A smaller exponent keeps the msb and low bits of the larger one; the dropped bits are copies of ~msb
+  // for any value representable in the smaller format, so this also re-biases the exponent
 
   assign Sign = Unpacked[P.FLEN-1];
   if (P.FPSIZES == 1) begin

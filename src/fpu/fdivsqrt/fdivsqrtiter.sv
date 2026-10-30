@@ -9,22 +9,11 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
@@ -61,7 +50,7 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
   // Otherwise, the divisor is retained and the residual and result
   // are fed back for the next iteration.
 
-  // Residual WS/SC registers/initialization mux
+  // Residual WS/WC registers/initialization mux
   mux2   #(P.DIVb+4) wsmux(WS[P.DIVCOPIES], X, IFDivStartE, WSN);
   mux2   #(P.DIVb+4) wcmux(WC[P.DIVCOPIES], '0, IFDivStartE, WCN);
   flopen #(P.DIVb+4) wsreg(clk, FDivBusyE, WSN, WS[0]);
@@ -69,31 +58,31 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
 
   // UOTFC Result U and UM registers/initialization mux
   // Initialize U to 0 = 0.0000... and UM to -1 = 1.00000... (in Q1.Divb)
-  assign initU  ={(P.DIVb+1){1'b0}};
+  assign initU  = {(P.DIVb+1){1'b0}};
   assign initUM = {{1'b1}, {(P.DIVb){1'b0}}};
-  mux2   #(P.DIVb+1)  Umux(UNext[P.DIVCOPIES-1],  initU,  IFDivStartE, UMux);
-  mux2   #(P.DIVb+1) UMmux(UMNext[P.DIVCOPIES-1], initUM, IFDivStartE, UMMux);
+  mux2   #(P.DIVb+1)  uinitmux(UNext[P.DIVCOPIES-1],  initU,  IFDivStartE, UMux);
+  mux2   #(P.DIVb+1) uminitmux(UMNext[P.DIVCOPIES-1], initUM, IFDivStartE, UMMux);
   flopen #(P.DIVb+1)  UReg(clk, FDivBusyE, UMux,  U[0]);
   flopen #(P.DIVb+1) UMReg(clk, FDivBusyE, UMMux, UM[0]);
 
   // C register/initialization mux: C = -R:
-  // C = -4 = 00.000000... (in Q2.DIVb) for radix 4, C = -2 = 10.000000... for radix2
-  if(P.RADIX == 4) assign initC = '0;
+  // C = -4 = 00.000000... (in Q2.DIVb) for radix 4, C = -2 = 10.000000... for radix 2
+  if (P.RADIX == 4) assign initC = '0;
   else             assign initC = {2'b10, {{P.DIVb{1'b0}}}};
   mux2   #(P.DIVb+2) cmux(C[P.DIVCOPIES], initC, IFDivStartE, NextC);
   flopen #(P.DIVb+2) creg(clk, FDivBusyE, NextC, C[0]);
 
   // Divisor Selections
   assign DBar    = ~D;        // for -D
-  if(P.RADIX == 4) begin : d2
+  if (P.RADIX == 4) begin : radix4divisor
     assign D2    = D << 1;    // for 2D,  only used in R4
     assign DBar2 = ~D2;       // for -2D, only used in R4
   end
 
-  // k=DIVCOPIES of the recurrence logic
+  // k = DIVCOPIES of the recurrence logic
   genvar i;
   generate
-    for(i=0; $unsigned(i)<P.DIVCOPIES; i++) begin : iterations
+    for (i = 0; $unsigned(i) < P.DIVCOPIES; i++) begin : iterations
       if (P.RADIX == 2) begin : stage
         fdivsqrtstage2 #(P) fdivsqrtstage(.D, .DBar, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),

@@ -35,11 +35,11 @@ export SNPSLMD_QUEUE=1
 # Environmental variables for SoC
 export SYN_pdk=/proj/models/tsmc28/libraries/28nmtsmc/tcbn28hpcplusbwp30p140_190a/
 #export osupdk=/import/yukari1/pdk/TSMC/28/CMOS/HPC+/stclib/9-track/tcbn28hpcplusbwp30p140-set/tcbn28hpcplusbwp30p140_190a_FE/
-export SYN_TLU=/home/jstine/TLU+
+export SYN_TLU=/proj/models/tsmc28/libraries/psyn/TLU+
 #export OSUTLU=/import/yukari1/pdk/TSMC/TLU+
-export SYN_MW=/home/jstine/MW
+export SYN_MW=/proj/models/tsmc28/libraries/psyn/MW
 #export OSUMW=/import/yukari1/pdk/TSMC/MW
-export SYN_memory=/home/jstine/WallyMem/rv64gc/
+export SYN_memory=/proj/models/tsmc28/libraries/psyn/WallyMem/rv64gc/
 #export osumemory=/import/yukari1/pdk/TSMC/WallyMem/rv64gc/
 
 # GCC

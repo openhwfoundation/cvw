@@ -9,22 +9,12 @@
 ## Purpose: Check for compatible Linux distribution and set variables accordingly
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
-## https://github.com/openhwgroup/cvw
+## https://github.com/openhwfoundation/cvw
 ##
 ## Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 ##
 ## SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ##
-## Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-## except in compliance with the License, or, at your option, the Apache License version 2.0. You
-## may obtain a copy of the License at
-##
-## https:##solderpad.org/licenses/SHL-2.1/
-##
-## Unless required by applicable law or agreed to in writing, any work distributed under the
-## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-## either express or implied. See the License for the specific language governing permissions
-## and limitations under the License.
 ################################################################################################
 
 set -e # break on error
@@ -60,6 +50,15 @@ else
     printf "${FAIL_COLOR}%s\n${ENDC}" "/etc/os-release file not found. Distribution unknown."
     PRETTY_NAME=UNKNOWN
 fi
+
+# Initialize distro-specific version variables. Other installation scripts use
+# arithmetic comparisons on these values even when running on a different distro.
+export RHEL_VERSION=0
+export UBUNTU_VERSION=0
+export UBUNTU_MINOR=0
+export DEBIAN_VERSION=0
+export SUSE_VERSION=0
+export FEDORA_VERSION=0
 
 # Check for compatible distro
 if [[ "$ID" == rhel || "$ID_LIKE" == *rhel* ]]; then
@@ -120,12 +119,12 @@ elif [[ "$ID" == debian || "$ID_LIKE" == *debian* ]]; then
             "is $PRETTY_NAME. The regular Debian install will be attempted, but there may be issues."
     fi
     export DEBIAN_VERSION="$VERSION_ID"
-    if (( DEBIAN_VERSION < 11 )); then
-        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 11, 12, and 13. You have version $VERSION. Please upgrade to a supported version of Debian."
+    if (( DEBIAN_VERSION < 12 )); then
+        printf "${FAIL_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 12 and 13. You have version $VERSION. Please upgrade to a supported version of Debian."
         exit 1
     fi
     if (( DEBIAN_VERSION > 13 )); then
-        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 11, 12, and 13. You have a newer version ($VERSION). The installation for Debian 13 will be attempted, but there may be issues."
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Debian versions 12 and 13. You have a newer version ($VERSION). The installation for Debian 13 will be attempted, but there may be issues."
     fi
 elif [[ "$ID" == opensuse-leap || "$ID" == sles || "$ID_LIKE" == *suse* ]]; then
     export FAMILY=suse
@@ -141,15 +140,21 @@ elif [[ "$ID" == opensuse-leap || "$ID" == sles || "$ID_LIKE" == *suse* ]]; then
     if (( SUSE_VERSION > 160 )); then
         printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with SUSE versions 15.6 and 16.0. You have a newer version ($VERSION). The installation for SUSE 16.0 will be attempted, but there may be issues."
     fi
+elif [[ "$ID" == fedora ]]; then
+    export FAMILY=fedora
+    export FEDORA_VERSION="${VERSION_ID%%.*}" # Get major version number
+    if (( FEDORA_VERSION > 44 || FEDORA_VERSION < 44 )); then
+        printf "${WARNING_COLOR}%s\n${ENDC}" "The Wally installation script has only been tested with Fedora 44. You have a different version ($VERSION). The installation for Fedora 44 will be attempted, but there may be issues."
+    fi
 else
-    printf "${FAIL_COLOR}%s%s%s\n${ENDC}" "The Wally installation script is currently only compatible with Ubuntu, Debian, SUSE, and Red Hat family " \
-        "(RHEL, Rocky Linux, or AlmaLinux) distros. Your detected distro is $PRETTY_NAME. You may try manually running the " \
+    printf "${FAIL_COLOR}%s%s%s\n${ENDC}" "The Wally installation script is currently only compatible with Ubuntu, Debian, SUSE, Red Hat family " \
+        "(RHEL, Rocky Linux, or AlmaLinux), and Fedora distros. Your detected distro is $PRETTY_NAME. You may try manually running the " \
         "commands in this script, but it is likely that some will need to be altered."
     exit 1
 fi
 
-# wget retry on host error flag not available with older wget on RHEL 8
-if (( RHEL_VERSION != 8 )); then
+# wget retry on host error flag not available with older wget on RHEL 8 or Fedora
+if wget --retry-on-host --help &> /dev/null ; then
     retry_on_host_error="--retry-on-host-error"
 fi
 

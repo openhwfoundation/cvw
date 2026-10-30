@@ -12,25 +12,14 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcam  import cvw::*;  #(parameter cvw_t P,
+module tlbcam import cvw::*;  #(parameter cvw_t P,
                                  parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
   input  logic                    clk, reset,
   input  logic [P.VPN_BITS-1:0]   VPN,
@@ -38,10 +27,12 @@ module tlbcam  import cvw::*;  #(parameter cvw_t P,
   input  logic                    SV39Mode,
   input  logic                    SV48Mode,
   input  logic                    TLBFlush,
+  input  logic                    TLBFlushAll,  // Flush global (G=1) entries too
   input  logic [TLB_ENTRIES-1:0]  WriteEnables,
   input  logic [TLB_ENTRIES-1:0]  PTE_Gs,
-  input  logic [TLB_ENTRIES-1:0]  PTE_NAPOTs,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic [TLB_ENTRIES-1:0]  PTE_NAPOTs,   // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
   input  logic [P.ASID_BITS-1:0]  SATP_ASID,
+  input  logic                    TLBWrite, WritePTE_G, WritePTE_NAPOT,
   output logic [TLB_ENTRIES-1:0]  Matches,
   output logic [2:0]              HitPageType,
   output logic                    CAMHit
@@ -56,8 +47,8 @@ module tlbcam  import cvw::*;  #(parameter cvw_t P,
   // page number segments.
 
   tlbcamline #(P, KEY_BITS, SEGMENT_BITS) camlines[TLB_ENTRIES-1:0](
-    .clk, .reset, .VPN, .SATP_ASID, .SV39Mode, .SV48Mode, .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs), .PageTypeWriteVal, .TLBFlush,
-    .WriteEnable(WriteEnables), .PageTypeRead, .Match(Matches));
+    .clk, .reset, .VPN, .SATP_ASID, .SV39Mode, .SV48Mode, .PTE_G(PTE_Gs), .PTE_NAPOT(PTE_NAPOTs), .PageTypeWriteVal, .TLBFlush, .TLBFlushAll,
+    .WriteEnable(WriteEnables), .TLBWrite, .WritePTE_G, .WritePTE_NAPOT, .PageTypeRead, .Match(Matches));
   assign CAMHit = |Matches & ~TLBFlush;
-  or_rows #(TLB_ENTRIES,3) PageTypeOr(PageTypeRead, HitPageType);
+  or_rows #(TLB_ENTRIES, 3) PageTypeOr(PageTypeRead, HitPageType);
 endmodule

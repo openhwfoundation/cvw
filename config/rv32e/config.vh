@@ -12,17 +12,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "BranchPredictorType.vh"
@@ -94,7 +83,7 @@ localparam logic SSTC_SUPPORTED = 0; // Supervisor-mode timer interrupts
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 0;
 localparam logic ZIHPM_SUPPORTED  = 0;
-localparam COUNTERS = 12'd0;
+localparam COUNTERS = 12'd3;
 
 // Cache-management operation extensions
 localparam logic ZICBOM_SUPPORTED = 0;
@@ -208,14 +197,14 @@ localparam UART_PRESCALE = 32'd1;
 localparam PWM_WIDTH = 32'd16;
 
 // Interrupt configuration
-localparam PLIC_NUM_SRC = 32'd10;
+localparam PLIC_NUM_SRC = 32'd14;
 // comment out the following if >=32 sources
 localparam PLIC_NUM_SRC_LT_32 = (PLIC_NUM_SRC < 32);
 localparam PLIC_GPIO_ID = 32'd3;
 localparam PLIC_UART_ID = 32'd10;
 localparam PLIC_SPI_ID = 32'd6;
 localparam PLIC_SDC_ID = 32'd9;
-localparam PLIC_PWM_ID = 32'd7;
+localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM comparator
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 0;

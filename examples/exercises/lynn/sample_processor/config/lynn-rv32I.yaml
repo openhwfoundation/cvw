@@ -6,13 +6,14 @@ type: fully configured
 name: lynn-rv32I
 description: The rv32I configuration of Lynn SoC project chip
 implemented_extensions:
-  - { name: I, version: ">= 2.1" }
-  - { name: Sm, version: ">= 1.11.0" }
-  - { name: Zicntr, version: ">= 2.0" }
-  - { name: Zicsr, version: ">= 2.0" }
-  - { name: Zihpm, version: ">= 2.0" }
+  - { name: I, version: "= 2.1" }
+  - { name: Sm, version: "= 1.12.0" }
+  - { name: Zicntr, version: "= 2.0" }
+  - { name: Zicsr, version: "= 2.0" }
+  - { name: Zihpm, version: "= 2.0.0" }
 
 params:
+  NON_STANDARD_EXTENSION_IMPLEMENTED: false
   # Zicntr params
   TIME_CSR_IMPLEMENTED: true
   # Sm params
@@ -41,6 +42,12 @@ params:
   REPORT_VA_IN_MTVAL_ON_INSTRUCTION_ACCESS_FAULT: true
   REPORT_ENCODING_IN_MTVAL_ON_ILLEGAL_INSTRUCTION: true
   MTVAL_WIDTH: 32
+  CONFIG_PTR_ADDRESS: 0
+  MEI_INTR_IMPL: true
+  MSI_INTR_IMPL: true
+  MTI_INTR_IMPL: true
+  WFI_FINITE: true
+  WFI_U_MODE: false
   PMA_GRANULARITY: 3
   PHYS_ADDR_WIDTH: 32
   M_MODE_ENDIANNESS: little
@@ -51,6 +58,7 @@ params:
   MTVEC_BASE_ALIGNMENT_VECTORED: 4
   MTVEC_ILLEGAL_WRITE_BEHAVIOR: retain
   # Smhpm params
+  MCOUNTINHIBIT_IMPLEMENTED: true
   COUNTINHIBIT_EN: [
       false,false,false,false,false,false,false,false,
       false,false,false,false,false,false,false,false,
@@ -65,6 +73,14 @@ params:
       false,false,false,false,false,false,false,false
     ]
   HPM_EVENTS: [0]
+  HPM_COUNTER3_WIDTH: 64
+  HPM_COUNTER4_WIDTH: 64
+  HPM_COUNTER5_WIDTH: 64
+  HPM_COUNTER6_WIDTH: 64
+  HPM_COUNTER7_WIDTH: 64
+  HPM_COUNTER8_WIDTH: 64
+  HPM_COUNTER9_WIDTH: 64
+  HPM_COUNTER10_WIDTH: 64
   NUM_PMP_ENTRIES: 0
   MCOUNTENABLE_EN: [
       false,false,false,false,false,false,false,false,

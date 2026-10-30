@@ -18,7 +18,6 @@ hazard/hazard.sv: logic           LoadStallD
 hazard/hazard.sv: logic          FCvtIntStallD
 hazard/hazard.sv: logic           DivBusyE
 hazard/hazard.sv: logic           EcallFaultM
-hazard/hazard.sv: logic          WFIStallM
 hazard/hazard.sv: logic          StallF
 hazard/hazard.sv: logic          FlushD
 cache/cachefsm.sv:   statetype CurrState

@@ -9,22 +9,11 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
@@ -37,6 +26,7 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   output logic                          FmaPreResultSubnorm, // is the result subnormal - calculated before LZA correction
   output logic [$clog2(P.FMALEN+1)-1:0] FmaShiftAmt          // normalization shift count
 );
+  localparam LOGFMALEN = $clog2(P.FMALEN+1);                // width of FmaSCnt and FmaShiftAmt
   logic [P.NE+1:0]                      PreNormSumExp;       // the exponent of the normalized sum with the P.FLEN bias
   logic [P.NE+1:0]                      BiasCorr;            // correction for bias
 
@@ -47,36 +37,36 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   // Determine if the sum is zero
   assign FmaSZero = ~(|FmaSm);
 
-  // calculate the sum's exponent FmaSe-FmaSCnt+NF+2
-  assign PreNormSumExp = FmaSe + {{P.NE+2-$unsigned($clog2(P.FMALEN+1)){1'b1}}, ~FmaSCnt} + (P.NE+2)'(P.NF+4);
+  // calculate the sum's exponent FmaSe - FmaSCnt + NF + 3 (~FmaSCnt = -FmaSCnt - 1)
+  assign PreNormSumExp = FmaSe + {{P.NE+2-$unsigned(LOGFMALEN){1'b1}}, ~FmaSCnt} + (P.NE+2)'(P.NF+4);
 
-  //convert the sum's exponent into the proper precision
+  // convert the sum's exponent into the proper precision
   if (P.FPSIZES == 1) begin
     assign NormSumExp = PreNormSumExp;
     assign BiasCorr = '0;
   end else if (P.FPSIZES == 2) begin
     assign BiasCorr = Fmt ? (P.NE+2)'(0) : (P.NE+2)'(P.BIAS1-P.BIAS);
-    assign NormSumExp = PreNormSumExp+BiasCorr;
+    assign NormSumExp = PreNormSumExp + BiasCorr;
   end else if (P.FPSIZES == 3) begin
     always_comb begin
-        case (Fmt)
-            P.FMT:   BiasCorr =  '0;
-            P.FMT1:  BiasCorr = (P.NE+2)'(P.BIAS1-P.BIAS);
-            P.FMT2:  BiasCorr = (P.NE+2)'(P.BIAS2-P.BIAS);
-            default: BiasCorr = 'x;
-        endcase
+      case (Fmt)
+        P.FMT:   BiasCorr = '0;
+        P.FMT1:  BiasCorr = (P.NE+2)'(P.BIAS1-P.BIAS);
+        P.FMT2:  BiasCorr = (P.NE+2)'(P.BIAS2-P.BIAS);
+        default: BiasCorr = 'x;
+      endcase
     end
-    assign NormSumExp = PreNormSumExp+BiasCorr;
+    assign NormSumExp = PreNormSumExp + BiasCorr;
   end else if (P.FPSIZES == 4) begin
     always_comb begin
-        case (Fmt)
-            2'h3: BiasCorr = '0;
-            2'h1: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
-            2'h0: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
-            2'h2: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
-        endcase
+      case (Fmt)
+        2'h3: BiasCorr = '0;
+        2'h1: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
+        2'h0: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
+        2'h2: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
+      endcase
     end
-    assign NormSumExp = PreNormSumExp+BiasCorr;
+    assign NormSumExp = PreNormSumExp + BiasCorr;
   end
 
   // determine if the result is subnormal: (NormSumExp <= 0) & (NormSumExp >= -FracLen)
@@ -128,7 +118,8 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
     end
   end
 
-  // set and calculate the shift input and amount
-  //  - shift once if killing a product and the result is subnormal
-  assign FmaShiftAmt = FmaPreResultSubnorm ? FmaSe[$clog2(P.FMALEN-1)-1:0]+($clog2(P.FMALEN-1))'(P.NF+3)+BiasCorr[$clog2(P.FMALEN-1)-1:0]: FmaSCnt+1;
+  // calculate the normalization shift amount
+  //  - subnormal result: shift by only FmaSe + NF + 3 (+ BiasCorr), leaving the result at the minimum exponent
+  //  - otherwise: normalize by shifting FmaSCnt + 1
+  assign FmaShiftAmt = FmaPreResultSubnorm ? FmaSe[LOGFMALEN-1:0] + (LOGFMALEN)'(P.NF+3) + BiasCorr[LOGFMALEN-1:0] : FmaSCnt + 1;
 endmodule

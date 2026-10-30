@@ -1,5 +1,5 @@
 #!/bin/sh
 # usage: imperasfpm <elf>
-# e.g. imperasfpm tests/coverage/ieu.elf
+# e.g. imperasfpm tests/coverage64gc/ieu.elf
 
 iss.exe -processorvendor riscv.ovpworld.org -processorname riscv -controlfile $WALLY/config/rv64gc/imperasfpm.ic -program $1

@@ -14,23 +14,12 @@
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module rvvisynth import cvw::*; #(parameter cvw_t P,
                                   parameter integer MAX_CSRS = 5,
-                                  parameter integer TOTAL_CSRS = 36)(
-  input logic clk, reset,
+                                  parameter integer TOTAL_CSRS = 36) (
+  input logic                                     clk, reset,
   input logic                                     StallE, StallM, StallW, FlushE, FlushM, FlushW,
   // required
   input logic [P.XLEN-1:0]                        PCM,
@@ -44,7 +33,7 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
   input logic [4:0]                               GPRAddr, FPRAddr,
   input logic [P.XLEN-1:0]                        GPRValue, FPRValue,
   input var logic [P.XLEN-1:0]                    CSRArray [TOTAL_CSRS-1:0],
-  output logic valid,
+  output logic                                    valid,
   output logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvvi
   );
 
@@ -94,7 +83,7 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
   // the CSRs are complex
   // 1. we need to get the CSR values
   // 2. we check if the CSR value changes by registering the value then XORing with the old value.
-  // 3. Then use priorityaomux to collect CSR values and addresses for compating into the compressed rvvi format
+  // 3. Then use priorityaomux to collect CSR values and addresses for compacting into the compressed rvvi format
 
   // step 2
   genvar                                   index;
@@ -109,21 +98,21 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
   priorityaomux #(TOTAL_CSRS, P.XLEN) firstpriorityaomux(CSRArrayWen, CSRArray, CSRValue[0], CSRWenPriorityMatrix[0]);
   assign CSRWenFilterMatrix[0] = CSRArrayWen;
 
-  for(index = 1; index < MAX_CSRS; index = index + 1) begin
+  for (index = 1; index < MAX_CSRS; index = index + 1) begin
     priorityaomux #(TOTAL_CSRS, P.XLEN) priorityaomux(CSRWenFilterMatrix[index], CSRArray, CSRValue[index], CSRWenPriorityMatrix[index]);
     assign CSRWenFilterMatrix[index] = CSRWenFilterMatrix[index-1] & ~CSRWenPriorityMatrix[index-1];
   end
-  for(index = 0; index < MAX_CSRS; index = index + 1) begin
+  for (index = 0; index < MAX_CSRS; index = index + 1) begin
     // step 3b
     csrindextoaddr #(TOTAL_CSRS) csrindextoaddr(CSRWenPriorityMatrix[index], CSRAddr[index]);
-    assign CSRs[(index+1) * (P.XLEN + 16)- 1: index * (P.XLEN + 16)] = {CSRValue[index], 4'b0, CSRAddr[index]};
+    assign CSRs[(index+1) * (P.XLEN + 16) - 1 : index * (P.XLEN + 16)] = {CSRValue[index], 4'b0, CSRAddr[index]};
     assign EnabledCSRs[index] = |CSRWenPriorityMatrix[index];
   end
 
   integer index2;
   always_comb begin
     CSRCountShort = '0;
-    for(index2 = 0; index2 < MAX_CSRS; index2++) begin
+    for (index2 = 0; index2 < MAX_CSRS; index2++) begin
       /* verilator lint_off WIDTHEXPAND */
       CSRCountShort += EnabledCSRs[index2];
       /* verilator lint_on WIDTHEXPAND */
