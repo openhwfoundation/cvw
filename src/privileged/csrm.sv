@@ -158,7 +158,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   assign WriteMSTATUSHM      = CSRMWriteM & (CSRAdrM == MSTATUSH) & (P.XLEN == 32);
   assign WriteMTVECM         = CSRMWriteM & (CSRAdrM == MTVEC);
   assign WriteMEDELEGM       = CSRMWriteM & (CSRAdrM == MEDELEG);
-  assign WriteMEDELEGHM      = CSRMWriteM & (CSRAdrM == MEDELEGH) & (P.XLEN==32);
+  assign WriteMEDELEGHM      = CSRMWriteM & (CSRAdrM == MEDELEGH) & (P.XLEN == 32) & P.H_SUPPORTED;
   assign WriteMIDELEGM       = CSRMWriteM & (CSRAdrM == MIDELEG);
   assign WriteMSCRATCHM      = CSRMWriteM & (CSRAdrM == MSCRATCH);
   assign WriteMEPCM          = MTrapM | (CSRMWriteM & (CSRAdrM == MEPC));
@@ -279,8 +279,9 @@ module csrm import cvw::*; #(parameter cvw_t P) (
       MTVEC:         CSRMReadValM = MTVEC_REGW;
       MEDELEG:       if (P.XLEN == 64) CSRMReadValM = MEDELEG_REGW;
                      else               CSRMReadValM = MEDELEG_REGW[31:0];
-      MEDELEGH:      if (P.XLEN == 32) CSRMReadValM = MEDELEG_REGW[63:32];
-                     else               IllegalCSRMAccessM = 1'b1;
+      // medelegh is new in Privileged Spec 1.13; only the H configurations implement that version
+      MEDELEGH:      if (P.XLEN == 32 & P.H_SUPPORTED) CSRMReadValM = MEDELEG_REGW[63:32];
+                     else                              IllegalCSRMAccessM = 1'b1;
       MIDELEG:       CSRMReadValM = {{(P.XLEN-16){1'b0}}, MIDELEG_REGW};
       MIP:           CSRMReadValM = {{(P.XLEN-16){1'b0}}, MIP_REGW};
       MIE:           CSRMReadValM = {{(P.XLEN-16){1'b0}}, MIE_REGW};
