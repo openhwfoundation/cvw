@@ -16,14 +16,15 @@
 `define PRINT_ALL 0
 `define PRINT_CSRS 0
 
-// Since we are detecting the CSR change by comparing the old value, we need to
-// ensure the CSR is detected when the pipeline's Writeback stage is not
-// stalled.  If it is stalled we want to hold the old value.
+// A CSR is reported written when its value changes, or when the instruction in Writeback wrote it
+// (CSRWrittenW) even if the value stayed the same.  The value is compared with the old one, so the CSR
+// must be sampled when the pipeline's Writeback stage is not stalled.  If it is stalled we want to hold
+// the old value.
 `define CONNECT_CSR(name, addr, val) \
   logic [P.XLEN-1:0] prev_csr_``name; \
   always_ff @(posedge clk) \
     prev_csr_``name <= rvvi.csr[0][0][addr]; \
-  assign rvvi.csr_wb[0][0][addr] = (rvvi.csr[0][0][addr] != prev_csr_``name); \
+  assign rvvi.csr_wb[0][0][addr] = (rvvi.csr[0][0][addr] != prev_csr_``name) | CSRWrittenW[addr]; \
   assign rvvi.csr[0][0][addr] = valid ? val : prev_csr_``name;
 
 module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
@@ -55,6 +56,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [4:0]            frf_a4;
   logic                  frf_we4;
   logic                  CSRWriteM, CSRWriteW;
+  logic                  DelegateM, DelegateW;      // the trap in Memory / Writeback goes to S-mode
+  logic                  mretM, sretM, mretW, sretW;
+  logic [4095:0]         CSRWrittenW;               // CSRs the instruction in Writeback writes
   logic [11:0]           CSRAdrM, CSRAdrW;
   logic                  InterruptM, InterruptW;
   logic                  valid;
@@ -255,9 +259,13 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   if (P.ZICSR_SUPPORTED) begin : csrwrites
     assign CSRAdrM   = testbench.dut.core.priv.priv.csr.CSRAdrM;
     assign CSRWriteM = testbench.dut.core.priv.priv.csr.CSRWriteM;
+    assign DelegateM = testbench.dut.core.priv.priv.DelegateM;
+    assign mretM     = testbench.dut.core.priv.priv.mretM;
+    assign sretM     = testbench.dut.core.priv.priv.sretM;
   end else begin : nocsrwrites
     assign CSRAdrM   = '0;
     assign CSRWriteM = 1'b0;
+    assign {DelegateM, mretM, sretM} = '0;
   end
 
   // pipeline to writeback stage
@@ -272,6 +280,26 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   flopenrc #(12)    CSRAdrWReg (clk, reset, FlushW, ~StallW, CSRAdrM, CSRAdrW);
   flopenrc #(1)     CSRWriteWReg (clk, reset, FlushW, ~StallW, CSRWriteM, CSRWriteW);
+  flopenrc #(1)     DelegateWReg (clk, reset, 1'b0, ~StallW, DelegateM, DelegateW);
+  flopenrc #(2)     RetWReg (clk, reset, FlushW, ~StallW, {mretM, sretM}, {mretW, sretW});
+
+  // RVVI's csr_wb says a CSR was written, which comparing values alone misses when a write leaves the
+  // value unchanged, such as a second trap with the same cause.  So also flag an explicit CSR write and
+  // the CSRs a trap or an xRET writes: the trap updates mstatus (sstatus is a view of it) and the cause,
+  // epc and tval of the mode that takes it.
+  always_comb begin
+    CSRWrittenW = '0;
+    if (valid) begin
+      if (CSRWriteW & ~TrapW) CSRWrittenW[CSRAdrW] = 1'b1;
+      if (TrapW) begin
+        CSRWrittenW[12'h300] = 1'b1;
+        if (DelegateW) {CSRWrittenW[12'h100], CSRWrittenW[12'h141], CSRWrittenW[12'h142], CSRWrittenW[12'h143]} = '1;
+        else           {CSRWrittenW[12'h341], CSRWrittenW[12'h342], CSRWrittenW[12'h343]} = '1;
+      end
+      if (mretW) CSRWrittenW[12'h300] = 1'b1;
+      if (sretW) {CSRWrittenW[12'h100], CSRWrittenW[12'h300]} = '1;
+    end
+  end
 
 `ifdef FCOV
   // For VM Verification.  Only functional coverage samples these signals, and only a core with virtual
