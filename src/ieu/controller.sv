@@ -205,7 +205,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
     assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
                               ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
     assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
-                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
+                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & (P.ZFH_SUPPORTED | P.ZFBFMIN_SUPPORTED)));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
     assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) &
                               ((P.ZICBOZ_SUPPORTED & (InstrD[31:20] == 12'd4) & ENVCFG_CBE[3]) |
