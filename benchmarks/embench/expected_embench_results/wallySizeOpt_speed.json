@@ -16,12 +16,12 @@
       "primecount" : 1.30,
       "qrduino" : 1.21,
       "sglib-combined" : 1.17,
-      "slre" : 1.25,
+      "slre" : 1.26,
       "st" : 0.88,
       "statemate" : 2.22,
       "tarfind" : 2.36,
       "ud" : 0.92,
-      "wikisort" : 1.79
+      "wikisort" : 1.78
     },
     "speed geometric mean" : 1.09,
     "speed geometric standard deviation" : 1.49
