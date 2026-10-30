@@ -17,19 +17,19 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module resultsign(
-  input  logic [2:0]  Frm,        // rounding mode
-  input  logic        FmaOp,      // is the operation an Fma
+  input  logic [2:0]  Frm,        // Rounding mode: 000 RNE, 001 RTZ, 010 RDN, 011 RUP, 100 RMM
+  input  logic        FmaOp,      // FMA operation
   input  logic        Mult,       // is the fma operation multiply
   input  logic        ZInf,       // is Z infinity
-  input  logic        InfIn,      // are any of the inputs infinity
-  input  logic        FmaSZero,   // is the fma sum zero
-  input  logic        Ms,         // normalized result sign
-  input  logic        FmaPs,      // product's sign
-  input  logic        FmaAs,      // aligned addend's sign
+  input  logic        InfIn,      // An input is infinity
+  input  logic        FmaSZero,   // FMA sum is zero
+  input  logic        Ms,         // Normalized result sign
+  input  logic        FmaPs,      // FMA product sign
+  input  logic        FmaAs,      // FMA aligned addend sign
   input  logic        Guard,      // guard bit for rounding
   input  logic        Round,      // round bit for rounding
-  input  logic        Sticky,     // sticky bit for rounding
-  output logic        Rs          // result sign
+  input  logic        Sticky,     // Sticky bit for rounding
+  output logic        Rs          // Result sign
 );
 
   logic Zeros;    // zero result sign

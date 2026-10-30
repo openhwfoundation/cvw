@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module counter #(parameter WIDTH = 8) (
-  input  logic             clk, reset, en,
-  output logic [WIDTH-1:0] q
+  input  logic             clk, reset, en, // Clock, reset, enable
+  output logic [WIDTH-1:0] q               // Count
 );
 
   logic [WIDTH-1:0] qnext;

@@ -16,13 +16,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fclassify import cvw::*;  #(parameter cvw_t P) (
-  input  logic                Xs,         // sign bit
-  input  logic                XNaN,       // is NaN
-  input  logic                XSNaN,      // is signaling NaN
-  input  logic                XSubnorm,   // is Subnormal
-  input  logic                XZero,      // is zero
-  input  logic                XInf,       // is infinity
+module fclassify import cvw::*; #(parameter cvw_t P) (
+  input  logic                Xs,         // X sign
+  input  logic                XNaN,       // X is a NaN
+  input  logic                XSNaN,      // X is a signaling NaN
+  input  logic                XSubnorm,   // X is subnormal
+  input  logic                XZero,      // X is zero
+  input  logic                XInf,       // X is infinity
   output logic [P.XLEN-1:0]   ClassRes    // classify result
 );
 

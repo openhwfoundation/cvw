@@ -16,11 +16,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtcycles import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
-  input  logic                 IntDivE,
-  input  logic [P.DIVBLEN-1:0] IntResultBitsE,
-  output logic [P.DURLEN-1:0]  CyclesE
+module fdivsqrtcycles import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.LOGFLEN-1:0] Nf,             // Number of fractional bits in selected format
+  input  logic                 IntDivE,        // Integer divide or remainder instruction in Execute stage
+  input  logic [P.DIVBLEN-1:0] IntResultBitsE, // Number of bits in integer divide result
+  output logic [P.DURLEN-1:0]  CyclesE         // Number of iteration cycles
 );
 
   logic [P.DIVBLEN-1:0] FPResultBitsE, ResultBitsE; // number of fractional (result) bits

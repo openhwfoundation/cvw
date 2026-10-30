@@ -16,10 +16,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaexpadd import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.NE-1:0]      Xe, Ye,         // input's exponents
-  input  logic                 XZero, YZero,   // are the inputs zero
-  output logic [P.NE+1:0]      Pe              // product's biased exponent in B(NE+2.0) format
+module fmaexpadd import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.NE-1:0]      Xe, Ye,         // X and Y exponents
+  input  logic                 XZero, YZero,   // X, Y are zero
+  output logic [P.NE+1:0]      Pe              // Product exponent
 );
 
   logic                        PZero;          // is the product zero?

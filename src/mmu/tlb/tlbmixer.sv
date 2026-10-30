@@ -16,14 +16,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbmixer import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.VPN_BITS-1:0] VPN,
-  input  logic [P.PPN_BITS-1:0] PPN,
-  input  logic [2:0]            HitPageType,
-  input  logic [11:0]           Offset,
-  input  logic                  TLBHit,
+module tlbmixer import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.VPN_BITS-1:0] VPN,           // Virtual page number
+  input  logic [P.PPN_BITS-1:0] PPN,           // Physical page number
+  input  logic [2:0]            HitPageType,   // Page type of the matching TLB entry
+  input  logic [11:0]           Offset,        // Page offset
+  input  logic                  TLBHit,        // TLB hit
   input  logic                  PTE_N,         // NAPOT page table entry
-  output logic [P.PA_BITS-1:0]  TLBPAdr
+  output logic [P.PA_BITS-1:0]  TLBPAdr        // Translated physical address
 );
 
   localparam EXTRA_BITS = P.PPN_BITS - P.VPN_BITS;

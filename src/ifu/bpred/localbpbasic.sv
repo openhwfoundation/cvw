@@ -20,13 +20,13 @@ module localbpbasic import cvw::*; #(parameter cvw_t P,
                                      parameter k = 10) ( // number of past branches stored
   input  logic            clk,
   input  logic            reset,
-  input  logic            StallF, StallD, StallE, StallM, StallW,
-  input  logic            FlushD, FlushE, FlushM, FlushW,
-  output logic [1:0]      BPDirF,
-  output logic            BPDirWrongE,
+  input  logic            StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic            FlushD, FlushE, FlushM, FlushW,         // Flush Decode, Execute, Memory, Writeback stages
+  output logic [1:0]      BPDirF,                                 // Branch direction prediction (2-bit counter state) in Fetch stage
+  output logic            BPDirWrongE,                            // Branch direction mispredicted in Execute stage
   // update
-  input  logic [XLEN-1:0] PCNextF, PCM,
-  input  logic            BranchE, BranchM, PCSrcE
+  input  logic [XLEN-1:0] PCNextF, PCM,                           // Next PC to fetch, PC in Memory stage
+  input  logic            BranchE, BranchM, PCSrcE                // Branch instruction in Execute and Memory stages, branch taken in Execute stage
 );
 
   logic [k-1:0]           IndexNextF, IndexM;

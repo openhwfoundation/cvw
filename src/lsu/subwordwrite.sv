@@ -17,9 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module subwordwrite #(parameter LLEN) (
-  input  logic [2:0]        LSUFunct3M,
-  input  logic [LLEN-1:0]   IMAFWriteDataM,
-  output logic [LLEN-1:0]   LittleEndianWriteDataM
+  input  logic [2:0]        LSUFunct3M,            // IEU or HPTW memory operation size and signedness
+  input  logic [LLEN-1:0]   IMAFWriteDataM,        // IEU, HPTW, AMO, or FPU write data
+  output logic [LLEN-1:0]   LittleEndianWriteDataM // Write data replicated to all byte lanes
 );
 
   // Replicate data for subword writes

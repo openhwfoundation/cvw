@@ -18,14 +18,14 @@
 
 module alu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] A, B,        // Operands
-  input  logic              W64, UW64,   // W64/.uw-type instruction
+  input  logic              W64, UW64,   // RV64 W-type and .uw-type instruction
   input  logic              SubArith,    // Subtraction or arithmetic shift
   input  logic [2:0]        ALUSelect,   // ALU mux select signal
   input  logic [3:0]        BSelect,     // BMU result select (binary encoded; see bitmanipalu)
-  input  logic [3:0]        ZBBSelect,   // ZBB mux select signal
-  input  logic [2:0]        Funct3,      // For BMU decoding
-  input  logic [6:0]        Funct7,      // For ZKNE and ZKND computation
-  input  logic [4:0]        Rs2E,        // For ZKNE and ZKND computation
+  input  logic [3:0]        ZBBSelect,   // Zbb result select
+  input  logic [2:0]        Funct3,      // funct3 field of instruction
+  input  logic [6:0]        Funct7,      // funct7 field of instruction
+  input  logic [4:0]        Rs2E,        // rs2 field of instruction in Execute stage
   input  logic [2:0]        BALUControl, // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActive,   // Bit manipulation instruction being executed
   input  logic [1:0]        CZero,       // {czero.nez, czero.eqz} instructions active

@@ -15,10 +15,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module rom1p1r_128x64(
-  input  logic        CLK,
-  input  logic        CEB,
-  input  logic [6:0]  A,
-  output logic [63:0] Q
+  input  logic        CLK, // SRAM clock
+  input  logic        CEB, // SRAM chip enable (active low)
+  input  logic [6:0]  A,   // SRAM address
+  output logic [63:0] Q    // SRAM read data
 );
 
   // replace "generic128x64ROM" with "TS3N..128X64.." module from your memory vendor

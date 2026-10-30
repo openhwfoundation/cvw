@@ -17,10 +17,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module swbytemask #(parameter WORDLEN, EXTEND = 0) (
-  input  logic [2:0]                   Size,
-  input  logic [$clog2(WORDLEN/8)-1:0] Adr,
-  output logic [WORDLEN/8-1:0]         ByteMask,
-  output logic [WORDLEN/8-1:0]         ByteMaskExtended
+  input  logic [2:0]                   Size,            // Access size (log2 bytes)
+  input  logic [$clog2(WORDLEN/8)-1:0] Adr,             // Byte address within the word
+  output logic [WORDLEN/8-1:0]         ByteMask,        // Byte write enables
+  output logic [WORDLEN/8-1:0]         ByteMaskExtended // Byte write enables for the next word of a misaligned access
 );
 
   if (EXTEND) begin

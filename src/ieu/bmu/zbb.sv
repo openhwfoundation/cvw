@@ -17,12 +17,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zbb #(parameter WIDTH=32) (
-  input  logic [WIDTH-1:0] A, RevA, B,   // Operands
-  input  logic             W64,          // Indicates word operation
-  input  logic             LT,           // lt flag
-  input  logic             LTU,          // ltu flag
+  input  logic [WIDTH-1:0] A, RevA, B,   // Operands A and B, and A bit-reversed
+  input  logic             W64,          // RV64 W-type instruction
+  input  logic             LT,           // Less than (signed)
+  input  logic             LTU,          // Less than (unsigned)
   input  logic             BUnsigned,    // maxu/minu (unsigned comparison)
-  input  logic [2:0]       ZBBSelect,    // ZBB Result select signal
+  input  logic [2:0]       ZBBSelect,    // Zbb result select
   output logic [WIDTH-1:0] ZBBResult);   // ZBB result
 
   logic LessThan;                        // lt given signed/unsigned

@@ -16,11 +16,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtuotfc4 import cvw::*;  #(parameter cvw_t P) (
-  input  logic [3:0]      udigit,
-  input  logic [P.DIVb:0] U, UM,          // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer
-  input  logic [P.DIVb:0] C,              // Q1.DIVb
-  output logic [P.DIVb:0] UNext, UMNext   // U1.DIVb
+module fdivsqrtuotfc4 import cvw::*; #(parameter cvw_t P) (
+  input  logic [3:0]      udigit,         // Radix-4 result digit, one-hot {2, 1, -1, -2}; 0 if none hot
+  input  logic [P.DIVb:0] U, UM,          // Partial result and partial result minus 1 ulp (U1.DIVb); UM starts negative, but still gives the right answer
+  input  logic [P.DIVb:0] C,              // Digit position marker (Q1.DIVb)
+  output logic [P.DIVb:0] UNext, UMNext   // Next partial result and next partial result minus 1 ulp (U1.DIVb)
 );
   //  The on-the-fly converter transfers the square root
   //  bits to the quotient as they come.

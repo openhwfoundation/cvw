@@ -16,20 +16,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaadd import cvw::*;  #(parameter cvw_t P) (
-  input  logic [3*P.NF+5:0]    Am,         // aligned addend's mantissa for addition in U(NF+5.2NF+1)
-  input  logic [P.NE-1:0]      Ze,         // exponent of Z
-  input  logic                 Ps,         // the product's sign
-  input  logic [P.NE+1:0]      Pe,         // product's exponent
-  input  logic [2*P.NF+1:0]    Pm,         // the product's mantissa
-  input  logic                 InvA,       // invert the aligned addend
-  input  logic                 KillProd,   // should the product be set to 0
-  input  logic                 ASticky,    // Aligned addend's sticky bit
+module fmaadd import cvw::*; #(parameter cvw_t P) (
+  input  logic [3*P.NF+5:0]    Am,         // Aligned addend significand (U(NF+5.2NF+1))
+  input  logic [P.NE-1:0]      Ze,         // Z exponent
+  input  logic                 Ps,         // Product sign
+  input  logic [P.NE+1:0]      Pe,         // Product exponent
+  input  logic [2*P.NF+1:0]    Pm,         // Product significand
+  input  logic                 InvA,       // Invert addend for effective subtraction
+  input  logic                 KillProd,   // Set the product to zero
+  input  logic                 ASticky,    // Sticky bit from the aligned addend
   output logic [3*P.NF+5:0]    AmInv,      // aligned addend possibly inverted
   output logic [2*P.NF+1:0]    PmKilled,   // the product's mantissa possibly killed
-  output logic                 Ss,         // sum's sign
-  output logic [P.NE+1:0]      Se,         // sum's exponent
-  output logic [3*P.NF+5:0]    Sm          // the positive sum
+  output logic                 Ss,         // Sum sign
+  output logic [P.NE+1:0]      Se,         // Sum exponent
+  output logic [3*P.NF+5:0]    Sm          // Positive sum significand
 );
 
   logic [3*P.NF+5:0]    PreSum, NegPreSum; // possibly negative sum

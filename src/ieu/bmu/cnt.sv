@@ -17,9 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module cnt #(parameter WIDTH = 32) (
-  input  logic [WIDTH-1:0] A, RevA,    // Operands
+  input  logic [WIDTH-1:0] A, RevA,    // Operand and its bit reversal
   input  logic [1:0]       B,          // Low 2 bits of immediate: 00 clz, 01 ctz, 10 cpop
-  input  logic             W64,        // Indicates word operation
+  input  logic             W64,        // RV64 W-type instruction
   output logic [WIDTH-1:0] CntResult   // count result
 );
 

@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module galoismultinverse8(
-  input  logic [10:0] a,
-  output logic [7:0]  y
+  input  logic [10:0] a, // Input
+  output logic [7:0]  y  // Output
 );
 
   logic [7:0] temp0, temp1;

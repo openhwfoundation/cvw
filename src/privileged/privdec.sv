@@ -19,16 +19,16 @@
 module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         clk, reset,
   input  logic         StallM,                              // Memory stage stalled: the wfi stays in M
-  input  logic [31:7]  InstrM,                              // privileged instruction function field
-  input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
-  input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
-  input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
-  input  logic [1:0]   PrivilegeModeW,                      // current privilege level
-  input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // status bits
-  input  logic         IntPendingM,                         // a locally enabled interrupt is pending: ends any wait
+  input  logic [31:7]  InstrM,                              // Instruction in Memory stage
+  input  logic         PrivilegedM,                         // Privileged instruction
+  input  logic         IllegalIEUFPUInstrM,                 // Illegal integer or FP instruction in Memory stage
+  input  logic         IllegalCSRAccessM,                   // Illegal CSR access: CSR does not exist or is inaccessible at this privilege level
+  input  logic [1:0]   PrivilegeModeW,                      // Current privilege mode
+  input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // mstatus.TSR, TVM, TW: trap sret, trap virtual memory, timeout wait
+  input  logic         IntPendingM,                         // A locally enabled interrupt is pending: ends any wait
   output logic         IllegalInstrFaultM,                  // Illegal instruction
-  output logic         EcallFaultM, BreakpointFaultM,       // Ecall or breakpoint; traps without retiring
-  output logic         sretM, mretM, RetM,                  // return instructions
+  output logic         EcallFaultM, BreakpointFaultM,       // ecall and ebreak; they trap without retiring
+  output logic         sretM, mretM, RetM,                  // sret, mret, either return instruction
   output logic         WaitM,                               // wfi in M is waiting for an interrupt: stall the pipeline
   output logic         WaitedM,                             // wfi in M has waited (not a delayed WaitM): it retires before an interrupt is taken
   output logic         sfencevmaM,                          // sfence.vma / sinval.vma instructions

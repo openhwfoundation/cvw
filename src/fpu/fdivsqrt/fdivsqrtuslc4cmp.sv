@@ -19,10 +19,10 @@
 module fdivsqrtuslc4cmp (
   input  logic [2:0] Dmsbs,             // U0.3 fractional bits after implicit leading 1
   input  logic [4:0] Smsbs,             // U1.4 leading bits of square root approximation
-  input  logic [7:0] WSmsbs, WCmsbs,    // Q4.4 residual most significant bits
-  input  logic       SqrtE,
-  input  logic       j0, j1,            // are we on first (j0) or second step (j1) of digit selection
-  output logic [3:0] udigit             // {2, 1, -1, -2} digit is 0 if none are hot
+  input  logic [7:0] WSmsbs, WCmsbs,    // Residual most significant bits in carry-save form (Q4.4)
+  input  logic       SqrtE,             // Square root operation in Execute stage
+  input  logic       j0, j1,            // First (j0) or second (j1) step of square root digit selection
+  output logic [3:0] udigit             // Radix-4 result digit, one-hot {2, 1, -1, -2}; 0 if none hot
 );
   logic [6:0] Wmsbs;
   logic [7:0] PreWmsbs;

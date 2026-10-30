@@ -16,15 +16,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
-  input  logic              IFDivStartE,
-  input  logic              FDivBusyE,
-  input  logic              SqrtE,
-  input  logic [P.DIVb+3:0] X, D,                  // Q4.DIVb
-  output logic [P.DIVb:0]   FirstU, FirstUM,       // U1.DIVb
-  output logic [P.DIVb+1:0] FirstC,                // Q2.DIVb
-  output logic [P.DIVb+3:0] FirstWS, FirstWC       // Q4.DIVb
+  input  logic              IFDivStartE,           // Start integer or FP divide/sqrt
+  input  logic              FDivBusyE,             // FPU divider busy
+  input  logic              SqrtE,                 // Square root operation in Execute stage
+  input  logic [P.DIVb+3:0] X, D,                  // Dividend or radicand X and divisor D (Q4.DIVb)
+  output logic [P.DIVb:0]   FirstU, FirstUM,       // Result and result minus 1 ulp entering the iteration (U1.DIVb)
+  output logic [P.DIVb+1:0] FirstC,                // Digit position marker entering the iteration (Q2.DIVb)
+  output logic [P.DIVb+3:0] FirstWS, FirstWC       // Residual in carry-save form entering the iteration (Q4.DIVb)
 );
 
   logic [P.DIVb+3:0]      WSNext[P.DIVCOPIES-1:0]; // Q4.DIVb
@@ -37,7 +37,6 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
   logic [P.DIVb:0]        UMNext[P.DIVCOPIES-1:0]; // U1.DIVb
   logic [P.DIVb+1:0]      C[P.DIVCOPIES:0];        // Q2.DIVb
   logic [P.DIVb+1:0]      initC;                   // Q2.DIVb
-  logic [P.DIVCOPIES-1:0] un;
 
   logic [P.DIVb+3:0]      WSN, WCN;                // Q4.DIVb
   logic [P.DIVb+3:0]      DBar, D2, DBar2;         // Q4.DIVb
@@ -86,11 +85,11 @@ module fdivsqrtiter import cvw::*;  #(parameter cvw_t P) (
       if (P.RADIX == 2) begin : stage
         fdivsqrtstage2 #(P) fdivsqrtstage(.D, .DBar, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
-          .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));
+          .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]));
       end else begin : stage
         fdivsqrtstage4 #(P) fdivsqrtstage(.D, .DBar, .D2, .DBar2, .SqrtE,
           .WS(WS[i]), .WC(WC[i]), .WSNext(WSNext[i]), .WCNext(WCNext[i]),
-          .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]), .un(un[i]));
+          .C(C[i]), .U(U[i]), .UM(UM[i]), .CNext(C[i+1]), .UNext(UNext[i]), .UMNext(UMNext[i]));
       end
       assign WS[i+1] = WSNext[i];
       assign WC[i+1] = WCNext[i];

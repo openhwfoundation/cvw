@@ -16,12 +16,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fsgninj import cvw::*;  #(parameter cvw_t P) (
-  input  logic                 Xs, Ys, // X and Y sign bits
-  input  logic [P.FLEN-1:0]    X,      // X
-  input  logic [P.FMTBITS-1:0] Fmt,    // format
-  input  logic [1:0]           OpCtrl, // operation control
-  output logic [P.FLEN-1:0]    SgnRes  // result
+module fsgninj import cvw::*; #(parameter cvw_t P) (
+  input  logic                 Xs, Ys, // X and Y signs
+  input  logic [P.FLEN-1:0]    X,      // X input
+  input  logic [P.FMTBITS-1:0] Fmt,    // FP format: 00 single, 01 double, 10 half, 11 quad
+  input  logic [1:0]           OpCtrl, // FPU operation control
+  output logic [P.FLEN-1:0]    SgnRes  // Sign injection result
 );
 
   logic ResSgn;  // result sign

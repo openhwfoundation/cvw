@@ -15,10 +15,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aes64d(
-  input  logic [63:0] rs1,
-  input  logic [63:0] rs2,
-  input  logic        finalround, aes64im,
-  output logic [63:0] result
+  input  logic [63:0] rs1,                 // Source operand 1
+  input  logic [63:0] rs2,                 // Source operand 2
+  input  logic        finalround, aes64im, // Final round of AES (skip MixColumns), aes64im instruction
+  output logic [63:0] result               // Result
 );
 
   logic [63:0]        ShiftRowsOut, SboxOut, MixcolsIn, MixcolsOut;

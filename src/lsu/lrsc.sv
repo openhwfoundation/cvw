@@ -16,16 +16,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module lrsc import cvw::*;  #(parameter cvw_t P) (
+module lrsc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
-  input  logic                 StallW,
+  input  logic                 StallW,     // Stall Writeback stage
   input  logic                 MemReadM,   // Memory read
-  input  logic [1:0]           PreLSURWM,  // Memory operation from the HPTW or IEU [1]: read, [0]: write
-  output logic [1:0]           LSURWM,     // Memory operation after potential squash of SC
-  input  logic [1:0]           LSUAtomicM, // Atomic memory operation
+  input  logic [1:0]           PreLSURWM,  // IEU or HPTW memory read/write: [1] read, [0] write
+  output logic [1:0]           LSURWM,     // Memory read/write after LR/SC squash: [1] read, [0] write
+  input  logic [1:0]           LSUAtomicM, // IEU or HPTW atomic operation: 10 AMO, 01 LR/SC
   input  logic [P.PA_BITS-1:0] PAdrM,      // Physical memory address
-  output logic                 SquashSCW   // Squash the store conditional by not allowing rf write
+  output logic                 SquashSCW   // Store conditional failed; do not write the register file
 );
 
   // reservation set size is XLEN for Wally

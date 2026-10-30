@@ -18,11 +18,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmalza #(WIDTH, NF) (
-  input logic [WIDTH-1:0]             A,              // addend
-  input logic [2*NF+1:0]              Pm,             // product
-  input logic                         Cin,            // carry in
-  input logic                         sub,            // subtraction
-  output logic [$clog2(WIDTH+1)-1:0]  SCnt            // normalization shift count for the positive result
+  input  logic [WIDTH-1:0]           A,   // Aligned addend significand
+  input  logic [2*NF+1:0]            Pm,  // Product significand
+  input  logic                       Cin, // carry in
+  input  logic                       sub, // subtraction
+  output logic [$clog2(WIDTH+1)-1:0] SCnt // Normalization shift count
 );
 
   logic [WIDTH:0]                     F;              // most significant bit of F indicates leading digit

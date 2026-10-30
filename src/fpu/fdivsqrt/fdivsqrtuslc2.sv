@@ -17,8 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtuslc2 (
-  input  logic [3:0] WS, WC,      // Q4.0 most significant bits of redundant residual
-  output logic       up, uz, un   // {+1, 0, -1}
+  input  logic [3:0] WS, WC,      // Most significant bits of residual in carry-save form (Q4.0)
+  output logic       up, uz, un   // Result digit is +1, 0, or -1
 );
 
   logic        sign;

@@ -18,14 +18,14 @@
 
 module csri import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              CSRMWriteM, CSRSWriteM,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic [11:0]       CSRAdrM,
-  input  logic              MExtInt, SExtInt, MTimerInt, STimerInt, MSwInt,
-  input  logic [11:0]       MIDELEG_REGW,
-  input  logic              ENVCFG_STCE,
-  output logic [11:0]       MIP_REGW, MIE_REGW,
-  output logic [11:0]       MIP_REGW_writeable // only SEIP, STIP, SSIP are actually writeable; the rest are hardwired to 0
+  input  logic              CSRMWriteM, CSRSWriteM, // Write a machine-mode or supervisor-mode CSR
+  input  logic [P.XLEN-1:0] CSRWriteValM,           // Value to write to CSR
+  input  logic [11:0]       CSRAdrM,                // CSR address
+  input  logic              MExtInt, SExtInt, MTimerInt, STimerInt, MSwInt, // Interrupt sources: external, timer, software
+  input  logic [11:0]       MIDELEG_REGW,           // mideleg CSR
+  input  logic              ENVCFG_STCE,            // menvcfg.STCE: supervisor timer compare enable
+  output logic [11:0]       MIP_REGW, MIE_REGW,     // mip and mie CSRs
+  output logic [11:0]       MIP_REGW_writeable      // only SEIP, STIP, SSIP are actually writeable; the rest are hardwired to 0
 );
 
   logic [11:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK, SIE_WRITE_MASK;

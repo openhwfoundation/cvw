@@ -20,16 +20,16 @@ module cacheLRU
   #(parameter NUMWAYS = 4, SETLEN = 9, NUMSETS = 128) (
   input  logic                clk,
   input  logic                reset,
-  input  logic                InvalidateFlushStage,
-  input  logic                CacheEn,         // Enable the cache memory arrays.  Disable hold read data constant
-  input  logic [NUMWAYS-1:0]  HitWay,          // Which way is valid and matches PAdr's tag
-  input  logic [NUMWAYS-1:0]  ValidWay,        // Which ways for a particular set are valid, ignores tag
-  input  logic [SETLEN-1:0]   CacheSetLRU,     // Cache set, the output of the address select mux: NextSet, PAdr, or FlushAdr
-  input  logic [SETLEN-1:0]   PAdr,            // Physical address
-  input  logic                LRUWriteEn,      // Update the LRU state
-  input  logic                SetValid,        // Line fill on a miss: update LRU with VictimWay rather than HitWay
-  input  logic                InvalidateCache, // Clear all valid bits
-  output logic [NUMWAYS-1:0]  VictimWay        // LRU selects a victim to evict
+  input  logic                InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
+  input  logic                CacheEn,              // Enable the cache memory arrays.  When disabled, hold read data constant
+  input  logic [NUMWAYS-1:0]  HitWay,               // Way is valid and its tag matches PAdr
+  input  logic [NUMWAYS-1:0]  ValidWay,             // Way is valid in the selected set
+  input  logic [SETLEN-1:0]   CacheSetLRU,          // Cache set, the output of the address select mux: NextSet, PAdr, or FlushAdr
+  input  logic [SETLEN-1:0]   PAdr,                 // Physical address
+  input  logic                LRUWriteEn,           // Update the LRU state
+  input  logic                SetValid,             // Set the valid bit in the selected way and set
+  input  logic                InvalidateCache,      // Clear all valid bits
+  output logic [NUMWAYS-1:0]  VictimWay             // LRU victim way to evict
 );
 
   localparam                           LOGNUMWAYS = $clog2(NUMWAYS);

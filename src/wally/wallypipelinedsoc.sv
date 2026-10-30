@@ -18,42 +18,42 @@
 
 module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
-  input  logic                 reset_ext,       // external asynchronous reset pin
-  output logic                 reset,           // reset synchronized to clk to prevent races on release
+  input  logic                 reset_ext,           // external asynchronous reset pin
+  output logic                 reset,               // reset synchronized to clk to prevent races on release
   // AHB Interface
-  input  logic [P.AHBW-1:0]    HRDATAEXT,
-  input  logic                 HREADYEXT, HRESPEXT,
-  output logic                 HSELEXT,
+  input  logic [P.AHBW-1:0]    HRDATAEXT,           // AHB read data from external memory
+  input  logic                 HREADYEXT, HRESPEXT, // AHB ready and response from external memory
+  output logic                 HSELEXT,             // AHB select for external memory
   // fpga debug signals
-  input  logic                 ExternalStall,
+  input  logic                 ExternalStall,       // External stall (FPGA debug)
   // outputs to external memory, shared with uncore memory
-  output logic                 HCLK, HRESETn,
-  output logic [P.PA_BITS-1:0] HADDR,
-  output logic [P.AHBW-1:0]    HWDATA,
-  output logic [P.XLEN/8-1:0]  HWSTRB,
-  output logic                 HWRITE,
-  output logic [2:0]           HSIZE,
-  output logic [2:0]           HBURST,
-  output logic [3:0]           HPROT,
-  output logic [1:0]           HTRANS,
-  output logic                 HMASTLOCK,
-  output logic                 HREADY,
+  output logic                 HCLK, HRESETn,       // AHB clock and reset (active low)
+  output logic [P.PA_BITS-1:0] HADDR,               // AHB address
+  output logic [P.AHBW-1:0]    HWDATA,              // AHB write data
+  output logic [P.XLEN/8-1:0]  HWSTRB,              // AHB byte write enables
+  output logic                 HWRITE,              // AHB write (1) or read (0)
+  output logic [2:0]           HSIZE,               // AHB transfer size
+  output logic [2:0]           HBURST,              // AHB burst type
+  output logic [3:0]           HPROT,               // AHB protection.  Wally does not use
+  output logic [1:0]           HTRANS,              // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  output logic                 HMASTLOCK,           // AHB master lock.  Wally does not use
+  output logic                 HREADY,              // AHB ready
   // I/O Interface
-  input  logic                 TIMECLK,         // optional for CLINT MTIME counter
-  input  logic [31:0]          GPIOIN,          // inputs from GPIO
-  output logic [31:0]          GPIOOUT,         // output values for GPIO
-  output logic [31:0]          GPIOEN,          // output enables for GPIO
-  input  logic                 UARTSin,         // UART serial data input
-  output logic                 UARTSout,        // UART serial data output
-  input  logic                 SPIIn,           // SPI pins in
-  output logic                 SPIOut,          // SPI pins out
-  output logic [3:0]           SPICS,           // SPI chip select pins
-  output logic                 SPICLK,          // SPI clock
-  input  logic                 SDCIn,           // SDC DATA[0]     to     SPI DI
-  output logic                 SDCCmd,          // SDC CMD         from   SPI DO
-  output logic [3:0]           SDCCS,           // SDC Card Detect from   SPI CS
-  output logic                 SDCCLK,          // SDC Clock       from   SPI Clock
-  output logic [3:0]           PWMGPIO          // PWM GPIO output
+  input  logic                 TIMECLK,             // Optional clock for CLINT MTIME counter
+  input  logic [31:0]          GPIOIN,              // GPIO input values
+  output logic [31:0]          GPIOOUT,             // output values for GPIO
+  output logic [31:0]          GPIOEN,              // output enables for GPIO
+  input  logic                 UARTSin,             // UART serial input
+  output logic                 UARTSout,            // UART serial output
+  input  logic                 SPIIn,               // SPI pins in
+  output logic                 SPIOut,              // SPI pins out
+  output logic [3:0]           SPICS,               // SPI chip select pins
+  output logic                 SPICLK,              // SPI clock
+  input  logic                 SDCIn,               // SD card data[0], to SPI data in
+  output logic                 SDCCmd,              // SD card command, from SPI data out
+  output logic [3:0]           SDCCS,               // SD card chip select, from SPI chip select
+  output logic                 SDCCLK,              // SD card clock, from SPI clock
+  output logic [3:0]           PWMGPIO              // PWM GPIO output
 );
 
   // Uncore signals

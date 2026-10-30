@@ -27,26 +27,26 @@ module cache import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]             CacheRW,           // [1] Read, [0] Write
   input  logic                   FlushCache,        // Flush all dirty lines back to memory
   input  logic                   InvalidateCache,   // Clear all valid bits
-  input  logic [3:0]             CMOpM,             // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
-  input  logic [OFFSETLEN+SETLEN-1:0] NextSet,      // Set and offset bits of the virtual address
+  input  logic [3:0]             CMOpM,             // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic [OFFSETLEN+SETLEN-1:0] NextSet,      // Set and offset bits of the next access address (untranslated)
   input  logic [PA_BITS-1:0]     PAdr,              // Physical address
-  input  logic [(WORDLEN-1)/8:0] ByteMask,          // Which bytes to write (D$ only)
-  input  logic [WORDLEN-1:0]     WriteData,         // Data to write to cache (D$ only)
+  input  logic [(WORDLEN-1)/8:0] ByteMask,          // Byte write enables
+  input  logic [WORDLEN-1:0]     WriteData,         // Write data
   output logic                   CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
   output logic                   CacheStall,        // Cache stalls pipeline during multicycle operation
-  output logic [WORDLEN-1:0]     ReadDataWord,      // Word read from cache (goes to CPU and bus)
-  // to performance counters to cpu
+  output logic [WORDLEN-1:0]     ReadDataWord,      // Word read from cache line
+  // to performance counters
   output logic                   CacheMiss,         // Cache miss
   output logic                   CacheAccess,       // Cache access
   // lsu control
-  input  logic                   SelHPTW,           // Use PAdr from Hardware Page Table Walker rather than NextSet
+  input  logic                   SelHPTW,           // HPTW is accessing memory through the LSU
   // Bus fsm interface
-  input  logic                   CacheBusAck,       // Bus operation completed
-  input  logic                   SelBusBeat,        // Word in cache line comes from BeatCount
-  input  logic [LOGBWPL-1:0]     BeatCount,         // Beat in burst
-  input  logic [LINELEN-1:0]     FetchBuffer,       // Buffer long enough to hold entire cache line arriving from bus
-  output logic [1:0]             CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
-  output logic [PA_BITS-1:0]     CacheBusAdr        // Address for bus access
+  input  logic                   CacheBusAck,       // Bus operation for the cache completed
+  input  logic                   SelBusBeat,        // Select the cache line word from BeatCount rather than PAdr
+  input  logic [LOGBWPL-1:0]     BeatCount,         // Beat within the cache line in the Address phase
+  input  logic [LINELEN-1:0]     FetchBuffer,       // Data captured from the bus
+  output logic [1:0]             CacheBusRW,        // Cache bus operation: 10 line fetch, 01 line writeback
+  output logic [PA_BITS-1:0]     CacheBusAdr        // Cache line address for bus access
 );
 
   // Cache parameters
@@ -129,7 +129,7 @@ module cache import cvw::*; #(parameter cvw_t P,
 
   // Data cache needs to choose word offset from PAdr or BeatCount to writeback dirty lines
   if (!READ_ONLY_CACHE)
-    mux2 #(LOGBWPL) WordAdrrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
+    mux2 #(LOGBWPL) WordAdrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
       .d1(BeatCount), .s(SelBusBeat),
       .y(WordOffsetAddr));
   else
@@ -164,10 +164,10 @@ module cache import cvw::*; #(parameter cvw_t P,
     assign FetchBufferByteSel = SetDirty ? ~DemuxedByteMask : '1;  // If load miss set all muxes to 1.
 
     // Merge write data into fetched cache line for store miss
-    // cbo.zero (CMOpM[3]) takes every byte from WriteData, which the LSU forces to zero
+    // cbo.zero takes every byte from WriteData, which the LSU forces to zero
     for (index = 0; index < LINELEN/8; index++) begin
       mux2 #(8) WriteDataMux(.d0(WriteData[(8*index)%WORDLEN+7:(8*index)%WORDLEN]),
-        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[3]), .y(LineWriteData[8*index+7:8*index]));
+        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[CMO_ZERO]), .y(LineWriteData[8*index+7:8*index]));
     end
     assign LineByteMask = SetDirty ? DemuxedByteMask : '1;
   end else begin : WriteSelLogic
@@ -196,8 +196,7 @@ module cache import cvw::*; #(parameter cvw_t P,
     if (NUMWAYS > 1) assign NextFlushWay = {FlushWay[NUMWAYS-2:0], FlushWay[NUMWAYS-1]};
     else             assign NextFlushWay = FlushWay[NUMWAYS-1];
     assign FlushWayFlag = FlushWay[NUMWAYS-1];
-  end // block: flushlogic
-  else begin : flushlogic // I$ is never flushed because it is never dirty
+  end else begin : flushlogic // I$ is never flushed because it is never dirty
     assign FlushWay = '0;
     assign FlushWayFlag = 1'b0;
     assign FlushAdrFlag = 1'b0;

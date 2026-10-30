@@ -16,9 +16,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fli import cvw::*;  #(parameter cvw_t P) (
+module fli import cvw::*; #(parameter cvw_t P) (
   input  logic [4:0]        Rs1,           // Index of immediate to select
-  input  logic [1:0]        Fmt,           // 00 = single, 01 = double, 10 = half, 11 = quad
+  input  logic [1:0]        Fmt,           // FP format: 00 single, 01 double, 10 half, 11 quad
   output logic [P.FLEN-1:0] Imm            // Immediate output
 );
 

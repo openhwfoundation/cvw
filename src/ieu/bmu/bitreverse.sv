@@ -17,8 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module bitreverse #(parameter WIDTH=32) (
-  input  logic [WIDTH-1:0] A,
-  output logic [WIDTH-1:0] RevA);
+  input  logic [WIDTH-1:0] A,     // Operand
+  output logic [WIDTH-1:0] RevA); // A bit-reversed
 
   genvar i;
   for (i=0; i<WIDTH; i++) begin : loop

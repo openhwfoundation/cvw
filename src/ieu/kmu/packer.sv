@@ -15,9 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module packer #(parameter WIDTH=32) (
-  input  logic [WIDTH/2-1:0] A, B,
-  input  logic [2:0]         PackSelect,
-  output logic [WIDTH-1:0]   PackResult
+  input  logic [WIDTH/2-1:0] A, B,       // Operands
+  input  logic [2:0]         PackSelect, // Pack operation select: {packw, funct3[1:0]}
+  output logic [WIDTH-1:0]   PackResult  // pack result
 );
 
   logic [WIDTH/2-1:0]   lowhalf, highhalf;

@@ -17,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ext #(parameter WIDTH = 32) (
-  input  logic [15:0]      A,            // Operand to extend
+  input  logic [15:0]      A,            // Operand
   input  logic [1:0]       ExtSelect,    // {~B[2], B[2] & B[0]}: 00 sext.b, 01 sext.h, 10 zext.h
   output logic [WIDTH-1:0] ExtResult);   // Extend Result
 

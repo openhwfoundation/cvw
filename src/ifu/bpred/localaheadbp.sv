@@ -20,28 +20,25 @@ module localaheadbp import cvw::*; #(parameter cvw_t P,
                                      parameter k = 10) ( // number of past branches stored
   input  logic            clk,
   input  logic            reset,
-  input  logic            StallF, StallD, StallE, StallM, StallW,
-  input  logic            FlushD, FlushE, FlushM, FlushW,
-  output logic [1:0]      BPDirD,
-  output logic            BPDirWrongE,
+  input  logic            StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic            FlushD, FlushE, FlushM, FlushW,         // Flush Decode, Execute, Memory, Writeback stages
+  output logic [1:0]      BPDirD,                                 // Branch direction prediction (2-bit counter state) in Decode stage
+  output logic            BPDirWrongE,                            // Branch direction mispredicted in Execute stage
   // update
-  input  logic [XLEN-1:0] PCNextF, PCM,
-  input  logic            BranchE, BranchM, PCSrcE
+  input  logic [XLEN-1:0] PCNextF, PCM,                           // Next PC to fetch, PC in Memory stage
+  input  logic            BranchE, BranchM, PCSrcE                // Branch instruction in Execute and Memory stages, branch taken in Execute stage
 );
 
-  logic [k-1:0]           IndexNextF, IndexM;
+  logic [k-1:0]           IndexM;
   logic [1:0]             BPDirE;
   logic [1:0]             BPDirM;
-  logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+  logic [1:0]             NewBPDirM, NewBPDirW;
 
-  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW, LHRNextF;
+  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW;
   logic [k-1:0]           LHRNextW;
   logic                   PCSrcM;
-  logic [2**m-1:0][k-1:0] LHRArray;
   logic [m-1:0]           IndexLHRNextF, IndexLHRM;
   logic [XLEN-1:0]        PCW;
-
-  logic                   UpdateM;
 
   assign IndexM = LHRW;
 

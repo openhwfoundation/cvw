@@ -17,9 +17,9 @@
 // perform an OR of all the rows in an array, producing one output for each column
 // equivalent to assign y = a.or
 module or_rows #(parameter ROWS = 8, COLS = 2) (
-  input  var logic [COLS-1:0] a[ROWS-1:0],
-  output     logic [COLS-1:0] y
-  );
+  input  var logic [COLS-1:0] a[ROWS-1:0], // Rows to OR together
+  output     logic [COLS-1:0] y            // Bitwise OR of all rows
+);
 
   genvar row;
 

@@ -17,15 +17,15 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-module tlbram import cvw::*;  #(parameter cvw_t P,
-                                parameter TLB_ENTRIES = 8) (
+module tlbram import cvw::*; #(parameter cvw_t P,
+                               parameter TLB_ENTRIES = 8) (
   input  logic                      clk, reset,
-  input  logic [P.XLEN-1:0]         PTE,
-  input  logic [TLB_ENTRIES-1:0]    Matches, WriteEnables,
-  output logic [P.PPN_BITS-1:0]     PPN,
-  output logic [11:0]               PTEAccessBits,
-  output logic [TLB_ENTRIES-1:0]    PTE_Gs,
-  output logic [TLB_ENTRIES-1:0]    PTE_NAPOTs // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic [P.XLEN-1:0]         PTE,                   // Page table entry
+  input  logic [TLB_ENTRIES-1:0]    Matches, WriteEnables, // One-hot TLB entry that matches, one-hot TLB entry to write
+  output logic [P.PPN_BITS-1:0]     PPN,                   // Physical page number
+  output logic [11:0]               PTEAccessBits,         // PTE permission and status bits
+  output logic [TLB_ENTRIES-1:0]    PTE_Gs,                // Global bits of all TLB entries
+  output logic [TLB_ENTRIES-1:0]    PTE_NAPOTs             // NAPOT mode bits of all TLB entries
 );
 
   logic [P.XLEN-1:0] RamRead[TLB_ENTRIES-1:0]; // stores the page table entries

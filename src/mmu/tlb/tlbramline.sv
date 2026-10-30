@@ -16,13 +16,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbramline import cvw::*;  #(parameter cvw_t P) (
+module tlbramline import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              re, we,
-  input  logic [P.XLEN-1:0] d,
-  output logic [P.XLEN-1:0] q,
-  output logic              PTE_G,
-  output logic              PTE_NAPOT // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic              re, we,     // Read and write enables
+  input  logic [P.XLEN-1:0] d,          // PTE to write
+  output logic [P.XLEN-1:0] q,          // PTE if this entry matches, else 0
+  output logic              PTE_G,      // Global bit of PTE
+  output logic              PTE_NAPOT   // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
 );
 
   logic [P.XLEN-1:0] line;

@@ -16,28 +16,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module spill import cvw::*;  #(parameter cvw_t P) (
+module spill import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              reset,
-  input  logic              StallF, FlushD,
-  input  logic [P.XLEN-1:0] PCF,               // 2 byte aligned PC in Fetch stage
-  input  logic [P.XLEN-1:2] PCPlus4F,          // PCF + 4
-  input  logic [P.XLEN-1:0] PCNextF,           // The next PCF
-  input  logic [31:0]       InstrRawF,         // Instruction from the IROM, I$, or bus. Used to check if the instruction is compressed
-  input  logic              IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
-  input  logic              ITLBMissOrUpdateRawF, // ITLB miss or A update; not masked by a walk fault, so it blocks the spill when the first half's walk faults
-  input  logic              CacheableF,        // Is the instruction from the cache?
-  input  logic              InstrPageFaultF,   // Page fault on the first half; the spill is not taken if it faults
-  input  logic              InstrAccessFaultF, // Access fault on the first half; the spill is not taken if it faults
-  output logic [P.XLEN-1:0] PCSpillNextF,      // The next PCF for one of the two memory addresses of the spill
-  output logic [P.XLEN-1:0] PCSpillF,          // PCF for one of the two memory addresses of the spill
-  output logic              SelSpillNextF,     // During the transition between the two spill operations, the IFU should stall the pipeline
-  output logic              SelSpillF,         // Select incremented PC on a spill
-  output logic [31:0]       PostSpillInstrRawF, // The final 32 bit instruction after merging the two spilled fetches into 1 instruction
-  output logic              CompressedF);      // The fetched instruction is compressed
+  input  logic              StallF, FlushD,       // Stall Fetch stage, flush Decode stage
+  input  logic [P.XLEN-1:0] PCF,                  // PC in Fetch stage
+  input  logic [P.XLEN-1:2] PCPlus4F,             // PCF + 4
+  input  logic [P.XLEN-1:0] PCNextF,              // Next PC to fetch
+  input  logic [31:0]       InstrRawF,            // Instruction from the IROM, I$, or bus. Used to check if the instruction is compressed
+  input  logic              IFUCacheBusStallF,    // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
+  input  logic              ITLBMissOrUpdateRawF, // ITLB miss or access bit update, not masked by a walk fault, so it blocks the spill when the first half's walk faults
+  input  logic              CacheableF,           // Instruction fetch is cacheable
+  input  logic              InstrPageFaultF,      // Instruction page fault on the first half; the spill is not taken if it faults
+  input  logic              InstrAccessFaultF,    // Instruction access fault on the first half; the spill is not taken if it faults
+  output logic [P.XLEN-1:0] PCSpillNextF,         // The next PCF for one of the two memory addresses of the spill
+  output logic [P.XLEN-1:0] PCSpillF,             // PCF, or PCF + 2 for the second half of a spilled fetch
+  output logic              SelSpillNextF,        // During the transition between the two spill operations, the IFU should stall the pipeline
+  output logic              SelSpillF,            // Select incremented PC on a spill
+  output logic [31:0]       PostSpillInstrRawF,   // Fetched 32-bit instruction after merging the two halves of a spill
+  output logic              CompressedF);         // The fetched instruction is compressed
 
   // Spill threshold occurs when all the cache offset PC bits are 1 (except [0]).  Without a cache this is just PCF[1]
-  typedef enum logic [1:0]  {STATE_READY, STATE_SPILL} statetype;
+  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
 
   statetype          CurrState, NextState;
   logic [P.XLEN-1:0] PCPlus2NextF, PCPlus2F;

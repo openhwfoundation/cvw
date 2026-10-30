@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvmixcolumns32(
-  input  logic [31:0] a,
-  output logic [31:0] y
+  input  logic [31:0] a, // Input
+  output logic [31:0] y  // Output
 );
 
   logic [7:0] a0, a1, a2, a3, temp;

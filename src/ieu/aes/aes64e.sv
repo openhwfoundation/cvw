@@ -15,12 +15,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aes64e(
-  input  logic [63:0] rs1,
-  input  logic [63:0] rs2,
-  input  logic        finalround,
-  input  logic [31:0] Sbox0Out,
-  output logic [31:0] SboxEIn,
-  output logic [63:0] result
+  input  logic [63:0] rs1,        // Source operand 1
+  input  logic [63:0] rs2,        // Source operand 2
+  input  logic        finalround, // Final round of AES (skip MixColumns)
+  input  logic [31:0] Sbox0Out,   // Shared S-box output
+  output logic [31:0] SboxEIn,    // Input to shared S-box
+  output logic [63:0] result      // Result
 );
 
   logic [63:0]  ShiftRowsOut, SboxOut, MixcolsOut;

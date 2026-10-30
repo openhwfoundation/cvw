@@ -21,7 +21,7 @@ module regfile #(parameter XLEN, E_SUPPORTED) (
   input  logic             we3,                 // Write enable
   input  logic [4:0]       a1, a2, a3,          // Source registers to read (a1, a2), destination register to write (a3)
   input  logic [XLEN-1:0]  wd3,                 // Write data for port 3
-  output logic [XLEN-1:0]  rd1, rd2);           // Read data for ports 1, 2
+  output logic [XLEN-1:0]  rd1, rd2);           // Read data for ports 1 and 2
 
   localparam NUMREGS = E_SUPPORTED ? 16 : 32;   // only 16 registers in E mode
 

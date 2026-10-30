@@ -16,17 +16,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module RASPredictor import cvw::*;  #(parameter cvw_t P) (
+module RASPredictor import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              reset,
-  input  logic              StallD, StallE, StallM, FlushD, FlushE, FlushM,
-  input  logic              BPReturnWrongD, // Prediction class is wrong
-  input  logic              BPReturnD,      // the instruction in D popped the RAS when it was fetched
-  input  logic              ReturnD,
-  input  logic              ReturnE, CallE, // Instr class
-  input  logic              BPReturnF,
-  input  logic [P.XLEN-1:0] PCLinkE,        // PC of instruction after a call
-  output logic [P.XLEN-1:0] RASPCF          // Top of the stack
+  input  logic              StallD, StallE, StallM, FlushD, FlushE, FlushM, // Stall and flush Decode, Execute, Memory stages
+  input  logic              BPReturnWrongD, // Return prediction was wrong in Decode stage
+  input  logic              BPReturnD,      // Instruction in Decode stage was predicted to be a return, so it popped the RAS when fetched
+  input  logic              ReturnD,        // Return instruction in Decode stage
+  input  logic              ReturnE, CallE, // Return and call instructions in Execute stage
+  input  logic              BPReturnF,      // Predicted return instruction in Fetch stage
+  input  logic [P.XLEN-1:0] PCLinkE,        // PC + 2 or 4 of instruction in Execute stage (link address)
+  output logic [P.XLEN-1:0] RASPCF          // Return address predicted by RAS (top of stack)
 );
 
   logic                     CounterEn;

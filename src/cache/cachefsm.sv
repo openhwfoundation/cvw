@@ -16,11 +16,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module cachefsm #(parameter READ_ONLY_CACHE = 0) (
+module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
   input  logic       clk,
   input  logic       reset,
   // hazard and privilege unit
-  input  logic       Stall,             // Stall the cache, preventing new accesses. In-flight access finished but does not return to READY
+  input  logic       Stall,             // Pipeline is stalled
   input  logic       FlushStage,        // Pipeline flush of second stage (prevent writes and bus operations)
   input  logic       InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
   output logic       CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
@@ -29,10 +29,10 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   input  logic [1:0] CacheRW,           // [1] Read, [0] Write
   input  logic       FlushCache,        // Flush all dirty lines back to memory
   input  logic       InvalidateCache,   // Clear all valid bits
-  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.clean; 0100: cbo.flush; 1000: cbo.zero
+  input  logic [3:0] CMOpM,             // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
   // Bus controls
-  input  logic       CacheBusAck,       // Bus operation completed
-  output logic [1:0] CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
+  input  logic       CacheBusAck,       // Bus operation for the cache completed
+  output logic [1:0] CacheBusRW,        // Cache bus operation: 10 line fetch, 01 line writeback
   // performance counter outputs
   output logic       CacheMiss,         // Cache miss
   output logic       CacheAccess,       // Cache access
@@ -43,8 +43,8 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   input  logic       HitLineDirty,      // The cache hit way is dirty
   input  logic       FlushAdrFlag,      // On last set of a cache flush
   input  logic       FlushWayFlag,      // On the last way for any set of a cache flush
-  output logic       SelAdrData,        // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
-  output logic       SelAdrTag,         // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
+  output logic       SelAdrData,        // Data array address select: 0 NextSet, 1 PAdr
+  output logic       SelAdrTag,         // Tag array address select: 0 NextSet, 1 PAdr
   output logic       SetValid,          // Set the valid bit in the selected way and set
   output logic       ClearValid,        // Clear the valid bit in the selected way and set
   output logic       SetDirty,          // Set the dirty bit in the selected way and set
@@ -83,9 +83,9 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign AnyMiss = (CacheRW[0] | CacheRW[1]) & ~Hit & ~InvalidateCache; // exclusion-tag: cache AnyMiss
   assign AnyUpdateHit = (CacheRW[0]) & Hit;                            // exclusion-tag: icache storeAMO1
   assign AnyHit = AnyUpdateHit | (CacheRW[1] & Hit);                  // exclusion-tag: icache AnyUpdateHit
-  assign CMOZeroNoEviction = CMOpM[3] & (Hit | ~LineDirty);   // (hit or miss) with no writeback store zeros now
+  assign CMOZeroNoEviction = CMOpM[CMO_ZERO] & (Hit | ~LineDirty);   // (hit or miss) with no writeback store zeros now
   // cbo.clean or cbo.flush of a dirty hit, or cbo.zero miss with a dirty victim, must write back first
-  assign CMOWriteback = ((CMOpM[1] | CMOpM[2]) & Hit & HitLineDirty) | (CMOpM[3] & ~Hit & LineDirty);
+  assign CMOWriteback = ((CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH]) & Hit & HitLineDirty) | (CMOpM[CMO_ZERO] & ~Hit & LineDirty);
 
   assign FlushFlag = FlushAdrFlag & FlushWayFlag;
 
@@ -143,24 +143,24 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   // write enables internal to cache
   assign SetValid = CurrState == STATE_WRITE_LINE |
                     (CurrState == STATE_ACCESS & CMOZeroNoEviction) |
-                    (CurrState == STATE_WRITEBACK & CacheBusAck & CMOpM[3]);
-  assign ClearValid = (CurrState == STATE_ACCESS & (CMOpM[0] | (CMOpM[2] & ~HitLineDirty))) |
-                      (CurrState == STATE_WRITEBACK & CMOpM[2] & CacheBusAck);
+                    (CurrState == STATE_WRITEBACK & CacheBusAck & CMOpM[CMO_ZERO]);
+  assign ClearValid = (CurrState == STATE_ACCESS & (CMOpM[CMO_INVAL] | (CMOpM[CMO_FLUSH] & ~HitLineDirty))) |
+                      (CurrState == STATE_WRITEBACK & CMOpM[CMO_FLUSH] & CacheBusAck);
   assign LRUWriteEn = (((CurrState == STATE_ACCESS & (AnyHit | CMOZeroNoEviction)) |
                        (CurrState == STATE_WRITE_LINE)) & ~FlushStage) |
-                      (CurrState == STATE_WRITEBACK & CMOpM[3] & CacheBusAck);
+                      (CurrState == STATE_WRITEBACK & CMOpM[CMO_ZERO] & CacheBusAck);
   // exclusion-tag-start: icache flushdirtycontrols
   assign SetDirty = (CurrState == STATE_ACCESS & (AnyUpdateHit | CMOZeroNoEviction)) |         // exclusion-tag: icache SetDirty
                     (CurrState == STATE_WRITE_LINE & (CacheRW[0])) |
-                    (CurrState == STATE_WRITEBACK & (CMOpM[3] & CacheBusAck));
+                    (CurrState == STATE_WRITEBACK & (CMOpM[CMO_ZERO] & CacheBusAck));
   assign ClearDirty = (CurrState == STATE_WRITE_LINE & ~(CacheRW[0])) |   // exclusion-tag: icache ClearDirty
                       (CurrState == STATE_FLUSH & LineDirty) | // This is wrong in a multicore snoop cache protocol.  Dirty must be cleared concurrently and atomically with writeback.  For single core cannot clear after writeback on bus ack and change flushadr.  Clears the wrong set.
   // Flush and eviction controls
-                      CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) & CacheBusAck;
-  assign SelVictim = (CurrState == STATE_WRITEBACK & ((~CacheBusAck & ~(CMOpM[1] | CMOpM[2])) | (CacheBusAck & CMOpM[3]))) |
+                      CurrState == STATE_WRITEBACK & (CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH]) & CacheBusAck;
+  assign SelVictim = (CurrState == STATE_WRITEBACK & ((~CacheBusAck & ~(CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH])) | (CacheBusAck & CMOpM[CMO_ZERO]))) |
                      (CurrState == STATE_ACCESS & ((AnyMiss & LineDirty) | (CMOZeroNoEviction & ~Hit))) |
                      (CurrState == STATE_WRITE_LINE);
-  assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2] | ~CacheBusAck)) |
+  assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH] | ~CacheBusAck)) |
                         (CurrState == STATE_ACCESS & AnyMiss & LineDirty);
   // coverage off -item e 1 -fecexprrow 1
   // (state is always FLUSH_WRITEBACK when FlushWayFlag & CacheBusAck)
@@ -182,7 +182,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign CacheBusRW[0] = (CurrState == STATE_ACCESS & LoadMiss & LineDirty) | // exclusion-tag: icache CacheBusW
                          (CurrState == STATE_WRITEBACK & ~CacheBusAck) |
                          (CurrState == STATE_FLUSH_WRITEBACK & ~CacheBusAck) |
-                         (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) & ~CacheBusAck);
+                         (CurrState == STATE_WRITEBACK & (CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH]) & ~CacheBusAck);
 
   assign SelAdrData = (CurrState == STATE_ACCESS & (CacheRW[0] | AnyMiss | (|CMOpM))) | // exclusion-tag: icache SelAdrCauses // changes if store delay hazard removed
                       (CurrState == STATE_FETCH) |

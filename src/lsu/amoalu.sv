@@ -16,12 +16,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module amoalu import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.XLEN-1:0] ReadDataM,    // LSU's ReadData
-  input  logic [P.XLEN-1:0] IHWriteDataM, // LSU's WriteData
-  input  logic [6:0]        LSUFunct7M,   // ALU Operation
-  input  logic [2:0]        LSUFunct3M,   // Memory access width
-  output logic [P.XLEN-1:0] AMOResultM    // ALU output
+module amoalu import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.XLEN-1:0] ReadDataM,    // Read data from memory in Memory stage
+  input  logic [P.XLEN-1:0] IHWriteDataM, // IEU or HPTW write data
+  input  logic [6:0]        LSUFunct7M,   // IEU or HPTW AMO operation
+  input  logic [2:0]        LSUFunct3M,   // IEU or HPTW memory operation size and signedness
+  output logic [P.XLEN-1:0] AMOResultM    // AMO ALU result
 );
 
   logic [P.XLEN-1:0] a, b, y;

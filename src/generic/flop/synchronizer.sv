@@ -16,8 +16,8 @@
 
 module synchronizer (
   input  logic clk,
-  input  logic d,
-  output logic q);
+  input  logic d,   // Data input
+  output logic q);  // Data output
 
   logic mid;
 

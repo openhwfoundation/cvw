@@ -18,19 +18,19 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module gpio_apb import cvw::*; #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn,
-  input  logic                PSEL,
-  input  logic [7:0]          PADDR,
-  input  logic [P.XLEN-1:0]   PWDATA,
-  input  logic [P.XLEN/8-1:0] PSTRB,
-  input  logic                PWRITE,
-  input  logic                PENABLE,
-  output logic [P.XLEN-1:0]   PRDATA,
-  output logic                PREADY,
-  input  logic [31:0]         iof0, iof1,
-  input  logic [31:0]         GPIOIN,
-  output logic [31:0]         GPIOOUT, GPIOEN,
-  output logic                GPIOIntr
+  input  logic                PCLK, PRESETn,   // APB clock and reset (active low)
+  input  logic                PSEL,            // APB peripheral select
+  input  logic [7:0]          PADDR,           // APB address
+  input  logic [P.XLEN-1:0]   PWDATA,          // APB write data
+  input  logic [P.XLEN/8-1:0] PSTRB,           // APB byte write strobes
+  input  logic                PWRITE,          // APB write (1) or read (0)
+  input  logic                PENABLE,         // APB enable (access phase)
+  output logic [P.XLEN-1:0]   PRDATA,          // APB read data
+  output logic                PREADY,          // APB ready
+  input  logic [31:0]         iof0, iof1,      // I/O function 0 and 1 values to drive on GPIO pins
+  input  logic [31:0]         GPIOIN,          // GPIO input values
+  output logic [31:0]         GPIOOUT, GPIOEN, // GPIO output values and output enables
+  output logic                GPIOIntr         // GPIO interrupt
 );
 
   // register map

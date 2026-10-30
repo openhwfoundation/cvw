@@ -16,37 +16,37 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_apb import cvw::*; #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn,
-  input  logic                PSEL,
-  input  logic [7:0]          PADDR,
-  input  logic [P.XLEN-1:0]   PWDATA,
-  input  logic [P.XLEN/8-1:0] PSTRB,
-  input  logic                PWRITE,
-  input  logic                PENABLE,
-  output logic                PREADY,
-  output logic [P.XLEN-1:0]   PRDATA,
-  output logic                SPIOut,
-  input  logic                SPIIn,
-  output logic [3:0]          SPICS,
-  output logic                SPIIntr,
-  output logic                SPICLK
+  input  logic                PCLK, PRESETn, // APB clock and reset (active low)
+  input  logic                PSEL,          // APB peripheral select
+  input  logic [7:0]          PADDR,         // APB address
+  input  logic [P.XLEN-1:0]   PWDATA,        // APB write data
+  input  logic [P.XLEN/8-1:0] PSTRB,         // APB byte write strobes
+  input  logic                PWRITE,        // APB write (1) or read (0)
+  input  logic                PENABLE,       // APB enable (access phase)
+  output logic                PREADY,        // APB ready
+  output logic [P.XLEN-1:0]   PRDATA,        // APB read data
+  output logic                SPIOut,        // SPI pins out
+  input  logic                SPIIn,         // SPI pins in
+  output logic [3:0]          SPICS,         // SPI chip select pins
+  output logic                SPIIntr,       // SPI interrupt
+  output logic                SPICLK         // SPI clock
 );
 
   // register map
-  localparam SPI_SCKDIV =  8'h00;
+  localparam SPI_SCKDIV  = 8'h00;
   localparam SPI_SCKMODE = 8'h04;
-  localparam SPI_CSID =    8'h10;
-  localparam SPI_CSDEF =   8'h14;
-  localparam SPI_CSMODE =  8'h18;
-  localparam SPI_DELAY0 =  8'h28;
-  localparam SPI_DELAY1 =  8'h2C;
-  localparam SPI_FMT =     8'h40;
-  localparam SPI_TXDATA =  8'h48;
-  localparam SPI_RXDATA =  8'h4C;
-  localparam SPI_TXMARK =  8'h50;
-  localparam SPI_RXMARK =  8'h54;
-  localparam SPI_IE =      8'h70;
-  localparam SPI_IP =      8'h74;
+  localparam SPI_CSID    = 8'h10;
+  localparam SPI_CSDEF   = 8'h14;
+  localparam SPI_CSMODE  = 8'h18;
+  localparam SPI_DELAY0  = 8'h28;
+  localparam SPI_DELAY1  = 8'h2C;
+  localparam SPI_FMT     = 8'h40;
+  localparam SPI_TXDATA  = 8'h48;
+  localparam SPI_RXDATA  = 8'h4C;
+  localparam SPI_TXMARK  = 8'h50;
+  localparam SPI_RXMARK  = 8'h54;
+  localparam SPI_IE      = 8'h70;
+  localparam SPI_IP      = 8'h74;
 
   // SPI control registers. Refer to SiFive FU540-C000 manual
   logic [11:0] SckDiv;

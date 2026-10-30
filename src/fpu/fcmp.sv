@@ -23,20 +23,20 @@
 //    001   less than
 //    011   less than or equal
 
-module fcmp import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.FMTBITS-1:0]   Fmt,           // format of fp number
-  input  logic [2:0]             OpCtrl,        // see above table
-  input  logic                   Zfa,           // Zfa variants: fminm, fmaxm, fleq, fltq
-  input  logic                   Xs, Ys,        // input signs
-  input  logic [P.NE-1:0]        Xe, Ye,        // input exponents
-  input  logic [P.NF:0]          Xm, Ym,        // input mantissa
-  input  logic                   XZero, YZero,  // is zero
-  input  logic                   XNaN, YNaN,    // is NaN
-  input  logic                   XSNaN, YSNaN,  // is signaling NaN
-  input  logic [P.FLEN-1:0]      X, Y,          // original inputs (before unpacker)
+module fcmp import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.FMTBITS-1:0]   Fmt,           // FP format: 00 single, 01 double, 10 half, 11 quad
+  input  logic [2:0]             OpCtrl,        // FPU operation control
+  input  logic                   Zfa,           // Zfa variant of FP instruction
+  input  logic                   Xs, Ys,        // X and Y signs
+  input  logic [P.NE-1:0]        Xe, Ye,        // X and Y exponents
+  input  logic [P.NF:0]          Xm, Ym,        // X and Y significands
+  input  logic                   XZero, YZero,  // X, Y are zero
+  input  logic                   XNaN, YNaN,    // X, Y are NaN
+  input  logic                   XSNaN, YSNaN,  // X, Y are signaling NaN
+  input  logic [P.FLEN-1:0]      X, Y,          // X and Y inputs from FP register file
   output logic                   CmpNV,         // invalid flag
-  output logic [P.FLEN-1:0]      CmpFpRes,      // compare floating-point result
-  output logic [P.XLEN-1:0]      CmpIntRes      // compare integer result
+  output logic [P.FLEN-1:0]      CmpFpRes,      // Compare result to FP register (fmin/fmax)
+  output logic [P.XLEN-1:0]      CmpIntRes      // Compare result to integer register (feq/flt/fle)
 );
 
   logic LTabs, LT, EQ;          // is |X| < |Y|, X < Y, X = Y
@@ -59,14 +59,14 @@ module fcmp import cvw::*;  #(parameter cvw_t P) (
   //    EQ - quiet - sets invalid if signaling NaN input
   always_comb begin
     casez (OpCtrl[2:0])
-        3'b110: CmpNV = EitherSNaN; // min
-        3'b101: CmpNV = EitherSNaN; // max
-        3'b010: CmpNV = EitherSNaN; // equal
-        3'b0?1: if (P.ZFA_SUPPORTED)
-                  CmpNV = Zfa ? EitherSNaN : EitherNaN; // fltq, fleq / flt, fle perform CompareQuietLess / CompareSignalingLess differing on when to set invalid
-                else CmpNV = EitherNaN;                 // flt, fle
-        3'b100: CmpNV = 1'b0;
-        default: CmpNV = 1'b0; // Don't set any flags for non-compares
+      3'b110: CmpNV = EitherSNaN; // min
+      3'b101: CmpNV = EitherSNaN; // max
+      3'b010: CmpNV = EitherSNaN; // equal
+      3'b0?1: if (P.ZFA_SUPPORTED)
+                CmpNV = Zfa ? EitherSNaN : EitherNaN; // fltq, fleq / flt, fle perform CompareQuietLess / CompareSignalingLess differing on when to set invalid
+              else CmpNV = EitherNaN;                 // flt, fle
+      3'b100: CmpNV = 1'b0;
+      default: CmpNV = 1'b0; // Don't set any flags for non-compares
     endcase
   end
 
@@ -101,16 +101,16 @@ module fcmp import cvw::*;  #(parameter cvw_t P) (
   else if (P.FPSIZES == 4)
     always_comb
       case (Fmt)
-        2'h3:
+        P.Q_FMT:
           if (P.IEEE754) NaNRes = {Xs, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
           else           NaNRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-        2'h1:
+        P.D_FMT:
           if (P.IEEE754) NaNRes = {{P.FLEN-P.D_LEN{1'b1}}, Xs, {P.D_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.D_NF]};
           else           NaNRes = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, (P.D_NF-1)'(0)};
-        2'h0:
+        P.S_FMT:
           if (P.IEEE754) NaNRes = {{P.FLEN-P.S_LEN{1'b1}}, Xs, {P.S_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.S_NF]};
           else           NaNRes = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, (P.S_NF-1)'(0)};
-        2'h2:
+        P.H_FMT:
           if (P.IEEE754) NaNRes = {{P.FLEN-P.H_LEN{1'b1}}, Xs, {P.H_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.H_NF]};
           else           NaNRes = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, (P.H_NF-1)'(0)};
       endcase
@@ -122,35 +122,35 @@ module fcmp import cvw::*;  #(parameter cvw_t P) (
   //    - if one is a NaN output the non-NaN
   always_comb
     if (OpCtrl[0]) // MAX
-        if (Zfa & P.ZFA_SUPPORTED) // fmaxm performs IEEE 754-2019 maximum, which produces NaN if either input is NaN
-          if (XNaN | YNaN) CmpFpRes = NaNRes; // either input is NaN
-          else
-            if (LT) CmpFpRes = Y; // X < Y
-            else    CmpFpRes = X; // X > Y
-        else // fmax performs IEEE754 maxNumber that produces NaN if both inputs are NaN
-          if (XNaN)
-            if (YNaN)   CmpFpRes = NaNRes;   // X = NaN Y = NaN
-            else        CmpFpRes = Y;        // X = NaN Y != NaN
-          else
-            if (YNaN)   CmpFpRes = X;        // X != NaN Y = NaN
-            else // X,Y != NaN
-                if (LT) CmpFpRes = Y;        // X < Y
-                else    CmpFpRes = X;        // X > Y
+      if (Zfa & P.ZFA_SUPPORTED) // fmaxm performs IEEE 754-2019 maximum, which produces NaN if either input is NaN
+        if (XNaN | YNaN) CmpFpRes = NaNRes; // either input is NaN
+        else
+          if (LT) CmpFpRes = Y; // X < Y
+          else    CmpFpRes = X; // X > Y
+      else // fmax performs IEEE754 maxNumber that produces NaN if both inputs are NaN
+        if (XNaN)
+          if (YNaN)   CmpFpRes = NaNRes;   // X = NaN Y = NaN
+          else        CmpFpRes = Y;        // X = NaN Y != NaN
+        else
+          if (YNaN)   CmpFpRes = X;        // X != NaN Y = NaN
+          else // X,Y != NaN
+            if (LT) CmpFpRes = Y;         // X < Y
+            else    CmpFpRes = X;         // X > Y
     else  // MIN
-        if (Zfa & P.ZFA_SUPPORTED) // fminm performs IEEE 754-2019 minimum, which produces NaN if either input is NaN
-          if (XNaN | YNaN) CmpFpRes = NaNRes; // either input is NaN
-          else
-            if (LT) CmpFpRes = X; // X < Y
-            else    CmpFpRes = Y; // X > Y
-        else // fmin performs IEEE754 minNumber that produces NaN if both inputs are NaN
-          if (XNaN)
-            if (YNaN)   CmpFpRes = NaNRes;   // X = NaN Y = NaN
-            else        CmpFpRes = Y;        // X = NaN Y != NaN
-          else
-            if (YNaN)   CmpFpRes = X;        // X != NaN Y = NaN
-            else // X,Y != NaN
-                if (LT) CmpFpRes = X;        // X < Y
-                else    CmpFpRes = Y;        // X > Y
+      if (Zfa & P.ZFA_SUPPORTED) // fminm performs IEEE 754-2019 minimum, which produces NaN if either input is NaN
+        if (XNaN | YNaN) CmpFpRes = NaNRes; // either input is NaN
+        else
+          if (LT) CmpFpRes = X; // X < Y
+          else    CmpFpRes = Y; // X > Y
+      else // fmin performs IEEE754 minNumber that produces NaN if both inputs are NaN
+        if (XNaN)
+          if (YNaN)   CmpFpRes = NaNRes;   // X = NaN Y = NaN
+          else        CmpFpRes = Y;        // X = NaN Y != NaN
+        else
+          if (YNaN)   CmpFpRes = X;        // X != NaN Y = NaN
+          else // X,Y != NaN
+            if (LT) CmpFpRes = X;         // X < Y
+            else    CmpFpRes = Y;         // X > Y
 
   // LT/LE/EQ
   //    - -0 = 0

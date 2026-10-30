@@ -19,22 +19,22 @@
 module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   input  logic                  clk, reset,
   // Privileged
-  input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
-  input  logic [63:0]           MTIME_CLINT,
+  input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt, // Interrupt sources: machine timer, machine and supervisor external, machine software
+  input  logic [63:0]           MTIME_CLINT,   // MTIME from CLINT
   // Bus Interface
-  input  logic [P.AHBW-1:0]     HRDATA,
-  input  logic                  HREADY, HRESP,
-  output logic                  HCLK, HRESETn,
-  output logic [P.PA_BITS-1:0]  HADDR,
-  output logic [P.AHBW-1:0]     HWDATA,
-  output logic [P.XLEN/8-1:0]   HWSTRB,
-  output logic                  HWRITE,
-  output logic [2:0]            HSIZE,
-  output logic [2:0]            HBURST,
-  output logic [3:0]            HPROT,
-  output logic [1:0]            HTRANS,
-  output logic                  HMASTLOCK,
-  input  logic                  ExternalStall
+  input  logic [P.AHBW-1:0]     HRDATA,        // AHB read data
+  input  logic                  HREADY, HRESP, // AHB ready and response
+  output logic                  HCLK, HRESETn, // AHB clock and reset (active low)
+  output logic [P.PA_BITS-1:0]  HADDR,         // AHB address
+  output logic [P.AHBW-1:0]     HWDATA,        // AHB write data
+  output logic [P.XLEN/8-1:0]   HWSTRB,        // AHB byte write enables
+  output logic                  HWRITE,        // AHB write (1) or read (0)
+  output logic [2:0]            HSIZE,         // AHB transfer size
+  output logic [2:0]            HBURST,        // AHB burst type
+  output logic [3:0]            HPROT,         // AHB protection.  Wally does not use
+  output logic [1:0]            HTRANS,        // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  output logic                  HMASTLOCK,     // AHB master lock.  Wally does not use
+  input  logic                  ExternalStall  // External stall (FPGA debug)
 );
 
   logic                          StallF, StallD, StallE, StallM, StallW;

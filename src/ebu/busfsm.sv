@@ -20,21 +20,21 @@
 module busfsm #(
   parameter logic READ_ONLY
 )(
-  input  logic       HCLK,
-  input  logic       HRESETn,
+  input  logic       HCLK,         // AHB clock
+  input  logic       HRESETn,      // AHB reset (active low)
 
   // IEU interface
-  input  logic       Stall,        // Core pipeline is stalled
+  input  logic       Stall,        // Pipeline is stalled
   input  logic       Flush,        // Pipeline stage flush. Prevents bus transaction from starting
-  input  logic [1:0] BusRW,        // Memory operation read/write control: 10: read, 01: write
+  input  logic [1:0] BusRW,        // Uncached memory operation: 10 read, 01 write
   input  logic       BusAtomic,    // Uncached atomic memory operation
   output logic       CaptureEn,    // Enable updating the Fetch buffer with valid data from HRDATA
   output logic       BusStall,     // Bus is busy with an in flight memory operation
   output logic       BusCommitted, // Bus is busy with an in flight memory operation and it is not safe to take an interrupt
   // AHB control signals
-  input  logic       HREADY,       // AHB peripheral ready
-  output logic [1:0] HTRANS,       // AHB transaction type, 00: IDLE, 10 NON_SEQ
-  output logic       HWRITE        // AHB 0: Read operation 1: Write operation
+  input  logic       HREADY,       // AHB ready
+  output logic [1:0] HTRANS,       // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
+  output logic       HWRITE        // AHB write (1) or read (0)
 );
 
   typedef enum logic [2:0] {ADR_PHASE, DATA_PHASE, MEM3, ATOMIC_READ_DATA_PHASE, ATOMIC_PHASE} busstatetype;

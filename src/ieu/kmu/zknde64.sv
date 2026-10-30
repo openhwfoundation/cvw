@@ -15,10 +15,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zknde64 import cvw::*; #(parameter cvw_t P) (
-  input  logic [63:0] A, B,
-  input  logic [3:0]  round,
-  input  logic [3:0]  ZKNSelect,
-  output logic [63:0] ZKNDEResult
+  input  logic [63:0] A, B,       // Operands
+  input  logic [3:0]  round,      // Round number
+  input  logic [3:0]  ZKNSelect,  // AES operation select
+  output logic [63:0] ZKNDEResult // AES result
 );
 
   logic [63:0]         aes64dRes, aes64eRes, aes64ks1iRes, aes64ks2Res;

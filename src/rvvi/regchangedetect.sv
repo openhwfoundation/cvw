@@ -17,11 +17,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module regchangedetect #(parameter XLEN = 64) (
-  input clk, reset,
-  input logic [XLEN-1:0] Value,
-  output logic           Change);
+  input  logic            clk, reset,
+  input  logic [XLEN-1:0] Value,      // Value to monitor
+  output logic            Change);    // Value changed
 
-  logic [XLEN-1:0]           ValueD;
+  logic [XLEN-1:0] ValueD;
 
   flopr #(XLEN) register(clk, reset, Value, ValueD);
   assign Change = |(Value ^ ValueD);

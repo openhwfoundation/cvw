@@ -15,9 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zbkx #(parameter WIDTH=32) (
-  input  logic [WIDTH-1:0] A, B,
-  input  logic             ZBKXSelect,
-  output logic [WIDTH-1:0] ZBKXResult
+  input  logic [WIDTH-1:0] A, B,       // Operands
+  input  logic             ZBKXSelect, // Zbkx operation select: 1 xperm4, 0 xperm8
+  output logic [WIDTH-1:0] ZBKXResult  // Zbkx result
 );
 
   logic [WIDTH-1:0]         xperm4, xperm8;

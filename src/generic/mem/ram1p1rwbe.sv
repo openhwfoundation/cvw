@@ -20,12 +20,12 @@
 
 module ram1p1rwbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 44, PRELOAD_ENABLED = 0) (
   input  logic                     clk,
-  input  logic                     ce,
-  input  logic [$clog2(DEPTH)-1:0] addr,
-  input  logic [WIDTH-1:0]         din,
-  input  logic                     we,
-  input  logic [(WIDTH-1)/8:0]     bwe,
-  output logic [WIDTH-1:0]         dout
+  input  logic                     ce,   // Chip enable
+  input  logic [$clog2(DEPTH)-1:0] addr, // Address
+  input  logic [WIDTH-1:0]         din,  // Write data
+  input  logic                     we,   // Write enable
+  input  logic [(WIDTH-1)/8:0]     bwe,  // Byte write enables
+  output logic [WIDTH-1:0]         dout  // Read data
 );
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 4
       .A(addr), .D(din),
       .BWEB(~BitWriteMask), .Q(dout));
 
-  end else if ((USE_SRAM == 1) & (WIDTH == 44)  & (DEPTH == 64)) begin // RV64 cache tag
+  end else if ((USE_SRAM == 1) & (WIDTH == 44) & (DEPTH == 64)) begin // RV64 cache tag
     genvar index;
     // 64 x 44-bit SRAM
     logic [WIDTH-1:0] BitWriteMask;
@@ -51,7 +51,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 4
       .A(addr), .D(din),
       .BWEB(~BitWriteMask), .Q(dout));
 
-  end else if ((USE_SRAM == 1) & (WIDTH == 22)  & (DEPTH == 64)) begin // RV32 cache tag
+  end else if ((USE_SRAM == 1) & (WIDTH == 22) & (DEPTH == 64)) begin // RV32 cache tag
     genvar index;
     // 64 x 22-bit SRAM
     logic [WIDTH-1:0] BitWriteMask;

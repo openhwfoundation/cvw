@@ -15,11 +15,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module zbkb #(parameter WIDTH=32) (
-  input  logic [WIDTH-1:0]   A,
-  input  logic [WIDTH/2-1:0] B,
-  input  logic [2:0]         Funct3,
-  input  logic [2:0]         ZBKBSelect,
-  output logic [WIDTH-1:0]   ZBKBResult
+  input  logic [WIDTH-1:0]   A,          // Operand
+  input  logic [WIDTH/2-1:0] B,          // Operand
+  input  logic [2:0]         Funct3,     // funct3 field of instruction
+  input  logic [2:0]         ZBKBSelect, // Zbkb result select
+  output logic [WIDTH-1:0]   ZBKBResult  // Zbkb result
 );
 
   logic [WIDTH-1:0]         Brev8Result;  // brev8

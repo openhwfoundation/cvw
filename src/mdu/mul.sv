@@ -18,9 +18,9 @@
 
 module mul #(parameter XLEN) (
   input  logic                clk, reset,
-  input  logic                StallM, FlushM,
-  input  logic [XLEN-1:0]     ForwardedSrcAE, ForwardedSrcBE, // source A and B from after Forwarding mux
-  input  logic [2:0]          Funct3E,                        // type of multiply
+  input  logic                StallM, FlushM,                 // Stall and flush Memory stage
+  input  logic [XLEN-1:0]     ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  input  logic [2:0]          Funct3E,                        // funct3 field of instruction in Execute stage
   output logic [XLEN*2-1:0]   ProdM                           // double-width product
 );
 

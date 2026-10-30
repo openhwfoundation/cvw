@@ -21,13 +21,13 @@ module gshare import cvw::*; #(parameter cvw_t P,
                                parameter integer TYPE = 1) (
   input  logic            clk,
   input  logic            reset,
-  input  logic            StallF, StallD, StallE, StallM, StallW,
-  input  logic            FlushD, FlushE, FlushM, FlushW,
-  output logic [1:0]      BPDirF,
-  output logic            BPDirWrongE,
+  input  logic            StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic            FlushD, FlushE, FlushM, FlushW,         // Flush Decode, Execute, Memory, Writeback stages
+  output logic [1:0]      BPDirF,                                 // Branch direction prediction (2-bit counter state) in Fetch stage
+  output logic            BPDirWrongE,                            // Branch direction mispredicted in Execute stage
   // update
-  input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
-  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE
+  input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,            // Next PC to fetch, PC in Fetch, Decode, Execute, Memory stages
+  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE // Predicted branch in Fetch stage, branch in later stages, taken in Execute stage
 );
 
   logic                   MatchD, MatchE, MatchM, MatchW;

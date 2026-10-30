@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvmixcolumns8(
-  input  logic [7:0]  a,
-  output logic [31:0] y
+  input  logic [7:0]  a, // Input
+  output logic [31:0] y  // Output
 );
 
   logic [10:0] t, x0, x1, x2, x3;

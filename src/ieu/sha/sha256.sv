@@ -15,9 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module sha256 (
-  input  logic [31:0] A,
-  input  logic [1:0]  ZKNHSelect,
-  output logic [31:0] result
+  input  logic [31:0] A,          // Operand
+  input  logic [1:0]  ZKNHSelect, // SHA operation select
+  output logic [31:0] result      // Result
 );
 
   logic [31:0] x[4][3];

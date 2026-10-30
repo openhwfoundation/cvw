@@ -14,14 +14,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module spi_fifo #(parameter M = 3, N = 8) (                 // 2^M entries of N bits each
-  input  logic         PCLK, wen, ren, PRESETn,
-  input  logic         winc, rinc,
-  input  logic [N-1:0] wdata,
-  input  logic [M-1:0] wwatermarklevel, rwatermarklevel,
-  output logic [N-1:0] rdata,
-  output logic         wfull, rempty,
-  output logic         wwatermark, rwatermark);
+module spi_fifo #(parameter M = 3, N = 8) ( // 2^M entries of N bits each
+  input  logic         PCLK, wen, ren, PRESETn,          // APB clock, write-side and read-side enables, reset (active low)
+  input  logic         winc, rinc,                       // Push and pop
+  input  logic [N-1:0] wdata,                            // Write data
+  input  logic [M-1:0] wwatermarklevel, rwatermarklevel, // Write and read watermark levels
+  output logic [N-1:0] rdata,                            // Read data
+  output logic         wfull, rempty,                    // FIFO full and empty
+  output logic         wwatermark, rwatermark);          // Write watermark exceeded, read watermark not reached
 
   /* Pointer FIFO using design elements from "Simulation and Synthesis Techniques
      for Asynchronous FIFO Design" by Clifford E. Cummings. Namely, M bit read and write pointers
@@ -31,14 +31,10 @@ module spi_fifo #(parameter M = 3, N = 8) (                 // 2^M entries of N 
   */
 
   logic [N-1:0] mem[2**M];
-  logic [M:0] rptr, wptr;
-  logic [M:0] rptrnext, wptrnext;
+  logic [M:0]   rptr, wptr;
+  logic [M:0]   rptrnext, wptrnext;
   logic [M-1:0] raddr;
   logic [M-1:0] waddr;
-
-  logic [M-1:0] numVals;
-
-  assign numVals = waddr - raddr;
 
   assign rdata = mem[raddr];
   always_ff @(posedge PCLK)

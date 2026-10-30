@@ -16,32 +16,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module shiftcorrection import cvw::*;  #(parameter cvw_t P) (
-  input logic  [P.NORMSHIFTSZ-1:0] Shifted,                // normalization shifter output
+module shiftcorrection import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.NORMSHIFTSZ-1:0] Shifted,                // Normalization shifter output
   // divsqrt
-  input logic                      DivOp,                  // is it a divsqrt operation
-  input logic                      DivResSubnorm,          // is the divsqrt result subnormal
-  input logic  [P.NE+1:0]          DivUe,                  // the divsqrt result's exponent
-  input logic                      DivSubnormShiftPos,     // is the subnorm divider shift amount positive (ie not underflowed)
+  input  logic                     DivOp,                  // Divide or square root operation
+  input  logic                     DivResSubnorm,          // is the divsqrt result subnormal
+  input  logic [P.NE+1:0]          DivUe,                  // Divide/sqrt result exponent
+  input  logic                     DivSubnormShiftPos,     // Subnormal divide/sqrt shift amount is positive
   // fma
-  input logic                      FmaOp,                  // is it an fma operation
-  input logic  [P.NE+1:0]          NormSumExp,             // exponent of the normalized sum not taking into account Subnormal or zero results
-  input logic                      FmaPreResultSubnorm,    // is the result subnormal - calculated before LZA correction
-  input logic                      FmaSZero,
+  input  logic                     FmaOp,                  // FMA operation
+  input  logic [P.NE+1:0]          NormSumExp,             // exponent of the normalized sum not taking into account Subnormal or zero results
+  input  logic                     FmaPreResultSubnorm,    // is the result subnormal - calculated before LZA correction
+  input  logic                     FmaSZero,               // FMA sum is zero
   // output
-  output logic [P.NE+1:0]          FmaMe,                  // exponent of the normalized sum
-  output logic [P.NORMSHIFTSZ-1:0] Mf,                     // the shifted sum after correction
-  output logic [P.NE+1:0]          Ue                      // corrected exponent for divider
+  output logic [P.NE+1:0]          FmaMe,                  // FMA normalized sum exponent
+  output logic [P.NORMSHIFTSZ-1:0] Mf,                     // Normalized fraction
+  output logic [P.NE+1:0]          Ue                      // Divide/sqrt result exponent
 );
 
   logic                            ResSubnorm;             // is the result Subnormal
   logic                            LZAPlus1;               // add one or two to the sum's exponent due to LZA correction
-  logic                            LeftShiftQm;            // should the divsqrt result be shifted one to the left
+  logic                            RightShiftQm;           // should the divsqrt result be shifted one to the right
   logic                            RightShift;             // shift right by 1
-
-  // dh 4/16/24 this code is a mess and needs cleaning and explaining
-  // define bit widths
-  // seems to shift by 0, 1, or 2.  right and left shift is confusing
 
   // FMA LZA correction
   // correct the shifting error caused by the LZA
@@ -51,10 +47,10 @@ module shiftcorrection import cvw::*;  #(parameter cvw_t P) (
 
   // correct the shifting of the divsqrt caused by producing a result in (0.5, 2) range
   // condition: if the msb is 1 or the exponent was one, but the shifted quotient was < 1 (Subnorm)
-  assign LeftShiftQm = (LZAPlus1 | (DivUe == 1 & ~LZAPlus1));
+  assign RightShiftQm = (LZAPlus1 | (DivUe == 1 & ~LZAPlus1));
 
   // Determine the shift for either FMA or divsqrt
-  assign RightShift = FmaOp ? LZAPlus1 : LeftShiftQm;
+  assign RightShift = FmaOp ? LZAPlus1 : RightShiftQm;
 
   // possible one bit right shift for FMA or division
   // if the result of the divider was calculated to be subnormal, then the result was correctly normalized, so select the top shifted bits

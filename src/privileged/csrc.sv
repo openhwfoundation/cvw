@@ -18,35 +18,35 @@
 
 module csrc import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              StallE, StallM, StallW,
-  input  logic              FlushM,
-  input  logic              InstrValidNotFlushedM, LoadStallD, StoreStallD,
-  input  logic              CSRMWriteM, CSRWriteM,
-  input  logic              BPDirWrongM,
-  input  logic              BTAWrongM,
-  input  logic              RASPredPCWrongM,
-  input  logic              IClassWrongM,
-  input  logic              BPWrongM,                                  // branch predictor is wrong
-  input  logic [3:0]        IClassM,
-  input  logic              DCacheMiss,
-  input  logic              DCacheAccess,
-  input  logic              ICacheMiss,
-  input  logic              ICacheAccess,
-  input  logic              ICacheStallF,
-  input  logic              DCacheStallM,
-  input  logic              sfencevmaM,
-  input  logic              InterruptM,
-  input  logic              TrapM,                                     // trap is occurring
-  input  logic              InvalidateICacheM,
-  input  logic              DivBusyE,                                  // integer divide busy
-  input  logic              FDivBusyE,                                 // floating point divide busy
-  input  logic [11:0]       CSRAdrM,
-  input  logic [1:0]        PrivilegeModeW,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic [31:0]       MCOUNTINHIBIT_REGW, MCOUNTEREN_REGW, SCOUNTEREN_REGW,
-  input  logic [63:0]       MTIME_CLINT,
-  output logic [P.XLEN-1:0] CSRCReadValM,
-  output logic              IllegalCSRCAccessM
+  input  logic              StallE, StallM, StallW,                               // Stall Execute, Memory, Writeback stages
+  input  logic              FlushM,                                               // Flush Memory stage
+  input  logic              InstrValidNotFlushedM, LoadStallD, StoreStallD,       // Instruction valid and not flushed; load and store stalls
+  input  logic              CSRMWriteM, CSRWriteM,                                // Write a machine-mode CSR, write any CSR
+  input  logic              BPDirWrongM,                                          // Branch direction mispredicted in Memory stage
+  input  logic              BTAWrongM,                                            // Branch target prediction was wrong
+  input  logic              RASPredPCWrongM,                                      // RAS return address prediction was wrong
+  input  logic              IClassWrongM,                                         // Instruction class prediction was wrong
+  input  logic              BPWrongM,                                             // Branch predictor was wrong in Memory stage
+  input  logic [3:0]        IClassM,                                              // Instruction class in Memory stage, one-hot {call, return, jump, branch}
+  input  logic              DCacheMiss,                                           // D$ miss, for performance counters
+  input  logic              DCacheAccess,                                         // D$ access, for performance counters
+  input  logic              ICacheMiss,                                           // I$ miss, for performance counters
+  input  logic              ICacheAccess,                                         // I$ access, for performance counters
+  input  logic              ICacheStallF,                                         // I$ busy with multicycle operation
+  input  logic              DCacheStallM,                                         // D$ busy with multicycle operation
+  input  logic              sfencevmaM,                                           // sfence.vma: invalidate TLB entries
+  input  logic              InterruptM,                                           // Interrupt is occurring
+  input  logic              TrapM,                                                // Trap is occurring
+  input  logic              InvalidateICacheM,                                    // fence.i: invalidate the I$
+  input  logic              DivBusyE,                                             // Integer divider busy
+  input  logic              FDivBusyE,                                            // FPU divider busy
+  input  logic [11:0]       CSRAdrM,                                              // CSR address
+  input  logic [1:0]        PrivilegeModeW,                                       // Current privilege mode
+  input  logic [P.XLEN-1:0] CSRWriteValM,                                         // Value to write to CSR
+  input  logic [31:0]       MCOUNTINHIBIT_REGW, MCOUNTEREN_REGW, SCOUNTEREN_REGW, // mcountinhibit, mcounteren, scounteren CSRs
+  input  logic [63:0]       MTIME_CLINT,                                          // MTIME from CLINT
+  output logic [P.XLEN-1:0] CSRCReadValM,                                         // Counter CSR read value
+  output logic              IllegalCSRCAccessM                                    // Illegal counter CSR access
 );
 
   localparam MHPMCOUNTERBASE  = 12'hB00;
@@ -178,41 +178,41 @@ module csrc import cvw::*; #(parameter cvw_t P) (
       /* verilator lint_off WIDTH */
       if (P.XLEN == 64) begin // 64-bit counter reads
         // Veri lator doesn't realize this only occurs for XLEN=64
-        if      (CSRAdrM == TIME & ~CSRWriteM & P.ZICNTR_SUPPORTED)  CSRCReadValM = MTIME_CLINT; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
+        if      (CSRAdrM == TIME & ~CSRWriteM & P.ZICNTR_SUPPORTED) CSRCReadValM = MTIME_CLINT; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
         else if (CSRAdrM >= MHPMCOUNTERBASE & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
         else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
                 CSRCReadValM = '0; // unused counters are read-only zero
-        else if (CSRAdrM >= HPMCOUNTERBASE  & CSRAdrM  < HPMCOUNTERBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED)  // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE & CSRAdrM < HPMCOUNTERBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERBASE+3  & CSRAdrM  < HPMCOUNTERBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE+3 & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS  & CSRAdrM  < HPMCOUNTERBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)  // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = '0;
         else IllegalCSRCAccessM = 1'b1;  // requested CSR doesn't exist
       end else begin // 32-bit counter reads
         // Veril ator doesn't realize this only occurs for XLEN=32
-        if      (CSRAdrM == TIME & ~CSRWriteM & P.ZICNTR_SUPPORTED)  CSRCReadValM = MTIME_CLINT[31:0]; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
+        if      (CSRAdrM == TIME & ~CSRWriteM & P.ZICNTR_SUPPORTED) CSRCReadValM = MTIME_CLINT[31:0]; // TIME register is a shadow of the memory-mapped MTIME from the CLINT
         else if (CSRAdrM == TIMEH & ~CSRWriteM & P.ZICNTR_SUPPORTED) CSRCReadValM = MTIME_CLINT[63:32];
-        else if (CSRAdrM >= MHPMCOUNTERBASE  & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
+        else if (CSRAdrM >= MHPMCOUNTERBASE & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
         else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
                 CSRCReadValM = '0; // unused counters are read-only zero
-        else if (CSRAdrM >= HPMCOUNTERBASE   & CSRAdrM < HPMCOUNTERBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)    // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE & CSRAdrM < HPMCOUNTERBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERBASE+3   & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE+3 & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS   & CSRAdrM < HPMCOUNTERBASE+32  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
+        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = '0; // unused counters are read-only zero
         else if (CSRAdrM >= MHPMCOUNTERHBASE & CSRAdrM < MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM != MTIMEH)
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
         else if (CSRAdrM >= MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERHBASE+32)
                 CSRCReadValM = '0; // unused counters are read-only zero
-        else if (CSRAdrM >= HPMCOUNTERHBASE   & CSRAdrM < HPMCOUNTERHBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)   // read-only
+        else if (CSRAdrM >= HPMCOUNTERHBASE & CSRAdrM < HPMCOUNTERHBASE+3 & ~CSRWriteM & P.ZICNTR_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERHBASE+3 & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
+        else if (CSRAdrM >= HPMCOUNTERHBASE+3 & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
+        else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED) // read-only
                 CSRCReadValM = '0;
         else    IllegalCSRCAccessM = 1'b1; // requested CSR doesn't exist
       end

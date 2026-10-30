@@ -18,23 +18,23 @@
 
 module trap import cvw::*; #(parameter cvw_t P) (
   input  logic                 reset,
-  input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM,
-  input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
-  input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM,
-  input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // various trap sources
-  input  logic                 WaitedM,                                         // wfi in M has waited: it retires before an interrupt
-  input  logic [1:0]           PrivilegeModeW,                                  // current privilege mode
-  input  logic [11:0]          MIP_REGW, MIE_REGW, MIDELEG_REGW,                // interrupt pending, enabled, and delegate CSRs
-  input  logic [15:0]          MEDELEG_REGW,                                    // exception delegation SR
-  input  logic                 STATUS_MIE, STATUS_SIE,                          // machine/supervisor interrupt enables
-  input  logic                 InstrValidM,                                     // current instruction is valid, not flushed
-  input  logic                 CommittedM, CommittedF,                          // LSU/IFU has committed to a bus operation that can't be interrupted
+  input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM, // Instruction trap sources
+  input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM, // Trap sources: breakpoint, misaligned load and store/AMO
+  input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM, // Trap sources: access faults, ecall, instruction page fault
+  input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // Load and store/AMO page faults
+  input  logic                 WaitedM,                                         // wfi in M has waited: it retires before an interrupt is taken
+  input  logic [1:0]           PrivilegeModeW,                                  // Current privilege mode
+  input  logic [11:0]          MIP_REGW, MIE_REGW, MIDELEG_REGW,                // mip, mie, and mideleg CSRs
+  input  logic [15:0]          MEDELEG_REGW,                                    // medeleg CSR
+  input  logic                 STATUS_MIE, STATUS_SIE,                          // mstatus.MIE, SIE: machine and supervisor interrupt enables
+  input  logic                 InstrValidM,                                     // Instruction in Memory stage is valid
+  input  logic                 CommittedM, CommittedF,                          // LSU and IFU have started operations that must not be interrupted
   output logic                 TrapM,                                           // Trap is occurring
   output logic                 InterruptM,                                      // Interrupt is occurring
-  output logic                 ExceptionM,                                      // exception is occurring
+  output logic                 ExceptionM,                                      // Exception is occurring
   output logic                 IntPendingM,                                     // Interrupt is pending, might occur if enabled
-  output logic                 DelegateM,                                       // Delegate trap to supervisor handler
-  output logic [4:0]           CauseM                                           // trap cause
+  output logic                 DelegateM,                                       // Trap delegated to supervisor mode
+  output logic [4:0]           CauseM                                           // Trap cause
 );
 
   logic                        MIntGlobalEnM, SIntGlobalEnM;                    // Global interrupt enables

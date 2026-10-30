@@ -16,17 +16,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module div import cvw::*;  #(parameter cvw_t P) (
+module div import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              reset,
-  input  logic              StallM,
-  input  logic              FlushE,
-  input  logic              IntDivE,                        // integer division/remainder instruction of any type
+  input  logic              StallM,                         // Stall Memory stage
+  input  logic              FlushE,                         // Flush Execute stage
+  input  logic              IntDivE,                        // Integer divide or remainder instruction in Execute stage
   input  logic              DivSignedE,                     // signed division
-  input  logic              W64E,                           // W-type instructions (divw, divuw, remw, remuw)
-  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // Forwarding mux outputs for Source A and B
-  output logic              DivBusyE,                       // Divide is busy - stall pipeline
-  output logic [P.XLEN-1:0] QuotM, RemM                     // Quotient and remainder outputs
+  input  logic              W64E,                           // RV64 W-type instruction in Execute stage
+  input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  output logic              DivBusyE,                       // Integer divider busy
+  output logic [P.XLEN-1:0] QuotM, RemM                     // Quotient and remainder
 );
 
   localparam STEPBITS = $clog2(P.XLEN/P.IDIV_BITSPERCYCLE); // Number of steps
@@ -101,7 +101,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
   // Memory Stage: output sign correction and special cases
   //////////////////////////////
 
-  flopen #(3) Div0eMReg(clk, DivStartE, {Div0E, NegQE, SignXE}, {Div0M, NegQM, NegWM});
+  flopen #(3) Div0MReg(clk, DivStartE, {Div0E, NegQE, SignXE}, {Div0M, NegQM, NegWM});
 
   // On final step of signed operations, negate outputs as needed to get correct sign
   neg #(P.XLEN) qneg(XQ[0], XQnM);

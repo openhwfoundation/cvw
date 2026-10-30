@@ -17,28 +17,28 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module csrsr import cvw::*; #(parameter cvw_t P) (
-  input  logic              clk, reset, StallW,
-  input  logic              WriteMSTATUSM, WriteMSTATUSHM, WriteSSTATUSM,
-  input  logic              TrapM, FRegWriteM,
-  input  logic [1:0]        NextPrivilegeModeM, PrivilegeModeW,
-  input  logic              mretM, sretM,
-  input  logic              WriteFRMM, SetOrWriteFFLAGSM,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic              SelHPTW,
-  output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,
-  output logic [1:0]        STATUS_MPP,
-  output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,
-  output logic              STATUS_MIE, STATUS_SIE,
-  output logic              STATUS_MXR, STATUS_SUM,
-  output logic              STATUS_MPRV, STATUS_TVM,
-  output logic [1:0]        STATUS_FS,
-  output logic              BigEndianM
+  input  logic              clk, reset, StallW,                           // Clock, reset, stall Writeback stage
+  input  logic              WriteMSTATUSM, WriteMSTATUSHM, WriteSSTATUSM, // Write mstatus, mstatush, sstatus
+  input  logic              TrapM, FRegWriteM,                            // Trap is occurring, FP register write
+  input  logic [1:0]        NextPrivilegeModeM, PrivilegeModeW,           // Next and current privilege modes
+  input  logic              mretM, sretM,                                 // mret and sret instructions
+  input  logic              WriteFRMM, SetOrWriteFFLAGSM,                 // Write frm, set or write fflags
+  input  logic [P.XLEN-1:0] CSRWriteValM,                                 // Value to write to CSR
+  input  logic              SelHPTW,                                      // HPTW is accessing memory through the LSU
+  output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,    // mstatus, sstatus, mstatush CSRs
+  output logic [1:0]        STATUS_MPP,                                   // mstatus.MPP: machine previous privilege mode
+  output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,            // mstatus.SPP, TSR, TW bits
+  output logic              STATUS_MIE, STATUS_SIE,                       // mstatus.MIE, SIE: machine and supervisor interrupt enables
+  output logic              STATUS_MXR, STATUS_SUM,                       // mstatus.MXR, SUM: make executable readable, supervisor user memory access
+  output logic              STATUS_MPRV, STATUS_TVM,                      // mstatus.MPRV, TVM: modify privilege, trap virtual memory
+  output logic [1:0]        STATUS_FS,                                    // mstatus.FS: FPU state (00 off)
+  output logic              BigEndianM                                    // Memory access is big-endian
 );
 
-  logic STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
+  logic       STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
   logic [1:0] STATUS_SXL, STATUS_UXL, STATUS_XS, STATUS_FS_INT, STATUS_MPP_NEXT;
-  logic STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
-  logic nextMBE, nextSBE;
+  logic       STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
+  logic       nextMBE, nextSBE;
 
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6

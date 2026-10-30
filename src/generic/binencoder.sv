@@ -25,11 +25,11 @@
 ///////////////////////////////////////////
 
 module binencoder #(parameter N = 8) (
-  input  logic [N-1:0]         A,   // one-hot input
-  output logic [$clog2(N)-1:0] Y    // binary-encoded output
+  input  logic [N-1:0]         A,   // One-hot input
+  output logic [$clog2(N)-1:0] Y  // Binary-encoded output
 );
 
-  integer                      index;
+  integer index;
 
   // behavioral description
   // this is coded as a priority encoder

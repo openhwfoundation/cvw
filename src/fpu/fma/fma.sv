@@ -16,20 +16,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fma import cvw::*;  #(parameter cvw_t P) (
-  input  logic                         Xs, Ys, Zs,             // input's signs
-  input  logic [P.NE-1:0]              Xe, Ye, Ze,             // input's biased exponents in B(NE.0) format
-  input  logic [P.NF:0]                Xm, Ym, Zm,             // input's significands in U(1.NF) format
-  input  logic                         XZero, YZero, ZZero,    // is the input zero
-  input  logic [2:0]                   OpCtrl,                 // operation control
-  output logic                         ASticky,                // sticky bit that is calculated during alignment
-  output logic [P.FMALEN-1:0]          Sm,                     // the positive sum's significand
-  output logic                         InvA,                   // Was A inverted for effective subtraction (P-A or -P+A)
-  output logic                         As,                     // the aligned addend's sign (modified Z sign for other operations)
-  output logic                         Ps,                     // the product's sign
-  output logic                         Ss,                     // the sum's sign
-  output logic [P.NE+1:0]              Se,                     // the sum's exponent
-  output logic [$clog2(P.FMALEN+1)-1:0] SCnt                    // normalization shift count
+module fma import cvw::*; #(parameter cvw_t P) (
+  input  logic                          Xs, Ys, Zs,          // X, Y, Z signs
+  input  logic [P.NE-1:0]               Xe, Ye, Ze,          // X, Y, Z biased exponents (B(NE.0))
+  input  logic [P.NF:0]                 Xm, Ym, Zm,          // X, Y, Z significands (U1.NF)
+  input  logic                          XZero, YZero, ZZero, // X, Y, Z are zero
+  input  logic [2:0]                    OpCtrl,              // FPU operation control
+  output logic                          ASticky,             // Sticky bit from the aligned addend
+  output logic [P.FMALEN-1:0]           Sm,                  // Positive sum significand
+  output logic                          InvA,                // Invert addend for effective subtraction
+  output logic                          As,                  // Aligned addend sign (Z sign adjusted for the operation)
+  output logic                          Ps,                  // Product sign
+  output logic                          Ss,                  // Sum sign
+  output logic [P.NE+1:0]               Se,                  // Sum exponent
+  output logic [$clog2(P.FMALEN+1)-1:0] SCnt                 // Normalization shift count
 );
 
   //  OpCtrl:

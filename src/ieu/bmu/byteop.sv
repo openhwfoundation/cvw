@@ -17,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module byteop #(parameter WIDTH=32) (
-  input  logic [WIDTH-1:0] A,             // Operands
+  input  logic [WIDTH-1:0] A,             // Operand
   input  logic             ByteSelect,    // LSB of immediate: 1 for orc.b, 0 for rev8
   output logic [WIDTH-1:0] ByteResult);   // rev8, orcb result
 

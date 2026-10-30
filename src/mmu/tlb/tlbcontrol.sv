@@ -16,30 +16,30 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
-  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,
-  input  logic [P.XLEN-1:0]        VAdr,
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
-  input  logic [1:0]               STATUS_MPP,
-  input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
-  input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
+module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
+  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,               // Current address translation mode
+  input  logic [P.XLEN-1:0]        VAdr,                    // Address before translation (virtual or physical)
+  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV, // mstatus.MXR, SUM, MPRV: control address translation permissions
+  input  logic [1:0]               STATUS_MPP,              // mstatus.MPP: machine previous privilege mode
+  input  logic                     ENVCFG_PBMTE,            // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,             // HPTW A/D Update enable
   input  logic [1:0]               EffectivePrivilegeModeW, // Current privilege level of the processor, accounting for mstatus.MPRV
-  input  logic                     ReadAccess, WriteAccess,
-  input  logic [3:0]               CMOpM,
-  input  logic                     DisableTranslation,
-  input  logic [11:0]              PTEAccessBits,
-  input  logic                     CAMHit,
-  input  logic                     Misaligned,
-  input  logic                     NAPOT4,             // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
-  output logic                     TLBMiss,
-  output logic                     TLBHit,
-  output logic                     TLBPageFault,
-  output logic                     UpdateDA,
-  output logic                     SV39Mode,
-  output logic                     SV48Mode,
-  output logic                     Translate,
-  output logic                     PTE_N,              // NAPOT page table entry
-  output logic [1:0]               PBMemoryType        // PBMT field of PTE during TLB hit, or 00 otherwise
+  input  logic                     ReadAccess, WriteAccess, // Read access, write access
+  input  logic [3:0]               CMOpM,                   // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic                     DisableTranslation,      // Disable translation for D$ flush and HPTW accesses, which use physical addresses
+  input  logic [11:0]              PTEAccessBits,           // PTE permission and status bits
+  input  logic                     CAMHit,                  // A TLB entry matches the virtual page number
+  input  logic                     Misaligned,              // Superpage PPN is misaligned
+  input  logic                     NAPOT4,                  // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
+  output logic                     TLBMiss,                 // TLB miss
+  output logic                     TLBHit,                  // TLB hit
+  output logic                     TLBPageFault,            // TLB page fault
+  output logic                     UpdateDA,                // TLB hit needs to set the dirty or access bit
+  output logic                     SV39Mode,                // Translation mode is Sv39
+  output logic                     SV48Mode,                // Translation mode is Sv48
+  output logic                     Translate,               // Virtual address translation is enabled
+  output logic                     PTE_N,                   // NAPOT page table entry
+  output logic [1:0]               PBMemoryType             // PBMT field of PTE during TLB hit, or 00 otherwise
 );
 
   // Sections of the page table entry
@@ -98,11 +98,11 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
     assign InvalidRead = ReadAccess & ~PTE_R & (~STATUS_MXR | ~PTE_X);
     // Check for write error. Writes are invalid when the page's write bit is 0.
     assign InvalidWrite = WriteAccess & ~PTE_W;
-    // cbo.inval/clean/flush (CMOpM[2:0]) need read permission; cbo.zero (CMOpM[3]) needs write permission
+    // cbo.inval/clean/flush (CMOpM[2:0]) need read permission; cbo.zero needs write permission
     assign InvalidCBOM = (|CMOpM[2:0]) & (~PTE_R & (~STATUS_MXR | ~PTE_X));
-    assign InvalidCBOZ = CMOpM[3] & ~PTE_W;
+    assign InvalidCBOZ = CMOpM[CMO_ZERO] & ~PTE_W;
     assign InvalidAccess = InvalidRead | InvalidWrite | InvalidCBOM | InvalidCBOZ | ReservedRW;
-    assign PreUpdateDA = ~PTE_A | (WriteAccess | CMOpM[3]) & ~PTE_D; // set A on any access; also set D on a write or cbo.zero
+    assign PreUpdateDA = ~PTE_A | (WriteAccess | CMOpM[CMO_ZERO]) & ~PTE_D; // set A on any access; also set D on a write or cbo.zero
   end
 
   // Determine whether to update DA bits.  With SVADU, it is done in hardware

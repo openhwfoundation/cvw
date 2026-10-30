@@ -16,9 +16,9 @@
 
 module aesinvshiftrows64(
   /* verilator lint_off UNUSEDSIGNAL */
-  input  logic [127:0] a,
+  input  logic [127:0] a, // Input
   /* verilator lint_on UNUSEDSIGNAL */
-  output logic [63:0]  y
+  output logic [63:0]  y  // Output
 );
 
   assign y = {a[95:88],   a[119:112], a[15:8],    a[39:32],

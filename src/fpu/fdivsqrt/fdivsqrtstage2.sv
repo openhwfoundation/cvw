@@ -16,20 +16,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtstage2 import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.DIVb+3:0] D, DBar,        // Q4.DIVb
-  input  logic [P.DIVb:0]   U, UM,          // U1.DIVb
-  input  logic [P.DIVb+3:0] WS, WC,         // Q4.DIVb
-  input  logic [P.DIVb+1:0] C,              // Q2.DIVb
-  input  logic              SqrtE,
-  output logic              un,
-  output logic [P.DIVb+1:0] CNext,          // Q2.DIVb
-  output logic [P.DIVb:0]   UNext, UMNext,  // U1.DIVb
-  output logic [P.DIVb+3:0] WSNext, WCNext  // Q4.DIVb
+module fdivsqrtstage2 import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.DIVb+3:0] D, DBar,        // Divisor and its complement (Q4.DIVb)
+  input  logic [P.DIVb:0]   U, UM,          // Partial result and partial result minus 1 ulp (U1.DIVb)
+  input  logic [P.DIVb+3:0] WS, WC,         // Residual in carry-save form (Q4.DIVb)
+  input  logic [P.DIVb+1:0] C,              // Digit position marker (Q2.DIVb)
+  input  logic              SqrtE,          // Square root operation in Execute stage
+  output logic [P.DIVb+1:0] CNext,          // Next digit position marker (Q2.DIVb)
+  output logic [P.DIVb:0]   UNext, UMNext,  // Next partial result and next partial result minus 1 ulp (U1.DIVb)
+  output logic [P.DIVb+3:0] WSNext, WCNext  // Next residual in carry-save form (Q4.DIVb)
 );
 
   logic [P.DIVb+3:0]        Dsel;     // Q4.DIVb
-  logic                     up, uz;
+  logic                     up, uz, un; // Result digit is +1, 0, or -1
   logic [P.DIVb+3:0]        F;        // Q4.DIVb
   logic [P.DIVb+3:0]        AddIn;    // Q4.DIVb
   logic [P.DIVb+3:0]        WSA, WCA; // Q4.DIVb

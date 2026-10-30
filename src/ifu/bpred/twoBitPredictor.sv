@@ -18,18 +18,16 @@ module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
                                         parameter k = 10) (
   input  logic             clk,
   input  logic             reset,
-  input  logic             StallF, StallD, StallE, StallM, StallW,
-  input  logic             FlushD, FlushE, FlushM, FlushW,
-  input  logic [XLEN-1:0]  PCNextF, PCM,
-  output logic [1:0]       BPDirF,
-  output logic             BPDirWrongE,
-  input  logic             BranchE, BranchM,
-  input  logic             PCSrcE
+  input  logic             StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
+  input  logic             FlushD, FlushE, FlushM, FlushW, // Flush Decode, Execute, Memory, Writeback stages
+  input  logic [XLEN-1:0]  PCNextF, PCM,     // Next PC to fetch, PC in Memory stage
+  output logic [1:0]       BPDirF,           // Branch direction prediction (2-bit counter state) in Fetch stage
+  output logic             BPDirWrongE,      // Branch direction mispredicted in Execute stage
+  input  logic             BranchE, BranchM, // Branch instruction in Execute, Memory stages
+  input  logic             PCSrcE            // Select next PC: 1 branch/jump target IEUAdrE, 0 PC + 2/4
 );
 
   logic [k-1:0]            IndexNextF, IndexM;
-  logic [1:0]              PredictionMemory;
-  logic                    DoForwarding, DoForwardingF;
   logic [1:0]              BPDirD, BPDirE;
   logic [1:0]              NewBPDirE, NewBPDirM;
 

@@ -17,10 +17,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module shifter import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.XLEN-1:0]     A,                             // shift Source
+  input  logic [P.XLEN-1:0]     A,                             // Operand
   input  logic [P.LOG_XLEN-1:0] Amt,                           // Shift amount
-  input  logic                  Right, Rotate, W64, SubArith,  // Shift right, rotate, W64-type operation, arithmetic shift
-  output logic [P.XLEN-1:0]     Y);                            // Shifted result
+  input  logic                  Right, Rotate, W64, SubArith,  // Shift right, rotate, RV64 W-type, arithmetic shift
+  output logic [P.XLEN-1:0]     Y);                            // Shift result
 
   logic [2*P.XLEN-2:0]          Z, ZShift;                     // Input to funnel shifter, shifted amount before truncated to 32 or 64 bits
   logic [P.LOG_XLEN-1:0]        TruncAmt, Offset;              // Shift amount adjusted for RV64, right-shift amount

@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module galoismultforward8(
-  input  logic [7:0] a,
-  output logic [7:0] y
+  input  logic [7:0] a, // Input
+  output logic [7:0] y  // Output
 );
 
   logic [7:0] leftshift;

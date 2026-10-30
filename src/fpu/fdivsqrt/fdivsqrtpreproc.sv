@@ -16,29 +16,29 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtpreproc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
-  input  logic                 IFDivStartE,
-  input  logic [P.NF:0]        Xm, Ym,      // Floating-point significands
-  input  logic [P.NE-1:0]      Xe, Ye,      // Floating-point exponents
-  input  logic [P.FMTBITS-1:0] FmtE,
-  input  logic [P.NE-2:0]      Bias,        // Bias of exponent
-  input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
-  input  logic                 SqrtE,
-  input  logic                 XZeroE,
-  input  logic [2:0]           Funct3E,
-  output logic [P.NE+1:0]      UeM,         // biased exponent of result
-  output logic [P.DIVb+3:0]    X, D,        // Q4.DIVb
+  input  logic                 IFDivStartE,      // Start integer or FP divide/sqrt
+  input  logic [P.NF:0]        Xm, Ym,           // X and Y significands
+  input  logic [P.NE-1:0]      Xe, Ye,           // X and Y exponents
+  input  logic [P.FMTBITS-1:0] FmtE,             // FP format in Execute stage
+  input  logic [P.NE-2:0]      Bias,             // Exponent bias
+  input  logic [P.LOGFLEN-1:0] Nf,               // Number of fractional bits in selected format
+  input  logic                 SqrtE,            // Square root operation in Execute stage
+  input  logic                 XZeroE,           // X is zero
+  input  logic [2:0]           Funct3E,          // funct3 field of instruction in Execute stage
+  output logic [P.NE+1:0]      UeM,              // Divide/sqrt result exponent (biased)
+  output logic [P.DIVb+3:0]    X, D,             // Dividend or radicand X and divisor D (Q4.DIVb)
   // Int-specific
-  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE, // U(XLEN.0) inputs from IEU
-  input  logic                 IntDivE, W64E,
+  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE, // Source operands A and B after forwarding, before ALU source select
+  input  logic                 IntDivE, W64E,    // Integer divide or remainder, RV64 W-type instruction
   // Outputs
-  output logic                 ISpecialCaseE,
-  output logic [P.DURLEN-1:0]  CyclesE,
-  output logic [P.DIVBLEN-1:0] IntNormShiftM,
-  output logic                 ALTBM, W64M,
-  output logic                 AsM, BsM, BZeroM,
-  output logic [P.XLEN-1:0]    AM
+  output logic                 ISpecialCaseE,    // Integer divide special case (divide by zero or |A| < |B|)
+  output logic [P.DURLEN-1:0]  CyclesE,          // Number of iteration cycles
+  output logic [P.DIVBLEN-1:0] IntNormShiftM,    // Integer divide normalization shift
+  output logic                 ALTBM, W64M,      // Integer |A| < |B|, RV64 W-type instruction
+  output logic                 AsM, BsM, BZeroM, // Integer operand signs, divisor is zero
+  output logic [P.XLEN-1:0]    AM                // Integer dividend A (U/Q(XLEN.0))
 );
 
   logic [P.DIVb:0]             Xnorm, Dnorm;
@@ -47,7 +47,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   logic [P.DIVb:0]             IFX, IFD;                            // Correctly-sized inputs for iterator, selected from int or fp input
   logic [P.DIVBLEN-1:0]        mE, ell;                             // Leading zeros of inputs
   logic [P.DIVBLEN-1:0]        IntResultBitsE;                      // bits in integer result
-  logic                        AZeroE, BZeroE;                      // A or B is Zero for integer division
+  logic                        BZeroE;                              // B is Zero for integer division
   logic                        SignedDivE;                          // signed division
   logic                        AsE, BsE;                            // Signs of integer inputs
   logic [P.XLEN-1:0]           AE;                                  // input A after W64 adjustment
@@ -73,7 +73,6 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
       assign AE = ForwardedSrcAE;
       assign BE = ForwardedSrcBE;
     end
-    assign AZeroE = ~(|AE);
     assign BZeroE = ~(|BE);
     assign AsE = AE[P.XLEN-1] & SignedDivE;
     assign BsE = BE[P.XLEN-1] & SignedDivE;

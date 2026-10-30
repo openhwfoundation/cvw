@@ -21,44 +21,44 @@ module packetizer import cvw::*; #(parameter cvw_t P,
                                    parameter logic [31:0] RVVI_INIT_TIME_OUT = 32'd4,
                                    parameter logic [31:0] RVVI_PACKET_DELAY = 32'd2
 ) (
-  input  logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvvi,
-  input  logic valid,
-  input  logic m_axi_aclk, m_axi_aresetn,
-  output logic RVVIStall,
+  input  logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi,                      // RVVI packet
+  input  logic                                          valid,                     // RVVI packet valid
+  input  logic                                          m_axi_aclk, m_axi_aresetn, // AXI clock and reset (active low)
+  output logic                                          RVVIStall,                 // Stall the processor while the RVVI packet is sent
   // axi 4 write address channel
   // axi 4 write data channel
-  output logic [31:0]  RvviAxiWdata,
-  output logic [3:0]   RvviAxiWstrb,
-  output logic         RvviAxiWlast,
-  output logic         RvviAxiWvalid,
-  input  logic         RvviAxiWready
-  );
+  output logic [31:0]                                   RvviAxiWdata,              // AXI write data
+  output logic [3:0]                                    RvviAxiWstrb,              // AXI write strobes
+  output logic                                          RvviAxiWlast,              // AXI write last
+  output logic                                          RvviAxiWvalid,             // AXI write valid
+  input  logic                                          RvviAxiWready              // AXI write ready
+);
 
   localparam NearTotalFrameLengthBits = 2*48+16+72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16);
-  localparam WordPadLen = 32 - (NearTotalFrameLengthBits % 32);
-  localparam TotalFrameLengthBits = NearTotalFrameLengthBits + WordPadLen;
-  localparam TotalFrameLengthBytes = TotalFrameLengthBits / 8;
+  localparam WordPadLen               = 32 - (NearTotalFrameLengthBits % 32);
+  localparam TotalFrameLengthBits     = NearTotalFrameLengthBits + WordPadLen;
+  localparam TotalFrameLengthBytes    = TotalFrameLengthBits / 8;
 
-  logic [9:0]              WordCount;
-  logic [11:0]             BytesInFrame;
-  logic                    TransReady;
-  logic                    BurstDone;
-  logic                    WordCountReset;
-  logic                    WordCountEnable;
-  logic [47:0]             SrcMac, DstMac;
-  logic [15:0]             EthType, Length;
+  logic [9:0]                      WordCount;
+  logic [11:0]                     BytesInFrame;
+  logic                            TransReady;
+  logic                            BurstDone;
+  logic                            WordCountReset;
+  logic                            WordCountEnable;
+  logic [47:0]                     SrcMac, DstMac;
+  logic [15:0]                     EthType, Length;
   logic [TotalFrameLengthBits-1:0] TotalFrame;
-  logic [31:0]             TotalFrameWords [TotalFrameLengthBytes/4-1:0];
-  logic [WordPadLen-1:0]   WordPad;
+  logic [31:0]                     TotalFrameWords [TotalFrameLengthBytes/4-1:0];
+  logic [WordPadLen-1:0]           WordPad;
 
-  logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvviDelay;
+  logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvviDelay;
 
   typedef enum logic [2:0] {STATE_RST, STATE_COUNT, STATE_RDY, STATE_WAIT, STATE_TRANS, STATE_TRANS_INSERT_DELAY} statetype;
-(* mark_debug = "true" *)  statetype CurrState, NextState;
+  (* mark_debug = "true" *) statetype CurrState, NextState;
 
-  logic [31:0]       RstCount;
-(* mark_debug = "true" *)   logic [31:0]      FrameCount;
-  logic              RstCountRst, RstCountEn, CountFlag, DelayFlag;
+  logic [31:0]                     RstCount;
+  (* mark_debug = "true" *) logic [31:0] FrameCount;
+  logic                            RstCountRst, RstCountEn, CountFlag, DelayFlag;
 
   always_ff @(posedge m_axi_aclk) begin
     if (~m_axi_aresetn) CurrState <= STATE_RST;

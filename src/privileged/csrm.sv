@@ -19,24 +19,24 @@
 
 module csrm import cvw::*; #(parameter cvw_t P) (
   input  logic                     clk, reset,
-  input  logic                     UngatedCSRMWriteM, CSRMWriteM, MTrapM,
-  input  logic [11:0]              CSRAdrM,
-  input  logic [P.XLEN-1:0]        NextEPCM, NextXtvalM, MSTATUS_REGW, MSTATUSH_REGW,
-  input  logic [5:0]               NextCauseM,
-  input  logic [P.XLEN-1:0]        CSRWriteValM,
-  input  logic [11:0]              MIP_REGW, MIE_REGW,
-  output logic [P.XLEN-1:0]        CSRMReadValM, MTVEC_REGW,
-  output logic [P.XLEN-1:0]        MEPC_REGW,
-  output logic [31:0]              MCOUNTEREN_REGW, MCOUNTINHIBIT_REGW,
-  output logic [15:0]              MEDELEG_REGW,
-  output logic [11:0]              MIDELEG_REGW,
+  input  logic                     UngatedCSRMWriteM, CSRMWriteM, MTrapM,             // Machine-mode CSR write (ungated, gated), trap to machine mode
+  input  logic [11:0]              CSRAdrM,                                           // CSR address
+  input  logic [P.XLEN-1:0]        NextEPCM, NextXtvalM, MSTATUS_REGW, MSTATUSH_REGW, // Next xepc and xtval on a trap, mstatus and mstatush CSRs
+  input  logic [5:0]               NextCauseM,                                        // Trap cause to write to xcause
+  input  logic [P.XLEN-1:0]        CSRWriteValM,                                      // Value to write to CSR
+  input  logic [11:0]              MIP_REGW, MIE_REGW,                                // mip and mie CSRs
+  output logic [P.XLEN-1:0]        CSRMReadValM, MTVEC_REGW,                          // Machine-mode CSR read value, mtvec CSR
+  output logic [P.XLEN-1:0]        MEPC_REGW,                                         // mepc CSR
+  output logic [31:0]              MCOUNTEREN_REGW, MCOUNTINHIBIT_REGW,               // mcounteren and mcountinhibit CSRs
+  output logic [15:0]              MEDELEG_REGW,                                      // medeleg CSR
+  output logic [11:0]              MIDELEG_REGW,                                      // mideleg CSR
   /* verilator lint_off UNDRIVEN */ // PMP registers are only used when PMP_ENTRIES > 0
-  output var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],
-  output var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],
+  output var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],             // PMP address CSRs
+  output var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],              // PMP configuration CSRs
   /* verilator lint_on UNDRIVEN */
-  output logic                     WriteMSTATUSM, WriteMSTATUSHM,
-  output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
-  output logic [63:0]              MENVCFG_REGW
+  output logic                     WriteMSTATUSM, WriteMSTATUSHM,                     // Write mstatus, write mstatush
+  output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,     // Illegal machine-mode CSR access, write to read-only machine-mode CSR
+  output logic [63:0]              MENVCFG_REGW                                       // menvcfg CSR
 );
 
   logic [P.PA_BITS-3:0]            PMPADDR_ARRAY_PREGRAIN_REGW[P.PMP_ENTRIES-1:0];

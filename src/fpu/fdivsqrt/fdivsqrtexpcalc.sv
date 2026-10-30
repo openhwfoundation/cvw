@@ -16,13 +16,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtexpcalc import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.NE-2:0]      Bias,      // Bias of exponent
-  input  logic [P.NE-1:0]      Xe, Ye,    // input exponents
-  input  logic                 Sqrt,
-  input  logic [P.DIVBLEN-1:0] ell, m,    // number of leading 0s in Xm and Ym
-  output logic [P.NE+1:0]      Ue         // result exponent
-  );
+module fdivsqrtexpcalc import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.NE-2:0]      Bias,      // Exponent bias
+  input  logic [P.NE-1:0]      Xe, Ye,    // X and Y exponents
+  input  logic                 Sqrt,      // Square root operation
+  input  logic [P.DIVBLEN-1:0] ell, m,    // Number of leading zeros in Xm and Ym
+  output logic [P.NE+1:0]      Ue         // Divide/sqrt result exponent
+);
 
   logic [P.NE+1:0] SXExp;
   logic [P.NE+1:0] SExp;

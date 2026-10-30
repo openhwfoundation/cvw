@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvsbox64(
-  input  logic [63:0] a,
-  output logic [63:0] y
+  input  logic [63:0] a, // Input
+  output logic [63:0] y  // Output
 );
 
   // inverse substitution boxes for each byte of the 64-bit doubleword

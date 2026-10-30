@@ -17,38 +17,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module align import cvw::*;  #(parameter cvw_t P) (
+module align import cvw::*; #(parameter cvw_t P) (
   input  logic                    clk,
   input  logic                    reset,
-  input  logic                    StallM, FlushM,
-  input  logic [P.XLEN-1:0]       IEUAdrM,      // Memory stage memory address
-  input  logic [P.XLEN-1:0]       IEUAdrE,      // The next IEUAdrM
-  input  logic [2:0]              Funct3M,      // Size of memory operation
-  input  logic                    FpLoadStoreM, // Floating point Load or Store
-  input  logic [1:0]              MemRWM,
-  input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM, // D$ read data, two LLEN words wide
-  input  logic                    CacheBusHPWTStall, // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
-  input  logic                    SelHPTW,
-  input  logic                    DataFaultM,   // This M-stage access raises a page or access fault: do not take the spill
+  input  logic                    StallM, FlushM,           // Stall and flush Memory stage
+  input  logic [P.XLEN-1:0]       IEUAdrM,                  // Memory address or branch/jump target in Memory stage
+  input  logic [P.XLEN-1:0]       IEUAdrE,                  // Memory address or branch/jump target in Execute stage
+  input  logic [2:0]              Funct3M,                  // funct3 field of instruction in Memory stage
+  input  logic                    FpLoadStoreM,             // FP load or store
+  input  logic [1:0]              MemRWM,                   // Memory read/write control in Memory stage: [1] read, [0] write
+  input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM,      // D$ read data, two LLEN words wide
+  input  logic                    CacheBusHPTWStall,        // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
+  input  logic                    SelHPTW,                  // HPTW is accessing memory through the LSU
+  input  logic                    DataFaultM,               // Page or access fault on the access in Memory stage; do not take the spill
 
-  input  logic [(P.LLEN-1)/8:0]   ByteMaskM,
-  input  logic [(P.LLEN-1)/8:0]   ByteMaskExtendedM,
-  input  logic [P.LLEN-1:0]       LSUWriteDataM,
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskM,                // Byte write enables
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskExtendedM,        // Byte write enables for the next word of a misaligned access
+  input  logic [P.LLEN-1:0]       LSUWriteDataM,            // LSU write data
 
-  output logic [(P.LLEN*2-1)/8:0] ByteMaskSpillM,
-  output logic [P.LLEN*2-1:0]     LSUWriteDataSpillM,
+  output logic [(P.LLEN*2-1)/8:0] ByteMaskSpillM,           // Byte write enables for both words of a spilled access
+  output logic [P.LLEN*2-1:0]     LSUWriteDataSpillM,       // Write data for both words of a spilled access
 
-  output logic [P.XLEN-1:0]       IEUAdrSpillE, // The next IEUAdrM for one of the two memory addresses of the spill
-  output logic [P.XLEN-1:0]       IEUAdrSpillM, // IEUAdrM for one of the two memory addresses of the spill
-  output logic [P.XLEN-1:0]       IEUAdrxTvalM, // IEUAdrM or spilled and aligned to next page
-  output logic                    SelSpillE,    // During the transition between the two spill operations, the LSU should stall the pipeline
+  output logic [P.XLEN-1:0]       IEUAdrSpillE,             // IEUAdr for the current half of a spilled access, in Execute stage
+  output logic [P.XLEN-1:0]       IEUAdrSpillM,             // IEUAdr for the current half of a spilled access, in Memory stage
+  output logic [P.XLEN-1:0]       IEUAdrxTvalM,             // IEUAdrM, or the address of the spilled half for xtval
+  output logic                    SelSpillE,                // During the transition between the two spill operations, the LSU should stall the pipeline
   output logic [P.LLEN-1:0]       DCacheReadDataWordSpillM, // Read data after merging the two halves of a spilled access
-  output logic                    SpillStallM);
+  output logic                    SpillStallM);             // Stall for the second access of a spill
 
   localparam LLENINBYTES = P.LLEN/8;
   localparam OFFSET_BIT_POS = $clog2(P.DCACHE_LINELENINBITS/8);
   // A spill occurs when a misaligned access crosses a cache line boundary
-  typedef enum logic [1:0]  {STATE_READY, STATE_SPILL, STATE_STORE_DELAY} statetype;
+  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
 
   statetype          CurrState, NextState;
   logic              ValidSpillM;
@@ -113,7 +113,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   // Don't take the spill if there is a stall or the access faults.  A faulting access must keep presenting the
   // original address: the fault is recomputed combinationally each cycle and would vanish at the second-half
   // address while a committed I$ fill defers the trap, losing the exception and half-executing a store.
-  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPWTStall & ~DataFaultM;
+  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPTWStall & ~DataFaultM;
 
   always_ff @(posedge clk)
     if (reset | FlushM)    CurrState <= STATE_READY;
@@ -130,7 +130,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   end
 
   assign SelSpillM = CurrState == STATE_SPILL;
-  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPWTStall);
+  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPTWStall);
   assign SpillSaveM = (CurrState == STATE_READY) & ValidSpillM & ~FlushM;
   assign SpillStallM = SelSpillE;
 

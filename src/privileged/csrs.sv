@@ -18,24 +18,24 @@
 
 module csrs import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              CSRSWriteM, STrapM,
-  input  logic [11:0]       CSRAdrM,
-  input  logic [P.XLEN-1:0] NextEPCM, NextXtvalM, SSTATUS_REGW,
-  input  logic [5:0]        NextCauseM,
-  input  logic              STATUS_TVM,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic [1:0]        PrivilegeModeW,
-  output logic [P.XLEN-1:0] CSRSReadValM, STVEC_REGW,
-  output logic [P.XLEN-1:0] SEPC_REGW,
-  output logic [31:0]       SCOUNTEREN_REGW,
-  output logic [P.XLEN-1:0] SATP_REGW,
-  input  logic [11:0]       MIP_REGW, MIE_REGW, MIDELEG_REGW,
-  input  logic [63:0]       MTIME_CLINT,
-  input  logic              STCE,
-  output logic              WriteSSTATUSM,
-  output logic              IllegalCSRSAccessM,
-  output logic              STimerInt,
-  output logic [P.XLEN-1:0] SENVCFG_REGW
+  input  logic              CSRSWriteM, STrapM,                 // Write a supervisor-mode CSR, trap to supervisor mode
+  input  logic [11:0]       CSRAdrM,                            // CSR address
+  input  logic [P.XLEN-1:0] NextEPCM, NextXtvalM, SSTATUS_REGW, // Next xepc and xtval on a trap, sstatus CSR
+  input  logic [5:0]        NextCauseM,                         // Trap cause to write to xcause
+  input  logic              STATUS_TVM,                         // mstatus.TVM: trap virtual memory operations
+  input  logic [P.XLEN-1:0] CSRWriteValM,                       // Value to write to CSR
+  input  logic [1:0]        PrivilegeModeW,                     // Current privilege mode
+  output logic [P.XLEN-1:0] CSRSReadValM, STVEC_REGW,           // Supervisor-mode CSR read value, stvec CSR
+  output logic [P.XLEN-1:0] SEPC_REGW,                          // sepc CSR
+  output logic [31:0]       SCOUNTEREN_REGW,                    // scounteren CSR
+  output logic [P.XLEN-1:0] SATP_REGW,                          // satp CSR
+  input  logic [11:0]       MIP_REGW, MIE_REGW, MIDELEG_REGW,   // mip, mie, and mideleg CSRs
+  input  logic [63:0]       MTIME_CLINT,                        // MTIME from CLINT
+  input  logic              STCE,                               // Supervisor timer compare enabled
+  output logic              WriteSSTATUSM,                      // Write sstatus
+  output logic              IllegalCSRSAccessM,                 // Illegal supervisor-mode CSR access
+  output logic              STimerInt,                          // Supervisor timer interrupt
+  output logic [P.XLEN-1:0] SENVCFG_REGW                        // senvcfg CSR
 );
 
   // Supervisor CSRs
@@ -53,6 +53,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   localparam STIMECMPH  = 12'h15D;
   localparam SATP       = 12'h180;
   // Constants
+  localparam SINT_MASK  = 12'h222; // supervisor interrupt fields: SEI, STI, SSI
   // scounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
   localparam COUNTEREN_MASK = (P.ZICNTR_SUPPORTED ? 32'h00000007 : 32'h0) |
                               (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
@@ -141,8 +142,8 @@ module csrs import cvw::*; #(parameter cvw_t P) (
     case (CSRAdrM)
       SSTATUS:    CSRSReadValM = SSTATUS_REGW;
       STVEC:      CSRSReadValM = STVEC_REGW;
-      SIP:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
-      SIE:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
+      SIP:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & SINT_MASK & MIDELEG_REGW}; // only read supervisor fields
+      SIE:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & SINT_MASK & MIDELEG_REGW}; // only read supervisor fields
       SSCRATCH:   CSRSReadValM = SSCRATCH_REGW;
       SEPC:       CSRSReadValM = SEPC_REGW;
       SCAUSE:     CSRSReadValM = SCAUSE_REGW;
