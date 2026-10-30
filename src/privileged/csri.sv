@@ -15,20 +15,9 @@
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csri import cvw::*;  #(parameter cvw_t P) (
+module csri import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              CSRMWriteM, CSRSWriteM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
@@ -60,7 +49,7 @@ module csri import cvw::*;  #(parameter cvw_t P) (
 
   // Interrupt Pending and Enable Registers
   // MEIP, MTIP, MSIP are read-only
-  // SEIP, STIP, SSIP is writable in MIP if S mode exists
+  // SEIP, STIP, SSIP are writable in MIP if S mode exists
   // SSIP is writable in SIP if S mode exists
   if (P.S_SUPPORTED) begin:mask
     if (P.SSTC_SUPPORTED) begin
@@ -71,11 +60,11 @@ module csri import cvw::*;  #(parameter cvw_t P) (
       assign STIP = MIP_REGW_writeable[5];
     end
     assign SIP_WRITE_MASK = 16'h0002 & MIDELEG_REGW; // SSIP is writeable in SIP (privileged 20210108-draft 4.1.3)
-    assign MIE_WRITE_MASK = 16'h0AAA | HIE_WRITE_MASK;
-  end else begin:mask
+    assign MIE_WRITE_MASK = 16'h0AAA | HIE_WRITE_MASK; // MEIE, SEIE, MTIE, STIE, MSIE, SSIE, and the H-added enables
+  end else begin : mask
     assign MIP_WRITE_MASK = 16'h0000;
     assign SIP_WRITE_MASK = 16'h0000;
-    assign MIE_WRITE_MASK = 16'h0888;
+    assign MIE_WRITE_MASK = 16'h0888; // MEIE, MTIE, MSIE
     assign STIP = '0;
   end
   assign SIE_WRITE_MASK = 16'h0222 & MIDELEG_REGW;
@@ -124,12 +113,12 @@ module csri import cvw::*;  #(parameter cvw_t P) (
   // Bit 13 is present for future LCOFI support and remains zero.
   if (P.H_SUPPORTED) begin : mip_h
     assign MIP_REGW = {3'b0,      HIP_MIP_REGW[12],
-                       MExtInt,   HIP_MIP_REGW[10], SExtInt|MIP_REGW_writeable[9],  1'b0,
+                       MExtInt,   HIP_MIP_REGW[10], SExtInt | MIP_REGW_writeable[9], 1'b0,
                        MTimerInt, HIP_MIP_REGW[6],  STIP,                            1'b0,
                        MSwInt,    HIP_MIP_REGW[2],  MIP_REGW_writeable[1],           1'b0};
   end else begin : mip_noh
     assign MIP_REGW = {4'b0,
-                       MExtInt,   1'b0, SExtInt|MIP_REGW_writeable[9],  1'b0,
+                       MExtInt,   1'b0, SExtInt | MIP_REGW_writeable[9], 1'b0,
                        MTimerInt, 1'b0, STIP,                            1'b0,
                        MSwInt,    1'b0, MIP_REGW_writeable[1],           1'b0};
   end

@@ -93,7 +93,6 @@ ib1g-dev verilator cpio bc vim emacs gedit nano
 RUN pip3 install chardet==3.0.4
 RUN pip3 install urllib3==1.22
 RUN pip3 install testresources
-RUN pip3 install riscof --ignore-installed PyYAML
 RUN echo "root:wally" | chpasswd
 
 # ADD RISCV

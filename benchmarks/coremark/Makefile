@@ -27,13 +27,15 @@ PORT_CFLAGS = -g -mabi=$(ABI) -march=$(ARCH) -static -falign-functions=16 \
 
 all: $(work_dir)/coremark.bare.riscv.elf.memfile
 
+# pipefail, so that a failing simulation fails the make rather than being hidden by tee
+run: SHELL := /bin/bash
+run: .SHELLFLAGS := -o pipefail -c
 run: $(work_dir)/coremark.bare.riscv.elf.memfile
-	time wsim --sim verilator ${CONFIG} coremark 2>&1 | tee $(work_dir)/coremark.sim.log
+	time wsim --sim verilator ${CONFIG} --elf $(work_dir)/coremark.bare.riscv --test coremark 2>&1 | tee $(work_dir)/coremark.sim.log
 
 $(work_dir)/coremark.bare.riscv.elf.memfile: $(work_dir)/coremark.bare.riscv
 	riscv64-unknown-elf-objdump -D $< > $<.elf.objdump
 	elf2hex $< $@
-	extractFunctionRadix.sh $<.elf.objdump
 
 $(work_dir)/coremark.bare.riscv: $(sources) Makefile
 	$(MAKE) -C $(cmbase) PORT_DIR=$(PORT_DIR) compile RISCV=$(RISCV) XCFLAGS="$(PORT_CFLAGS)"

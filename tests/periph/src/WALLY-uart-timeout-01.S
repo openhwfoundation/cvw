@@ -44,17 +44,19 @@ TRAP_HANDLER m
 WRITE08 UART_IER, 0x07 // enable data available, buffer empty, and line status interrupts
 WRITE08 UART_FCR, 0x81 // Set FIFO threshold to 8 and enable FIFO mode
 WRITE08 UART_LCR, 0x03 // set word transmit length to be 8 bits
+WRITE08 UART_MCR, 0x10 // loopback, so the transmitted characters land in the receive FIFO (SIN is tied high in the testbench)
 
 WRITE08 UART_THR, 0xA5 // write A5 to transmit register
 WRITE08 UART_THR, 0xA6 // write A6 to transmit register
 
-// since only 2/8 words have been written to the register, we should wait for a long time and get an interrupt
+// only 2 of the 8 characters needed to reach the trigger level are received, so after 4 character times
+// with no new character and no read of RBR the receive FIFO character timeout interrupt (IIR = 0xCC) is raised
 
 li t2, 0x1000 // counter variable
 
 wait_for_timeout_loop:
     li t3, UART_IIR
-    lb t4, 0(t3) // load the value out of interrupt ID register
+    lbu t4, 0(t3) // load the value out of interrupt ID register (zero extended to compare with 0xCC)
     li t3, 0xCC // value for FIFO enabled and character timeout interrupt pending
     beq t3, t4, interrupt_success // If that interrupt is pending, we have succeeded in timing out
     // *** won't the processor also try to actually handle the interrupt?
@@ -65,13 +67,23 @@ wait_for_timeout_loop:
 
 no_interrupt:
     li t2, 0xbad // interrupt not taken. write bad value to the output
-    sw t2, 0(t1)
+    SREG t2, 0(t1)
     SIG_NEXT
     j end_of_section
 
 interrupt_success:
     li t2, 0x600d // interrupt successfully taken after some time. write good value to the output.
-    sw t2, 0(t1)
+    SREG t2, 0(t1)
+    SIG_NEXT
+    // Resetting the receive FIFO empties it, so the timeout interrupt must clear with it
+    WRITE08 UART_FCR, 0x83 // reset RX FIFO (keep FIFO enabled, trigger 8)
+    li t3, UART_LSR
+    lbu t4, 0(t3)
+    SREG t4, 0(t1)  // LSR: no data ready, transmitter empty
+    SIG_NEXT
+    li t3, UART_IIR
+    lbu t4, 0(t3)
+    SREG t4, 0(t1)  // IIR: FIFOs enabled, no interrupt pending
     SIG_NEXT
     j end_of_section
 
@@ -112,4 +124,7 @@ TEST_STACK_AND_DATA
 .align REGSHIFT
 expected_signature:
 WORD 0x0000600D // 0: good value indicating the interrupt was correctly taken
+WORD 0x00000060 // 1: LSR after the RX FIFO reset: no data ready, transmitter empty
+WORD 0x000000C1 // 2: IIR after the RX FIFO reset: FIFOs enabled, no interrupt pending
+WORD 0x0000000B // 3: ecall from test termination
 expected_signature_end:

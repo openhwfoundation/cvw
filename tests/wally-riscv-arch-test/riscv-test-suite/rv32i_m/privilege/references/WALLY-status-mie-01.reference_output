@@ -1,8 +1,0 @@
-00000aaa # test 5.3.1.6: enabling all of MIE
-0007ec03 # value to indicate successful vectoring on m soft interrupt
-80000003 # mcause value from m time interrupt
-00000000 # mtval for mtime interrupt (0x0)
-00001880 # masked out mstatus.MPP = 11, mstatus.MPIE = 1, and mstatus.MIE = 0 # Note here that we attempt to cause an interrupt after zeroing status.mie, but it shouldn't fire.
-0000000b # mcause for ecall from terminating tests in M mode
-00000000 # mtval of ecall (*** defined to be zero for now)
-00001800 # masked out mstatus.MPP = 11, mstatus.MPIE = 0, and mstatus.MIE = 0

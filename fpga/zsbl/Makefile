@@ -116,7 +116,7 @@ $(TARGET).memfile: $(TARGET)
 	riscv64-unknown-elf-objdump -DS $< > $<.objdump
 	@echo 'Making memory file'
 	elf2hex $^ $@
-	extractFunctionRadix.sh $<.objdump
+	extractFunctionRadix.sh $<
 	@echo 'Splitting memfile.'
 	./splitfile.sh $@
 	mv boot.mem ../src/boot.mem
