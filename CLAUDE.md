@@ -38,7 +38,7 @@ wsim rv64gc $ACT/rv64i/I/I-add-01.elf --gui     # one ELF, Questa with waveform 
 wsim rv32gc a.elf b.elf c.elf --sim verilator   # an explicit group of ELFs
 wsim rv64gc test.elf --sim verilator --vcd      # Generate VCD waveform
 wsim rv64gc test.elf --lockstep                 # Lock-step vs ImperasDV (Questa/VCS only; one ELF at a time)
-wsim rv64gc $ACT/priv/Sv --fcov                 # Functional coverage (Questa only)
+wsim rv64gc $ACT/priv/Sv --fcov                 # Functional coverage (any simulator; not with --lockstep)
 wsim rv64gc buildroot                           # Linux boot from prebuilt memory images
 wsim rv32gc bench.elf --test coremark           # ELF run with a special testbench mode (coremark, embench)
 ```
@@ -55,8 +55,9 @@ regression-wally --nightly              # extended nightly suite
 ### Run code coverage
 ```bash
 regression-wally --ccov             # look at results in rv64gc_uncovered_hierarchical.rpt
+regression-wally --ccov --coveragesim vcs   # VCS: sim/vcs/cov/rv64gc_coverage_hierarchical.rpt
 ```
-Also possible to run individual files and merge them into the overall coverage.
+Also possible to run individual files and merge them into the overall coverage.  Each simulation writes its own database (`sim/questa/ucdb/*.ucdb`, or `sim/vcs/ucdb/*.vdb` with VCS); `make -C sim QuestaCodeCoverage` (or `VcsCodeCoverage`) merges them for one configuration (`CONFIG=rv64gc`, the default, `rv32gc` or `rv32imc`) and applies `sim/questa/coverage-exclusions-<config>.do`, which `sim/vcs/exclusions2el` translates into a URG exclusion file for VCS (`sim/vcs/cov/exclusions-<config>.log` says what each exclusion became).
 
 ### Lint
 ```bash
@@ -120,8 +121,10 @@ Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stal
 ### Simulators
 
 - **Verilator**: Default for regression; open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`.
-- **Questa** (Siemens): Required for code/functional coverage, lockstep, testbench_fp, and GUI waveforms. Uses `sim/questa/wkdir/`.
-- **VCS** (Synopsys): Supports standard tests and lockstep.
+- **Questa** (Siemens): Required for testbench_fp and GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
+- **VCS** (Synopsys): Supports standard tests, lockstep, and code/functional coverage (merged and reported with `urg`).
+
+All three collect functional coverage (`wsim --fcov`) into `sim/questa/fcov_ucdb`, `sim/verilator/fcov_dat` or `sim/vcs/fcov_ucdb`; `make -C sim QuestaFunctCoverage`, `VerilatorFunctCoverage` or `VcsFunctCoverage` merges the rv64gc runs and writes reports to `sim/<simulator>/fcov/`.
 
 Lockstep mode runs Wally in lock-step against ImperasDV (commercial) or the RISC-V Sail model for instruction-by-instruction comparison.
 
