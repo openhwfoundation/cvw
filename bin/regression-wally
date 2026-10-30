@@ -326,10 +326,6 @@ lockstepwaivers = [
     "Sm_mcsr_walk-09.elf",
     "SsstrictSm_CSR-08.elf",   # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
 
-    # Wally has no sstateen1-3 state, so mstateen1-3 read as zero, SE0 (bit 63) included; ImperasDV makes
-    # mstateen1 SE0 writable and offers no parameter to change that.
-    "SsstrictSm_CSR-07.elf",
-
     # ImperasDV accepts N=1 on a superpage leaf PTE instead of page faulting (riscv-arch-test does
     # not run Svnapot on Imperas for the same reason)
     "Svnapot_sv39_Svnapot_reserved_enc_Smode-00.elf",

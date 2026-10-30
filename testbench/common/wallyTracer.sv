@@ -221,18 +221,22 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
     `CONNECT_CSR(MCONFIGPTR, 12'hF15, 0); //mconfigptr
 
-    // Smstateen CSRs.  mstateen1-3 are read-only zero, as are the bits of mstateen0 whose state
-    // Wally does not implement.
+    // Smstateen CSRs.  The bits of mstateen0 whose state Wally does not implement are read-only zero,
+    // and mstateen1-3 implement only bit 63 (SE1-SE3).
     if (P.SMSTATEEN_SUPPORTED) begin
       `CONNECT_CSR(MSTATEEN0, 12'h30C, testbench.dut.core.priv.priv.csr.csrm.MSTATEEN0_REGW[P.XLEN-1:0]);
-      `CONNECT_CSR(MSTATEEN1, 12'h30D, 0);
-      `CONNECT_CSR(MSTATEEN2, 12'h30E, 0);
-      `CONNECT_CSR(MSTATEEN3, 12'h30F, 0);
-      if (P.XLEN == 32) begin
+      if (P.XLEN == 64) begin
+        `CONNECT_CSR(MSTATEEN1, 12'h30D, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[1], 63'b0});
+        `CONNECT_CSR(MSTATEEN2, 12'h30E, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[2], 63'b0});
+        `CONNECT_CSR(MSTATEEN3, 12'h30F, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[3], 63'b0});
+      end else begin
+        `CONNECT_CSR(MSTATEEN1, 12'h30D, 0);
+        `CONNECT_CSR(MSTATEEN2, 12'h30E, 0);
+        `CONNECT_CSR(MSTATEEN3, 12'h30F, 0);
         `CONNECT_CSR(MSTATEEN0H, 12'h31C, testbench.dut.core.priv.priv.csr.csrm.MSTATEEN0_REGW[63:32]);
-        `CONNECT_CSR(MSTATEEN1H, 12'h31D, 0);
-        `CONNECT_CSR(MSTATEEN2H, 12'h31E, 0);
-        `CONNECT_CSR(MSTATEEN3H, 12'h31F, 0);
+        `CONNECT_CSR(MSTATEEN1H, 12'h31D, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[1], 31'b0});
+        `CONNECT_CSR(MSTATEEN2H, 12'h31E, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[2], 31'b0});
+        `CONNECT_CSR(MSTATEEN3H, 12'h31F, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[3], 31'b0});
       end
     end
 

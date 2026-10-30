@@ -52,7 +52,8 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
   output logic                     WriteMSTATUSM, WriteMSTATUSHM,
   output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
   output logic [63:0]              MENVCFG_REGW,
-  output logic [63:0]              MSTATEEN0_REGW
+  output logic [63:0]              MSTATEEN0_REGW,
+  output logic [3:1]               MSTATEENSE_REGW  // bit 63 (SE1-SE3) of mstateen1-3
 );
 
   logic [P.PA_BITS-3:0]            PMPADDR_ARRAY_PREGRAIN_REGW[P.PMP_ENTRIES-1:0];
@@ -236,9 +237,9 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
 
   // MSTATEEN0 register
   // Each bit controls access from less-privileged modes to the state named by the bit; a bit is
-  // read-only zero when Wally does not implement that state.  mstateen1-3 are read-only zero, which
-  // the spec permits because the hypervisor extension is not implemented and sstateen1-3 are
-  // read-only zero.  Bit 63 of each mstateen controls access to the matching sstateen.
+  // read-only zero when Wally does not implement that state.  Bit 63 of each mstateen controls
+  // access to the matching sstateen.  mstateen1-3 implement only bit 63 (SE1-SE3): sstateen1-3 hold
+  // no state, so it is the only bit of mstateen1-3 with anything to control.
   if (P.SMSTATEEN_SUPPORTED) begin : mstateen // stateen registers only exist if there is a lower privilege to control
     logic WriteMSTATEEN0M;
     logic [63:0] MSTATEEN0_PreWriteValM, MSTATEEN0_WriteValM;
@@ -270,7 +271,16 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
       flopenr #(P.XLEN) MSTATEEN0reg(clk, reset, WriteMSTATEEN0M, MSTATEEN0_WriteValM[31:0], MSTATEEN0_REGW[31:0]);
       flopenr #(P.XLEN) MSTATEEN0Hreg(clk, reset, WriteMSTATEEN0HM, MSTATEEN0_WriteValM[63:32], MSTATEEN0_REGW[63:32]);
     end
-  end else assign MSTATEEN0_REGW = '0;
+    // SE1-SE3: bit 63 of mstateen1-3, which is bit 31 of mstateen1h-3h on RV32
+    for (i = 1; i < 4; i++) begin : mstateense
+      logic WriteMSTATEENSEM;
+      assign WriteMSTATEENSEM = CSRMWriteM & (CSRAdrM == (P.XLEN == 64 ? MSTATEEN0 : MSTATEEN0H) + 12'(i));
+      flopenr #(1) MSTATEENSEreg(clk, reset, WriteMSTATEENSEM, CSRWriteValM[P.XLEN-1] & P.SSSTATEEN_SUPPORTED, MSTATEENSE_REGW[i]);
+    end
+  end else begin
+    assign MSTATEEN0_REGW = '0;
+    assign MSTATEENSE_REGW = '0;
+  end
 
   // Grain alignment for PMPADDR read values.
   for(i=0; i<P.PMP_ENTRIES; i++)
@@ -331,13 +341,13 @@ module csrm  import cvw::*;  #(parameter cvw_t P) (
                      else IllegalCSRMAccessM = 1'b1;
       MSTATEEN1,
       MSTATEEN2,
-      MSTATEEN3:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = '0; // read-only zero
+      MSTATEEN3:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = {MSTATEENSE_REGW[CSRAdrM[1:0]] & (P.XLEN == 64), {(P.XLEN-1){1'b0}}}; // only SE1-SE3 (bit 63) is writable
                      else IllegalCSRMAccessM = 1'b1;
       MSTATEEN0H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = MSTATEEN0_REGW[63:32];
                      else IllegalCSRMAccessM = 1'b1;
       MSTATEEN1H,
       MSTATEEN2H,
-      MSTATEEN3H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = '0; // read-only zero
+      MSTATEEN3H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = {MSTATEENSE_REGW[CSRAdrM[1:0]], {(P.XLEN-1){1'b0}}}; // only SE1-SE3 (bit 63) is writable
                      else IllegalCSRMAccessM = 1'b1;
       default:       IllegalCSRMAccessM = 1'b1;
     endcase

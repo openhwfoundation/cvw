@@ -50,6 +50,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   output logic              STimerInt,
   output logic [P.XLEN-1:0] SENVCFG_REGW,
   input  logic              SE0AccessM,    // Smstateen mstateen0.SE0 permits access to sstateen0 below machine mode
+  input  logic [3:1]        SE123AccessM,  // Smstateen mstateen1-3.SE1-SE3 permit access to sstateen1-3 below machine mode
   input  logic              ENVCFGAccessM, // Smstateen mstateen0.ENVCFG permits access to senvcfg below machine mode
   input  logic [2:0]        SSTATEEN0_MASK // mstateen0 bits that permit the matching sstateen0 bits to be nonzero
 );
@@ -190,7 +191,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
                  else IllegalCSRSAccessM = 1'b1;
       SSTATEEN1,
       SSTATEEN2,
-      SSTATEEN3: if (P.SSSTATEEN_SUPPORTED & (PrivilegeModeW == P.M_MODE)) CSRSReadValM = '0; // read-only zero; mstateen1-3 bit 63 is read-only zero, so supervisor mode cannot access these
+      SSTATEEN3: if (P.SSSTATEEN_SUPPORTED & SE123AccessM[CSRAdrM[1:0]]) CSRSReadValM = '0; // read-only zero: Wally has no state for sstateen1-3 to control
                  else IllegalCSRSAccessM = 1'b1;
       STIMECMP:  if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
                  else IllegalCSRSAccessM = 1'b1;
