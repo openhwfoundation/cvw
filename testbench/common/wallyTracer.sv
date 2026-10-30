@@ -214,12 +214,17 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     // Machine Information Registers and Configuration CSRs
     `CONNECT_CSR(MISA, 12'h301, testbench.dut.core.priv.priv.csr.csrm.MISA_REGW);
     `CONNECT_CSR(MENVCFG, 12'h30A, testbench.dut.core.priv.priv.csr.csrm.MENVCFG_REGW);
-    `CONNECT_CSR(MSECCFG, 12'h747, 0); // mseccfg
     `CONNECT_CSR(MVENDORID, 12'hF11, 0); //mvendorid
     `CONNECT_CSR(MARCHID, 12'hF12, 0); // marchid
     `CONNECT_CSR(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
     `CONNECT_CSR(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
     `CONNECT_CSR(MCONFIGPTR, 12'hF15, 0); //mconfigptr
+    if (P.MSECCFG_SUPPORTED) begin
+      `CONNECT_CSR(MSECCFG, 12'h747, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[P.XLEN-1:0]);
+      if (P.XLEN == 32) begin
+        `CONNECT_CSR(MSECCFGH, 12'h757, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[63:32]);
+      end
+    end
 
     // Smstateen CSRs.  The bits of mstateen0 whose state Wally does not implement are read-only zero,
     // and mstateen1-3 implement only bit 63 (SE1-SE3).
@@ -269,7 +274,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     if (P.XLEN == 32) begin
       `CONNECT_CSR(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW);
       `CONNECT_CSR(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW);
-      `CONNECT_CSR(MSECCFGH, 12'h757, 0); // mseccfgh
     end
   end
 
