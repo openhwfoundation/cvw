@@ -28,7 +28,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmtparams import cvw::*;  #(parameter cvw_t P) (
+module fmtparams import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FMTBITS-1:0] Fmt,
   output logic [P.NE-2:0]      Bias,
   output logic [P.LOGFLEN-1:0] Nf

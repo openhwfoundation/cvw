@@ -23,6 +23,7 @@ import cvw::*;
 module tb_vfrecrsqrt7;
 
   `include "parameter-defs.vh"
+  `include "fpu-parameter-defs.vh"
 
   localparam logic [2:0] VSEW_16 = 3'b001;
   localparam logic [2:0] VSEW_32 = 3'b010;
@@ -91,7 +92,7 @@ module tb_vfrecrsqrt7;
   logic [P.NE-1:0] exp;
   logic [P.NF:0]   man;
 
-  unpackinput #(P) unpackVs2 (
+  unpackinput #(FP) unpackVs2 (
     .A         (boxedVs2),
     .Fmt       (fmt),
     .En        (1'b1),

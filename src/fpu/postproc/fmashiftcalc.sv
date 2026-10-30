@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
+module fmashiftcalc import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FMTBITS-1:0]          Fmt,                 // precision 1 = double 0 = single
   input  logic [P.NE+1:0]               FmaSe,               // sum's exponent
   input  logic [P.FMALEN-1:0]           FmaSm,               // the positive sum

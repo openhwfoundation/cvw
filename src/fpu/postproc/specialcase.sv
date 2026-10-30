@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
+module specialcase import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                 Xs,                // X sign
   input  logic [P.NF:0]        Xm, Ym, Zm,        // input significand's
   input  logic                 XNaN, YNaN, ZNaN,  // are the inputs NaN
@@ -81,7 +81,7 @@ module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
 
   // does the overflow result output the maximum normalized floating point number
   //                output infinity if the input is infinity
-  assign OfResMax = (~InfIn|(IntToFp&CvtOp))&~DivByZero&((Frm[1:0]==2'b01) | (Frm[1:0]==2'b10&~Rs) | (Frm[1:0]==2'b11&Rs) | (V & Frm[2:0]==3'b110));
+  assign OfResMax = (~InfIn|(IntToFp&CvtOp))&~DivByZero&((Frm[1:0]==2'b01) | (Frm[1:0]==2'b10&~Rs) | (Frm[1:0]==2'b11&Rs) | (P.ROUND_TO_ODD_SUPPORTED & Frm[2:0]==3'b110));
 
   // select correct outputs for special cases
   if (P.FPSIZES == 1) begin
@@ -146,7 +146,7 @@ module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
                       InvalidRes = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
                   end
                   OfRes          = OfResMax ? {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1-1{1'b1}}, 1'b0, {P.NF1{1'b1}}} : {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1{1'b1}}, (P.NF1)'(0)};
-                  UfRes          = {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), (Plus1&Frm[1] | (V & Frm==3'b110 & ~XZero))&~(DivOp&YInf)};
+                  UfRes          = {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), (Plus1&Frm[1] | (P.ROUND_TO_ODD_SUPPORTED & Frm==3'b110 & ~XZero))&~(DivOp&YInf)};
                   NormRes        = {{P.FLEN-P.LEN1{1'b1}}, Rs, Re[P.NE1-1:0], Rf[P.NF-1:P.NF-P.NF1]};
               end
               P.FMT2: begin
@@ -160,7 +160,7 @@ module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
                   end
 
                   OfRes   = OfResMax ? {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2-1{1'b1}}, 1'b0, {P.NF2{1'b1}}} : {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2{1'b1}}, (P.NF2)'(0)};
-                  UfRes   = {{P.FLEN-P.LEN2{1'b1}}, Rs, (P.LEN2-2)'(0), (Plus1&Frm[1] | (V & Frm==3'b110 & ~XZero))&~(DivOp&YInf)};
+                  UfRes   = {{P.FLEN-P.LEN2{1'b1}}, Rs, (P.LEN2-2)'(0), (Plus1&Frm[1] | (P.ROUND_TO_ODD_SUPPORTED & Frm==3'b110 & ~XZero))&~(DivOp&YInf)};
                   NormRes = {{P.FLEN-P.LEN2{1'b1}}, Rs, Re[P.NE2-1:0], Rf[P.NF-1:P.NF-P.NF2]};
               end
               default: begin

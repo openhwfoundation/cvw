@@ -24,7 +24,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vfcvt import cvw::*; #(parameter cvw_t P) (
+module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
   input logic [P.FLEN-1:0] X,
   input logic [2:0] Frm,
   input logic [2:0] OpCtrl,
@@ -76,7 +76,7 @@ module vfcvt import cvw::*; #(parameter cvw_t P) (
   assign VfcvtOpCtrl = FtoF ? {1'b0, XoutFmt} : OpCtrl;
 
   // unpack X
-  unpackinput #(P) unpackX (
+  unpackinput #(FP) unpackX (
     .A(X), .Fmt(XinFmt), .En(~OpCtrl[2]), .FPUActive,
     .Sgn(Xs), .Exp(Xe), .Man(Xm),
     .NaN(XNaN), .SNaN(XSNaN), .Zero(XZero), .Inf(XInf),
@@ -94,7 +94,7 @@ module vfcvt import cvw::*; #(parameter cvw_t P) (
   .ResSubnormUf(CvtResSubnormUf), .Cs(Cs), .IntZero(IntZero), .LzcIn(CvtLzcIn));
 
   // postprocessor
-  postprocess #(P, 1) postproc (
+  postprocess #(FP) postproc (
     .Xs(Xs), .Ys(1'b0),
     .Xm(Xm), .Ym({(P.NF+1){1'b0}}), .Zm({(P.NF+1){1'b0}}),
     .Frm(Frm),

@@ -31,12 +31,13 @@ set width $::env(WIDTH)
 
 eval file copy -force [glob ${cfg}/*.vh] {$outputDir/hdl/}
 eval file copy -force [glob ${hdl_src}/cvw.sv] {$outputDir/hdl/}
+eval file copy -force [glob ${hdl_src}/fpu_pkg.sv] {$outputDir/hdl/}
 eval file copy -force [glob ${hdl_src}/*/*.sv] {$outputDir/hdl/}
 eval file copy -force [glob ${hdl_src}/*/*/*.sv] {$outputDir/hdl/}
 
-# Check if a wrapper is needed and create it (to pass parameters when cvw_t parameters are used)
+# Check if a wrapper is needed and create it (to pass parameters when cvw_t or fpu_t parameters are used)
 set wrapper 0
-if {[catch {eval exec grep "cvw_t" $outputDir/hdl/$::env(DESIGN).sv}] == 0} {
+if {[catch {eval exec grep -e "cvw_t" -e "fpu_t" $outputDir/hdl/$::env(DESIGN).sv}] == 0} {
     echo "Creating wrapper"
     set wrapper 1
     # make the wrapper
@@ -49,7 +50,7 @@ if { $saifpower == 1 } {
 }
 
 # Verilog files
-set my_verilog_files [glob $outputDir/hdl/cvw.sv $outputDir/hdl/*.sv]
+set my_verilog_files [glob $outputDir/hdl/cvw.sv $outputDir/hdl/fpu_pkg.sv $outputDir/hdl/*.sv]
 
 # Set toplevel
 if { $wrapper == 1 } {

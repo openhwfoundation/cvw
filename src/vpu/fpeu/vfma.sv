@@ -24,7 +24,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vfma import cvw::*; #(parameter cvw_t P) (
+module vfma import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
   input  logic [P.FLEN-1:0]              X, Y, Z,                    // three operands
   input  logic                           XWide, YWide, ZWide,        // is the operand widened (EEW = 2*SEW)
   input  logic [P.FMTBITS-1:0]           OutFmt,                     // target format for the result (S_FMT or D_FMT)
@@ -81,21 +81,21 @@ module vfma import cvw::*; #(parameter cvw_t P) (
   logic              XZero, YZero, ZZero;
   logic              XInf, YInf, ZInf;
 
-  unpackinput #(P) unpackX (
+  unpackinput #(FP) unpackX (
     .A(FmaXin), .Fmt(FmaXFmt), .En(1'b1), .FPUActive,
     .Sgn(Xs), .Exp(Xe), .Man(Xm),
     .NaN(XNaN), .SNaN(XSNaN), .Zero(XZero), .Inf(XInf),
     .ExpMax(), .Subnorm(), .PostBox()
   );
 
-  unpackinput #(P) unpackY (
+  unpackinput #(FP) unpackY (
     .A(FmaYin), .Fmt(FmaYFmt), .En(1'b1), .FPUActive,
     .Sgn(Ys), .Exp(Ye), .Man(Ym),
     .NaN(YNaN), .SNaN(YSNaN), .Zero(YZero), .Inf(YInf),
     .ExpMax(), .Subnorm(), .PostBox()
   );
 
-  unpackinput #(P) unpackZ (
+  unpackinput #(FP) unpackZ (
     .A(FmaZin), .Fmt(FmaZFmt), .En(1'b1), .FPUActive,
     .Sgn(Zs), .Exp(Ze), .Man(Zm),
     .NaN(ZNaN), .SNaN(ZSNaN), .Zero(ZZero), .Inf(ZInf),
@@ -119,7 +119,7 @@ module vfma import cvw::*; #(parameter cvw_t P) (
   );
 
   // Postprocess: round to OutFmt, TODO: make work with ELEN, make more compact with lane specific operations
-  postprocess #(P) postproc (
+  postprocess #(FP) postproc (
     .Xs, .Ys,
     .Xm, .Ym, .Zm,
     .Frm,

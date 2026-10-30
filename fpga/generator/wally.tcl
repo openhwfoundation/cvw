@@ -24,6 +24,7 @@ if {$boardName!="ArtyA7"} {
 
 # read package first
 add_files  ../src/CopiedFiles_do_not_add_to_repo/cvw.sv
+add_files  ../src/CopiedFiles_do_not_add_to_repo/fpu_pkg.sv
 #read_verilog -sv  ../src/wallypipelinedsocwrapper.sv
 # then read top level
 if {$board=="ArtyA7"} {

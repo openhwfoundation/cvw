@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module unpackinput import cvw::*;  #(parameter cvw_t P) (
+module unpackinput import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FLEN-1:0]        A,          // inputs from register file
   input  logic                     En,         // enable the input
   input  logic [P.FMTBITS-1:0]     Fmt,        // format signal 00 - single 01 - double 11 - quad 10 - half

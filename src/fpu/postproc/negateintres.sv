@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module negateintres import cvw::*;  #(parameter cvw_t P) (
+module negateintres import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                     Signed,         // is the integer input signed
   input  logic                     Int64,          // is the integer input 64-bits
   input  logic                     Plus1,          // should one be added for rounding?

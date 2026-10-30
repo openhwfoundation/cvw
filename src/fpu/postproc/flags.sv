@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module flags import cvw::*;  #(parameter cvw_t P) (
+module flags import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                 Xs,                     // X sign
   input  logic [P.FMTBITS-1:0] OutFmt,                 // output format
   input  logic                 InfIn,                  // is a Inf input being used
