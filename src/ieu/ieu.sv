@@ -78,7 +78,14 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic              LoadStallD,                      // Structural stalls for load, sent to performance counters
   output logic              StoreStallD,                     // load after store hazard
   output logic              CSRReadM, CSRWriteM, PrivilegedM,// CSR read, CSR write, is privileged instruction
-  output logic              CSRWriteFenceM                   // CSR write or fence instruction needs to flush subsequent instructions
+  output logic              CSRWriteFenceM,                   // CSR write or fence instruction needs to flush subsequent instructions
+  // Debug abstract register r/w signals
+  input  logic              DebugMode,
+  input  logic              DebugGPREnable,
+  output logic [P.XLEN-1:0] DebugR1D,
+  input  logic [P.XLEN-1:0] DebugRegWDATA,
+  input  logic [11:0]       DebugRegAddr,
+  input  logic              DebugRegWrite
 );
 
   logic [2:0] ImmSrcD;                                       // Select type of immediate extension
@@ -126,5 +133,6 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     .PCE, .PCLinkE, .FlagsE, .IEUAdrE, .ForwardedSrcAE, .ForwardedSrcBE, .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE, .CZeroE,
     .StallM, .FlushM, .FWriteIntM, .FIntResM, .SrcAM, .WriteDataM, .FCvtIntW,
     .StallW, .FlushW, .RegWriteW, .IntDivW, .SquashSCW, .ResultSrcW, .ReadDataW, .FCvtIntResW,
-    .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW);
+    .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW,
+    .DebugMode, .DebugGPREnable, .DebugR1D, .DebugRegWDATA, .DebugRegAddr, .DebugRegWrite);
 endmodule

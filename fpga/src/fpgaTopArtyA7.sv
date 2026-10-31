@@ -77,7 +77,12 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
    output logic [0:0]    ddr3_cke,
    output logic [0:0]    ddr3_cs_n,
    output logic [1:0]    ddr3_dm,
-   output logic [0:0]    ddr3_odt
+   output logic [0:0]    ddr3_odt,
+
+   input logic         tck,
+   input logic         tms,
+   input logic         tdi,
+   output logic        tdo
    );
 
   // MMCM Signals
@@ -258,7 +263,8 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
                     .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
                     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0),
                     .GPIOIN, .GPIOOUT, .GPIOEN,
-                    .UARTSin, .UARTSout, .SDCIn, .SDCCmd, .SDCCS(SDCCSin), .SDCCLK, .ExternalStall(RVVIStall));
+                    .UARTSin, .UARTSout, .SDCIn, .SDCCmd, .SDCCS(SDCCSin), .SDCCLK, .ExternalStall(RVVIStall),
+                    .tck, .tms, .tdi, .tdo);
 
 
   // ahb lite to axi bridge

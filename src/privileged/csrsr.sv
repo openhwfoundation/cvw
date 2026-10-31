@@ -37,6 +37,8 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   input  logic              WriteFRMM, SetOrWriteFFLAGSM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic              SelHPTW,
+  input  logic              DebugSetPrivMode,
+  input  logic [1:0]        DebugPrivilegeMode,
   output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,
   output logic [1:0]        STATUS_MPP,
   output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,
@@ -154,6 +156,10 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
       STATUS_MBE      <= 1'b0;
       STATUS_SBE      <= 1'b0;
       STATUS_UBE      <= 1'b0;
+    end else if (DebugSetPrivMode & (DebugPrivilegeMode != P.M_MODE)) begin
+      // Debug Spec 4.6: resuming into a mode less privileged than M
+      // clears mstatus.MPRV. Not gated by StallW, like privmodereg.
+      STATUS_MPRV_INT <= 1'b0;
     end else if (~StallW) begin
       if (TrapM) begin
         // Update interrupt enables per Privileged Spec p. 21

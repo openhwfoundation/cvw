@@ -52,5 +52,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.ZCA_SUPPORTED == 1) | (P.ZCD_SUPPORTED == 0 & P.ZCF_SUPPORTED == 0 & P.ZCB_SUPPORTED == 0)) else $fatal(1, "ZCB, ZCF, or ZCD requires ZCA");
     assert ((P.ZCF_SUPPORTED == 0) | ((P.F_SUPPORTED == 1) & (P.XLEN == 32))) else $fatal(1, "ZCF requires F and XLEN == 32");
     assert ((P.ZCD_SUPPORTED == 0) | (P.D_SUPPORTED == 1)) else $fatal(1, "ZCD requires D");
+
+    assert (P.SDEXT_SUPPORTED | !P.DEBUG_SUPPORTED) else $fatal(1, "An external debugger needs SDEXT to interface with.");
   end
 endmodule

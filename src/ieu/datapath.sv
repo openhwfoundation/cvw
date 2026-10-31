@@ -72,8 +72,14 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] CSRReadValW,             // CSR read result
   input  logic [P.XLEN-1:0] MDUResultW,              // MDU (Multiply/divide unit) result
   input  logic [P.XLEN-1:0] FIntDivResultW,          // FPU's integer divide result
-  input  logic [4:0]        RdW                      // Destination register
-   // Hazard Unit signals
+  input  logic [4:0]        RdW,                     // Destination register
+  // Debug abstract register r/w signals
+  input  logic              DebugMode,
+  input  logic              DebugGPREnable,
+  output logic [P.XLEN-1:0] DebugR1D,
+  input  logic [P.XLEN-1:0] DebugRegWDATA,
+  input  logic [11:0]       DebugRegAddr,
+  input  logic              DebugRegWrite
 );
 
   // Fetch stage signals
@@ -96,8 +102,29 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, signle-cycle FPU op, or 2-cycle FCVT float to int
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
+  // Debug Abstract Access Register Command mux signals
+  logic              GPRDebugRegWriteW;              // Debug Abstract Access Register (AAR) command write enable mux output
+  logic [4:0]        GPRDebugRs1W, GPRDebugRdW;      // Mux output for regfile address signals upon Debug AAR command
+  logic [P.XLEN-1:0] GPRDebugResultW;                // Mux output for regfile read data output upon Debug AAR command
+
+  // Debug Spec muxing of regfile inputs
+  if (P.SDEXT_SUPPORTED) begin
+    mux2 #(5) rfreadaddrmux (Rs1D, DebugRegAddr[4:0], DebugGPREnable, GPRDebugRs1W);
+    mux2 #(5) rfwriteaddrmux (RdW, DebugRegAddr[4:0], DebugGPREnable, GPRDebugRdW);
+    mux2 #(P.XLEN) rfwdatamux (ResultW, DebugRegWDATA, DebugGPREnable, GPRDebugResultW);
+    assign GPRDebugRegWriteW = DebugMode & DebugRegWrite & DebugGPREnable | RegWriteW;
+    // Return regfile read to Debug Module
+    assign DebugR1D = R1D;
+  end else begin
+    assign GPRDebugRs1W = Rs1D;
+    assign GPRDebugRdW = RdW;
+    assign GPRDebugResultW = ResultW;
+    assign GPRDebugRegWriteW = RegWriteW;
+    assign DebugR1D = '0;
+  end
+
   // Decode stage
-  regfile #(P.XLEN, P.E_SUPPORTED) regf(clk, reset, RegWriteW, Rs1D, Rs2D, RdW, ResultW, R1D, R2D);
+  regfile #(P.XLEN, P.E_SUPPORTED) regf(clk, reset, GPRDebugRegWriteW, GPRDebugRs1W, Rs2D, GPRDebugRdW, GPRDebugResultW, R1D, R2D);
   extend #(P)        ext(.InstrD(InstrD[31:7]), .ImmSrcD, .ImmExtD);
 
   // Execute stage pipeline register and logic
