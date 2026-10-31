@@ -56,7 +56,7 @@ if {[lcheck lst "--ccov"]} {
 # Functional coverage comes from riscv-arch-test: riscv_arch_test.sv instantiates the generated
 # covergroups and samples them off the RVVI trace.  It needs four include paths: its own sources,
 # the generated coverpoints, the test environment for derived_config.svh, and the work directory of
-# the matching ACT configuration for the generated rvtest_config.svh and rvmodel_macros.svh.
+# the matching ACT configuration (its env directory) for the generated rvtest_config.svh and rvmodel_macros.svh.
 # ACT names that configuration cvw-<config>, matching config/<config>/act.
 set FCvlog ""
 if {[lcheck lst "--fcov"]} {
@@ -82,7 +82,7 @@ if {[lcheck lst "--fcov"]} {
     echo "Functional coverage: [llength $FCOVDEFS] covergroups"
     set FCvlog "+incdir+${FCOVSRC} +incdir+${ACTDIR}/coverpoints \
                 +incdir+${ACTDIR}/coverpoints/unpriv +incdir+${ACTDIR}/coverpoints/priv \
-                +incdir+${ACTDIR}/tests/env +incdir+${FCOVWORK} \
+                +incdir+${ACTDIR}/tests/env +incdir+${FCOVWORK}/env \
                 [join $FCOVDEFS { }] \
                 ${FCOVSRC}/rvviTrace.sv ${FCOVSRC}/riscv_arch_test.sv"
 }

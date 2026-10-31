@@ -8,7 +8,7 @@
 //          was 24 bits, so 0x84000000-0x87FFFFFF silently aliased 0x80000000-0x83FFFFFF and the
 //          word at 0x83FFFFFC was out of the array.  The D$ hides the array until a writeback,
 //          so force lines through with cbo.flush + cbo.inval.
-//          Standalone RV32 init: WALLY-init-lib.h and WALLY-selfcheck.h are RV64-only.
+//          Standalone RV32 init.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw

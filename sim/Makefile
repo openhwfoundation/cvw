@@ -19,20 +19,23 @@ deriv:
 
 .PHONY: QuestaFunctCoverage QuestaCodeCoverage
 
-# Merge the per-test functional coverage databases written by wsim --fcov and report the total.
+# Merge the per-test functional coverage databases written by wsim --fcov for CONFIG and report the total
+# (questa/fcov/$(CONFIG)_*).
 QuestaFunctCoverage:
 	mkdir -p questa/fcov
-	vcover merge -out questa/fcov_ucdb/fcov.ucdb questa/fcov_ucdb/rv64gc*.ucdb -suppress 6854 -64
-	vcover report questa/fcov_ucdb/fcov.ucdb -details -cvg > questa/fcov/fcov.log
-	vcover report questa/fcov_ucdb/fcov.ucdb -cvg > questa/fcov/fcov.summary.log
-	vcover report questa/fcov_ucdb/fcov.ucdb -details -cvg -below 100 > questa/fcov/fcov.uncovered.log
-	grep -E "TOTAL COVERGROUP COVERAGE" questa/fcov/fcov.summary.log
+	vcover merge -out questa/fcov/$(CONFIG)_fcov.ucdb questa/fcov_ucdb/$(CONFIG)_*.ucdb -suppress 6854 -64
+	vcover report questa/fcov/$(CONFIG)_fcov.ucdb -details -cvg > questa/fcov/$(CONFIG)_fcov.log
+	vcover report questa/fcov/$(CONFIG)_fcov.ucdb -cvg > questa/fcov/$(CONFIG)_fcov.summary.log
+	vcover report questa/fcov/$(CONFIG)_fcov.ucdb -details -cvg -below 100 > questa/fcov/$(CONFIG)_fcov.uncovered.log
+	grep -E "TOTAL COVERGROUP COVERAGE" questa/fcov/$(CONFIG)_fcov.summary.log
 
 # Merge the per-test code coverage databases written by wsim --ccov for CONFIG (rv64gc, rv32gc or rv32imc), apply
 # that configuration's exclusions (questa/coverage-exclusions-$(CONFIG).do) to the merged database, and write the
 # reports (questa/cov/$(CONFIG)_*.rpt) and the HTML report (covhtmlreport/$(CONFIG)).  The per-test databases carry
 # no exclusions, so editing the exclusions needs only this target rerun, not the simulations.  The exclusion step
 # fails if any exclusion names a scope, line or row that does not exist, so stale exclusions do not go unnoticed.
+# The last step fails if any excluded item was hit (bin/coverage-exclhit.py): an exclusion claims its item cannot
+# be reached, so a hit means the claim or the exclusion's target is wrong.
 CONFIG ?= rv64gc
 COVUCDB = questa/cov/$(CONFIG)_cov.ucdb
 COVUNITS = ebu priv ifu lsu fpu ieu hzu
@@ -52,6 +55,10 @@ QuestaCodeCoverage:
 	vcover report -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_coverage_hierarchical.rpt
 	vcover report -below 100 -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_uncovered_hierarchical.rpt
 	vcover report -details -threshH 100 -html -output covhtmlreport/$(CONFIG) $(COVUCDB)
+	vcover report -details -showexcluded -all questa/cov/$(CONFIG)_merged.ucdb > questa/cov/$(CONFIG)_merged_all.rpt
+	vcover report -details -showexcluded -all $(COVUCDB) > questa/cov/$(CONFIG)_excluded_all.rpt
+	${WALLY}/bin/coverage-exclhit.py questa/cov/$(CONFIG)_merged_all.rpt questa/cov/$(CONFIG)_excluded_all.rpt \
+	  questa/coverage-exclusions-$(CONFIG).do
 
 benchmarks:
 	$(MAKE) -C ${WALLY}benchmarks/embench build

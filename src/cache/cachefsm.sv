@@ -116,7 +116,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
       STATE_ADDRESS_SETUP:   if (Stall)                                            NextState = STATE_ADDRESS_SETUP;
                              else                                                  NextState = STATE_ACCESS;
       // exclusion-tag-start: icache case
-      STATE_WRITEBACK:       if (CacheBusAck & ~(|CMOpM[3:1]))                     NextState = STATE_FETCH;
+      STATE_WRITEBACK:       if (CacheBusAck & ~(|CMOpM[3:1]))                     NextState = STATE_FETCH; // exclusion-tag: cachefsm-writeback-arm
                              else if (CacheBusAck)                                 NextState = STATE_ADDRESS_SETUP;   // ADDRESS_SETUP lowers CacheStall
                              else                                                  NextState = STATE_WRITEBACK;
       // eviction needs a delay as the bus fsm does not correctly handle sending the write command at the same time as getting back the bus ack.
@@ -125,7 +125,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
                              else                                                  NextState = STATE_FLUSH;
       STATE_FLUSH_WRITEBACK: if (CacheBusAck & ~FlushFlag)                         NextState = STATE_FLUSH;
                              else if (CacheBusAck)                                 NextState = STATE_ADDRESS_SETUP;
-                             else                                                  NextState = STATE_FLUSH_WRITEBACK;
+                             else                                                  NextState = STATE_FLUSH_WRITEBACK; // exclusion-tag: cachefsm-flush-writeback-wait
       // exclusion-tag-end: icache case
       default:                                                                     NextState = STATE_ACCESS;
     endcase
@@ -160,7 +160,7 @@ module cachefsm #(parameter READ_ONLY_CACHE = 0) (
   assign SelVictim = (CurrState == STATE_WRITEBACK & ((~CacheBusAck & ~(CMOpM[1] | CMOpM[2])) | (CacheBusAck & CMOpM[3]))) |
                      (CurrState == STATE_ACCESS & ((AnyMiss & LineDirty) | (CMOZeroNoEviction & ~Hit))) |
                      (CurrState == STATE_WRITE_LINE);
-  assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2] | ~CacheBusAck)) |
+  assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[1] | CMOpM[2] | ~CacheBusAck)) | // exclusion-tag: cachefsm-sel-writeback
                         (CurrState == STATE_ACCESS & AnyMiss & LineDirty);
   // coverage off -item e 1 -fecexprrow 1
   // (state is always FLUSH_WRITEBACK when FlushWayFlag & CacheBusAck)

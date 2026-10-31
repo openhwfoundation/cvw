@@ -21,7 +21,7 @@ module mux2 #(parameter WIDTH = 8) (
   input  logic             s,
   output logic [WIDTH-1:0] y);
 
-  assign y = s ? d1 : d0;
+  assign y = s ? d1 : d0; // exclusion-tag: mux2
 endmodule
 
 module mux3 #(parameter WIDTH = 8) (
@@ -45,7 +45,7 @@ module mux5 #(parameter WIDTH = 8) (
   input  logic [2:0]       s,
   output logic [WIDTH-1:0] y);
 
-  assign y = s[2] ? d4 : (s[1] ? (s[0] ? d3 : d2) : (s[0] ? d1 : d0));
+  assign y = s[2] ? d4 : (s[1] ? (s[0] ? d3 : d2) : (s[0] ? d1 : d0)); // exclusion-tag: mux5
 endmodule
 
 module mux6 #(parameter WIDTH = 8) (

@@ -87,10 +87,10 @@ module buscachefsm #(
       ATOMIC_PHASE: if (HREADY)                                      NextState = MEM3;                   // exclusion-tag: buscachefsm AtomicPhase
                     else                                             NextState = ATOMIC_PHASE;           // exclusion-tag: buscachefsm AtomicWait
       MEM3:        if (Stall)                                        NextState = MEM3;
-                   else                                              NextState = ADR_PHASE;
+                   else                                              NextState = ADR_PHASE; // exclusion-tag: buscachefsm-mem3-done
       CACHE_FETCH: if (HREADY & FinalBeatCount & CacheBusRW[0])      NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm FetchWriteback
                    else if (HREADY & FinalBeatCount & CacheBusRW[1]) NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm FetchWait
-                   else if (HREADY & FinalBeatCount & ~|CacheBusRW)  NextState = ADR_PHASE;
+                   else if (HREADY & FinalBeatCount & ~|CacheBusRW)  NextState = ADR_PHASE; // exclusion-tag: buscachefsm-fetch-done
                    else                                              NextState = CACHE_FETCH;
       CACHE_WRITEBACK:  if (HREADY & FinalBeatCount & CacheBusRW[0]) NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm WritebackWriteback
                    else if (HREADY & FinalBeatCount & CacheBusRW[1]) NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm HREADY4
@@ -103,8 +103,8 @@ module buscachefsm #(
 
   // IEU, LSU, and IFU controls
   // Used to store data from data phase of AHB.
-  flopenr #(AHBWLOGBWPL) BeatCountReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, NextBeatCount, BeatCount);
-  flopenr #(AHBWLOGBWPL) BeatCountDelayedReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, BeatCount, BeatCountDelayed);
+  flopenr #(AHBWLOGBWPL) BeatCountReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, NextBeatCount, BeatCount); // exclusion-tag: buscachefsm-beat-count-reset
+  flopenr #(AHBWLOGBWPL) BeatCountDelayedReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, BeatCount, BeatCountDelayed); // exclusion-tag: buscachefsm-beat-count-delayed-reset
   assign NextBeatCount = BeatCount + 1'b1;
 
   assign FinalBeatCount = BeatCountDelayed == BeatCountThreshold[AHBWLOGBWPL-1:0];
@@ -130,7 +130,7 @@ module buscachefsm #(
   assign HTRANS = (CurrState == ADR_PHASE & HREADY & ((|BusRW) | (|CacheBusRW) | BusCMOZero) & ~Flush) |
                   (CurrState == ATOMIC_READ_DATA_PHASE) |
                   (CacheAccess & FinalBeatCount & |CacheBusRW & HREADY & ~Flush) ? AHB_NONSEQ : // if we have a pipelined request
-                  (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE;
+                  (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE; // exclusion-tag: buscachefsm-htrans-burst
 
   assign HWRITE = (((BusRW[0] & ~BusAtomic) | BusWrite & ~Flush) | (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic) |
                   (CurrState == CACHE_WRITEBACK & |BeatCount)) & ~READ_ONLY_CACHE;

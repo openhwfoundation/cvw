@@ -239,7 +239,7 @@ module fctrl import cvw::*;  #(parameter cvw_t P) (
                       // fmvp.d.x and fmvp.q.x exist only on RV32D and RV64Q
                       7'b1011001: if (P.ZFA_SUPPORTED & P.XLEN == 32 & P.D_SUPPORTED & Funct3D == 3'b000)
                                                 ControlsD = `FCTRLW'b1_0_00_00_011_0_0_0_1_0; // fmvp.d.x  (Zfa)
-                      7'b1011011: if (P.ZFA_SUPPORTED & P.XLEN == 64 & P.Q_SUPPORTED & Funct3D == 3'b000)
+                      7'b1011011: if (P.ZFA_SUPPORTED & P.XLEN == 64 & P.Q_SUPPORTED & Funct3D == 3'b000) // exclusion-tag: fmvp-q-x
                                                 ControlsD = `FCTRLW'b1_0_00_00_011_0_0_0_1_0; // fmvp.q.x  (Zfa)
                     endcase
       endcase

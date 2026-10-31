@@ -34,7 +34,7 @@ archVerifDir = os.environ.get('ACTDIR', f'{WALLY}/addins/riscv-arch-test') # ris
 periphDir = f'{WALLY}/tests/periph'
 # Configurations with code coverage (regression-wally --ccov [config]), and the directory of each one's
 # coverage-targeted tests
-ccovConfigs = ["rv64gc", "rv32gc", "rv32imc"]
+coverageConfigs = ["rv64gc", "rv32gc", "rv32imc"]
 def coverageDir(config):
     return f'{WALLY}/tests/coverage{config.removeprefix("rv")}'
 coveragesim = "questa"     # Questa is required for code/functional coverage
@@ -553,11 +553,16 @@ def coverageUpToDate(ucdb, elfs):
     return mtime > coverageInputsMtime() and all(mtime > os.path.getmtime(elf) for elf in elfs)
 
 
+def coverageConfig(args):
+    """The configuration whose coverage databases a --ccov, --fcov or --breker run writes (<config>_*.ucdb)."""
+    return args.ccov or args.fcov or "rv64breker"
+
+
 def prepareCoverage(coverStr, clean, config):
     """Coverage is per simulation, so an unchanged simulation's .ucdb is still valid: keep the
-    databases and rerun only what is out of date.  --clean discards them all and starts over.  Code
-    coverage keeps each configuration's databases and reports apart (<config>_*), so --clean discards
-    only those of the configuration being run, and a tool change discards every configuration's."""
+    databases and rerun only what is out of date.  --clean discards them all and starts over.  Each
+    configuration's databases and reports are kept apart (<config>_*), so --clean discards only those
+    of the configuration being run, and a tool change discards every configuration's."""
     global reuseCoverage, fcovRun
     fcovRun = "--fcov" in coverStr
     ucdbDir, reportDir = [f"{regressionDir}/questa/{d}" for d in (("fcov_ucdb", "fcov") if fcovRun else ("ucdb", "cov"))]
@@ -569,7 +574,7 @@ def prepareCoverage(coverStr, clean, config):
         reuseCoverage = False
     toolsChanged = os.path.isfile(toolsFile) and open(toolsFile).read() != tools
     for d in [ucdbDir, reportDir]:
-        if fcovRun or toolsChanged:
+        if toolsChanged:
             if not reuseCoverage:
                 shutil.rmtree(d, ignore_errors=True)
         elif not reuseCoverage:
@@ -732,10 +737,11 @@ def unreported_elfs(config, logfile):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ccov", nargs="?", const="rv64gc", choices=ccovConfigs, metavar="CONFIG",
-                        help=f"Code coverage of CONFIG ({', '.join(ccovConfigs)}; default rv64gc)")
+    parser.add_argument("--ccov", nargs="?", const="rv64gc", choices=coverageConfigs, metavar="CONFIG",
+                        help=f"Code coverage of CONFIG ({', '.join(coverageConfigs)}; default rv64gc)")
     parser.add_argument("--clean", help="With --ccov or --fcov, discard existing coverage and rerun every test", action="store_true")
-    parser.add_argument("--fcov", help="Functional Coverage", action="store_true")
+    parser.add_argument("--fcov", nargs="?", const="rv64gc", choices=coverageConfigs, metavar="CONFIG",
+                        help=f"Functional coverage of CONFIG ({', '.join(coverageConfigs)}; default rv64gc)")
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
     parser.add_argument("--testfloat", help="Include Testfloat floating-point unit tests", action="store_true")
@@ -771,7 +777,7 @@ def process_args(args):
     else:
         TIMEOUT_DUR = 10*60 # seconds
     if coverStr:
-        prepareCoverage(coverStr, args.clean, args.ccov or "rv64gc")
+        prepareCoverage(coverStr, args.clean, coverageConfig(args))
 
     return sims, coverStr, TIMEOUT_DUR
 
@@ -802,7 +808,7 @@ def selectTests(args, sims, coverStr):
         addTestsByDir(coverageDir(config), config, coveragesim, coverStr, configs, lockstepMode=1)
         periph = {os.path.basename(t) + ".elf" for t in periph_tests.get(config, [])}
         addTestsByDir(f"{periphDir}/rv{config[2:4]}", config, coveragesim, coverStr, configs, lockstepMode=1, only=periph)
-    # functional coverage: rv64gc runs the ACT tests, one leaf directory per simulation.
+    # functional coverage: the configuration runs its ACT tests, one leaf directory per simulation.
     # Unlike code coverage this cannot run in lockstep: the covergroups read the virtual memory
     # fields of riscv-arch-test's RVVI trace, while ImperasDV needs the RVVI API tasks of its own,
     # and only one of the two interfaces can be compiled in.  The tests still check themselves.
@@ -813,7 +819,7 @@ def selectTests(args, sims, coverStr):
         # Functional coverage slows the simulation to between half a minute and two minutes per
         # ELF (the Ssstrict tests are the slowest), so split each directory into simulations of at
         # most 8 ELFs
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", coveragesim, coverStr, configs, chunk=8)
+        addTestsByDir(actElfDir(args.fcov), args.fcov, coveragesim, coverStr, configs, chunk=8)
      # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
@@ -934,13 +940,11 @@ def main(args):
     configs = selectTests(args, sims, coverStr)
     if coverStr and not args.dryrun:
         # Merge only coverage that belongs to the tests selected now: drop the .ucdb of any test that
-        # was renamed, removed, or run by hand outside the regression.  Code coverage of the other
+        # was renamed, removed, or run by hand outside the regression.  Coverage of the other
         # configurations is left alone.
         current = keptCoverage | {c.ucdb for c in configs if c.ucdb}
-        merged = {f"{regressionDir}/questa/fcov_ucdb/fcov.ucdb"}  # sim/Makefile writes this
         ucdbDir = f"{regressionDir}/questa/{'fcov_ucdb' if fcovRun else 'ucdb'}"
-        pattern = "*" if fcovRun else f"{args.ccov}_*"
-        stale = [f for f in glob.glob(f"{ucdbDir}/{pattern}.ucdb") if f not in current and f not in merged]
+        stale = [f for f in glob.glob(f"{ucdbDir}/{coverageConfig(args)}_*.ucdb") if f not in current]
         for f in stale:
             for g in [f, f"{f}.elfs"]:
                 if os.path.exists(g):
@@ -968,7 +972,7 @@ def main(args):
             print(f"{bcolors.FAIL}The merged coverage leaves out the {len(missing)} runs above{bcolors.ENDC}")
 
     # Coverage report; a merge or exclusion failure means the report cannot be trusted
-    for enabled, target in ((args.ccov, ["QuestaCodeCoverage", f"CONFIG={args.ccov}"]), (args.fcov, ["QuestaFunctCoverage"])):
+    for enabled, target in ((args.ccov, ["QuestaCodeCoverage", f"CONFIG={args.ccov}"]), (args.fcov, ["QuestaFunctCoverage", f"CONFIG={args.fcov}"])):
         if enabled and not args.dryrun and subprocess.run(["make", "-C", regressionDir, *target]).returncode:
             print(f"{bcolors.FAIL}make {' '.join(target)} failed{bcolors.ENDC}")
             num_fail += 1

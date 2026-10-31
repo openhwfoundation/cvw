@@ -245,7 +245,7 @@ module controller import cvw::*;  #(parameter cvw_t P) (
                       ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_1_0_00_0_0; // fence
                     else
                       ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // fence treated as nop
-                  end else if (CMOFunctD) begin
+                  end else if (CMOFunctD) begin // exclusion-tag: cmo-decode
                       ControlsD = `CTRLW'b0_101_01_00_000_0_0_0_0_0_0_0_0_0_00_1_0; // CMO Instruction
                   end
       7'b0010011: if (IFunctD)

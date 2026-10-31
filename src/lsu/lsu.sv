@@ -239,8 +239,8 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // operations delay interrupts until the next instruction by suppressing pending interrupts in
   // the trap module.
   assign CommittedM = SelHPTW | DCacheCommittedM | BusCommittedM | MemAccessDoneM;
-  assign HoldAccessM = MemAccessDoneM & ~SelHPTW; // performed access awaiting retirement: don't re-issue it (walker accesses pass)
-  assign GatedStallW = StallW & ~SelHPTW;
+  assign HoldAccessM = MemAccessDoneM & ~SelHPTW; // performed access awaiting retirement: don't re-issue it (walker accesses pass) // exclusion-tag: lsu-hold-access
+  assign GatedStallW = StallW & ~SelHPTW; // exclusion-tag: lsu-gated-stall
   assign DCacheBusStallM = DCacheStallM | LSUBusStallM;
   assign CacheBusHPWTStall = DCacheBusStallM | HPTWStall;
   assign LSUStallM = CacheBusHPWTStall | SpillStallM;
@@ -248,7 +248,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // AHB defines HSIZE 100/101/110 as 128/256/512-bit transfers, but funct3 uses those codes for the
   // unsigned integer loads lbu/lhu/lwu, which are byte/halfword/word accesses.  Clear the unsigned bit
   // for integer accesses; FP accesses use funct3 as the true width (including 100 for a 128-bit flq).
-  assign LSUSizeM = LSUFpLoadStoreM ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]};
+  assign LSUSizeM = LSUFpLoadStoreM ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]}; // exclusion-tag: lsu-fp-size
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // MMU and misalignment fault logic required if privileged unit exists

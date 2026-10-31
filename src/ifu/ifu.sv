@@ -250,7 +250,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // The IROM uses untranslated addresses, so it is not compatible with virtual memory.
   if (P.IROM_SUPPORTED) begin : irom
     logic IROMce;
-    assign IROMce = ~GatedStallD | reset;
+    assign IROMce = ~GatedStallD | reset; // exclusion-tag: ifu-irom-ce
     assign IFURWF = 2'b10;
     irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF[P.XLEN-1:0]), .IROMInstrF);
   end else begin
@@ -354,7 +354,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
 
   mux3 #(P.XLEN) pcmux3(PC2NextF, EPCM, TrapVectorM, {TrapM, RetM}, UnalignedPCNextF);
   mux2 #(P.XLEN) pcresetmux({UnalignedPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
-  flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF);
+  flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF); // exclusion-tag: ifu-pc-enable
 
   // pcadder
   // add 2 or 4 to the PC, based on whether the instruction is 16 bits or 32

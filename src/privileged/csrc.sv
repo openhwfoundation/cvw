@@ -125,7 +125,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   // Counter update and write logic
   for (i = 0; i < P.COUNTERS; i = i + 1) begin : cntr
     assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i); // coverage tag: MTIME traps
-    assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0];
+    assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0]; // exclusion-tag: next-hpmcounter
     if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
     else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
     always_ff @(posedge clk)
@@ -135,7 +135,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
     if (P.XLEN == 32) begin // write high and low separately
       assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
       assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
-      assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32];
+      assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32]; // exclusion-tag: next-hpmcounterh
       always_ff @(posedge clk)
         if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
         else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
@@ -167,7 +167,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
     IllegalCSRCAccessM = 1'b0;
     if (PrivilegeModeW == P.M_MODE & (CSRAdrM >= MHPMEVENTBASE & CSRAdrM <= MHPMEVENTLAST)) begin
       if (CSRAdrM < MHPMEVENTBASE+P.COUNTERS-3) CSRCReadValM = MHPMEVENT_REGW[CounterNumM];
-      else CSRCReadValM = '0; // unused event selectors are read-only zero
+      else CSRCReadValM = '0; // unused event selectors are read-only zero // exclusion-tag: unused-event-zero
     end
     else if (PrivilegeModeW == P.M_MODE |
       MCOUNTEREN_REGW[CounterNumM] & (!P.S_SUPPORTED | PrivilegeModeW == P.S_MODE | SCOUNTEREN_REGW[CounterNumM])) begin
@@ -196,24 +196,24 @@ module csrc import cvw::*; #(parameter cvw_t P) (
         else if (CSRAdrM == TIMEH & ~CSRWriteM & P.ZICNTR_SUPPORTED) CSRCReadValM = MTIME_CLINT[63:32];
         else if (CSRAdrM >= MHPMCOUNTERBASE  & CSRAdrM < MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM != MTIME)
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32)
-                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= MHPMCOUNTERBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERBASE+32) // exclusion-tag: unused-mhpmcounter-range
+                CSRCReadValM = '0; // unused counters are read-only zero // exclusion-tag: unused-mhpmcounter-zero
         else if (CSRAdrM >= HPMCOUNTERBASE   & CSRAdrM < HPMCOUNTERBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)    // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
         else if (CSRAdrM >= HPMCOUNTERBASE+3   & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
                 CSRCReadValM = HPMCOUNTER_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS   & CSRAdrM < HPMCOUNTERBASE+32  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only
-                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= HPMCOUNTERBASE+P.COUNTERS   & CSRAdrM < HPMCOUNTERBASE+32  & ~CSRWriteM & P.ZIHPM_SUPPORTED)    // read-only // exclusion-tag: unused-hpmcounter-range
+                CSRCReadValM = '0; // unused counters are read-only zero // exclusion-tag: unused-hpmcounter-zero
         else if (CSRAdrM >= MHPMCOUNTERHBASE & CSRAdrM < MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM != MTIMEH)
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-        else if (CSRAdrM >= MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERHBASE+32)
-                CSRCReadValM = '0; // unused counters are read-only zero
+        else if (CSRAdrM >= MHPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < MHPMCOUNTERHBASE+32) // exclusion-tag: unused-mhpmcounterh-range
+                CSRCReadValM = '0; // unused counters are read-only zero // exclusion-tag: unused-mhpmcounterh-zero
         else if (CSRAdrM >= HPMCOUNTERHBASE   & CSRAdrM < HPMCOUNTERHBASE+3  & ~CSRWriteM & P.ZICNTR_SUPPORTED)   // read-only
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
         else if (CSRAdrM >= HPMCOUNTERHBASE+3 & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
                 CSRCReadValM = HPMCOUNTERH_REGW[CounterNumM];
-        else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only
-                CSRCReadValM = '0;
+        else if (CSRAdrM >= HPMCOUNTERHBASE+P.COUNTERS & CSRAdrM < HPMCOUNTERHBASE+32 & ~CSRWriteM & P.ZIHPM_SUPPORTED)   // read-only // exclusion-tag: unused-hpmcounterh-range
+                CSRCReadValM = '0; // exclusion-tag: unused-hpmcounterh-zero
         else    IllegalCSRCAccessM = 1'b1; // requested CSR doesn't exist
       end
       /* verilator lint_on WIDTH */

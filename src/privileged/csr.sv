@@ -127,10 +127,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   always_comb
     if (InterruptM)           NextFaultXtvalM = '0;
     else case (CauseM)
-      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch
+      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 

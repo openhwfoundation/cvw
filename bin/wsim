@@ -251,8 +251,8 @@ def fcovConfigDigest(config):
     """Digest of the configuration headers ACT generates with its tests (rvtest_config.svh and
     friends), which the --fcov compile includes.  Contents rather than times, so that a rebuild
     that writes them unchanged does not force a recompile."""
-    work = WALLY / ACT_DIR / "work" / f"cvw-{config}"
-    files = sorted(f for ext in ("*.svh", "*.h") for f in work.glob(ext)) if work.is_dir() else []
+    env = WALLY / ACT_DIR / "work" / f"cvw-{config}" / "env"
+    files = sorted(f for ext in ("*.svh", "*.h") for f in env.glob(ext)) if env.is_dir() else []
     return hashlib.md5(b"".join(f.read_bytes() for f in files)).hexdigest()
 
 

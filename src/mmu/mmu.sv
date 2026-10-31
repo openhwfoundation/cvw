@@ -133,10 +133,10 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Misaligned faults
   always_comb // exclusion-tag: immu-wordaccess
     case (Size)
-      2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu
-      2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu
+      2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu // exclusion-tag: mmu-size-byte
+      2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu // exclusion-tag: mmu-size-half
       2'b10:  DataMisalignedM = VAdr[1] | VAdr[0]; // lw, sw, flw, fsw, lwu
-      2'b11:  DataMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd
+      2'b11:  DataMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd // exclusion-tag: mmu-size-double
     endcase
 
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
@@ -155,9 +155,9 @@ module mmu import cvw::*;  #(parameter cvw_t P,
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.
-  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss;
-  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss;
-  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss;
+  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss; // exclusion-tag: mmu-instr-fault
+  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss; // exclusion-tag: mmu-load-fault
+  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss; // exclusion-tag: mmu-store-fault
 
   // Specify which type of page fault is occurring
   assign InstrPageFaultF    = TLBPageFault & ExecuteAccessF;
