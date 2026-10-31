@@ -11,9 +11,12 @@
 //          normally and its second half, on the next page, is translated a cycle later, after the
 //          data access has left the cache's idle state.  Each page here ends with a load, store or
 //          cbo.zero that misses the data cache or goes uncached, followed by a straddling addi
-//          whose second half is on a page that has just been flushed from the TLB.  The access
-//          finishes while the fetch waits for the walker, and the LSU must hold the finished
-//          access until it retires instead of reissuing it.
+//          whose second half is on a page that has just been flushed from the TLB.  Wally's
+//          sfence.vma flushes every non-global entry whatever rs1 names, so each page then loads
+//          from both data pages to bring them back into the DTLB; otherwise the access would miss
+//          the DTLB and its own walk would pre-empt it.  The access finishes while the fetch
+//          waits for the walker, and the LSU must hold the finished access until it retires instead
+//          of reissuing it.
 //          Self-checking (WALLY-selfcheck.h), with every check after the last page so the sequences
 //          keep their timing: each held load writes its own register, each held store and cbo.zero
 //          has its own word or line, and the data starts with a nonzero pattern, so the test checks
@@ -122,8 +125,10 @@ build_l0:
     .half 0x0000                # high half of the straddling addi from the previous page
 page1:
     la t5, page2
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s3, 0(a2)                # load that misses the data cache, 3 instructions before the straddle
@@ -134,8 +139,10 @@ page1:
     .half 0x0019                # high half of the straddling addi from the previous page
 page2:
     la t5, page3
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     sw s3, 64(a2)               # store that misses the data cache, 3 instructions before the straddle
@@ -146,8 +153,10 @@ page2:
     .half 0x0019                # high half of the straddling addi from the previous page
 page3:
     la t5, page4
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s4, 128(a2)              # load that misses the data cache, 3 instructions before the straddle
@@ -158,8 +167,10 @@ page3:
     .half 0x0019                # high half of the straddling addi from the previous page
 page4:
     la t5, page5
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     cbo.zero (a3)               # cbo.zero to a non-cacheable page, performed on the bus, 3 instructions before the straddle
@@ -170,8 +181,10 @@ page4:
     .half 0x0019                # high half of the straddling addi from the previous page
 page5:
     la t5, page6
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s5, 0(a3)                # uncached load, 3 instructions before the straddle
@@ -182,8 +195,10 @@ page5:
     .half 0x0019                # high half of the straddling addi from the previous page
 page6:
     la t5, page7
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     sw s4, 8(a3)                # uncached store, 3 instructions before the straddle
@@ -194,8 +209,10 @@ page6:
     .half 0x0019                # high half of the straddling addi from the previous page
 page7:
     la t5, page8
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s6, 4(a2)                # load that misses the data cache, 2 instructions before the straddle
@@ -205,8 +222,10 @@ page7:
     .half 0x0019                # high half of the straddling addi from the previous page
 page8:
     la t5, page9
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     sw s6, 68(a2)               # store that misses the data cache, 2 instructions before the straddle
@@ -216,8 +235,10 @@ page8:
     .half 0x0019                # high half of the straddling addi from the previous page
 page9:
     la t5, page10
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s7, 132(a2)              # load that misses the data cache, 2 instructions before the straddle
@@ -227,8 +248,10 @@ page9:
     .half 0x0019                # high half of the straddling addi from the previous page
 page10:
     la t5, page11
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     cbo.zero (a4)               # cbo.zero to a non-cacheable page, performed on the bus, 2 instructions before the straddle
@@ -238,8 +261,10 @@ page10:
     .half 0x0019                # high half of the straddling addi from the previous page
 page11:
     la t5, page12
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     lw s8, 64(a3)               # uncached load, 2 instructions before the straddle
@@ -249,8 +274,10 @@ page11:
     .half 0x0019                # high half of the straddling addi from the previous page
 page12:
     la t5, page13
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1017
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1015
     nop
     .endr
     sw s7, 72(a3)               # uncached store, 2 instructions before the straddle
@@ -260,8 +287,10 @@ page12:
     .half 0x0019                # high half of the straddling addi from the previous page
 page13:
     la t5, page14
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     lw s9, 8(a2)                # load that misses the data cache, 4 instructions before the straddle
@@ -273,8 +302,10 @@ page13:
     .half 0x0019                # high half of the straddling addi from the previous page
 page14:
     la t5, page15
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     sw s9, 72(a2)               # store that misses the data cache, 4 instructions before the straddle
@@ -286,8 +317,10 @@ page14:
     .half 0x0019                # high half of the straddling addi from the previous page
 page15:
     la t5, page16
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     lw s10, 136(a2)             # load that misses the data cache, 4 instructions before the straddle
@@ -299,8 +332,10 @@ page15:
     .half 0x0019                # high half of the straddling addi from the previous page
 page16:
     la t5, page17
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     cbo.zero (a5)               # cbo.zero to a non-cacheable page, performed on the bus, 4 instructions before the straddle
@@ -312,8 +347,10 @@ page16:
     .half 0x0019                # high half of the straddling addi from the previous page
 page17:
     la t5, page18
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     lw a6, 128(a3)              # uncached load, 4 instructions before the straddle
@@ -325,8 +362,10 @@ page17:
     .half 0x0019                # high half of the straddling addi from the previous page
 page18:
     la t5, page19
-    sfence.vma t5               # only the next code page leaves the TLBs; the data pages stay
-    .rept 1016
+    sfence.vma t5               # flushes every non-global TLB entry (Wally ignores rs1), so
+    lw t4, -256(a2)             # bring the data pages back into the DTLB: a cached line of cold_lines
+    lw t4, 0(a3)                # and the first word of nc_page
+    .rept 1014
     nop
     .endr
     sw s10, 136(a3)             # uncached store, 4 instructions before the straddle
