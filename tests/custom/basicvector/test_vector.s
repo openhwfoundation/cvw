@@ -18,4 +18,12 @@ testvector:
         vadd.vv v8, v0, v8
         sll t1, t2, t3
         or  t1, t2, t3
+        vmul.vv v12, v8, v16
+        vmul.vv v4, v0, v12
+        add t1, t2, t3
+        sub t1, t2, t3
+        xor t1, t2, t3
+        vmul.vv v16, v4, v12
+        xor t1, t2, t3
+
         ret
