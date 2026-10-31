@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module amoalu import cvw::*;  #(parameter cvw_t P) (
+module amoalu import cvw::*;  #(parameter cvw_t P, parameter bit ZABHA_SUPPORTED = 0) (
   input  logic [P.XLEN-1:0] ReadDataM,    // LSU's ReadData
   input  logic [P.XLEN-1:0] IHWriteDataM, // LSU's WriteData
   input  logic [6:0]        LSUFunct7M,   // ALU Operation
@@ -25,7 +25,7 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
 );
 
   logic [P.XLEN-1:0] a, b, y;
-  logic              lt, cmp, sngd, sngd32, eq32, lt32, w64;
+  logic              ltAMO, lt, cmp, sngd, sngd32, eq32, lt32, w64;
 
   // Rename inputs
   assign a = ReadDataM;
@@ -47,7 +47,18 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
     assign lt = w64 ? lt32 : lt64;
   end
 
-  assign cmp = lt ^ LSUFunct7M[4]; // flip sense of comparison for maximums
+  // Optional narrow comparisons use the operand's sign bit, not XLEN's sign bit.
+  // Zabha adds byte/halfword comparators and selection logic.
+  if (ZABHA_SUPPORTED) begin : byteamo
+    logic eq8, lt8, eq16, lt16;
+    comparator #(8) cmp8(a[7:0], b[7:0], sngd, {eq8, lt8});
+    comparator #(16) cmp16(a[15:0], b[15:0], sngd, {eq16, lt16});
+    mux4 #(1) ltMux(lt8, lt16, lt, lt, LSUFunct3M[1:0], ltAMO);
+  end else begin : wordamo
+    assign ltAMO = lt;
+  end
+
+  assign cmp = ltAMO ^ LSUFunct7M[4]; // flip sense of comparison for maximums
 
   // AMO ALU
   always_comb
@@ -64,15 +75,7 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
       default:  y = 'x;          // undefined
     endcase
 
-  // sign extend output if necessary for w64
-  if (P.XLEN == 32) begin : sext
-    assign AMOResultM = y;
-  end else begin : sext // P.XLEN = 64
-    always_comb
-      if (w64) begin // sign-extend word-length operations
-        AMOResultM = {{32{y[31]}}, y[31:0]};
-      end else begin
-        AMOResultM = y;
-      end
-  end
+  // Only the low operand-width bits are stored; subwordwrite replicates those bits.
+  // Register writeback uses the separately formatted OLD memory value in the LSU.
+  assign AMOResultM = y;
 endmodule
