@@ -50,6 +50,7 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   output logic                HMASTLOCK,
   output logic                HREADY,
   // I/O Interface
+  input  logic                TIMECLK,          // optional for CLINT MTIME counter
   input  logic [31:0]         GPIOIN,           // inputs from GPIO
   output logic [31:0]         GPIOOUT,          // output values for GPIO
   output logic [31:0]         GPIOEN,           // output enables for GPIO
@@ -85,7 +86,7 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
 
   // instantiate uncore if a bus interface exists
   if (P.BUS_SUPPORTED) begin : uncoregen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
-    uncore #(P) uncore(.HCLK, .HRESETn,
+    uncore #(P) uncore(.HCLK, .HRESETn, .TIMECLK,
       .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .HRDATAEXT,
       .HREADYEXT, .HRESPEXT, .HRDATA, .HREADY, .HRESP, .HSELEXT,
       .MTimerInt, .MSwInt, .MExtInt, .SExtInt, .GPIOIN, .GPIOOUT, .GPIOEN, .UARTSin,
