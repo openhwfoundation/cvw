@@ -62,8 +62,8 @@ def parseArgs():
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--lockstepverbose", "-lv", help="Run ImperasDV lock, step, and compare with tracing enabled", action="store_true")
     parser.add_argument("--rvvi", "-r", help="Simulate rvvi hardware interface and ethernet.", action="store_true")
-    parser.add_argument("--fastbuild", help="Verilator: build the model for speed (C++ -O3) when booting Linux (buildroot); "
-                        "--no-fastbuild uses the default build", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--speedopt", help="Verilator: build the model for speed (C++ -O3) when booting Linux (buildroot); "
+                        "--no-speedopt uses the default build", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
 
@@ -355,8 +355,8 @@ def runQuesta(args, flags, env):
 def runVerilator(args):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
-    fast = args.fastbuild and args.test == "buildroot"  # speed-optimized model only for Linux boots
-    bhash = buildHash(args.params, args.define, "fastbuild" if fast else "")
+    speedopt = args.speedopt and args.test == "buildroot"  # speed-optimized model only for Linux boots
+    bhash = buildHash(args.params, args.define, "speedopt" if speedopt else "")
     workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = workdir / f"V{args.tb}"
 
@@ -368,7 +368,7 @@ def runVerilator(args):
         f"PARAM_ARGS={args.params}",
         f"DEFINE_ARGS={args.define}",
         f"BUILD_HASH={bhash}",
-        f"FAST_BUILD={int(fast)}",
+        f"SPEED_OPT={int(speedopt)}",
     ]
     target_mtime = targetMtime(binary)
     needs_compile = target_mtime is None or not isDesignUpToDate(binary)
