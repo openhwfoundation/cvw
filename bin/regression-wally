@@ -58,10 +58,12 @@ periph_tests = {
     "rv32imc": ["rv32/WALLY-periph-m-01"],
     "rv32gc":  ["rv32/WALLY-periph-01", "rv32/WALLY-gpio-01", "rv32/WALLY-clint-01", "rv32/WALLY-uart-01",
                 "rv32/WALLY-plic-01", "rv32/WALLY-plic-s-01", "rv32/WALLY-spi-01", "rv32/WALLY-pwm-01",
-                "rv32/WALLY-uart-timeout-01"],
+                "rv32/WALLY-uart-timeout-01", "rv32/WALLY-uart-regs-01", "rv32/WALLY-uart-tx-01",
+                "rv32/WALLY-uart-rx-01", "rv32/WALLY-uart-intr-01"],
     "rv64gc":  ["rv64/WALLY-periph-01", "rv64/WALLY-clint-01", "rv64/WALLY-gpio-01", "rv64/WALLY-plic-01",
                 "rv64/WALLY-plic-s-01", "rv64/WALLY-uart-01", "rv64/WALLY-spi-01", "rv64/WALLY-pwm-01",
-                "rv64/WALLY-uart-timeout-01"],
+                "rv64/WALLY-uart-timeout-01", "rv64/WALLY-uart-regs-01", "rv64/WALLY-uart-tx-01",
+                "rv64/WALLY-uart-rx-01", "rv64/WALLY-uart-intr-01"],
 }
 
 # Coverage-targeted tests (tests/coverage64gc) that need a derivative configuration, run as one group per
