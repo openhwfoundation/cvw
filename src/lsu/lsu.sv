@@ -19,6 +19,7 @@
 module lsu import cvw::*;  #(parameter cvw_t P) (
   input  logic                    clk, reset,
   input  logic                    StallM, FlushM, StallW, FlushW,
+  input  logic                    CommittedF,                           // IFU fetch in flight: the walker holds a fault until the trap
   output logic                    LSUStallM,                            // LSU stalls pipeline during a multicycle operation
   // connected to cpu (controls)
   input  logic [1:0]              MemRWE,                               // Read/Write control
@@ -192,7 +193,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   if (P.VIRTMEM_SUPPORTED) begin : hptw
     hptw #(P) hptw(.clk, .reset, .MemRWM, .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
       .DTLBMissOrUpdateDAM, .DTLBWriteM,
-      .FlushW, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
+      .FlushW, .CommittedF, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
       .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,

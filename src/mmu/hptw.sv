@@ -49,6 +49,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   input  logic              ITLBMissOrUpdateAF,
   input  logic              DTLBMissOrUpdateDAM,
   input  logic              FlushW,
+  input  logic              CommittedF,             // IFU fetch in flight: a trap is deferred (trap.sv), so hold a walk fault until it ends
   input  logic [3:0]        CMOpM,
   output logic [P.XLEN-1:0] PTE,                    // page table entry to TLBs
   output logic [2:0]        PageType,               // page type to TLBs
@@ -126,7 +127,8 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   assign HPTWStoreAmoPageFault   = WalkPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
   assign HPTWInstrPageFault      = WalkPageFaultM & ~DTLBWalk;
 
-  flopr #(6) HPTWAccesFaultReg(clk, reset, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
+  // The fault registers hold while the walker waits in FAULT for a committed IFU fetch to finish.
+  flopenr #(6) HPTWAccesFaultReg(clk, reset, WalkerState != FAULT, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
                                             HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
                                {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
                                 HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
@@ -367,7 +369,10 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE;
                   else                                                     NextWalkerState = LEAF;
-      FAULT:                                                               NextWalkerState = IDLE;
+      // TrapM waits while the IFU has a committed fetch (trap.sv).  Hold the fault rather than returning to
+      // IDLE, where the DTLB miss would start the same walk again (issue #845).
+      FAULT:      if (CommittedF)                                          NextWalkerState = FAULT;
+                  else                                                     NextWalkerState = IDLE;
       default:                                                             NextWalkerState = IDLE; // Should never be reached
     endcase // case (WalkerState)
 
