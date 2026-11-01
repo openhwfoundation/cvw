@@ -46,7 +46,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   output logic                 IntPendingM,                                     // Interrupt is pending, might occur if enabled
   output logic                 DelegateM,                                       // Delegate trap to supervisor handler
   output logic [4:0]           CauseM,                                          // trap cause
-  input  logic                 DebugEBreakM, DebugEBreakS, DebugEBreakU,
+  input  logic                 DebugEBreak, DebugEBreakM, DebugEBreakS, DebugEBreakU,
   input  logic                 DebugMode,
   input  logic                 DebugStepIE,
   input  logic                 DebugStep
@@ -58,6 +58,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   logic                        BothInstrAccessFaultM, BothInstrPageFaultM;      // instruction or HPTW ITLB fill caused an Instruction Access Fault
   logic [11:0]                 PendingIntsM, ValidIntsM, EnabledIntsM;          // interrupts are pending, valid, or enabled
   logic                        BreakpointFaultDebugM;
+  logic                        EBreak;
 
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
@@ -73,7 +74,8 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   assign Committed     = CommittedM | CommittedF;
   assign EnabledIntsM  = (MIntGlobalEnM ? PendingIntsM & ~MIDELEG_REGW : '0) | (SIntGlobalEnM ? PendingIntsM & MIDELEG_REGW : '0);
   assign ValidIntsM    = Committed ? '0 : EnabledIntsM;
-  assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW) & ~DebugMode & ~(DebugStep & ~DebugStepIE); // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
+  assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW) &           // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
+                         ~DebugMode & ~(DebugStep & ~DebugStepIE) & ~DebugEBreak; // Do not take interrupts while halted. Take interrupts during stepping if enabled and don't take them on an EBreak.
   // wfiW is to support possible but unlikely back to back wfi instructions. wfiM would be high in the M stage, while also in the W stage.
   assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseM[3:0]]) &
                      (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);

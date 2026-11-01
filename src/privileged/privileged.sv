@@ -220,6 +220,6 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .STATUS_MIE, .STATUS_SIE,
     .InstrValidM, .CommittedM, .CommittedF,
     .TrapM, .wfiM, .wfiW, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
-    .DebugEBreakM, .DebugEBreakS, .DebugEBreakU,
+    .DebugEBreak, .DebugEBreakM, .DebugEBreakS, .DebugEBreakU,
     .DebugMode, .DebugStepIE, .DebugStep);
 endmodule
