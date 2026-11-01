@@ -72,7 +72,7 @@ deriv_coverage_tests = {
     "fh_rv64gc": ["fpADUpdate32"],
     # misaligned flq/fsq that cross a D$ line
     "fdq_rv64gc": ["misalignedQuadSpill"],
-    # EXT_IO window: uncached, non-idempotent, no AMOs
+    # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
     "extio_rv64gc": ["extIOWindow"],
 }
 

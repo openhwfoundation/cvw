@@ -24,6 +24,11 @@ RED = "\033[0;31m"
 GREEN = "\033[0;32m"
 NC = "\033[0m"  # No Color
 
+# Configurations that elaboration must reject, with the message it must give.
+EXPECTED_FAILURES = {
+    "extio_badwindow_rv64gc": "EXT_IO window must be at least one cache line long",
+}
+
 
 def get_configs(nightly: bool, WALLY: Path) -> list[str]:
     """Get list of configurations to lint."""
@@ -37,15 +42,14 @@ def get_configs(nightly: bool, WALLY: Path) -> list[str]:
     deriv_dir = WALLY / "config" / "deriv"
     if deriv_dir.exists():
         for entry in deriv_dir.iterdir():
-            if entry.is_dir() and "syn_sram" not in entry.name:
+            if entry.is_dir() and "syn_sram" not in entry.name and entry.name not in EXPECTED_FAILURES:
                 configs.append(entry.name)
 
     return configs
 
 
-def lint_config(WALLY: Path, config: str) -> bool:
-    """Run verilator lint on a single configuration."""
-    # Build the verilator command
+def lint_command(WALLY: Path, config: str) -> list[str]:
+    """Build the verilator lint command for a single configuration."""
     cmd = [
         "verilator",
         "--lint-only",
@@ -74,11 +78,22 @@ def lint_config(WALLY: Path, config: str) -> bool:
         ]
     )
 
+    return cmd
+
+
+def lint_config(WALLY: Path, config: str) -> bool:
+    """Run verilator lint on a single configuration."""
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(lint_command(WALLY, config), check=True)
         return True
     except subprocess.CalledProcessError:
         return False
+
+
+def lint_rejects(WALLY: Path, config: str, message: str) -> bool:
+    """Check that lint of an invalid configuration fails with the expected message."""
+    result = subprocess.run(lint_command(WALLY, config), capture_output=True, text=True, check=False)
+    return result.returncode != 0 and message in result.stdout + result.stderr
 
 
 def main():
@@ -122,6 +137,14 @@ def main():
     # Terminate the entire linting job on Ctrl+C
     except KeyboardInterrupt:
         sys.exit(1)
+
+    # Invalid configurations must be rejected during elaboration
+    for config, message in EXPECTED_FAILURES.items():
+        if lint_rejects(WALLY, config, message):
+            print(f"{GREEN}{config} rejected as expected{NC}")
+        else:
+            print(f"{RED}{config} was not rejected with: {message}{NC}")
+            fails += 1
 
     # Report results
     if fails > 0:

@@ -50,9 +50,26 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
 
   // Optional I/O window inside EXT_MEM (e.g. control registers of an external
   // peripheral): still decoded and routed as EXT_MEM, but not cacheable, not
-  // idempotent and not atomic.
+  // idempotent, not atomic and not executable.
   adrdec #(P.PA_BITS) extiodec(PhysicalAddress, P.EXT_IO_BASE[P.PA_BITS-1:0], P.EXT_IO_RANGE[P.PA_BITS-1:0], P.EXT_IO_SUPPORTED, AccessRWXC, Size, 4'b1111, SelExtIO);
   assign SelExtMem = SelRegions[3] & ~SelExtIO;
+
+  // The window must be a naturally aligned power-of-two block inside EXT_MEM
+  // covering whole lines of every enabled cache; otherwise a line fill or
+  // write-back of neighboring memory would read or overwrite I/O registers.
+  if (P.EXT_IO_SUPPORTED) begin : extiocheck
+    localparam logic [63:0] WINDOWBYTES = P.EXT_IO_RANGE + 64'd1;
+    localparam logic [63:0] DLINEBYTES  = P.DCACHE_SUPPORTED ? 64'(P.DCACHE_LINELENINBITS / 8) : 64'd1;
+    localparam logic [63:0] ILINEBYTES  = P.ICACHE_SUPPORTED ? 64'(P.ICACHE_LINELENINBITS / 8) : 64'd1;
+    if (!P.EXT_MEM_SUPPORTED)
+      $fatal(1, "EXT_IO_SUPPORTED requires EXT_MEM_SUPPORTED");
+    if ((P.EXT_IO_RANGE & WINDOWBYTES) != 0 | (P.EXT_IO_BASE & P.EXT_IO_RANGE) != 0)
+      $fatal(1, "EXT_IO window must be a power-of-two size aligned to its size (EXT_IO_RANGE all ones in its low bits, EXT_IO_BASE a multiple of EXT_IO_RANGE+1)");
+    if (P.EXT_IO_BASE < P.EXT_MEM_BASE | P.EXT_IO_BASE + P.EXT_IO_RANGE > P.EXT_MEM_BASE + P.EXT_MEM_RANGE)
+      $fatal(1, "EXT_IO window must lie inside EXT_MEM");
+    if (WINDOWBYTES < DLINEBYTES | WINDOWBYTES < ILINEBYTES)
+      $fatal(1, "EXT_IO window must be at least one cache line long");
+  end
 
   // Only non-core RAM/ROM memory regions are cacheable. PBMT can override cacheable; NC and IO are uncachable
   assign CacheableRegion = SelExtMem | SelRegions[4] | SelRegions[5];  // exclusion-tag: unused-cacheable
@@ -69,7 +86,8 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   assign SelTIM = SelRegions[1] | SelRegions[2]; // exclusion-tag: unused-tim
 
   // Detect access faults.  An address outside the physical address space selects no region.
-  assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed;
+  // A fetch from the I/O window faults, so the IFU never reads it, not even on a wrong path.
+  assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed | ExecuteAccessF & SelExtIO;
   assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault;
   assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMAAccessFault;
   assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMAAccessFault;

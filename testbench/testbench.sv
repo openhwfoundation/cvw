@@ -129,6 +129,7 @@ module testbench;
   logic [31:0] TohostHi;         // upper word of tohost, stored separately on RV32
   logic [63:0] TohostWord;       // the 64-bit tohost value being stored
   logic [31:0] TohostValue;      // value stored to tohost: 1 = pass, (code << 1) | 1 = fail, 0 = never written
+  logic ExtIOFetch;              // the test fetched from the EXT_IO window, which fails it
   logic PrevPCZero;
   logic ExternalStall;
 
@@ -375,9 +376,10 @@ module testbench;
         `ifdef USE_TREK_DV
           $display("Breker test is done.");
         `else
-          if (TohostValue == 1) $display("%s succeeded.  Brilliant!!!", elffilename);
+          if (TohostValue == 1 & ~ExtIOFetch) $display("%s succeeded.  Brilliant!!!", elffilename);
           else begin
-            if (TohostValue == 0) $display("  Error on test %s: halted without reporting a result to tohost", elffilename);
+            if (ExtIOFetch) $display("  Error on test %s: instruction fetch from the EXT_IO window", elffilename);
+            else if (TohostValue == 0) $display("  Error on test %s: halted without reporting a result to tohost", elffilename);
             else $display("  Error on test %s: tohost = %0d (test exit code %0d)", elffilename, TohostValue, TohostValue >> 1);
             $display("%s failed. :(", elffilename);
             totalerrors = totalerrors + 1;
@@ -654,6 +656,18 @@ module testbench;
       end
     end
   end
+
+  // The EXT_IO window is not executable: no instruction fetch may reach it on the bus,
+  // not even on a mispredicted path, because reading an I/O register can have side effects
+  if (P.EXT_IO_SUPPORTED) begin : extiofetchcheck
+    always @(posedge clk)
+      if (SelectTest) ExtIOFetch <= 1'b0;
+      else if (~reset & ~ExtIOFetch & dut.core.IFUHTRANS[1] &
+               (dut.core.IFUHADDR & ~P.EXT_IO_RANGE[P.PA_BITS-1:0]) == P.EXT_IO_BASE[P.PA_BITS-1:0]) begin
+        $display("Error: instruction fetch from the EXT_IO window at 0x%h", dut.core.IFUHADDR);
+        ExtIOFetch <= 1'b1;
+      end
+  end else assign ExtIOFetch = 1'b0;
 
   // Termination condition
   // Terminate on
