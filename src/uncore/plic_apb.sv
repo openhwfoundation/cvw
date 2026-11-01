@@ -54,9 +54,10 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   localparam PLIC_THRESHOLD1     = 24'h201000;
   localparam PLIC_CLAIMCOMPLETE1 = 24'h201004;
 
-  logic                       memwrite, memread;
+  logic                       memwrite, memread, decoded;
   logic [23:0]                entry;
   logic [31:0]                Din, Dout;
+  logic                       PriorityExists;
 
   // context-independent signals
   logic [P.PLIC_NUM_SRC:1]               requests;
@@ -87,10 +88,12 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   // APB I/O
   // =======
 
-  assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
-  assign memread  = ~PWRITE & PSEL & ~PENABLE; // read once, in APB setup phase
+  assign decoded  = (PADDR[25:24] == 2'b00);  // registers are below offset 0x1000000; above are nonexistent contexts / reserved
+  assign memwrite = PWRITE & PENABLE & PSEL & decoded;  // only write in access phase
+  assign memread  = ~PWRITE & PSEL & ~PENABLE & decoded; // read once, in APB setup phase
   assign PREADY   = 1'b1;                     // PLIC never takes >1 cycle to respond
   assign entry    = {PADDR[23:2], 2'b0};
+  assign PriorityExists = (entry[7:2] != 6'd0) & ({26'b0, entry[7:2]} <= P.PLIC_NUM_SRC); // priority word of source 1..PLIC_NUM_SRC
   assign One[P.PLIC_NUM_SRC-1:1] = '0; assign One[0] = 1'b1; // Vivado does not like this as a single assignment.
 
   // account for subword read/write circuitry
@@ -115,26 +118,26 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
     end else begin
       if (memwrite)
         casez (entry)
-          24'h0000??:          intPriority[entry[7:2]] <= Din[2:0];
+          24'h0000??:          if (PriorityExists) intPriority[entry[7:2]] <= Din[2:0];
           PLIC_INTEN00:        intEn[0][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
           PLIC_INTEN10:        intEn[1][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
           PLIC_INTEN01:        if (P.PLIC_NUM_SRC >= 32) intEn[0][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_INTEN11:        if (P.PLIC_NUM_SRC >= 32) intEn[1][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_THRESHOLD0:     intThreshold[0]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE0:
-            if (Din[5:0] != 6'd0)
-              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE0: // a completion ID that is not a source enabled for this context is ignored
+            if (Din[31:6] == '0 & Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(intEn[0] & (One << (Din[5:0]-1))); // lower "InProgress" to signify completion
           PLIC_THRESHOLD1:     intThreshold[1]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE1:
-            if (Din[5:0] != 6'd0)
-              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE1: // a completion ID that is not a source enabled for this context is ignored
+            if (Din[31:6] == '0 & Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(intEn[1] & (One << (Din[5:0]-1))); // lower "InProgress" to signify completion
         endcase
 
       // Read synchronously because a read can have side effect of changing intInProgress
       if (memread) begin
         casez (entry)
           PLIC_INTPRIORITY0: Dout <= 32'b0;  // there is no intPriority[0]
-          24'h0000??:        Dout <= {29'b0, intPriority[entry[7:2]]};
+          24'h0000??:        Dout <= PriorityExists ? {29'b0, intPriority[entry[7:2]]} : 32'b0; // nonexistent sources read 0
           PLIC_INTPENDING0:  Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intPending[PLIC_NUM_SRC_MIN_32:1], 1'b0};
           PLIC_INTEN00:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intEn[0][PLIC_NUM_SRC_MIN_32:1], 1'b0};
           PLIC_INTPENDING1:  if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}}, intPending[PLIC_SRC_TOP:PLIC_SRC_BOT]};
