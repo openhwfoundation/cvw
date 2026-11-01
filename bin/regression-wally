@@ -311,6 +311,10 @@ lockstepwaivers = [
     "wfiTW.elf",
     "wfitimeoutint.elf",
     "wfitimeoutnext.elf",
+
+    # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
+    # garbage PTE from the level-0 table this test places in the CLINT and page faults
+    "hptwamoioptes.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and

@@ -345,7 +345,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
       else                    assign BusCMOZero = 1'b0;
       if (P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED) assign CacheCMOpM = (~SelHPTW & ~HoldAccessM) ? {CMOpM[3] & CacheableM, CMOpM[2:0]} : '0;
       else                                         assign CacheCMOpM = '0;
-      if (P.ZAAMO_SUPPORTED) assign BusAtomic = AtomicM[1] & ~CacheableM;
+      if (P.ZAAMO_SUPPORTED) assign BusAtomic = LSUAtomicM[1] & ~CacheableM; // the HPTW clears LSUAtomicM for its PTE accesses
       else                   assign BusAtomic = 1'b0;
       assign BusRW = (~CacheableM & ~SelDTIM & ~HoldAccessM) ? LSURWM : '0;
       assign CacheableOrFlushCacheM = CacheableM | FlushDCacheM | (|CacheCMOpM[2:0]); // the D$ writes back on the bus for a CMO
@@ -393,7 +393,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
 
       ahbinterface #(P.XLEN, 1'b1) ahbinterface(.HCLK(clk), .HRESETn(~reset), .Flush(LSUFlushW), .HREADY(LSUHREADY),
         .HRDATA(HRDATA), .HTRANS(LSUHTRANS), .HWRITE(LSUHWRITE), .HWDATA(LSUHWDATA),
-        .HWSTRB(LSUHWSTRB), .BusRW, .BusAtomic(AtomicM[1]), .ByteMask(ByteMaskM[P.XLEN/8-1:0]), .WriteData(LSUWriteDataM[P.XLEN-1:0]),
+        .HWSTRB(LSUHWSTRB), .BusRW, .BusAtomic(LSUAtomicM[1]), .ByteMask(ByteMaskM[P.XLEN/8-1:0]), .WriteData(LSUWriteDataM[P.XLEN-1:0]),
         .Stall(GatedStallW), .BusStall(LSUBusStallM), .BusCommitted(BusCommittedM), .FetchBuffer(FetchBuffer));
 
       // Mux between the 2 sources of read data, 0: Bus, 1: DTIM
