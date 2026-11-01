@@ -179,7 +179,7 @@ module dtm import cvw::*; #(parameter cvw_t P) (
     end else begin
       case(DMIState)
         IDLE: begin
-          if (UpdateDMI) begin
+          if (UpdateDMI & ~Sticky) begin
             DMIADDR <= dmi[P.DTM_ABITS+34-1:34];
             DMIDATA <= dmi[33:2];
             DMINextReg[33:2] <= dmi[33:2];
