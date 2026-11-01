@@ -151,10 +151,13 @@ module debug_apb_requester import cvw::*; #(parameter cvw_t P) (
 
   assign DebugPADDR = RegNO;
 
-  assign ValidCommand = CommandWrite & (NextCMDType == 8'd0);
+  assign ValidCommand = CommandWrite & (NextCMDType == 8'd0)
+    & ~NextCommand[23] & ~NextCommand[19] & ~NextCommand[18];
 
   debugregdecode #(P) nextdecode(.RegNO(NextRegNO), .CSRAccess(), .GPRAccess(), .FPRAccess(NextFPR));
-  assign ValidSize = CommandWrite & ((NextAARSize == 3'd2)
+
+  assign ValidSize = CommandWrite & (~NextCommand[17]
+      | (NextAARSize == 3'd2)
       | (NextAARSize == 3'd3 & (NextFPR ? P.D_SUPPORTED : (P.XLEN == 64)))
       | (NextAARSize == 3'd4 & NextFPR & P.Q_SUPPORTED));
 

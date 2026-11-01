@@ -414,7 +414,8 @@ module debug import cvw::*; #(parameter cvw_t P) (
   assign CommandWrite = WriteRequest & (DMIADDR == COMMAND);
 
   assign NextCommand = DMIDATA;
-  assign StartCommand = CommandWrite & DMIRSPREADY & ~|CMDErr & ~|AbstractCS[10:8] & DMActive & DebugMode;
+  assign StartCommand = CommandWrite & DMIRSPREADY & ~|CMDErr & ~|AbstractCS[10:8]
+                        & DMActive & DebugMode & DMIDATA[17];
 
   debug_apb_requester #(P) debug_apb(.clk, .reset(ResetDM),
     .NextCommand, .Command, .StartCommand, .CommandWrite, .Data0, .Data1,
@@ -427,11 +428,11 @@ module debug import cvw::*; #(parameter cvw_t P) (
 
   always_comb begin
     CMDErr = 3'd0;
-    if (CommandWrite | DebugPREADY) begin
-      if (~DebugMode)                      CMDErr = 3'd4;
-      else if (AARException)               CMDErr = 3'd3;
-      else if (~ValidCommand | ~ValidSize) CMDErr = 3'd2;
-      else                                 CMDErr = 3'd0;
+    if (CommandWrite) begin
+      if (~ValidCommand | ~ValidSize) CMDErr = 3'd2;
+      else if (~DebugMode)            CMDErr = 3'd4;
+    end else if (AARException) begin
+      CMDErr = 3'd3;
     end
   end
 endmodule
