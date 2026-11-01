@@ -25,7 +25,17 @@
 
 package cvw;
 
-  `include "BranchPredictorType.vh"
+  // Branch direction predictor selected by BPRED_TYPE
+  typedef enum logic [2:0] {
+    BP_TWOBIT       = 3'd0,
+    BP_GSHARE       = 3'd1,
+    BP_GLOBAL       = 3'd2,
+    BP_GSHARE_BASIC = 3'd3,
+    BP_GLOBAL_BASIC = 3'd4,
+    BP_LOCAL_BASIC  = 3'd5,
+    BP_LOCAL_AHEAD  = 3'd6,
+    BP_LOCAL_REPAIR = 3'd7
+  } bpred_type_t;
 
   // Shared constants; some are unused in configurations that omit the hardware using them
   /* verilator lint_off UNUSEDPARAM */
@@ -212,7 +222,7 @@ typedef struct packed {
   int           PLIC_PWM_ID;
 
   logic         BPRED_SUPPORTED;
-  logic [31:0]  BPRED_TYPE;
+  bpred_type_t  BPRED_TYPE;
   int           BPRED_NUM_LHR;
   int           BPRED_SIZE;
   int           BTB_SIZE;
