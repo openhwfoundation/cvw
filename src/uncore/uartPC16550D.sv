@@ -56,7 +56,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   logic [4:0]  MCR;
 
   // Synchronized and delayed UART signals
-  logic        SINd, DSRbd, DCDbd, CTSbd, RIbd;
+  logic        SINs, DSRbs, DCDbs, CTSbs, RIbs;
   logic        SINsync, DSRbsync, DCDbsync, CTSbsync, RIbsync;
   logic        DSRb2, DCDb2, CTSb2, RIb2;
   logic        SOUTbit;
@@ -116,12 +116,14 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   // Input synchronization: 2-stage synchronizer
   ///////////////////////////////////////////
 
-  always_ff @(posedge PCLK) begin
-    {SINd, DSRbd, DCDbd, CTSbd, RIbd} <= {SIN, DSRb, DCDb, CTSb, RIb};
-    {SINsync, DSRbsync, DCDbsync, CTSbsync, RIbsync} <= loop ? {SOUTbit, ~MCR[0], ~MCR[3], ~MCR[1], ~MCR[2]} :
-                            {SINd, DSRbd, DCDbd, CTSbd, RIbd}; // synchronized signals, handle loopback testing
+  synchronizer insync[4:0](.clk(PCLK), .d({SIN, DSRb, DCDb, CTSb, RIb}), .q({SINs, DSRbs, DCDbs, CTSbs, RIbs}));
+
+  // loopback testing selects internal signals after the synchronizers, which are already synchronous to PCLK
+  assign {SINsync, DSRbsync, DCDbsync, CTSbsync, RIbsync} = loop ? {SOUTbit, ~MCR[0], ~MCR[3], ~MCR[1], ~MCR[2]} :
+                                                                   {SINs, DSRbs, DCDbs, CTSbs, RIbs};
+
+  always_ff @(posedge PCLK)
     {DSRb2, DCDb2, CTSb2, RIb2} <= {DSRbsync, DCDbsync, CTSbsync, RIbsync}; // for detecting state changes
-  end
 
   ///////////////////////////////////////////
   // Register interface (Table 1, note some are read only and some write only)
