@@ -98,9 +98,10 @@ xfer_loop:
 // ---------------- Frame length (8.1: LCR[2] stop bits) ----------------
 // Cycles from the THR write until TEMT, relative to an 8N1 character (10 bits), as
 // round(20 * T / T(8N1)) = 2 x the number of bit times.  With LCR[2] = 1, 5-bit characters have
-// 1.5 stop bits and longer characters have 2.
+// 1.5 stop bits and longer characters have 2. Use a long timing baseline to leave margin for CPU
+// polling overhead and baud phase when rounding the frame lengths and divisor ratios.
     jal ra, uart_quiesce
-    li a0, 4
+    li a0, 64
     jal ra, uart_set_divisor
     jal ra, uart_calibrate          // s1 = T(8N1)
     la s2, frame_table
@@ -124,25 +125,25 @@ frame_loop:
     UW UART_LCR, 0x03
 
 // ---------------- Baud divisor (8.3): character time is proportional to {DLM, DLL} ----------------
-// T(d) = character time at divisor d.  U = T(8) - T(4) is 4 divisor units with the fixed polling
+// T(d) = character time at divisor d.  U = T(128) - T(64) is 64 divisor units with the fixed polling
 // overhead cancelled.
-    mv s4, s1                       // T(4)
-    li a0, 8
+    mv s4, s1                       // T(64)
+    li a0, 128
     jal ra, uart_set_divisor
     li a0, 0x55
     jal ra, uart_frame_cycles
     lbu t2, UART_RBR(s0)
-    mv s5, a0                       // T(8)
+    mv s5, a0                       // T(128)
     slli t2, a0, 3
     slli a0, a0, 1
-    add a0, a0, t2                  // 10 T(8)
+    add a0, a0, t2                  // 10 T(128)
     srli t2, s4, 1
     add a0, a0, t2
     mv a1, s4
     jal ra, uart_div
-    SIGR a0                         // round(10 T(8) / T(4)) = 20
+    SIGR a0                         // round(10 T(128) / T(64)) = 20
     sub s5, s5, s4                  // U
-    li a0, 0x100
+    li a0, 0x1000
     jal ra, uart_set_divisor
     li a0, 0x55
     jal ra, uart_frame_cycles
@@ -152,8 +153,8 @@ frame_loop:
     add a0, a0, t2
     mv a1, s5
     jal ra, uart_div
-    SIGR a0                         // round((T(256) - T(4)) / U) = 63: DLM is the high byte
-    li a0, 0x102
+    SIGR a0                         // round((T(4096) - T(64)) / U) = 63: DLM is the high byte
+    li a0, 0x1020
     jal ra, uart_set_divisor
     li a0, 0x55
     jal ra, uart_frame_cycles
@@ -164,7 +165,7 @@ frame_loop:
     add a0, a0, t2
     mv a1, s5
     jal ra, uart_div
-    SIGR a0                         // round(2 (T(258) - T(4)) / U) = 127
+    SIGR a0                         // round(2 (T(4128) - T(64)) / U) = 127
     li a0, 4
     jal ra, uart_set_divisor
 

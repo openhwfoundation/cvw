@@ -30,6 +30,13 @@ TRAP_HANDLER m
 
 j run_test_loop // begin test loop/table tests instead of executing inline code.
 
+read_uart_rx_status:
+    lbu t2, 0(t3)
+    andi t2, t2, 0x9F // RX status only; THRE/TEMT depend on the ongoing transmission
+    SREG t2, 0(t1)
+    SIG_NEXT
+    j test_loop
+
 INIT_TEST_TABLE
 
 END_TESTS
@@ -241,7 +248,7 @@ WORD UART_LSR, 0x61, read08_test      # FIFO contains data, no overrun error
 WORD UART_THR, 0x10, write08_test     # Write 16 to transmit register: the FIFO is full, so it overruns
 WORD UART_THR, 0x11, write08_test     # Write 17 to transmit register: overruns too
 WORD 0x0, 0x06, uart_lsr_intr_wait    # Wait for LSR interrupt ID
-WORD UART_LSR, 0x23, read08_test      # Read overrun error from LSR (an overrun is not an error in the FIFO, so LSR[7] stays clear)
+WORD UART_LSR, 0x03, read_uart_rx_status # Overrun and data ready, with no FIFO error; TX is still active
 
 WORD 0x0, 0x0, terminate_test
 
@@ -327,6 +334,6 @@ WORD 0x0000C401 // 69
 WORD 0x0000C401 // 70
 WORD 0x00000061 // 71: FIFO has data, no overrun
 WORD 0x00000006 // 72: wait for interrupt
-WORD 0x00000023 // 73: FIFO overrun error
+WORD 0x00000003 // 73: FIFO overrun error, independent of TX status
 WORD 0x0000000B // 74: ecall from test termination
 expected_signature_end:

@@ -296,7 +296,7 @@ trig_loop:
     CHK UART_LSR                    // 78: 0xE5, PE
     CHK UART_IIR                    // 79: 0xC1, cleared by the LSR read
     CHK UART_RBR                    // 80: 0x01
-    CHKM UART_LSR, 0x7F             // 81: 0x61, C at the top has no error (this read may still show LSR[7])
+    CHK UART_LSR                    // 81: 0x61, B's acknowledged error must not leave LSR[7] set
     CHK UART_LSR                    // 82: 0x61, no error left in the FIFO
     CHK UART_RBR                    // 83: 0x73
     CHK UART_LSR                    // 84: 0x60

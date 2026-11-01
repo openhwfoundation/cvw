@@ -106,6 +106,8 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   logic                         txnextbit, txhrfull, txsrfull;
   logic                         txparity, txparitydata;
   logic                         txfifoempty, txfifofull, txfifodmaready, txfifoclear;
+  logic [4:0]                   txfifoentries;
+  logic                         txfifohadtwo, txthredelay, txload;
 
   // control signals
   logic                         fifoenabled, fifodmamodesel, evenparitysel, stickparity;
@@ -178,7 +180,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
         LSR[4:2] <= (LSR[4:2] & ~{3{lsrread}}) | rxnewerr;        // break, framing, parity errors
         LSR[5]   <= THRE; // THRE
         LSR[6]   <= ~txsrfull & THRE; // TEMT
-        LSR[7]   <= rxfifohaserr | (LSR[7] & ~lsrread); // error in FIFO; cleared by an LSR read once no queued character has an error
+        LSR[7]   <= fifoenabled & (rxfifohaserr | (rxpush & |rxerr) | (LSR[7] & ~lsrread)); // retain unacknowledged FIFO errors
       end
 
       // Modem Status Register (8.9).  A read clears the deltas it returned, but not a change seen in the same cycle.
@@ -200,7 +202,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
         UART_IIR: Dout = {{2{fifoenabled}}, 2'b00, intrID[2:0], ~intrpending}; // Read only Interrupt Ident Register
         UART_LCR: Dout = LCR;
         UART_MCR: Dout = {3'b000, MCR};
-        UART_LSR: Dout = {LSR[7:1], rxdataready};
+        UART_LSR: Dout = {LSR[7] & fifoenabled, LSR[6:1], rxdataready}; // LSR7 is always zero in 16450 mode
         UART_MSR: Dout = {~DCDbsync, ~RIbsync, ~DSRbsync, ~CTSbsync, MSR[3:0]};
         UART_SCR: Dout = SCR;
       endcase
@@ -327,6 +329,9 @@ module uartPC16550D #(parameter UART_PRESCALE) (
     if (~PRESETn) begin
       rxfifohead <= '0; rxfifotail <= '0; rxbrfull <= 1'b0; RXBR <= '0;
     end else begin
+      // Reading LSR acknowledges only the current character's errors, not errors still queued behind it.
+      // A simultaneous arrival into the same slot takes priority over this clear.
+      if (lsrread & fifoenabled & ~rxfifoempty) rxfifo[rxfifotail[3:0]][10:8] <= '0;
       if (rxpush) rxfifo[rxfifowaddr] <= {rxerr, rxdata};
       if (rxfifoclear) begin
         rxfifohead <= {4'b0, rxpush};
@@ -362,7 +367,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   // detect any errors in rx fifo: slot i holds a character when it lies within rxfifoentries slots above the tail (mod 16)
   genvar i;
   for (i = 0; i < 16; i++) begin : rx
-    assign RXerrbit[i]  = |rxfifo[i][10:8]; // parity error, framing error, or break (PC16550D LSR7)
+    assign RXerrbit[i]  = |rxfifo[i][10:8] & ~(lsrread & (rxfifotail[3:0] == 4'(i))); // exclude the error acknowledged by this LSR read
     assign rxfullbit[i] = {1'b0, 4'(i) - rxfifotail[3:0]} < rxfifoentries;
   end
   assign rxfifohaserr   = |(RXerrbit & rxfullbit);
@@ -441,6 +446,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
 
   // registers & FIFO
   assign txfifoclear = fcrwrite & (Din[0] ? (Din[2] | ~FCR[0]) : FCR[0]); // FCR[2] or a FIFO mode change (8.5)
+  assign txload = (txstate == UART_IDLE) & (fifoenabled ? (~txfifoempty & ~txsrfull) : txhrfull);
 
   always_ff @(posedge PCLK)
     if (~PRESETn) begin
@@ -448,7 +454,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
       txframebits <= '0; txhalfstop <= 1'b0;
     end else begin
       if (txstate == UART_IDLE) begin // move data into tx shift register if available
-        if (fifoenabled ? (~txfifoempty & ~txsrfull) : txhrfull) begin
+        if (txload) begin
           txsr        <= txdata;
           txsrfull    <= 1'b1;
           txframebits <= txbitsexpected;
@@ -478,6 +484,26 @@ module uartPC16550D #(parameter UART_PRESCALE) (
 
   assign txfifoempty = (txfifohead == txfifotail);
   assign txfifofull  = (txfifohead == {~txfifotail[4], txfifotail[3:0]});
+  assign txfifoentries = txfifohead - txfifotail;
+
+  // PC16550D 8.11: after a single-byte refill, delay the FIFO-empty indication by one character
+  // minus its last stop bit.  The frame already latched in the shifter supplies that timing: release
+  // THRE as its last stop bit begins.  If two bytes were queued together, no delay is required.
+  // Reset/mode changes leave the initial empty indication immediate; 16450 mode has no FIFO delay.
+  always_ff @(posedge PCLK)
+    if (~PRESETn) begin
+      txfifohadtwo <= 1'b0;
+      txthredelay <= 1'b0;
+    end else if (txfifoclear | ~fifoenabled) begin
+      txfifohadtwo <= 1'b0;
+      txthredelay <= 1'b0;
+    end else begin
+      if (txfifoempty) txfifohadtwo <= 1'b0;
+      else if (txfifoentries >= 5'd2) txfifohadtwo <= 1'b1;
+      if (txload) txthredelay <= (txfifoentries == 5'd1) & ~txfifohadtwo;
+      else if ((txstate == UART_ACTIVE) & txnextbit & (txbitssent == txframebits - 4'd1))
+        txthredelay <= 1'b0;
+    end
 
   // transmit buffer ready bit
   always_ff @(posedge PCLK) // track txrdy for DMA mode (FCR3 = FCR0 = 1)
@@ -487,7 +513,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
 
   always_comb
     if (fifoenabled & fifodmamodesel) TXRDYb = ~txfifodmaready;
-    else TXRDYb = ~THRE;
+    else TXRDYb = fifoenabled ? ~txfifoempty : txhrfull; // DMA mode 0 follows buffer occupancy, without the interrupt delay
 
   // Transmitter pin
   assign SOUTbit = txsr[11]; // transmit most significant bit
@@ -499,7 +525,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
 
   assign RXerrIP = |LSR[4:1]; // LS interrupt if any of the flags are true; cleared by reading LSR
   assign rxdataavailintr = fifoenabled ? rxfifotriggered : rxdataready;
-  assign THRE = fifoenabled ? txfifoempty : ~txhrfull;
+  assign THRE = fifoenabled ? (txfifoempty & ~txthredelay) : ~txhrfull;
   assign THRE_IP = THRE & ~squashTHRE_IP; // THRE_IP squashed upon reading IIR
   assign modemstatusintr = |MSR[3:0]; // set interrupt when modem pins change
 
