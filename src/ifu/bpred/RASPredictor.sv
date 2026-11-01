@@ -24,6 +24,8 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P) (
   input  logic              BPReturnD,      // the instruction in D popped the RAS when it was fetched
   input  logic              ReturnD,
   input  logic              ReturnE, CallE, // Instr class
+  input  logic              BPCallD,        // the instruction in D was predicted to be a call
+  input  logic [P.XLEN-1:0] PCLinkD,        // PC of the instruction after the one in D
   input  logic              BPReturnF,
   input  logic [P.XLEN-1:0] PCLinkE,        // PC of instruction after a call
   output logic [P.XLEN-1:0] RASPCF          // Top of the stack
@@ -96,9 +98,10 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P) (
     end
   end
 
-  // A call in E has not pushed yet.  A return fetched right behind it, as in a one-instruction function, returns
-  // to the call's link address.  (When the instruction in D was predicted to be a return, it is the one
-  // returning to the call, and the return in F would need the entry below.)
-  assign RASPCF = CallE & ~BPReturnD ? PCLinkE : memory[Ptr];
+  // A call pushes in E, so a return fetched right behind it reads its link address from the call:
+  // from D when the function is just a return, from E when it is one instruction and a return.
+  // (When the instruction in D was predicted to be a return, it is the one returning to the call in E,
+  // and the return in F would need the entry below.)
+  assign RASPCF = BPCallD ? PCLinkD : CallE & ~BPReturnD ? PCLinkE : memory[Ptr];
 
 endmodule
