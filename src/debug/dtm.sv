@@ -197,7 +197,7 @@ module dtm import cvw::*; #(parameter cvw_t P) (
         BUSY: begin
           DMIVALID <= 1'b0;
           if (DMIRSPVALID) begin
-            DMIOP <= 2'b11;
+            DMIOP <= NOP;
             if (DMIOP == 2'b01) begin
               DMINextReg[33:2] <= DMIRSPDATA;
             end else begin
