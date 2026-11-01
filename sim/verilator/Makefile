@@ -17,10 +17,10 @@ BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARG
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
 
-# Speed-optimized model for long runs.  wsim sets FAST_BUILD=1 for Linux boots (the buildroot test)
-# unless given --no-fastbuild.  Verilator compiles the generated C++ with -Os by default; -O3 makes the
+# Speed-optimized model for long runs.  wsim sets SPEED_OPT=1 for Linux boots (the buildroot test)
+# unless given --no-speedopt.  Verilator compiles the generated C++ with -Os by default; -O3 makes the
 # buildroot model about 10% faster, at a similar build time.  Multithreading (--threads) made it slower.
-ifeq ($(FAST_BUILD),1)
+ifeq ($(SPEED_OPT),1)
     VERILATOR_FLAGS += -O3 --MAKEFLAGS OPT_FAST=-O3 --MAKEFLAGS OPT_SLOW=-O1 --MAKEFLAGS OPT_GLOBAL=-O3
 endif
 
