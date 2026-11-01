@@ -19,10 +19,11 @@ module synchronizer #(parameter WIDTH = 1) (
   input  logic [WIDTH-1:0] d,
   output logic [WIDTH-1:0] q);
 
-  logic [WIDTH-1:0] mid;
+  (* ASYNC_REG = "TRUE" *) logic [WIDTH-1:0] mid, sync; // keep both flops together on FPGAs
 
   always_ff @(posedge clk) begin
-    mid <= d;
-    q <= mid;
+    mid  <= d;
+    sync <= mid;
   end
+  assign q = sync;
 endmodule

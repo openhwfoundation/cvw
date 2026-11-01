@@ -250,16 +250,7 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
 
   // CDC synchronizer for DDR calib_complete signal
   logic ddr_ready;
-  (* ASYNC_REG = "TRUE" *) logic [1:0] ddr_ready_cpu_sync;
-
-  always_ff @(posedge CPUCLK or negedge south_resetn) begin
-    if (!south_resetn) begin
-        ddr_ready_cpu_sync <= 2'b00;
-    end else begin
-        ddr_ready_cpu_sync <= {ddr_ready_cpu_sync[0], c0_init_calib_complete};
-    end
-  end
-  assign ddr_ready = ddr_ready_cpu_sync[1];
+  synchronizer ddrreadysync(.clk(CPUCLK), .d(c0_init_calib_complete), .q(ddr_ready));
 
 
   // reset controller XILINX IP
