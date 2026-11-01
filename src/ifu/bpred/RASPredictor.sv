@@ -96,6 +96,9 @@ module RASPredictor import cvw::*;  #(parameter cvw_t P) (
     end
   end
 
-  assign RASPCF = memory[Ptr];
+  // A call in E has not pushed yet.  A return fetched right behind it, as in a one-instruction function, returns
+  // to the call's link address.  (When the instruction in D was predicted to be a return, it is the one
+  // returning to the call, and the return in F would need the entry below.)
+  assign RASPCF = CallE & ~BPReturnD ? PCLinkE : memory[Ptr];
 
 endmodule
