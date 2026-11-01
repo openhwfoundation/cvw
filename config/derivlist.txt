@@ -955,6 +955,16 @@ ZFH_SUPPORTED   0
 deriv fdh_rv64gc rv64gc
 ZFH_SUPPORTED   1
 
+# EXT_IO PMA window test (tests/coverage64gc/extIOWindow.S): 64 KiB of external
+# memory at 0x90000000 with a 4 KiB uncached I/O window at 0x90008000.
+deriv extio_rv64gc rv64gc
+EXT_MEM_SUPPORTED  1
+EXT_MEM_BASE       64'h90000000
+EXT_MEM_RANGE      64'h0000FFFF
+EXT_IO_SUPPORTED   1
+EXT_IO_BASE        64'h90008000
+EXT_IO_RANGE       64'h00000FFF
+
 deriv fdq_rv64gc rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0
