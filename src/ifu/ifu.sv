@@ -144,11 +144,12 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Spill Support
   /////////////////////////////////////////////////////////////////////////////////////////////
 
-  if (P.SPILL_SUPPORTED) begin : Spill
+  if (P.ZCA_SUPPORTED) begin : Spill
     logic [P.XLEN-1:0] PCSpillD, PCSpillE;
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
+      .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
       .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
       .IFUCacheBusStallF, .ITLBMissOrUpdateRawF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
       .PostSpillInstrRawF, .CompressedF);
@@ -166,8 +167,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign PCSpillNextF = PCNextF;
     assign PCSpillF = PCF;
     assign PostSpillInstrRawF = InstrRawF;
-    assign SelSpillNextF = 1'b0;
-    assign CompressedF = P.ZCA_SUPPORTED & (InstrRawF[1:0] != 2'b11);
+    assign {SelSpillNextF, CompressedF} = '0;
     assign PCSpillM = PCM;
     assign InstrPageFaultF = InstrPageFaultRawF;
     assign InstrAccessFaultF = InstrAccessFaultRawF;
