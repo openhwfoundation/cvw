@@ -87,6 +87,8 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   logic        DMIReset;
   logic        Sticky;
 
+  logic [1:0]  DMIStatus;
+
   typedef enum logic [1:0] {
     NOP = 2'b00,
     RD  = 2'b01,
@@ -156,7 +158,7 @@ module dtm import cvw::*; #(parameter cvw_t P) (
     end
   end
 
-  assign DTMCSNext = {11'b0, 3'd4, DTMHardReset, DMIReset, 1'b0, 3'd0, DMINextReg[1:0], P.DTM_ABITS, 4'b1};
+  assign DTMCSNext = {11'b0, 3'd4, DTMHardReset, DMIReset, 1'b0, 3'd0, DMIStatus, P.DTM_ABITS, 4'b1};
 
   // Sticky error
   always_ff @(posedge clk) begin
@@ -195,7 +197,7 @@ module dtm import cvw::*; #(parameter cvw_t P) (
         BUSY: begin
           DMIVALID <= 1'b0;
           if (DMIRSPVALID) begin
-            DMIOP <= NOP;
+            DMIOP <= 2'b11;
             if (DMIOP == 2'b01) begin
               DMINextReg[33:2] <= DMIRSPDATA;
             end else begin
@@ -213,6 +215,8 @@ module dtm import cvw::*; #(parameter cvw_t P) (
     end
   end
 
-  assign DMINext = {DMIADDR, DMINextReg[33:2], Sticky ? 2'b11 : DMINextReg[1:0]};
+  assign DMIStatus = Sticky ? 2'b11 : DMINextReg[1:0];
+
+  assign DMINext = {DMIADDR, DMINextReg[33:2], DMIStatus};
 
 endmodule

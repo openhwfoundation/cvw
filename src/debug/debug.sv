@@ -366,10 +366,9 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // DMControl: don't store the W1 bits (30 resumereq, 28 ackhavereset)
   assign ResumeReqWrite = WriteRequest & (DMIADDR == DMCONTROL) & DMIDATA[30] & ~DMIDATA[31];
 
-  // TODO: This is wrong. Resume Request is a W1 field, meaning only a
-  // write of 1 should have any effect. This means that this should be
-  // cleared when the HART is running not upon DMControl[30] being
-  // given a 0.
+  // Resume Request is a W1 field. Writing a 1 will initiate a new
+  // resume request. Optionally, the Resume Request field
+  // (DMControl[30]) can be read back as 0.
   always_comb begin
     case(CurrResumeReq)
       RESUMEREQIDLE: begin
