@@ -31,7 +31,6 @@
 module uncore import cvw::*;  #(parameter cvw_t P)(
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
   input  logic [P.PA_BITS-1:0] HADDR,
   input  logic [P.AHBW-1:0]    HWDATA,
   input  logic [P.XLEN/8-1:0]  HWSTRB,
