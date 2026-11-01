@@ -70,7 +70,7 @@ module clint_apb import cvw::*; #(parameter cvw_t P) (
         MSIP <= 1'b0;
         MTIMECMP <= 64'hFFFFFFFFFFFFFFFF; // Spec says MTIMECMP is not reset, but we reset to maximum value to prevent spurious timer interrupts
       end else if (memwrite) begin
-        if (entry == CLINT_MSIP) MSIP <= PWDATA[0];
+        if ((entry == CLINT_MSIP) & PSTRB[0]) MSIP <= PWDATA[0]; // only a write of byte 0 changes MSIP
         if (entry == CLINT_MTIMECMP) begin
           for (i = 0; i < P.XLEN/8; i++)
             if (PSTRB[i])
@@ -106,7 +106,7 @@ module clint_apb import cvw::*; #(parameter cvw_t P) (
         MSIP <= 1'b0;
         MTIMECMP <= 64'hFFFFFFFFFFFFFFFF; // Spec says MTIMECMP is not reset, but we reset to maximum value to prevent spurious timer interrupts
       end else if (memwrite) begin
-        if (entry == 16'h0000) MSIP <= PWDATA[0];
+        if ((entry == 16'h0000) & PSTRB[0]) MSIP <= PWDATA[0]; // only a write of byte 0 changes MSIP
         if (entry == 16'h4000)
           for (j = 0; j < P.XLEN/8; j++)
             if (PSTRB[j])
