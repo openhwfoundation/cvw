@@ -74,7 +74,7 @@ module data_reg import cvw::*; #(parameter cvw_t P) (
   // the bypass register captures 0; when ShiftDR=1 it shifts TDI to TDO.
   always_ff @(posedge tck, negedge resetn) begin
     if (~resetn) tdo_bypass <= 0;
-    else if (ClockDR & currentInst == BYPASS) tdo_bypass <= tdi & ShiftDR;
+    else if (ClockDR) tdo_bypass <= tdi & ShiftDR;
   end
 
   // Mux data register output based on current instruction
@@ -83,7 +83,7 @@ module data_reg import cvw::*; #(parameter cvw_t P) (
       IDCODE  : tdo = tdo_idcode;
       DTMCS   : tdo = tdo_dtmcs;
       DMIREG  : tdo = tdo_dmi;
-      BYPASS  : tdo = tdo_bypass; // OpenOCD bug: doesn't change to IDCODE before trying to read the IDCODE, then crashes.
+      BYPASS  : tdo = tdo_bypass;
       default : tdo = tdo_bypass; // Bypass instruction 11111 and 00000
     endcase
   end
