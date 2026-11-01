@@ -162,7 +162,7 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   always_ff @(posedge clk) begin
     if (reset | ~resetn | DMIReset == 1 | DTMHardReset == 1) begin
       Sticky <= 0;
-    end else if ((DMIState == BUSY) & (UpdateDMI)) begin
+    end else if ((DMIState == BUSY) & (UpdateDMI) & (dmi[1:0] != NOP)) begin
       Sticky <= 1;
     end
   end
