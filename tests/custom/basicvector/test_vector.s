@@ -18,4 +18,6 @@ testvector:
         vadd.vv v8, v0, v8
         sll t1, t2, t3
         or  t1, t2, t3
+        vand.vv v12, v8, v16
+        vand.vv v4, v0, v12
         ret

@@ -29,10 +29,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.VPU_INT_BLEN-1:0] SrcA, SrcB,    // lane operands
-  output logic [P.VPU_INT_BLEN-1:0] LaneResult     // lane result
+  input  logic [P.ELEN-1:0] SrcA, SrcB,    // lane operands
+  input  logic [5:0] Funct6E,
+  input  logic [2:0] Funct3E,
+  output logic [P.ELEN-1:0] LaneResult     // lane result
 );
 
-  valu #(P) valu(.A(SrcA), .B(SrcB), .Sum(LaneResult));
+  valu #(P) valu(.A(SrcA), .B(SrcB), .Funct6E(Funct6E), .Funct3E(Funct3E), .Sum(LaneResult));
 
 endmodule
