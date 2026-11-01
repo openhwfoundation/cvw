@@ -283,6 +283,9 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign CacheableM = 1'b1;
     assign SelDTIM = P.DTIM_SUPPORTED & ~P.BUS_SUPPORTED; // if no PMA then select dtim if there is a DTIM.  If there is
     // a bus then this is always 0. Cannot have both without PMA.
+    // Without the PMA every access is cacheable and executable, so an EXT_IO window would be silently ignored
+    if (P.EXT_IO_SUPPORTED)
+      $fatal(1, "EXT_IO_SUPPORTED requires ZICSR_SUPPORTED: the EXT_IO window is implemented by the PMA checker");
   end
 
   /////////////////////////////////////////////////////////////////////////////////////////////

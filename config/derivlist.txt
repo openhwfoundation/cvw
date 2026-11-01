@@ -971,6 +971,15 @@ deriv extio_badwindow_rv64gc extio_rv64gc
 EXT_IO_BASE        64'h90008008
 EXT_IO_RANGE       64'h00000007
 
+# Invalid: an EXT_IO window without Zicsr, which has no PMA checker to implement it.
+deriv extio_nozicsr_rv32e rv32e
+EXT_MEM_SUPPORTED  1
+EXT_MEM_BASE       64'h90000000
+EXT_MEM_RANGE      64'h0000FFFF
+EXT_IO_SUPPORTED   1
+EXT_IO_BASE        64'h90008000
+EXT_IO_RANGE       64'h00000FFF
+
 deriv fdq_rv64gc rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   0

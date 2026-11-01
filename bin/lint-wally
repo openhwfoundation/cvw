@@ -27,6 +27,7 @@ NC = "\033[0m"  # No Color
 # Configurations that elaboration must reject, with the message it must give.
 EXPECTED_FAILURES = {
     "extio_badwindow_rv64gc": "EXT_IO window must be at least one cache line long",
+    "extio_nozicsr_rv32e": "EXT_IO_SUPPORTED requires ZICSR_SUPPORTED",
 }
 
 
