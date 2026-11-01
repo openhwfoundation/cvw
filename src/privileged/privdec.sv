@@ -1,37 +1,25 @@
 ///////////////////////////////////////////
 // privdec.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Jinghe Yu, Domenico Ottolia, Katherine Parry
 //
-// Purpose: Decode Privileged & related instructions
-//          See RISC-V Privileged Mode Specification 20190608 3.1.10-11
+// Purpose: Privileged instruction decoder.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module privdec import cvw::*;  #(parameter cvw_t P) (
+module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         clk, reset,
   input  logic         StallM,                              // Memory stage stalled: the wfi stays in M
-  input  logic [31:7 ] InstrM,                              // privileged instruction function field
+  input  logic [31:7]  InstrM,                              // privileged instruction function field
   input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
   input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
@@ -86,7 +74,7 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // all of sinval.vma, sfence.w.inval, sfence.inval.ir are treated as sfence.vma
   assign sfencevmaM = PrivilegedM & P.VIRTMEM_SUPPORTED &
                       ((PrivilegeModeW == P.M_MODE & (vmaM | fenceinvalM)) |
-                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM  | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
+                       (PrivilegeModeW == P.S_MODE & (vmaM & ~STATUS_TVM | fenceinvalM))); // sfence.w.inval & sfence.inval.ir not affected by TVM
   // rs2 (InstrM[24:20]) = x0 means flush all ASIDs including global mappings; rs2 != x0 is ASID-specific
   // and must preserve global (G=1) entries (RISC-V Privileged spec sfence.vma semantics).
   assign sfencevmaAllM = sfencevmaM & ~|InstrM[24:20];
@@ -130,6 +118,6 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   // Fault on illegal instructions
   ///////////////////////////////////////////
 
-  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM|mretM|ecallM|ebreakM|wfiM|sfencevmaM);
+  assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
   assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM | TWTimeoutM;
 endmodule

@@ -1,31 +1,21 @@
 ///////////////////////////////////////////
 // pwm_apb.sv
 //
-// Written: naichewa@gmail.com 4/29/2026
-// Modified:
+// Written:  Naiche Whyte-Aguayo 29 April 2026
+// Modified: David Harris
 //
-// Purpose: PWM module
+// Purpose: PWM on APB.
 //
 // Documentation:
 // Based on PWM design from SiFive FU540-C000 manual version 1.0
 // https://pdos.csail.mit.edu/6.828/2025/readings/FU540-C000-v1.0.pdf
+//
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2026 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pwm_apb import cvw::*; #(parameter cvw_t P) (
@@ -52,23 +42,23 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   localparam PWM_CMP3       = 8'h2C;
 
   // PWM control registers
-  logic [16:0] PWMConfig; // scale, sticky, zerocmp, deglitch, enalways, enoneshot, center, gang (pending bits live in PWMCompareIP)
+  logic [16:0]             PWMConfig; // scale, sticky, zerocmp, deglitch, enalways, enoneshot, center, gang (pending bits live in PWMCompareIP)
   logic [P.PWM_WIDTH+14:0] PWMCount;
-  logic [P.PWM_WIDTH-1:0] PWMScaled;
-  logic [P.PWM_WIDTH-1:0] PWMCompare0;
-  logic [P.PWM_WIDTH-1:0] PWMCompare1;
-  logic [P.PWM_WIDTH-1:0] PWMCompare2;
-  logic [P.PWM_WIDTH-1:0] PWMCompare3;
+  logic [P.PWM_WIDTH-1:0]  PWMScaled;
+  logic [P.PWM_WIDTH-1:0]  PWMCompare0;
+  logic [P.PWM_WIDTH-1:0]  PWMCompare1;
+  logic [P.PWM_WIDTH-1:0]  PWMCompare2;
+  logic [P.PWM_WIDTH-1:0]  PWMCompare3;
 
   // Bus interface signals
   logic [7:0]  Entry;
   logic        Memwrite;
-  logic [31:0] Din,  Dout;
+  logic [31:0] Din, Dout;
 
   // PWMConfig signals
   logic [3:0] PWMScale;
-  logic PWMSticky, PWMZeroCompare, PWMDeglitch;
-  logic PWMEnAlways, PWMEnOneShot;
+  logic       PWMSticky, PWMZeroCompare, PWMDeglitch;
+  logic       PWMEnAlways, PWMEnOneShot;
   logic [3:0] PWMCompareCenter;
   logic [3:0] PWMCompareGang;
   logic [3:0] PWMCompareIP; // pwmcmpXip: set by the comparators, read and written through pwmcfg[31:28]
@@ -81,20 +71,20 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   logic PWMCycleEnd;
 
   // Deglitch circuit signals
-  logic PWMHoldIn;
-  logic PWMHoldOut;
+  logic       PWMHoldIn;
+  logic       PWMHoldOut;
   logic [3:0] PWMDeglitchMux;
 
   // Combinational signal logic
   logic [P.PWM_WIDTH+14:0] PWMPrescale;
   logic [P.PWM_WIDTH+14:0] ScaleMask;
-  logic [3:0] PWMComparator;
-  logic [3:0] PWMDeglitchMuxSelect;
-  logic PWMCountReset;
-  logic [P.PWM_WIDTH-1:0] PWMCompareXNOR0;
-  logic [P.PWM_WIDTH-1:0] PWMCompareXNOR1;
-  logic [P.PWM_WIDTH-1:0] PWMCompareXNOR2;
-  logic [P.PWM_WIDTH-1:0] PWMCompareXNOR3;
+  logic [3:0]              PWMComparator;
+  logic [3:0]              PWMDeglitchMuxSelect;
+  logic                    PWMCountReset;
+  logic [P.PWM_WIDTH-1:0]  PWMCompareXNOR0;
+  logic [P.PWM_WIDTH-1:0]  PWMCompareXNOR1;
+  logic [P.PWM_WIDTH-1:0]  PWMCompareXNOR2;
+  logic [P.PWM_WIDTH-1:0]  PWMCompareXNOR3;
 
   // Register signal logic
   assign PWMScale = PWMConfig[3:0];
@@ -118,25 +108,24 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   assign PWMCycleEnd = PWMCountEn & ((PWMComparator[0] & PWMZeroCompare) | Carryout);
   assign PWMCountReset = PWMCycleEnd;
 
-
   // Deglitch Circuit logic
   assign PWMHoldIn = (~PWMCycleEnd & PWMDeglitch) | PWMSticky;
   flop #(1) pwmholdreg(PCLK,
                        PWMHoldIn, PWMHoldOut);
 
   // Bus logic
-  assign Entry = {PADDR[7:2],2'b00};  //  32-bit word-aligned accesses
+  assign Entry = {PADDR[7:2], 2'b00};  // 32-bit word-aligned accesses
   assign Memwrite = PWRITE & PENABLE & PSEL;  // Only write in access phase
   assign PWMConfigWrite = Memwrite & (Entry == PWM_CFG);
   assign PREADY = 1'b1;
 
-  //Account for subword read/write circuitry
+  // Account for subword read/write circuitry
   assign Din = PWDATA[31:0];
-  if (P.XLEN == 64) assign PRDATA = {Dout,  Dout};
-  else              assign PRDATA =  Dout;
+  if (P.XLEN == 64) assign PRDATA = {Dout, Dout};
+  else              assign PRDATA = Dout;
 
   // Register access
-  always_ff@(posedge PCLK)
+  always_ff @(posedge PCLK)
     if (~PRESETn) begin
       PWMConfig <= 17'b0;
       PWMCompare0 <= {P.PWM_WIDTH{1'b1}};
@@ -146,7 +135,8 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
     end else begin // writes
       /* verilator lint_off CASEINCOMPLETE */
       if (Memwrite)
-        case(Entry) // flop to sample inputs
+        // pwmcfg fields: cmpXgang[27:24], cmpXcenter[19:16], enoneshot[13], enalways[12], deglitch[10], zerocmp[9], sticky[8], scale[3:0]
+        case (Entry) // register writes
           PWM_CFG:   PWMConfig <= {Din[27:24], Din[19:16], Din[13:12], Din[10:8], Din[3:0]};
           PWM_CMP0:  PWMCompare0 <= Din[P.PWM_WIDTH-1:0];
           PWM_CMP1:  PWMCompare1 <= Din[P.PWM_WIDTH-1:0];
@@ -155,7 +145,7 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
         endcase
       else if (PWMCycleEnd) PWMConfig[8] <= 1'b0; // pwmenoneshot clears itself at the end of the cycle
       /* verilator lint_on CASEINCOMPLETE */
-      case(Entry) // Flop to sample inputs
+      case (Entry) // flop read data
         PWM_CFG:   Dout <= {PWMCompareIP, PWMConfig[16:13], 4'b0, PWMConfig[12:9], 2'b0, PWMConfig[8:7], 1'b0, PWMConfig[6:4], 4'b0, PWMConfig[3:0]};
         PWM_COUNT: Dout <= {{(17-P.PWM_WIDTH){1'b0}}, PWMCount};
         PWM_S:     Dout <= {{(32-P.PWM_WIDTH){1'b0}}, PWMScaled[P.PWM_WIDTH-1:0]};
@@ -176,7 +166,7 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   assign PWMPrescale = PWMCount >> PWMScale;
   assign PWMScaled = PWMPrescale[P.PWM_WIDTH-1:0];
 
-  //PWM comparators
+  // PWM comparators
   assign PWMDeglitchMuxSelect[0] = PWMScaled[P.PWM_WIDTH-1] & PWMCompareCenter[0];
   assign PWMCompareXNOR0[P.PWM_WIDTH-1:0] = PWMDeglitchMuxSelect[0] ? ~PWMScaled : PWMScaled;
   assign PWMComparator[0] = PWMCompareXNOR0[P.PWM_WIDTH-1:0] >= PWMCompare0;

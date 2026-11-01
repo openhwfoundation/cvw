@@ -13,17 +13,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "config.vh"
@@ -530,7 +519,7 @@ module testbench;
   if (P.UNCORE_RAM_SUPPORTED)
     always @(posedge clk)
       if (ResetMem)  // program memory is sometimes reset (e.g. for CoreMark, which needs zeroed memory)
-        for (adrindex=0; adrindex<(P.UNCORE_RAM_RANGE>>1+(P.XLEN/32)); adrindex = adrindex+1)
+        for (adrindex=0; adrindex<((P.UNCORE_RAM_RANGE+1)>>(1+P.XLEN/32)); adrindex = adrindex+1)
           dut.uncoregen.uncore.ram.ram.memory.ram.RAM[adrindex] = '0;
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -946,9 +935,6 @@ module testbench;
     if (labFD != 0) $fclose(labFD);
   endtask
 
-`ifdef PMP_COVERAGE
-test_pmp_coverage #(P) pmp_inst(clk);
-`endif
   /* verilator lint_on WIDTHTRUNC */
   /* verilator lint_on WIDTHEXPAND */
 

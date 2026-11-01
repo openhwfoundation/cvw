@@ -1,14 +1,15 @@
 ///////////////////////////////////////////
 // binencoder.sv
 //
-// Written: rose@rosethompson.net November 14, 2022
+// Written:  Rose Thompson rose@rosethompson.net 14 November 2022
+// Modified:
 //
-// Purpose: one-hot to binary encoding.
+// Purpose: Encodes a one-hot input as a binary index.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
@@ -32,11 +33,11 @@ module binencoder #(parameter N = 8) (
 
   // behavioral description
   // this is coded as a priority encoder
-  // consider redesigning to take advanteage of one-hot nature of input
-  always_comb  begin
+  // consider redesigning to take advantage of one-hot nature of input
+  always_comb begin
     Y = '0;
-    for(index = 0; index < N; index++)
-      if(A[index] == 1'b1) Y = index[$clog2(N)-1:0];
+    for (index = 0; index < N; index++)
+      if (A[index] == 1'b1) Y = index[$clog2(N)-1:0];
   end
 
 endmodule

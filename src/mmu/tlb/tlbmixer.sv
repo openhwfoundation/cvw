@@ -1,33 +1,19 @@
 ///////////////////////////////////////////
 // tlbmixer.sv
 //
-// Written: David Harris and kmacsaigoren@hmc.edu 7 June 2021
-// Modified:
+// Written:  David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu 7 June 2021
+// Modified: Ayesha Anwaar
 //
-//
-// Purpose: Takes two page numbers and replaces segments of the first page
-//          number with segments from the second, based on the page type.
-//          NOTE: this DOES NOT include the 12 bit offset, which is the same no matter the translation mode or page type.
+// Purpose: Forms the physical address from the page number segments.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module tlbmixer import cvw::*;  #(parameter cvw_t P) (
@@ -45,7 +31,7 @@ module tlbmixer import cvw::*;  #(parameter cvw_t P) (
   logic [P.PPN_BITS-1:0] PageNumberMask;
   logic [P.PPN_BITS-1:0] PPNMixed, PPNMixed2;
 
-  // produce PageNumberMask with 1s where virtual page number bits should be untranslaetd for superpages
+  // produce PageNumberMask with 1s where virtual page number bits should be untranslated for superpages
   if (P.XLEN == 32)
     // kilopage: 22 bits of PPN, 0 bits of VPN
     // megapage: 12 bits of PPN, 10 bits of VPN
@@ -57,7 +43,7 @@ module tlbmixer import cvw::*;  #(parameter cvw_t P) (
       // gigapage: 26 bits of PPN, 18 bits of VPN
       // megapage: 35 bits of PPN, 9 bits of VPN
       // kilopage: 44 bits of PPN, 0 bits of VPN
-      mux5 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF,44'h00FFFFFFFFF, HitPageType, PageNumberMask);
+      mux5 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF, 44'h00FFFFFFFFF, HitPageType, PageNumberMask);
     else if (P.SV48_SUPPORTED)
       // terapage: 17 bits of PPN, 27 bits of VPN
       // gigapage: 26 bits of PPN, 18 bits of VPN
@@ -78,7 +64,7 @@ module tlbmixer import cvw::*;  #(parameter cvw_t P) (
 
   assign PPNMixed = PPN | ZeroExtendedVPN & PageNumberMask; // low bits of PPN are already zero
 
-  // In Svnapot, when N=1, use bottom bits of VPN for contiugous translations
+  // In Svnapot, when N=1, use bottom bits of VPN for contiguous translations
   if (P.SVNAPOT_SUPPORTED) begin
     // 64 KiB contiguous NAPOT translations supported
     logic [3:0] PPNMixedBot;

@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // fdivsqrtcycles.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu, amaiuolo@hmc.edu
-// Modified: 18 April 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu, Alessandro Maiuolo amaiuolo@hmc.edu 18 April 2023
+// Modified: Kevin Kim
 //
-// Purpose: Determine number of cycles for divsqrt
+// Purpose: Cycle count for divide and square root.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtcycles import cvw::*;  #(parameter cvw_t P) (
@@ -50,7 +39,7 @@ module fdivsqrtcycles import cvw::*;  #(parameter cvw_t P) (
     if (P.IDIV_ON_FPU) ResultBitsE = IntDivE ? IntResultBitsE : FPResultBitsE;
     else               ResultBitsE = FPResultBitsE;
 
-    CyclesE = (ResultBitsE-1)/(P.RK) + 1; // ceil (ResultBitsE/rk)
+    CyclesE = (ResultBitsE - 1)/(P.RK) + 1; // ceil (ResultBitsE/rk)
   end
   /* verilator lint_on WIDTH */
 

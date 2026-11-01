@@ -1,39 +1,25 @@
 ///////////////////////////////////////////
 // ebufsmarb.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 23 January 2023
-// Modified: 23 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 23 January 2023
+// Modified: David Harris
 //
-// Purpose: Arbitrates requests from instruction and data streams
-//          LSU has priority.
+// Purpose: Arbitrates the AHB bus between the IFU and LSU, LSU first.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ebufsmarb (
   input  logic       HCLK,
   input  logic       HRESETn,
-  input  logic [2:0] HBURST,
- //  AHB burst length
+  input  logic [2:0] HBURST,     // AHB burst length
 
   input  logic       HREADY,
 
@@ -51,7 +37,7 @@ module ebufsmarb (
   statetype          CurrState, NextState;
 
   logic              both;                       // Both the LSU and IFU request at the same time
-  logic              IFUReqDelay;                    // 1 cycle delayed IFU request. Part of arbitration
+  logic              IFUReqDelay;                // 1 cycle delayed IFU request. Part of arbitration
   logic              FinalBeat, FinalBeatD;      // Indicates the last beat of a burst
   logic              BeatCntEn;
   logic [3:0]        BeatCount;                  // Position within a burst transfer
@@ -89,9 +75,8 @@ module ebufsmarb (
   // This is necessary because the pipeline is stalled for the entire duration of both transactions,
   // and the LSU memory request will still be active.
   flopr #(1) ifureqreg(HCLK, ~HRESETn, IFUReq, IFUReqDelay);
-  //assign LSUDisable = (CurrState != ARBITRATE) & (IFUReqDelay & ~(HREADY & FinalBeatD));
   assign LSUDisable = (CurrState != ARBITRATE) & IFUReqDelay;
-  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1: LSUReq;
+  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq;
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // Burst mode logic

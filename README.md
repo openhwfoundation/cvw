@@ -2,15 +2,43 @@
 
 # core-v-wally
 
-Wally is a 5-stage pipelined processor configurable to support all the standard RISC-V options, including RV32/64, A, B, C, D, F, M, Q, and Zk* extensions, virtual memory, PMP, and the various privileged modes and CSRs. It provides optional caches, branch prediction, and standard RISC-V peripherals (CLINT, PLIC, UART, GPIO).   Wally is written in SystemVerilog.  It passes the [RISC-V Arch Tests](https://github.com/riscv-non-isa/riscv-arch-test) and boots Linux on an FPGA.  Configurations range from a minimal RV32E core to a fully featured RV64GC application processor with all of the RVA22S64 profile extensions. Wally is part of the OpenHWGroup family of robust open RISC-V cores.
+Wally is a 5-stage pipelined processor configurable to support up through the RVA22 profile, including virtual memory, PMP, and the various privileged modes and CSRs. The rv64gc configuration supports:
+
+- RV64IMAFDCB with M, S, and U modes
+- Zicsr, Zifencei, Zicntr, Zihpm, Zicond, and Zicclsm
+- Zbc
+- Zkn scalar crypto (Zbkb, Zbkc, Zbkx, Zknd, Zkne, and Zknh)
+- Zcb
+- Zfh and Zfa
+- Zicbom, Zicboz, and Zicbop
+- Sstc
+- Sv39, Sv48, and Sv57 virtual memory with Svpbmt, Svnapot, Svinval, and Svadu
+- 16 PMP entries
+
+Other configurations range down to a minimal RV32E core, and derivative configurations add the Q extension. Wally provides optional caches, branch prediction, and standard RISC-V peripherals (CLINT, PLIC, UART, GPIO).   Wally is written in SystemVerilog.  It passes the [RISC-V Arch Tests](https://github.com/riscv/riscv-arch-test) and boots Linux on an FPGA.  Wally is part of the OpenHW Foundation family of robust open RISC-V cores.
 
 ![Wally block diagram](wallyriscvTopAll.png)
 
-Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages.hmc.edu/harris/ddca/rvsocd.html), by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.  A system administrator must install CAD tools using the directions further down.
+Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages.hmc.edu/harris/ddca/rvsocd.html), by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.
+
+# Configurations
+
+Wally default configurations are listed below.  Synthesis results from TSMC 28HPC+ TT conditions (0.9 V, 25 °C), Design Compiler, no layout.  Embench results are without F and D.
+
+| Config  | Features        | CoreMark/MHz | Embench Speed | Clock Frequency (MHz) | Area (mm^2) |
+| ------- | --------------- | -----------: | ------------: | --------------------: | ----------: |
+| rv32e   | Tiny Embedded   |         0.35 |          0.16 |                  2840 |      0.0062 |
+| rv32i   | RVI20U32        |         1.04 |          0.49 |                  2800 |      0.0083 |
+| rv32imc | Microcontroller |         2.79 |          0.92 |                  2050 |       0.029 |
+| rv32gc  | Like rv64gc     |         4.33 |          1.23 |                  1000 |        0.42 |
+| rv64i   | RVI20U64        |         0.88 |          0.53 |                  2600 |       0.015 |
+| rv64gc  | RVA22S64        |         3.86 |          1.38 |                   840 |        0.48 |
+
+CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, and rv64i using the AHB bus in place of the IROM and DTIM.  The rv32gc and rv64gc areas include 0.31 mm^2 of SRAM macros (43.5 KB, including I$ and D$ data and tags, BTB, and PHT).  rv32gc uses the same macros, though its narrower tags and BTB entries need only 38 KB.
 
 # Verification
 
-Wally is presently at Technology Readiness Level 4, passing the RISC-V compatibility test suite and custom tests, and booting Linux in simulation and on an FPGA.  See the [Test Plan](docs/testplans/testplan.md) for details.
+Wally is presently at Technology Readiness Level 4, passing the [RISC-V architectural certification tests](https://github.com/riscv/riscv-arch-test) and custom tests, and booting Linux in simulation and on an FPGA.  The rv32imc, rv32gc, and rv64gc configurations achieve 100% code and functional coverage.  See the [Test Plan](docs/testplans/testplan.md) for details.
 
 # New User Setup
 
@@ -43,7 +71,7 @@ Then fork and clone the repo, source setup, make the tests and run regression
   ```
 
 > [!NOTE]
-> If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration-sys-admin), then come back here.
+> If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration), then come back here.
 
 7. Run the setup script to update your `PATH` and activate the python virtual environment.
 
@@ -78,16 +106,15 @@ Then fork and clone the repo, source setup, make the tests and run regression
   $ regression-wally
   ```
 
-# Toolchain Installation and Configuration (Sys Admin)
+# Toolchain Installation and Configuration
 
-> This section describes the open source toolchain installation.
+This section describes the open source toolchain installation.
 
 ### Compatibility
-The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS), Debian (versions 12 and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), and SUSE versions 15.6 and 16.0. Only the latest minor release of each major version is tested.
+The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS), Debian (versions 12 and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), SUSE versions 15.6 and 16.0 and Fedora (version 44). Only the latest minor release of each major version is tested.
 
 > [!WARNING]
-> - Ubuntu 22.04LTS is incompatible with Synopsys Design Compiler.
-> - Verilator currently fails to simulate correctly on Ubuntu 20.04 LTS and Red Hat/Rocky/AlmaLinux 8.
+> - Ubuntu 22.04 LTS is incompatible with Synopsys Design Compiler.
 > - Whisper is not installed on Ubuntu 20.04 LTS due to issues compiling the boost libraries.
 
 ### Overview

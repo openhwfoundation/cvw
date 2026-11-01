@@ -10,7 +10,9 @@ TESTS = ${WALLY}/tests
 all: coveragetests deriv
 
 coveragetests:
-	$(MAKE) -C ${TESTS}/coverage
+	$(MAKE) -C ${TESTS}/coverage64gc
+	$(MAKE) -C ${TESTS}/coverage32gc
+	$(MAKE) -C ${TESTS}/coverage32imc
 
 deriv:
 	derivgen.pl
@@ -26,38 +28,30 @@ QuestaFunctCoverage:
 	vcover report questa/fcov_ucdb/fcov.ucdb -details -cvg -below 100 > questa/fcov/fcov.uncovered.log
 	grep -E "TOTAL COVERGROUP COVERAGE" questa/fcov/fcov.summary.log
 
-# Merge the per-test code coverage databases written by wsim --ccov, apply the rv64gc exclusions to the merged
-# database, and write the reports.  The per-test databases carry no exclusions, so editing
-# coverage-exclusions-rv64gc.do needs only this target rerun, not the simulations.  The exclusion step fails if
-# any exclusion names a scope, line or row that does not exist, so stale exclusions do not go unnoticed.
+# Merge the per-test code coverage databases written by wsim --ccov for CONFIG (rv64gc, rv32gc or rv32imc), apply
+# that configuration's exclusions (questa/coverage-exclusions-$(CONFIG).do) to the merged database, and write the
+# reports (questa/cov/$(CONFIG)_*.rpt) and the HTML report (covhtmlreport/$(CONFIG)).  The per-test databases carry
+# no exclusions, so editing the exclusions needs only this target rerun, not the simulations.  The exclusion step
+# fails if any exclusion names a scope, line or row that does not exist, so stale exclusions do not go unnoticed.
+CONFIG ?= rv64gc
+COVUCDB = questa/cov/$(CONFIG)_cov.ucdb
+COVUNITS = ebu priv ifu lsu fpu ieu hzu
+
 QuestaCodeCoverage:
 	mkdir -p questa/cov
-	vcover merge -out questa/cov/merged.ucdb questa/ucdb/rv64gc*.ucdb -logfile questa/cov/log
-	vsim -c -viewcov questa/cov/merged.ucdb -l questa/cov/exclusions.log \
-	  -do "onerror {quit -code 1 -f}; do questa/coverage-exclusions-rv64gc.do; coverage save questa/ucdb/cov.ucdb; quit -f" > /dev/null
-	@if grep -E "vish-4014|no matching coverage data was found|\*\* Error" questa/cov/exclusions.log; then \
-	  echo "coverage-exclusions-rv64gc.do: an exclusion matched nothing (see questa/cov/exclusions.log)"; exit 1; fi
-#	vcover merge -out questa/ucdb/cov.ucdb questa/ucdb/rv64gc_arch64i.ucdb questa/ucdb/rv64gc*.ucdb questa/ucdb/buildroot_buildroot.ucdb riscv.ucdb -logfile questa/cov/log
-	vcover report -details questa/ucdb/cov.ucdb > questa/cov/rv64gc_coverage_details.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/ebu. > questa/cov/rv64gc_coverage_ebu.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/priv. > questa/cov/rv64gc_coverage_priv.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/ifu. > questa/cov/rv64gc_coverage_ifu.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/lsu. > questa/cov/rv64gc_coverage_lsu.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/fpu. > questa/cov/rv64gc_coverage_fpu.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/ieu. > questa/cov/rv64gc_coverage_ieu.rpt
-	vcover report questa/ucdb/cov.ucdb -details -instance=/core/hzu. > questa/cov/rv64gc_coverage_hzu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/ebu. > questa/cov/rv64gc_uncovered_ebu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/priv. > questa/cov/rv64gc_uncovered_priv.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/ifu. > questa/cov/rv64gc_uncovered_ifu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/lsu. > questa/cov/rv64gc_uncovered_lsu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/fpu. > questa/cov/rv64gc_uncovered_fpu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/ieu. > questa/cov/rv64gc_uncovered_ieu.rpt
-	vcover report questa/ucdb/cov.ucdb -below 100 -details -instance=/core/hzu. > questa/cov/rv64gc_uncovered_hzu.rpt
-	vcover report -hierarchical questa/ucdb/cov.ucdb > questa/cov/rv64gc_coverage_hierarchical.rpt
-	vcover report -below 100 -hierarchical questa/ucdb/cov.ucdb > questa/cov/rv64gc_uncovered_hierarchical.rpt
-#	vcover report -below 100 questa/ucdb/cov.ucdb > questa/cov/rv64gc_coverage.rpt
-#	vcover report -recursive questa/ucdb/cov.ucdb > questa/cov/rv64gc_recursive.rpt
-	vcover report -details -threshH 100 -html questa/ucdb/cov.ucdb
+	vcover merge -out questa/cov/$(CONFIG)_merged.ucdb questa/ucdb/$(CONFIG)_*.ucdb -logfile questa/cov/$(CONFIG)_merge.log
+	vsim -c -viewcov questa/cov/$(CONFIG)_merged.ucdb -l questa/cov/$(CONFIG)_exclusions.log \
+	  -do "onerror {quit -code 1 -f}; do questa/coverage-exclusions-$(CONFIG).do; coverage save $(COVUCDB); quit -f" > /dev/null
+	@if grep -E "vish-4014|no matching coverage data was found|\*\* Error" questa/cov/$(CONFIG)_exclusions.log; then \
+	  echo "coverage-exclusions-$(CONFIG).do: an exclusion matched nothing (see questa/cov/$(CONFIG)_exclusions.log)"; exit 1; fi
+	vcover report -details $(COVUCDB) > questa/cov/$(CONFIG)_coverage_details.rpt
+	for u in $(COVUNITS); do \
+	  vcover report $(COVUCDB) -details -instance=/core/$$u. > questa/cov/$(CONFIG)_coverage_$$u.rpt; \
+	  vcover report $(COVUCDB) -below 100 -details -instance=/core/$$u. > questa/cov/$(CONFIG)_uncovered_$$u.rpt; \
+	done
+	vcover report -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_coverage_hierarchical.rpt
+	vcover report -below 100 -hierarchical $(COVUCDB) > questa/cov/$(CONFIG)_uncovered_hierarchical.rpt
+	vcover report -details -threshH 100 -html -output covhtmlreport/$(CONFIG) $(COVUCDB)
 
 benchmarks:
 	$(MAKE) -C ${WALLY}benchmarks/embench build

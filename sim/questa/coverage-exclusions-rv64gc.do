@@ -13,16 +13,6 @@
 #//
 #// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 #//
-#// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-#// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-#// may obtain a copy of the License at
-#//
-#// https://solderpad.org/licenses/SHL-2.1/
-#//
-#// Unless required by applicable law or agreed to in writing, any work distributed under the
-#// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-#// either express or implied. See the License for the specific language governing permissions
-#// and limitations under the License.
 #////////////////////////////////////////////////////////////////////////////////////////////////
 
 # This file should be a last resort.  It's preferable to put
@@ -246,11 +236,6 @@ coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -feccondrow [GetLin
 # exclusion above resolves via GetLineNum to L95/AnyMiss; this anchor catches the L193 LoadMiss copy.)
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign LoadMiss"] 4
 
-# D$ cachefsm CacheMiss (STATE_ADDRESS_SETUP & ~Stall & ~FlushStage) FlushStage_1 (row 4): a trap that flushes the
-# M stage waits for the access to commit, and an access that faults on its own is squashed before it reaches the
-# cache (lsu.sv SelfFaultM), so the D$ is not flushed in ADDRESS_SETUP.
-coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign CacheMiss"] 4
-
 # D$ cachefsm L195 CacheBusRW[0] CacheCMOpM[1]/[2] terms (FEC rows 13-16): the writeback-CMO term
 # (STATE_WRITEBACK & (CMOpM[1]|CMOpM[2]) & ~CacheBusAck) is logically subsumed by the earlier OR term
 # (STATE_WRITEBACK & ~CacheBusAck), so CacheCMOpM[1]/[2] never independently drive CacheBusRW[0].
@@ -274,6 +259,13 @@ for {set i 0} {$i < $numcacheways} {incr i} {
 }
 # D$ writeback, flush, write_line, or flush_writeback states can't be cancelled by a flush
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -ftrans CurrState STATE_WRITEBACK->STATE_ACCESS STATE_FLUSH->STATE_ACCESS STATE_WRITE_LINE->STATE_ACCESS STATE_FLUSH_WRITEBACK->STATE_ACCESS
+# D$ FETCH->ACCESS: the case statement leaves STATE_FETCH only for STATE_WRITE_LINE; the transition Questa
+# infers comes from the synchronous reset term (reset | FlushStage).  FlushStage (LSUFlushW) cannot fire
+# mid-fetch: a trap's FlushW waits for the committed access (interrupts are masked while the cache is
+# committed), an access that faults on its own is squashed by SelfFaultM before it reaches the cache, and
+# HPTWFlushW is only asserted before the walker has a bus transaction (hptw.sv).  The transition is seen only
+# when the testbench resets between back-to-back ELFs in one session.
+coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -ftrans CurrState STATE_FETCH->STATE_ACCESS
 
 ####################
 # Unused / illegal peripheral accesses
@@ -285,10 +277,12 @@ set line [GetLineNum ${SRC}/mmu/adrdec.sv "exclusion-tag: adrdecSel"]
 # The instruction side drives the MMU with ReadAccessM and WriteAccessM tied low and ExecuteAccessF tied high (see
 # the mmu instantiation in ifu.sv), so AccessRW is 0 and AccessRX/AccessRWXC are 1 there, and the fetch size is fixed.
 # Peripherals qualified by AccessRW never select: every row except AccessValid_0 needs AccessValid = 1.  AccessValid_0
-# (row 5) is reachable by fetching from the peripheral's address range, so it is counted.
-foreach dec {clintdec gpiodec uartdec plicdec spidec pwmdec} {
+# (row 5) is reachable by fetching from the peripheral's address range (tests/coverage64gc/fetchperiph.S), so it is
+# counted, except for the UART: it only accepts byte accesses, so SizeValid is 0 for the word-sized fetch.
+foreach dec {clintdec gpiodec plicdec spidec pwmdec} {
   coverage exclude -scope /core/ifu/immu/immu/pmachecker/adrdecs/$dec -fecexprrow $line 1-4 6-8
 }
+coverage exclude -scope /core/ifu/immu/immu/pmachecker/adrdecs/uartdec -fecexprrow $line 1-8
 # DTIM and SDC are not supported and qualified by AccessRW: no row can be reached.  IROM and external memory are not
 # supported: Supported_0 (row 3) is hit and every other row needs Supported = 1.
 coverage exclude -scope /core/ifu/immu/immu/pmachecker/adrdecs/dtimdec -fecexprrow $line 1-8
@@ -303,6 +297,11 @@ coverage exclude -scope /core/ifu/immu/immu/pmachecker/adrdecs/uncoreramdec -fec
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "exclusion-tag: unused-atomic"]
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 2 4
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4
+# The instruction side ties ExecuteAccessF high and AtomicAccessM low, so AccessRWXC is always 1 and the atomic term
+# is always 0 in the IMMU: AccessRWXC_0 (row 5), AtomicAccessM_1 (row 8) and AtomicAllowed_0/1 (rows 9 and 10)
+# cannot be reached.
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign PMAAccessFault "]
+coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 5 8 9 10
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "exclusion-tag: unused-tim"]
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 2 4
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4
@@ -316,10 +315,22 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign IdempotentRegion"]
 coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 2 4 6
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4 6
 
+# MisalignedFaultAllowedM (~Cacheable & ~TLBMiss & Idempotent), TLBMiss_1 row: unreachable.  PBMemoryType is
+# the PTE's PBMT field only on a TLB hit and 00 otherwise, and with PBMemoryType = 00 pmachecker drives
+# Cacheable = SelRegions[3]|[4]|[5] and Idempotent = SelRegions[1]|[2]|[3]|[4]|[5].  rv64gc has no DTIM, no
+# IROM and no external memory, so SelRegions 1, 2 and 3 are tied low and the two are the same signal: while
+# the TLB misses, Idempotent & ~Cacheable cannot hold.  A non-cacheable idempotent region only exists through
+# PBMT = NC, which requires the TLB hit that this row needs to be absent.
+set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
+coverage exclude -scope /core/lsu/dmmu/dmmu -fecexprrow $line 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+
 # The instruction side ties AtomicAccessM low, so every row that needs an atomic access is
 # unreachable in the instruction MMU.
 set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedCausesAccessFaultM"]
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4 5 6
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 6
 
 # The following peripherals are always supported (Supported_0, row 3); the boot ROM, CLINT and RAM accept every
 # access size (SizeValid_0, row 7)
@@ -381,8 +392,6 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM & ~WriteAccessM & PMA
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1 2 4-6
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "PMAStoreAmoAccessFaultM ="]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4-6
-set line [GetLineNum ${SRC}/mmu/pmachecker.sv "AccessRWXC \\| AtomicAccessM"]
-coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 3 6-8
 set line [GetLineNum ${SRC}/mmu/mmu.sv "ExecuteAccessF \\| ReadAccessM"]
 coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 1 3 4
 set line [GetLineNum ${SRC}/mmu/mmu.sv "ReadAccessM & ~WriteAccessM"]
@@ -409,8 +418,9 @@ set line [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "ReadAccess \\| WriteAccess"]
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line 1 3-6
 set line [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "CAMHit & TLBAccess"]
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line 3
+# Questa orders the TLBMiss terms CAMHit, UpperBitsUnequal, TLBAccess, Translate: row 5 is TLBAccess_0
 set line [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "~CAMHit & TLBAccess"]
-coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line 3
+coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line 5
 
 # IMMU only makes word-sized accesses (Size = 2'b10), so the byte, halfword and doubleword arms of the
 # misalignment case never run, and the fetch address bit 0 is always 0 (row 4, VAdr[0]_1, of the word arm).
@@ -421,8 +431,6 @@ coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/m
 
 # IMMU never disables translations (DisableTranslation_1).
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign Translate"] 2
-# never reaches this when ENVCFG_ADUE_1 because HPTW updates A bit first
-coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign PrePageFault"] 18
 
 
 
@@ -458,9 +466,9 @@ coverage exclude -scope /core/ifu/immu/immu/pmp/pmpchecker -fecexprrow [GetLineN
 coverage exclude -scope /core/ifu/immu/immu/pmp/pmpchecker -fecexprrow [GetLineNum ${SRC}/mmu/pmpchecker.sv "exclusion-tag: immu-pmpcboaccess"] 2 4
 
 # No irom
-set line [GetLineNum ${SRC}/ifu/ifu.sv "~ITLBMissF & ~CacheableF & ~SelIROM"]
+set line [GetLineNum ${SRC}/ifu/ifu.sv "~ITLBMissOrUpdateRawF & ~CacheableF & ~SelIROM"]
 coverage exclude -scope /core/ifu -feccondrow $line 6
-set line [GetLineNum ${SRC}/ifu/ifu.sv "~ITLBMissF & CacheableF & ~SelIROM"]
+set line [GetLineNum ${SRC}/ifu/ifu.sv "~ITLBMissOrUpdateRawF & CacheableF & ~SelIROM"]
 coverage exclude -scope /core/ifu -feccondrow $line 4
 
 # no DTIM
@@ -591,6 +599,9 @@ coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.s
 
 # Instruction Misaligned never asserted because compressed instructions are accepted
 coverage exclude -scope /core/priv/priv/trap -fecexprrow [GetLineNum ${SRC}/privileged/trap.sv "assign ExceptionM"] 2
+# The wait counter clears whenever M advances and M holds the same instruction while it is stalled, so the counter
+# can only reach its limit with the wfi still in M: wfiM_0 (row 1) never sees the counter's top bit set.
+coverage exclude -scope /core/priv/priv/pmd -fecexprrow [GetLineNum ${SRC}/privileged/privdec.sv "assign TWTimeoutM"] 1
 
 # Attempting to access fflags, frm, fcsr with mstatus.FS = 0 traps, so checking for (STATUS_FS != 2'b00)
 # before enabling writes to these CSRs is redundant and uncoverable
@@ -663,10 +674,3 @@ set fbline [GetLineNum ${SRC}/ebu/ahbcacheinterface.sv "index == BeatCountDelaye
 for {set i 1} {$i < 8} {incr i} {
     coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/fetchbufferbeat[$i] -fecexprrow $fbline 1
 }
-
-# FlushDCache = FlushDCacheM & ~SelHPTW : the SelHPTW=1 input-term (Row 4) is unreachable.  fence.i is the
-# only asserter of FlushDCacheM, and while fence.i is in M it pins the front end to an already-translated
-# page (NextValidPCE=PCE), so no ITLB walk can begin while FlushDCacheM=1; a walk that starts earlier stalls
-# fence.i out of M.  See https://github.com/openhwfoundation/cvw/issues/1788.
-set line [GetLineNum ${SRC}/lsu/lsu.sv "exclusion-tag: lsu FlushDCacheSelHPTW"]
-coverage exclude -scope /core/lsu/bus/dcache -fecexprrow $line 4

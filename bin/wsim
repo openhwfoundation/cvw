@@ -130,7 +130,9 @@ def prepareElfs(args, elfs):
     and label maps (testbench/Makefile) when it reaches it, and looks up tohost in the label maps."""
     listdir = WALLY / "sim" / args.sim / "testlists"
     listdir.mkdir(parents=True, exist_ok=True)
-    listfile = listdir / f"{args.config}_{args.tb}_{args.testsuite}.txt"
+    # Named for the run, not the testbench mode (+TEST), so that parallel runs of one mode (embench's
+    # two builds) do not share a list
+    listfile = listdir / f"{args.config}_{args.tb}_{args.runname}.txt"
     listfile.write_text("".join(f"{elf}\n" for elf in elfs))
     return listfile
 
@@ -427,8 +429,9 @@ def main(args):
         args.testsuite = args.tests[0] if args.tests else args.name
     else:
         elfs, names = collectTests(args)
+        args.runname = runName(args, elfs, names)
         # The testbench receives this as +TEST; it is the special mode when one is set, else the run name
-        args.testsuite = args.test if args.test else runName(args, elfs, names)
+        args.testsuite = args.test if args.test else args.runname
     print(f"Config={args.config} test={args.testsuite} elfs={len(elfs)} sim={args.sim} gui={args.gui} args='{args.args}' params='{args.params}' define='{args.define}'")
     flags, env = prepSim(args, elfs)
     createDirs(args.sim)

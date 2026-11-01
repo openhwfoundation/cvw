@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // fdivsqrt.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu, amaiuolo@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu, Alessandro Maiuolo amaiuolo@hmc.edu 7 July 2022
+// Modified: Kevin Kim
 //
-// Purpose: Combined Divide and Square Root Floating Point and Integer Unit
+// Purpose: Unified floating-point divide/square root and integer divider.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
@@ -37,8 +26,8 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
   input  logic                 XInfE, YInfE,
   input  logic                 XZeroE, YZeroE,
   input  logic                 XNaNE, YNaNE,
-  input  logic [P.NE-2:0]      BiasE,                               // Bias of exponent
-  input  logic [P.LOGFLEN-1:0] NfE,                          // Number of fractional bits in selected format
+  input  logic [P.NE-2:0]      BiasE,                       // Bias of exponent
+  input  logic [P.LOGFLEN-1:0] NfE,                         // Number of fractional bits in selected format
   input  logic                 FDivStartE, IDivStartE,
   input  logic                 StallM,
   input  logic                 FlushE,
@@ -67,7 +56,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
 
   // Integer div/rem signals
   logic                        BZeroM;                       // Denominator is zero
-  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalizatoin shift amount
+  logic [P.DIVBLEN-1:0]        IntNormShiftM;                // Integer normalization shift amount
   logic                        ALTBM, AsM, BsM, W64M;        // Special handling for postprocessor
   logic [P.XLEN-1:0]           AM;                           // Original Numerator for postprocessor
   logic                        ISpecialCaseE;                // Integer div/remainder special cases
@@ -94,7 +83,7 @@ module fdivsqrt import cvw::*;  #(parameter cvw_t P) (
     .clk, .reset, .StallM, .WS, .WC, .D, .FirstU, .FirstUM, .FirstC,
     .SqrtE, .SqrtM, .SpecialCaseM,
     .UmM, .WZeroE, .DivStickyM,
-    // Int-specific
+    // Int-specific; Funct3M[1] = 1 for REM/REMU, 0 for DIV/DIVU
     .IntNormShiftM, .ALTBM, .AsM, .BsM, .BZeroM, .W64M, .RemOpM(Funct3M[1]), .AM,
     .FIntDivResultM);
 endmodule

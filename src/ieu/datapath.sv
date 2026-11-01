@@ -1,31 +1,19 @@
 ///////////////////////////////////////////
 // datapath.sv
 //
-// Written: David_Harris@hmc.edu, Sarah.Harris@unlv.edu
-// Created: 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu, Sarah Harris Sarah.Harris@unlv.edu 9 January 2021
+// Modified: Katherine Parry, Rose Thompson, Kevin Kim, James Stine, Kip Macsai-Goren, Madeleine Masser-Frye, Shreya Sanghai
 //
-// Purpose: Wally Integer Datapath
+// Purpose: Integer datapath.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module datapath import cvw::*;  #(parameter cvw_t P) (
@@ -33,7 +21,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // Decode stage signals
   input  logic [2:0]        ImmSrcD,                 // Selects type of immediate extension
   input  logic [31:0]       InstrD,                  // Instruction in Decode stage
-  input  logic [4:0]        Rs1D, Rs2D, Rs2E,             // Source registers
+  input  logic [4:0]        Rs1D, Rs2D, Rs2E,        // Source registers
   // Execute stage signals
   input  logic [P.XLEN-1:0] PCE,                     // PC in Execute stage
   input  logic [P.XLEN-1:0] PCLinkE,                 // PC + 4 (of instruction in Execute stage)
@@ -41,14 +29,14 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [6:0]        Funct7E,                 // Funct7 field of instruction in Execute stage
   input  logic              StallE, FlushE,          // Stall, flush Execute stage
   input  logic [1:0]        ForwardAE, ForwardBE,    // Forward ALU operands from later stages
-  input  logic              W64E,UW64E,              // W64/.uw-type instruction
+  input  logic              W64E, UW64E,             // W64/.uw-type instruction
   input  logic              SubArithE,               // Subtraction or arithmetic shift
   input  logic              ALUSrcAE, ALUSrcBE,      // ALU operands
   input  logic              ALUResultSrcE,           // Selects result to pass on to Memory stage
   input  logic [2:0]        ALUSelectE,              // ALU mux select signal
-  input  logic              JumpE,                   // Is a jump (j) instruction
+  input  logic              JumpE,                   // Jump (jal or jalr) instruction
   input  logic              BranchSignedE,           // Branch comparison operands are signed (if it's a branch)
-  input  logic [3:0]        BSelectE,                // One hot encoding of ZBA_ZBB_ZBC_ZBS instruction
+  input  logic [3:0]        BSelectE,                // BMU result select (binary encoded; see bitmanipalu)
   input  logic [3:0]        ZBBSelectE,              // ZBB mux select signal
   input  logic [2:0]        BALUControlE,            // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActiveE,              // Bit manipulation instruction being executed
@@ -73,10 +61,8 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] MDUResultW,              // MDU (Multiply/divide unit) result
   input  logic [P.XLEN-1:0] FIntDivResultW,          // FPU's integer divide result
   input  logic [4:0]        RdW                      // Destination register
-   // Hazard Unit signals
 );
 
-  // Fetch stage signals
   // Decode stage signals
   logic [P.XLEN-1:0] R1D, R2D;                       // Read data from Rs1 (RD1), Rs2 (RD2)
   logic [P.XLEN-1:0] ImmExtD;                        // Extended immediate in Decode stage
@@ -93,7 +79,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] SCResultW;                      // Store Conditional result
   logic [P.XLEN-1:0] ResultW;                        // Result to write to register file
   logic [P.XLEN-1:0] IFResultW;                      // Result from either IEU or single-cycle FPU op writing an integer register
-  logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, signle-cycle FPU op, or 2-cycle FCVT float to int
+  logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, single-cycle FPU op, or 2-cycle FCVT float to int
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
   // Decode stage

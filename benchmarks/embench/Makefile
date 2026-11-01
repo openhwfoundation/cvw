@@ -42,8 +42,11 @@ build_sizeopt_size:
 sim: sim_build_memfile sim_run speed
 
 # launches sim to simulate tests on wally
+# speed reports both builds; simulate them in parallel, as each takes about half an hour
 sim_run:
-	wsim --sim verilator rv32gc $(embench_dir)/bd_speedopt_speed/src --test embench --params "BPRED_LOGGER=1\'b1"
+	wsim --sim verilator rv32gc $(embench_dir)/bd_speedopt_speed/src --test embench --name embench_speedopt --params "BPRED_LOGGER=1\'b1" & speedopt=$$!; \
+	wsim --sim verilator rv32gc $(embench_dir)/bd_sizeopt_speed/src --test embench --name embench_sizeopt --params "BPRED_LOGGER=1\'b1" & sizeopt=$$!; \
+	wait $$speedopt && wait $$sizeopt
 
 # builds the objdump based on the compiled c elf files
 objdump:

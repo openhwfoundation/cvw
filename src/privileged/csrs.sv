@@ -1,35 +1,22 @@
 ///////////////////////////////////////////
 // csrs.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 3 May 2021 - fix bug with stvec getting wrong value
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Ben Bracker, Noah Boorstin, Domenico Ottolia dottolia@hmc.edu, Kip Macsai-Goren, Jacob Pease, Ayesha Anwaar
 //
-// Purpose: Supervisor-Mode Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Supervisor-mode CSRs.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrs import cvw::*;  #(parameter cvw_t P) (
+module csrs import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              CSRSWriteM, STrapM,
   input  logic [11:0]       CSRAdrM,
@@ -49,7 +36,6 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   output logic              IllegalCSRSAccessM,
   output logic              STimerInt,
   output logic [P.XLEN-1:0] SENVCFG_REGW
-
 );
 
   // Supervisor CSRs
@@ -79,7 +65,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.XLEN-1:0]       SSCRATCH_REGW, STVAL_REGW, SCAUSE_REGW;
   logic [P.XLEN-1:0]       SENVCFG_WriteValM;
-  logic [P.XLEN-1:0]               TVECWriteValM;
+  logic [P.XLEN-1:0]       TVECWriteValM;
 
   logic [63:0]             STIMECMP_REGW;
 
@@ -90,7 +76,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   assign WriteSEPCM       = STrapM | (CSRSWriteM & (CSRAdrM == SEPC));
   assign WriteSCAUSEM     = STrapM | (CSRSWriteM & (CSRAdrM == SCAUSE));
   assign WriteSTVALM      = STrapM | (CSRSWriteM & (CSRAdrM == STVAL));
-  if(P.XLEN == 64) begin
+  if (P.XLEN == 64) begin
     logic LegalSatpModeM;
     assign LegalSatpModeM = CSRWriteValM[63:60] == 0 |
                            (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
@@ -131,7 +117,7 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
   // Supervisor timer interrupt logic
   // Spec is a bit peculiar - Machine timer interrupts are produced in CLINT, while Supervisor timer interrupts are in CSRs
   if (P.SSTC_SUPPORTED)
-   assign STimerInt  = ({1'b0, MTIME_CLINT} >= {1'b0, STIMECMP_REGW}); // unsigned comparison
+    assign STimerInt = ({1'b0, MTIME_CLINT} >= {1'b0, STIMECMP_REGW}); // unsigned comparison
   else
     assign STimerInt = 1'b0;
 
@@ -153,23 +139,23 @@ module csrs import cvw::*;  #(parameter cvw_t P) (
     CSRSReadValM = '0;
     IllegalCSRSAccessM = 1'b0;
     case (CSRAdrM)
-      SSTATUS:   CSRSReadValM = SSTATUS_REGW;
-      STVEC:     CSRSReadValM = STVEC_REGW;
-      SIP:       CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
-      SIE:       CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
-      SSCRATCH:  CSRSReadValM = SSCRATCH_REGW;
-      SEPC:      CSRSReadValM = SEPC_REGW;
-      SCAUSE:    CSRSReadValM = SCAUSE_REGW;
-      STVAL:     CSRSReadValM = STVAL_REGW;
-      SATP:      if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
-                 else IllegalCSRSAccessM = 1'b1;
-      SCOUNTEREN:CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
-      SENVCFG:   CSRSReadValM = SENVCFG_REGW;
-      STIMECMP:  if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
-                 else IllegalCSRSAccessM = 1'b1;
-      STIMECMPH: if (STCE & P.XLEN == 32) CSRSReadValM = {{(P.XLEN-32){1'b0}}, STIMECMP_REGW[63:32]};
-                 else IllegalCSRSAccessM = 1'b1; // not supported for RV64
-      default:   IllegalCSRSAccessM = 1'b1;
+      SSTATUS:    CSRSReadValM = SSTATUS_REGW;
+      STVEC:      CSRSReadValM = STVEC_REGW;
+      SIP:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIP_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
+      SIE:        CSRSReadValM = {{(P.XLEN-12){1'b0}}, MIE_REGW & 12'h222 & MIDELEG_REGW}; // only read supervisor fields
+      SSCRATCH:   CSRSReadValM = SSCRATCH_REGW;
+      SEPC:       CSRSReadValM = SEPC_REGW;
+      SCAUSE:     CSRSReadValM = SCAUSE_REGW;
+      STVAL:      CSRSReadValM = STVAL_REGW;
+      SATP:       if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
+                  else IllegalCSRSAccessM = 1'b1;
+      SCOUNTEREN: CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
+      SENVCFG:    CSRSReadValM = SENVCFG_REGW;
+      STIMECMP:   if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
+                  else IllegalCSRSAccessM = 1'b1;
+      STIMECMPH:  if (STCE & P.XLEN == 32) CSRSReadValM = {{(P.XLEN-32){1'b0}}, STIMECMP_REGW[63:32]};
+                  else IllegalCSRSAccessM = 1'b1; // not supported for RV64
+      default:    IllegalCSRSAccessM = 1'b1;
     endcase
   end
 endmodule

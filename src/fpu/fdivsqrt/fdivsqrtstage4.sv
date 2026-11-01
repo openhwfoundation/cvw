@@ -1,35 +1,24 @@
 ///////////////////////////////////////////
 // fdivsqrtstage4.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 29 August 2022
+// Modified: Kevin Kim, Alessandro Maiuolo
 //
-// Purpose: radix-4 divsqrt recurrence stage
+// Purpose: One radix-4 divide/square root step.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Q4.DIVb
-  input  logic [P.DIVb:0]   U,UM,               // U1.DIVb
+  input  logic [P.DIVb:0]   U, UM,              // U1.DIVb
   input  logic [P.DIVb+3:0] WS, WC,             // Q4.DIVb
   input  logic [P.DIVb+1:0] C,                  // Q2.DIVb
   input  logic              SqrtE,
@@ -52,7 +41,7 @@ module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
 
   // Digit Selection logic
   assign j0     = ~C[P.DIVb+1];             // first step of R digit selection: C = 00...0
-  assign j1     = ~C[P.DIVb-1]; // second step of R digit selection: C = 1100...0; simplified from  C[P.DIVb] & ~C[P.DIVb-1] because j=0 case takes priority
+  assign j1     = ~C[P.DIVb-1];             // second step of R digit selection: C = 1100...0; simplified from C[P.DIVb] & ~C[P.DIVb-1] because j=0 case takes priority
   assign Smsbs  = U[P.DIVb:P.DIVb-4];       // U1.4 most significant bits of square root
   assign Dmsbs  = D[P.DIVb-1:P.DIVb-3];     // U0.3 most significant fractional bits of divisor after leading 1
   assign WCmsbs = WC[P.DIVb+3:P.DIVb-4];    // Q4.4 most significant bits of residual
@@ -75,7 +64,7 @@ module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
     endcase
 
   // Residual Update
-  //  {WS, WC}}Next = (WS + WC - qD or F) << 2
+  //  {WS, WC}Next = (WS + WC - qD or F) << 2
   assign AddIn = SqrtE ? F : Dsel;
   assign CarryIn = ~SqrtE & (udigit[3] | udigit[2]); // +1 for 2's complement of -D and -2D
   csa #(P.DIVb+4) csa(WS, WC, AddIn, CarryIn, WSA, WCA);

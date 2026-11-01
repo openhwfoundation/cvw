@@ -77,7 +77,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 - `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
 - `tests/` — Test suites (`coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests)
-- `addins/` — Git submodules (riscv-arch-test, sail-riscv, riscv-dv, embench, etc.)
+- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, etc.)
 - `bin/` — Scripts (`wsim`, `regression-wally`, `lint-wally`, `derivgen.pl`, etc.)
 - `fpga/` — FPGA-specific files
 - `linux/` — Linux boot support
@@ -130,7 +130,7 @@ Lockstep mode runs Wally in lock-step against ImperasDV (commercial) or the RISC
 There is no central test list; tests are ELF files passed to `wsim` by path or directory:
 - `addins/riscv-arch-test/work/cvw-<config>/elfs/` — RISC-V Arch Tests (ACT4), built per cvw configuration by `make act` (or by `regression-wally`); one leaf directory per extension/feature
 - `tests/periph/rv32/`, `tests/periph/rv64/` — Self-checking peripheral tests: one source per test in `tests/periph/src/`, built for both widths by `make periph`; each embeds its expected signature and compares every entry as it is written
-- `tests/coverage/` — Coverage-targeted tests for each unit; they pass if they run to completion
+- `tests/coverage64gc/`, `tests/coverage32gc/`, `tests/coverage32imc/` — Coverage-targeted tests for each unit of the rv64gc, rv32gc and rv32imc configurations; they pass if they run to completion
 
 Every test reports its result by storing to `tohost`: 1 = pass, `(exit code << 1) | 1` = fail. A test that halts without storing to `tohost` is reported as a failure.
 - `buildroot` — Linux boot from prebuilt memory images (`wsim buildroot buildroot`)

@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // adrdecs.sv
 //
-// Written: David_Harris@hmc.edu 22 June 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 22 June 2021
+// Modified: Rose Thompson, Naiche Whyte-Aguayo, Jacob Pease
 //
-// Purpose: All the address decoders for peripherals
+// Purpose: Address decoders for the physical memory map.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
   // verilator lint_off UNOPTFLAT
@@ -38,7 +27,8 @@ module adrdecs import cvw::*;  #(parameter cvw_t P) (
 
   localparam logic [3:0]       SUPPORTED_SIZE = (P.LLEN == 32 ? 4'b0111 : 4'b1111);
   localparam logic [3:0]       SUPPORTED_BUS_SIZE = SUPPORTED_SIZE & (P.AHBW >= 64 ? 4'b1111 : 4'b0111);
- // Determine which region of physical memory (if any) is being accessed
+  // Determine which region of physical memory (if any) is being accessed
+  // SizeMask bit i permits 2^i-byte accesses: GPIO, PLIC, SPI, and PWM are word-only; UART is byte-only
   adrdec #(P.PA_BITS) dtimdec(PhysicalAddress, P.DTIM_BASE[P.PA_BITS-1:0], P.DTIM_RANGE[P.PA_BITS-1:0], P.DTIM_SUPPORTED, AccessRW, Size, SUPPORTED_SIZE, SelRegions[1]);
   adrdec #(P.PA_BITS) iromdec(PhysicalAddress, P.IROM_BASE[P.PA_BITS-1:0], P.IROM_RANGE[P.PA_BITS-1:0], P.IROM_SUPPORTED, AccessRX, Size, SUPPORTED_SIZE, SelRegions[2]);
   adrdec #(P.PA_BITS) ddr4dec(PhysicalAddress, P.EXT_MEM_BASE[P.PA_BITS-1:0], P.EXT_MEM_RANGE[P.PA_BITS-1:0], P.EXT_MEM_SUPPORTED, AccessRWXC, Size, SUPPORTED_SIZE, SelRegions[3]);

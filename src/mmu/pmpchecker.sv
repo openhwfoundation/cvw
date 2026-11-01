@@ -1,33 +1,19 @@
 ///////////////////////////////////////////
 // pmpchecker.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 28 April 2021
-// Modified:
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 28 April 2021
+// Modified: David Harris, Kip Macsai-Goren, Rose Thompson, Madeleine Masser-Frye
 //
-// Purpose: Examines all physical memory accesses and checks them against the
-//          current values of the physical memory protection (PMP) registers.
-//          Can raise an access fault on illegal reads, writes, and instruction
-//          fetches.
+// Purpose: Physical memory protection checker.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmpchecker import cvw::*;  #(parameter cvw_t P) (
@@ -60,7 +46,6 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]                      SizeBytesMinus1;
   logic                            MatchingR, MatchingW, MatchingX, MatchingL;
 
-
   if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
       .PhysicalAddress,
@@ -84,11 +69,12 @@ module pmpchecker import cvw::*;  #(parameter cvw_t P) (
   // Only enforce PMP checking for effective S and U modes (accounting for mstatus.MPRV) or in Machine mode when L bit is set in selected region
   assign EnforcePMP = (EffectivePrivilegeModeW != P.M_MODE) | MatchingL;
 
-  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR ; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
-  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[3] & ~MatchingW ;          // exclusion-tag: immu-pmpcboz
+  // CMOpM[2:0] = cbo.inval/clean/flush (Zicbom) need R; CMOpM[3] = cbo.zero (Zicboz) needs W
+  assign PMPCBOMAccessFault     = EnforcePMP & (|CMOpM[2:0]) & ~MatchingR; // checking R is sufficient because W implies R in PMP  // exclusion-tag: immu-pmpcbom
+  assign PMPCBOZAccessFault     = EnforcePMP & CMOpM[3] & ~MatchingW;           // exclusion-tag: immu-pmpcboz
   assign PMPCMOAccessFault      = PMPCBOZAccessFault | PMPCBOMAccessFault;              // exclusion-tag: immu-pmpcboaccess
 
-  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX ;
-  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW)  | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
+  assign PMPInstrAccessFaultF     = EnforcePMP & ExecuteAccessF & ~MatchingX;
+  assign PMPStoreAmoAccessFaultM  = (EnforcePMP & WriteAccessM & ~MatchingW) | PMPCMOAccessFault; // exclusion-tag: immu-pmpstoreamoaccessfault
   assign PMPLoadAccessFaultM      = EnforcePMP & ReadAccessM & ~WriteAccessM & ~MatchingR;
- endmodule
+endmodule
