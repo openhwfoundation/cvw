@@ -144,7 +144,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Spill Support
   /////////////////////////////////////////////////////////////////////////////////////////////
 
-  if (P.ZCA_SUPPORTED) begin : Spill
+  if (P.SPILL_SUPPORTED) begin : Spill
     logic [P.XLEN-1:0] PCSpillD, PCSpillE;
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
@@ -166,7 +166,8 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign PCSpillNextF = PCNextF;
     assign PCSpillF = PCF;
     assign PostSpillInstrRawF = InstrRawF;
-    assign {SelSpillNextF, CompressedF} = '0;
+    assign SelSpillNextF = 1'b0;
+    assign CompressedF = P.ZCA_SUPPORTED & (InstrRawF[1:0] != 2'b11);
     assign PCSpillM = PCM;
     assign InstrPageFaultF = InstrPageFaultRawF;
     assign InstrAccessFaultF = InstrAccessFaultRawF;
