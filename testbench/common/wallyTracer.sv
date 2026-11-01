@@ -376,7 +376,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     // instruction's own address, PC, with its translation, unless the second half faulted; then report
     // the second half, as xtval does.  The IFU takes a spill only when the first half fetches cleanly,
     // so a fault during a spill is always on the second half.  Only compressed instructions spill.
-    if (P.ZCA_SUPPORTED) begin : spill
+    if (P.SPILL_SUPPORTED) begin : spill
       logic                    SelSpillF;                          // second half of a spilled fetch is being fetched
       logic                    ISecondHalfFaultF;                  // the second half of a spilled fetch faulted, so report it
       logic [P.PA_BITS-1:0]    IPAFirstHalfF;                      // first half's physical address

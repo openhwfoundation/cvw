@@ -222,6 +222,7 @@ typedef struct packed {
   logic A_SUPPORTED;
   logic B_SUPPORTED;
   logic C_SUPPORTED;
+  logic SPILL_SUPPORTED;
   logic D_SUPPORTED;
   logic E_SUPPORTED;
   logic F_SUPPORTED;
