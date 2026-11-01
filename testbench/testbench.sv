@@ -629,6 +629,9 @@ module testbench;
 `ifdef MEMPIPE_PROBE
   `include "mempipeprobe.svh"
 `endif
+`ifdef DEFER_PROBE
+  `include "deferprobe.svh"
+`endif
   watchdog #(P.XLEN, 1000000) watchdog(.clk, .reset, .TEST);  // check if PCW is stuck
   ramxdetector #(P.XLEN, P.LLEN) ramxdetector(clk, dut.core.lsu.MemRWM[1], dut.core.lsu.LSULoadAccessFaultM, dut.core.lsu.ReadDataM,
                                       dut.core.ifu.PCM, InstrM, dut.core.lsu.IEUAdrM, dut.core.lsu.StallW, InstrMName);
