@@ -25,28 +25,22 @@ module irom import cvw::*;  #(parameter cvw_t P) (
   localparam ADDR_WDITH = $clog2((P.IROM_RANGE[P.PA_BITS-1:0]+1)/XLENBYTES); // IROM_RANGE is a mask (size-1)
   localparam OFFSET = $clog2(XLENBYTES);
 
-  logic [ADDR_WDITH-1:0] WordAdr;
-  logic [P.XLEN-1:0]     IROMWordF, IROMNextWordF;
+  localparam WORDS = P.IROM_LINELEN / P.XLEN;             // XLEN words in an IROM line
+  localparam LINEOFFSET = $clog2(P.IROM_LINELEN/8);        // byte offset bits in a line
+  localparam LINEADR_WIDTH = ADDR_WDITH - $clog2(WORDS);   // line address bits
+
+  logic [P.IROM_LINELEN-1:0] IROMLineF;
+  logic [LINEOFFSET-1:1]     HalfwordD;
+  logic [P.IROM_LINELEN+15:0] ShiftedLineF;
 
   // preload IROM with the FPGA bootloader by default so that it synthesizes to something, avoiding having the IEU optimized away because instructions are all 0
   // the testbench replaces these dummy contents with the actual program of interest during simulation
-  // The second port reads the next word, as two banks interleaved by word would.  It is used only with compressed instructions.
-  assign WordAdr = Adr[ADDR_WDITH+OFFSET-1:OFFSET];
-  rom2p2r #(ADDR_WDITH, P.XLEN, 1) rom(.clk, .ce, .addr1(WordAdr), .addr2(WordAdr + 1'b1), .dout1(IROMWordF), .dout2(IROMNextWordF));
+  rom1p1rline #(LINEADR_WIDTH, P.XLEN, WORDS, 1) rom(.clk, .ce, .addr(Adr[ADDR_WDITH+OFFSET-1:LINEOFFSET]), .dout(IROMLineF));
 
-  // Adr is the next PCF, not PCF, so the offset of the instruction in the word is delayed 1 cycle.
-  if (P.ZCA_SUPPORTED) begin
-    // A 32-bit instruction that crosses into the next word comes out whole, so the IROM never spills
-    logic [2*P.XLEN-1:0] IROMWordsF;
-    logic [OFFSET-1:1]   HalfwordD;
-    flopen #(OFFSET-1) HalfwordReg(clk, ce, Adr[OFFSET-1:1], HalfwordD);
-    assign IROMWordsF = {IROMNextWordF, IROMWordF};
-    assign IROMInstrF = IROMWordsF[{1'b0, HalfwordD, 4'b0} +: 32]; // halfword offset, in bits
-  end else if (P.XLEN == 32) assign IROMInstrF = IROMWordF;
-  else begin
-    // IROM is aligned to XLEN words, but instructions are 32 bits.  Select between the two halves.
-    logic AdrD2;
-    flopen #(1) AdrReg2(clk, ce, Adr[2], AdrD2);
-    assign IROMInstrF = AdrD2 ? IROMWordF[63:32] : IROMWordF[31:0];
-  end
+  // Select the instruction from the line.  Adr is the next PCF, not PCF, so the offset is delayed 1 cycle.
+  // A 32-bit instruction in the last halfword of the line returns its first half in the lower 2 bytes;
+  // the spill logic fetches the next line and merges the two halves.
+  flopen #(LINEOFFSET-1) HalfwordReg(clk, ce, Adr[LINEOFFSET-1:1], HalfwordD);
+  assign ShiftedLineF = {16'b0, IROMLineF} >> {HalfwordD, 4'b0};
+  assign IROMInstrF = ShiftedLineF[31:0];
 endmodule

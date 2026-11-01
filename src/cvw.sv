@@ -222,7 +222,6 @@ typedef struct packed {
   logic A_SUPPORTED;
   logic B_SUPPORTED;
   logic C_SUPPORTED;
-  logic SPILL_SUPPORTED;
   logic D_SUPPORTED;
   logic E_SUPPORTED;
   logic F_SUPPORTED;
@@ -285,6 +284,7 @@ typedef struct packed {
   // largest length in IEU/FPU
   int CVTLEN;
   int LLEN;
+  int IROM_LINELEN;
   int LOGCVTLEN;
   int NORMSHIFTSZ;
   int LOGNORMSHIFTSZ;

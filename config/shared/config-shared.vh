@@ -33,9 +33,9 @@ localparam logic I_SUPPORTED = (!E_SUPPORTED);
 localparam logic A_SUPPORTED = (ZAAMO_SUPPORTED & ZALRSC_SUPPORTED);
 localparam logic B_SUPPORTED = ((ZBA_SUPPORTED & ZBB_SUPPORTED & ZBS_SUPPORTED));
 localparam logic C_SUPPORTED = ZCA_SUPPORTED & (D_SUPPORTED ? ZCD_SUPPORTED : 1) & (F_SUPPORTED ? ((XLEN == 32) ? ZCF_SUPPORTED : 1) : 1);
-// A 32-bit instruction can cross a fetch boundary and be fetched in two halves (a spill) only when it comes from
-// the I$ or the bus.  The IROM returns an instruction whole at any halfword address.
-localparam logic SPILL_SUPPORTED = ZCA_SUPPORTED & BUS_SUPPORTED & (EXT_MEM_SUPPORTED | BOOTROM_SUPPORTED | UNCORE_RAM_SUPPORTED);
+// The IROM reads a line of IROM_LINELEN bits.  With compressed instructions, a 32-bit instruction spills into a second
+// fetch only when it crosses a line boundary.
+localparam IROM_LINELEN = ZCA_SUPPORTED ? 32'd512 : XLEN; // the same as the I$ line
 localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORTED & ZKND_SUPPORTED & ZKNE_SUPPORTED & ZKNH_SUPPORTED);
 
 // Configure MISA based on supported extensions

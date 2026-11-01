@@ -27,6 +27,7 @@ module spill import cvw::*;  #(parameter cvw_t P) (
   input  logic              IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
   input  logic              ITLBMissOrUpdateRawF, // ITLB miss or A update; not masked by a walk fault, so it blocks the spill when the first half's walk faults
   input  logic              CacheableF,        // Is the instruction from the cache?
+  input  logic              SelIROMF,          // Is the instruction from the IROM?
   input  logic              InstrPageFaultF,   // Page fault on the first half; the spill is not taken if it faults
   input  logic              InstrAccessFaultF, // Access fault on the first half; the spill is not taken if it faults
   output logic [P.XLEN-1:0] PCSpillNextF,      // The next PCF for one of the two memory addresses of the spill
@@ -65,13 +66,21 @@ module spill import cvw::*;  #(parameter cvw_t P) (
   // Detect spill
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // The I$ and the IROM read a whole line, so an instruction spills only from the last halfword of the line
+  logic SpillBusF;
   if (P.ICACHE_SUPPORTED) begin
     logic SpillCachedF, SpillUncachedF;
     assign SpillCachedF = &PCF[$clog2(P.ICACHE_LINELENINBITS/32)+1:1];
     assign SpillUncachedF = PCF[1];
-    assign SpillF = (CacheableF ? SpillCachedF : SpillUncachedF);
+    assign SpillBusF = (CacheableF ? SpillCachedF : SpillUncachedF);
   end else
-    assign SpillF = PCF[1];
+    assign SpillBusF = PCF[1];
+  if (P.IROM_SUPPORTED) begin
+    logic SpillIROMF;
+    assign SpillIROMF = &PCF[$clog2(P.IROM_LINELEN/32)+1:1];
+    assign SpillF = SelIROMF ? SpillIROMF : SpillBusF;
+  end else
+    assign SpillF = SpillBusF;
   // Don't take the spill if there is a stall, TLB miss, or hardware update to the D/A bits.
   // Nor if the first half faults: its bits are not the instruction, so the instruction length is
   // unknown, and the fault on the first half is reported alone at PCF.  A page table walk fault on the
