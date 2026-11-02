@@ -27,7 +27,8 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module round import cvw::*;  #(parameter cvw_t P, parameter V=0) (
+module round import cvw::*;  #(parameter cvw_t P,
+                               parameter logic V = 0) (
   input  logic [P.FMTBITS-1:0]     OutFmt,             // output format
   input  logic [2:0]               Frm,                // rounding mode
   input  logic [1:0]               PostProcSel,        // select the postprocessor output
@@ -269,7 +270,7 @@ module round import cvw::*;  #(parameter cvw_t P, parameter V=0) (
           3'b010: UfCalcPlus1  = Ms;//round down
           3'b011: UfCalcPlus1  = ~Ms;//round up
           3'b100: UfCalcPlus1  = Round;//round to nearest max magnitude
-          3'b110: if (V) UfCalcPlus1  = ~Guard;//round to odd
+          3'b110: if (V) UfCalcPlus1  = ~Guard; else UfCalcPlus1 = 1'bx;//round to odd
           default: UfCalcPlus1 = 1'bx;
       endcase
 
