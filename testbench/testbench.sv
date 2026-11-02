@@ -719,7 +719,7 @@ module testbench;
 `endif
 
 // Functional coverage.  riscv_arch_test comes from riscv-arch-test and samples the generated
-// covergroups off the RVVI trace; wally-compile.do supplies it and its include paths with --fcov.
+// covergroups off the RVVI trace; each simulator's compile script supplies it and its include paths with --fcov.
 `ifdef FCOV
   riscv_arch_test riscv_arch_test(rvvi);
 `endif
