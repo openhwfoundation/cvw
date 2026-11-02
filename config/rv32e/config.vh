@@ -208,10 +208,11 @@ localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 0;
-localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
+localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT, BP_STATIC (no BTB, predicts JAL and backward branches taken)
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
+localparam BTB_ADDR_BITS = 32'd32; // low target address bits held in the BTB, with the upper bits from the PC
 localparam RAS_SIZE = 32'd16;
 localparam INSTR_CLASS_PRED = 0;
 
