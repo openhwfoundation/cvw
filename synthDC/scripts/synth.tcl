@@ -242,7 +242,9 @@ if { $maxopt == 1 } {
     compile_ultra -retime
     optimize_registers
 } else {
-    compile_ultra -no_seq_output_inversion -no_boundary_optimization
+    # Boundary optimization removes logic that is dead across module ports (such as pipeline registers whose
+    # outputs a configuration never reads); -no_autoungroup keeps the hierarchy so area is still reported per module.
+    compile_ultra -no_seq_output_inversion -no_autoungroup
 }
 
 # Eliminate need for assign statements (yuck!)
