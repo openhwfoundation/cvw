@@ -22,6 +22,7 @@ Linux-capable cores with caches and virtual memory.
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[In the `wallypipelinedsoc` uncore; the other cores leave interrupt controllers and timers to the SoC.] | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | None | None | None | None | None | None | None | CLINT, PLIC, debug (in the cluster) | None
 | External Bus | AHB | AHB | TileLink | AXI4 | AXI4 | AXI4 | Custom cache refill interfaces | TileLink | Native cache and peripheral buses | AXI4 | CHI
 | CoreMark/MHz | 4.20footnote:cmcvw[From the README, built with CORE-V-Wally's own CoreMark port. The common port in benchmarks/comparison gives 3.46 on rv32imc and 4.20 on rv64gc.] | 4.33footnote:cmcvw[] | 3.10 | 3.44footnote:cmcva6[The testharness's 2,000,000-cycle limit is raised.] | 3.53footnote:cmcva6[] | —footnote:cmpend[Not yet measured.] | 3.38 | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[]
+| CoreMark IPC | 0.89 | 0.88 | 0.76 | 0.73 | 0.72 | —footnote:cmpend[] | 0.83 | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[]
 |===
 
 == Embedded cores with caches or tightly coupled memories
@@ -41,6 +42,7 @@ Higher-performance embedded cores.
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | CLINT | None | PIC, 2 timers, debug module, DMA | None | Nonefootnote:a65cvxif[Includes the CV-X-IF example coprocessor, which decodes some custom and floating-point opcodes.] | PIC, 2 timers, debug module, DMA | PIC, 2 timers, debug module, DMA
 | External Bus | AHB | Wishbone-style XBUS | Ibex memory interface (OBI-like) with ECC | AXI4 | Wishbone | AXI4 | AXI4 | AXI4
 | CoreMark/MHz | 4.01footnote:cmcvw[] | 1.24 | 4.15footnote:cmibex[The boot code enables the instruction cache, which resets disabled; with the testbench's zero-wait memory it makes no difference (4.16 without).] | 4.77footnote:cmveer[With the stack, which holds CoreMark's data, in the DCCM, as VeeR's own CoreMark does; EH1 scores 1.85 with it in external memory.]footnote:cmel2[5 iterations: the testbench stops at 2,000,000 cycles.] | —footnote:cmpend[] | 5.33 | 5.17footnote:cmveer[] | 6.33footnote:cmveer[]footnote:cmeh2[With one hardware thread.]
+| CoreMark IPC | 0.82 | 0.25 | 0.84 | 0.97 | —footnote:cmpend[] | 1.08 | 1.24 | 1.29footnote:ipcother[The core's `minstret` is missing or does not count, so the instruction count is that of the same binary on another core: CoreMark's timed region executes the same instructions on every core built for the same ISA.]
 |===
 
 == Microcontroller cores
@@ -60,6 +62,7 @@ Small pipelined cores without caches.
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | None | CLIC | None | None | None | None | None | None | None
 | External Bus | AHB | OBI | AHB-Lite (instruction and system ports) | AXI4 (instruction and data ports) | AHB5 (instruction and data ports) | OBI | OBI | OBI with integrity | OBI with integrity | OBI
 | CoreMark/MHz | 3.50footnote:cmcvw[] | 2.76 | 2.59 | —footnote:cmpend[] | 4.30 | 3.43footnote:cmcnt[The boot code clears `mcountinhibit`: the counters reset stopped.] | 3.43footnote:cmcnt[] | 2.77footnote:cmcnt[]footnote:cme40s[At reset settings: `cpuctrl.dataindtiming` = 1 makes divides and branches fixed-latency (3.11 for RV32IMC and 3.47 for RV32IMCB with it cleared). On a testbench adapted from CV32E40X's, with zero-wait memory.] | 3.05footnote:cmcnt[]footnote:cme40s[] | 3.43footnote:cmcnt[]footnote:cme40x[On a copy of the riscv-arch-test testbench without its fixed 2-cycle data-bus stalls (2.04 with them).]
+| CoreMark IPC | 0.84 | 0.66 | 0.64footnote:ipcother[] | —footnote:cmpend[] | 0.87 | 0.82 | 0.82 | 0.66 | 0.62 | 0.82
 |===
 
 == Minimal cores
@@ -79,6 +82,7 @@ The smallest cores, for control tasks.
 | Peripherals | None | None | None | None
 | External Bus | AHB | None | AXI4-Lite | Reduced Wishbone
 | CoreMark/MHz | 0.35footnote:cmcvw[] | 1.04footnote:cmcvw[] | 0.95footnote:cmpico[Timed with `rdcycle`: PicoRV32 has no `mcycle`.] | 0.072footnote:cmserv[SERV has no cycle counter: timed with the testbench's `servant_timer`, which counts cycles.]
+| CoreMark IPC | 0.25 | 0.71 | 0.23 | 0.017footnote:ipcother[]
 |===
 
 == Reproducing the Tables
@@ -104,6 +108,9 @@ link:../benchmarks/comparison/README.md[benchmarks/comparison], which documents 
   for its subset of IMAFDC, Zba, Zbb, Zbs, and Zbc; other extensions such as Zcb, Zicond, scalar crypto, and V are not used.
 * `ee_u32` is `signed int` on RV64, as in CORE-V-Wally's and SiFive's RV64 ports, and `unsigned int` on RV32.
 * Core-specific steps, each footnoted in the table, are behind compile flags of the port.
+* CoreMark IPC is the instructions retired in the timed region (`minstret`, with `-DCOUNT_INSTRET`) divided by its cycles.
+  Cores built for the same ISA execute identical instruction counts there: 239,203 per iteration for RV32IMC, 203,253 with B and Zbc,
+  247,850 for RV32EMC, 210,935 for RV64IMAFDC with B and Zbc, and 243,939 without Zbc.
 
 ----
 export ACT_CONFIGS=<directory of ACT configuration directories> CI_TOOLS=<directory of ACT core installs>
