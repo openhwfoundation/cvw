@@ -852,6 +852,8 @@ module testbench;
     integer DepSlot1Load = 0, DepSameRdOnly = 0, DepSameRd = 0, DepSlot0Late = 0, DepSlot1Op = 0; // dependency blocks: same rd, slot 0 result late, slot 1 not a late-ALU op
     integer LateBr = 0, LateBrWrong = 0;   // branches resolved in Memory, and how many fetch got wrong
     integer Late2 = 0;                      // bundles whose slot 1 executed on the late ALU
+    integer Fused = 0, Unfused = 0;         // indexed-load fusions retired / replayed unfused after a fault
+    integer FusedBr = 0;                    // ALU op + branch fusions leaving Execute
     integer LateUse2 = 0;                   // cycles stalled because a late slot 1's result was not ready
     integer BlockUnrec0 = 0;                // ... solely because SLOT 0's encoding is not in instrfields
     integer BlockUnrec1 = 0;                // ... solely because SLOT 1's is
@@ -948,6 +950,10 @@ module testbench;
           if (dut.core.LateBrWrongM) LateBrWrong <= LateBrWrong + 1;
         end
         if (dut.core.ieu.dp.Late2M & dut.core.ifu.Issue2M & ~dut.core.StallM & ~dut.core.FlushM) Late2 <= Late2 + 1;
+        // A replay flushes Memory itself, so it is counted without the ~FlushM qualifier.
+        if (dut.core.FuseM & ~dut.core.StallM & dut.core.Replay2M)              Unfused <= Unfused + 1;
+        else if (dut.core.FuseM & ~dut.core.StallM & ~dut.core.FlushM)          Fused   <= Fused + 1;
+        if ((dut.core.ieu.FuseBrA2E | dut.core.ieu.FuseBrB2E) & ~dut.core.StallE) FusedBr <= FusedBr + 1;
         if (dut.core.ieu.Mdu2M & dut.core.ifu.Issue2M & ~dut.core.StallM & ~dut.core.FlushM) begin
           if (dut.core.ieu.MDUFunct3M[2]) Div2 <= Div2 + 1;
           else                            Mul2 <= Mul2 + 1;
@@ -1113,6 +1119,7 @@ module testbench;
       $display("late branch: resolved in Memory=%0d, of which fetch went the wrong way=%0d", LateBr, LateBrWrong);
       $display("late ALU: slot1 late=%0d | lateuse2 stalls=%0d | dependency still refused: same rd=%0d (only cause %0d) slot0 not ALU=%0d slot1 not late op=%0d (dependent load after ALU op=%0d)",
                Late2, LateUse2, DepSameRd, DepSameRdOnly, DepSlot0Late, DepSlot1Op, DepSlot1Load);
+      $display("fusion: indexed loads fused=%0d, replayed unfused after a fault=%0d | ALU+branch fused=%0d", Fused, Unfused, FusedBr);
       if (P.ZICSR_SUPPORTED)
         $display("minstret check: committed=%0d minstret=%0d %s", Committed,
                  dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2],

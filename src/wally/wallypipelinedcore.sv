@@ -64,6 +64,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          Issue2D, Issue2E, Issue2M, Issue2W;       // superscalar slot 1 issues alongside slot 0
   logic                          LateA2D, LateB2D;                         // slot 1 operand is slot 0's result (late ALU)
   logic                          LateOK2D;                                 // slot 1 could run on the late ALU
+  logic                          Fuse2D, FuseM;                            // the pair is fused into one indexed load (Decode / Memory)
+  logic                          FuseBr2D;                                 // the pair is fused into one ALU op + branch
   logic                          PredTakenE;                               // fetch went to slot 0's predicted target
   logic                          LateBrM, LateBrTakenM, LateBrWrongM;      // slot 0 branch resolved in Memory
   logic                          Replay2RawM;                              // slot 1 must re-run alone, unless it was on the wrong path
@@ -205,7 +207,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
-    .InstrD, .Instr2D, .Issue2D, .Issue2E, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp2M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
+    .InstrD, .Instr2D, .Issue2D, .Issue2E, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp2M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
@@ -219,7 +221,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
     // Decode Stage interface
-    .InstrD, .Instr2D, .Issue2D, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem2M, .Illegal2M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .InstrD, .Instr2D, .Issue2D, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseM, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem2M, .Illegal2M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     // Execute Stage interface
     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .LSUAdrE, .IntDivE, .W64E,
     .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
@@ -315,7 +317,9 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // bus still assert a stall for it every cycle it sits in Memory.  A trap is immune because the hazard
   // unit ignores the LSU stall under FlushWCause; a replay deliberately does not flush Writeback, so the
   // hazard unit must ignore the stall under MemFault2M instead or the replay never leaves Memory.
-  assign MemFault2M = P.ZICSR_SUPPORTED & Mem2M &
+  // A fused indexed load (ieu.sv) faults the same way: its trap would name the add's PC, so the pair is
+  // replayed unfused -- slot 0 commits as the add, and the load is refetched to run and trap alone.
+  assign MemFault2M = P.ZICSR_SUPPORTED & (Mem2M | FuseM) &
                       (LoadMisalignedFaultM | LoadAccessFaultM | LoadPageFaultM |
                        StoreAmoMisalignedFaultM | StoreAmoAccessFaultM | StoreAmoPageFaultM);
   // A slot 1 beside a late branch that turns out taken was on the wrong path: it is abandoned, not replayed.

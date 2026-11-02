@@ -52,7 +52,9 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   input  logic        BPPCSrcF,       // Branch predictor says this fetch is a taken branch or jump
   output logic        Issue2F,        // Both slots may issue together this cycle
   output logic        LateA2F, LateB2F, // Slot 1's rs1 / rs2 is slot 0's rd: its operand comes from the late ALU's bypass
-  output logic        LateOK2F          // Slot 1 is an operation the late ALU implements
+  output logic        LateOK2F,         // Slot 1 is an operation the late ALU implements
+  output logic        Fuse2F,           // The pair is fused into one indexed load, executed by slot 0
+  output logic        FuseBr2F          // The pair is fused into one ALU op + compare-and-branch
 );
 
   // Opcodes
@@ -93,6 +95,8 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   logic       Slot0IsMduF, Slot1IsMduF, OneMduOpF;
   logic       Branch1OKF;                 // A conditional branch or a jal in slot 1 may pair
   logic       IsJal0F, IsJal1F;           // Each slot is a jal, c.j or c.jal
+  logic       FuseAdd0F;                  // Slot 0 is add, sh1add, sh2add, sh3add, c.add or c.mv
+  logic       FuseLoad1F;                 // Slot 1 is a load with offset 0
 
   assign Op0F      = Instr0F[6:0];
   assign Op1F      = Instr1F[6:0];
@@ -295,7 +299,54 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // a5,a5,2; ...) whose next instruction reads the late result at once and stalls for it.  Issuing the
   // first link alone leaves the late ALU free for the second link, which gets the same work done one
   // instruction further on.  Admitting them cost rv64gc CoreMark 0.3%.
-  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & Slot1LateOKF & ~SameRdF);
+  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & Slot1LateOKF & ~SameRdF) | Fuse2F | FuseBr2F;
+
+  // Macro-op fusion: ALU op + dependent branch.  A branch that compares slot 0's result is fused with it
+  // into one compare-and-branch op: slot 0 writes its result as usual, and the branch compares that result
+  // straight from slot 0's ALU in the same Execute cycle (datapath.sv), so it resolves in Execute like any
+  // other branch.
+  //   andi a5, a5, 1   ; bnez a5, L        branch if (a5 & 1) != 0
+  //   addw a5, a5, a4  ; blt  a5, s1, L    branch if (a5 + a4) < s1
+  // Slot 0 must be an integer ALU operation, whose result is ready at the end of Execute (Slot0EarlyF);
+  // the other slot 1 branch rules (Branch1OKF) still apply.  The register fields of a branch are exact, so
+  // SameRdF (rd is immediate bits there) does not apply.
+  assign FuseBr2F = Slot0EarlyF & IsBranch1F & SrcDepF;
+
+  // Macro-op fusion: Indexed Load (Celio et al., arXiv 1607.02318).  An add whose only use is as the
+  // address of the load right after it, which then overwrites it, is fused with that load into one
+  // operation, executed by slot 0 alone:
+  //   add    a0, a1, a2      \   a0 = mem[a1 + a2]          slot 0's adder makes the address, slot 0
+  //   ld     a0, 0(a0)       /                              loads and writes a0; slot 1 is a bubble
+  //   sh2add a5, a5, s1      \   a5 = mem[(a5 << 2) + s1]   the paper's three-instruction LEA +
+  //   lw     a5, 0(a5)       /                              Indexed Load, with Zba's sh2add as the LEA
+  // The pair must be strict, as in the paper: the load writes the register the add wrote, so the add's
+  // result is never seen by a later instruction and the fused op needs only one register write.  And
+  // the load's offset must be 0, so its address is exactly the add's sum (alu.sv's Sum, which includes
+  // shNadd's pre-shift).  These do not fuse:
+  //   mv  s0, a4   ; lw a4, 0(s0)     different destinations: s0 is still live after the load
+  //   add a0,a1,a2 ; lw a0, 8(a0)     the address would be a1 + a2 + 8, two additions
+  // Slot 0: add, sh1add/sh2add/sh3add (Zba), and c.add and c.mv, which decompress to add.  addw and the
+  // .uw forms are left out: their RV64 results are not the raw sum.  Slot 1: a load that may pair at all
+  // (Slot1CanPairF checks its width), or c.lw/c.ld with a zero offset ([12:10] and [6:5]).  Issue2F is
+  // set as for any pair, so the PC moves past both; ieu.sv makes slot 0 the load and slot 1 a bubble.
+  always_comb
+    if (~&Instr0F[1:0])
+      FuseAdd0F = ({Instr0F[1:0], Instr0F[15:13]} == 5'b10_100) & (Instr0F[6:2] != 5'b0);   // c.mv, c.add
+    else
+      FuseAdd0F = (Op0F == OP) & ((Instr0F[31:25] == 7'b0000000) & (Instr0F[14:12] == 3'b000) |  // add
+                                  P.ZBA_SUPPORTED & (Instr0F[31:25] == 7'b0010000) &             // sh1add,
+                                  ~Instr0F[12] & (Instr0F[14:13] != 2'b00));                     // sh2add, sh3add
+
+  always_comb
+    if (~&Instr1F[1:0])
+      case ({Instr1F[1:0], Instr1F[15:13]})
+        5'b00_010: FuseLoad1F = (Instr1F[12:10] == 3'b0) & (Instr1F[6:5] == 2'b0);                  // c.lw
+        5'b00_011: FuseLoad1F = (P.XLEN == 64) & (Instr1F[12:10] == 3'b0) & (Instr1F[6:5] == 2'b0); // c.ld
+        default:   FuseLoad1F = 1'b0;
+      endcase
+    else FuseLoad1F = (Op1F == LOAD) & (Instr1F[31:20] == 12'b0);
+
+  assign Fuse2F = FuseAdd0F & FuseLoad1F & (Rd0F != 5'b0) & (Rs1_1F == Rd0F) & (Rd1F == Rd0F);
 
   // Which of slot 1's operands are slot 0's result.  These are the same fields the pairing decision
   // used, so a dependency that permitted the pair is always marked; ieu.sv clears a bit whose operand

@@ -48,6 +48,7 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   output logic [4:0]  Rs1D, Rs2D, Rs2E,        // Register sources to read in Decode or Execute stage
   output logic [1:0]  MemRWD,                  // Mem read/write decoded, for the superscalar bundle's memory hazards
   input  logic [4:0]  Rs1_2D, Rs2_2D,          // The other issue slot's register sources in Decode
+  input  logic        FuseLoadD,               // This add is fused with the load after it: also do the load
   // Execute stage control signals
   input  logic        StallE, FlushE,          // Stall, flush Execute stage
   input  logic [1:0]  FlagsE,                  // Comparison flags ({eq, lt})
@@ -115,6 +116,8 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   // pipelined control signals
   logic        RegWriteD, RegWriteE;           // RegWrite (register will be written)
   logic [2:0]  ResultSrcD, ResultSrcE, ResultSrcM; // Select which result to write back to register file
+  logic [1:0]  BaseMemRWD;                     // Memory read/write and result source as decoded from InstrD,
+  logic [2:0]  BaseResultSrcD;                 //   before an indexed-load fusion turns the add into a load
   logic [2:0]  PreImmSrcD;                     // Immediate source format (before amending for prefetches)
                                                 // MemRWD is an output port: the superscalar bundle's
                                                 // memory hazards in ieu.sv need both slots' Decode-stage
@@ -321,9 +324,18 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   // Squash control signals if coming from an illegal compressed instruction
   // On RV32E, can't write to upper 16 registers.  Checking reads to upper 16 is more costly so disregard them.
   assign IllegalERegAdrD = P.E_SUPPORTED & P.ZICSR_SUPPORTED & ControlsD[`CTRLW-1] & InstrD[11];
-  assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, MemRWD,
-          ResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
+  assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, BaseMemRWD,
+          BaseResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
           PrivilegedD, FenceXD, MDUD, AtomicD, CMOD, unused} = IllegalIEUFPUInstrD ? `CTRLW'b0 : ControlsD;
+
+  // Indexed-load fusion (issue.sv).  InstrD is the add; the fused op is the add with the load's memory
+  // read and writeback merged in.  Everything else stays the add's: its sources, its ALU operation (the
+  // sum is the address, as rs1 + imm is for a plain load) and its rd, which the load also writes.
+  //   add a0, a1, a2 ; ld a0, 0(a0)   ->   read a1, a2;  ALU a1 + a2;  MemRW = read;  a0 = memory data
+  // From here on the fused op is an ordinary load to the rest of this controller: the load-use stall,
+  // the store-then-load stall and SlowResultE all see MemRW = 10.  The load's access width comes from ieu.sv.
+  assign MemRWD     = FuseLoadD ? 2'b10  : BaseMemRWD;       // 10: read memory, as a load
+  assign ResultSrcD = FuseLoadD ? 3'b001 : BaseResultSrcD;   // 001: write back the memory data (ReadDataW)
 
   assign CSRZeroSrcD = InstrD[14] ? (InstrD[19:15] == 0) : (Rs1D == 0); // Is a CSR instruction using zero as the source?
   assign CSRWriteD = CSRReadD & !(CSRZeroSrcD & InstrD[13]);            // Don't write if setting or clearing zeros

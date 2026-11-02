@@ -301,6 +301,13 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic              rf_samerd;
   assign rf_wd3    = testbench.dut.core.ieu.dp.regf.wd3;
   assign rf_samerd = rf_we3 & rf_we6 & (rf_a3 == rf_a6);
+  // A fused indexed load (ieu.sv) retires two instructions but writes rd once, on slot 0's port, with the
+  // load data.  The add's record reports the sum it would have written, which is still in IFResultW, and
+  // the load's record reports the write.  Issue2W is low when the pair was replayed unfused: then slot 0
+  // really did write the sum, and the load has not retired.
+  logic FuseW, FusedW;
+  flopenrc #(1) FuseWReg(clk, reset, FlushW, ~StallW, testbench.dut.core.ieu.FuseM, FuseW);
+  assign FusedW = FuseW & Issue2W;
 
   always_comb begin
     rf_wb <= 0;
@@ -446,7 +453,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
                                ~FlushD ? PCF : PCNextF;
 
   for(genvar index = 0; index < NUM_REGS; index += 1) begin
-    assign rvvi.x_wdata[0][0][index] = (rf_samerd & (rf_a3 == index)) ? rf_wd3 : rf[index];
+    assign rvvi.x_wdata[0][0][index] = (rf_samerd & (rf_a3 == index)) ? rf_wd3 :
+                                       (FusedW & (rf_a3 == index)) ? testbench.dut.core.ieu.dp.IFResultW : rf[index];
     assign rvvi.x_wb[0][0][index]    = rf_wb[index];
   end
   for(genvar index = 0; index < 32; index += 1) begin
@@ -471,7 +479,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   for(genvar index = 0; index < NUM_REGS; index += 1) begin
     assign rvvi.x_wdata[0][1][index] = rf[index];
-    assign rvvi.x_wb[0][1][index]    = rf2_wb[index];
+    assign rvvi.x_wb[0][1][index]    = rf2_wb[index] | (FusedW & rf_wb[index]);
   end
   for(genvar index = 0; index < 32; index += 1) begin
     assign rvvi.f_wdata[0][1][index] = frf[index];

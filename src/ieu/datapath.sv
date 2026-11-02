@@ -51,6 +51,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic              BMUActive2E,             // Slot 1: bit-manipulation instruction active
   input  logic [1:0]        CZero2E,                 // Slot 1: czero.* active
   input  logic              BranchSigned2E,          // Slot 1: branch comparison is signed
+  input  logic              FuseBrA2E, FuseBrB2E,    // Slot 1's branch is fused with slot 0's ALU op: its rs1 / rs2 is slot 0's result
   input  logic              Jump2E,                  // Slot 1: jal, whose result is its link address
   input  logic [P.XLEN-1:0] PCLink2E,                // Slot 1: its link address, the PC just past it
   output logic [1:0]        Flags2E,                 // Slot 1: comparison flags ({eq, lt})
@@ -207,7 +208,16 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
 
   mux5  #(P.XLEN)  faemux2(R1_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2AE, ForwardedSrc2AE);
   mux5  #(P.XLEN)  fbemux2(R2_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2BE, ForwardedSrc2BE);
-  comparator #(P.XLEN) comp2(ForwardedSrc2AE, ForwardedSrc2BE, BranchSigned2E, Flags2E);
+  // Macro-op fusion: ALU op + dependent branch (issue.sv).  The pair is one compare-and-branch op, decided
+  // in Execute: the branch compares slot 0's result straight from slot 0's ALU, this same cycle, instead
+  // of its own forwarded register, which does not hold that result yet.  No new adder: slot 0's ALU makes
+  // the result, comp2 compares it, and slot 1's ALU still makes the target.
+  //   add t0, a1, a2 ; blt t0, a3, L     comp2 compares (IEUResultE, a3)  =  (a1 + a2) < a3
+  //   li  t0, 5      ; beq a4, t0, L     comp2 compares (a4, IEUResultE)  =  a4 == 5
+  logic [P.XLEN-1:0] Cmp2AE, Cmp2BE;                 // Slot 1's comparator inputs
+  mux2  #(P.XLEN)  cmp2amux(ForwardedSrc2AE, IEUResultE, FuseBrA2E, Cmp2AE);
+  mux2  #(P.XLEN)  cmp2bmux(ForwardedSrc2BE, IEUResultE, FuseBrB2E, Cmp2BE);
+  comparator #(P.XLEN) comp2(Cmp2AE, Cmp2BE, BranchSigned2E, Flags2E);
   // Slot 1 sits one instruction after slot 0, so its PC is PCLinkE (= PCE + 4, since the issue
   // rules require an uncompressed slot 0).  Using PCE here would make every paired auipc off by 4.
   mux2  #(P.XLEN)  srcamux2(ForwardedSrc2AE, PCLinkE, ALUSrcA2E, SrcA2E);

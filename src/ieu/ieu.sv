@@ -36,6 +36,10 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic              Issue2M, Issue2W,                 // ... and still committing in Memory / Writeback
   input  logic              LateA2D, LateB2D,                 // Slot 1's rs1 / rs2 field matches slot 0's rd
   input  logic              LateOK2D,                         // Slot 1 is an operation the late ALU implements
+  input  logic              Fuse2D,                           // The pair is fused into one indexed load (issue.sv)
+  input  logic              FuseBr2D,                         // The pair is fused into one ALU op + branch (issue.sv)
+  output logic              FuseM,                            // ... which is now in Memory
+  input  logic              Replay2M,                         // ... and faulted: slot 0 commits as the add alone
   input  logic              PredTakenE,                       // Fetch went to slot 0's branch target (predicted taken)
   output logic              LateBrM,                          // Slot 0 is a branch whose direction is checked in Memory
   output logic              LateBrTakenM,                     // ... its real direction
@@ -198,6 +202,14 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   logic       IntDiv2E;                                       // Slot 1 holds a divide
   logic       Mdu2E, Mdu2M;                                   // The bundle's MDU operation is slot 1's
 
+  // Indexed-load fusion: slot 0 executes the add and the load after it as one load (issue.sv).
+  logic       FuseD, FuseE;                                   // The bundle is a fused indexed load
+  logic [2:0] FuseFunct3E, FuseFunct3M;                       // ... with the load's width and signedness
+  logic [2:0] Mem0Funct3M;                                    // Slot 0's memory funct3: its own, or the fused load's
+  logic       UnfuseW;                                        // The fused load faulted: slot 0 writes the add's sum
+  logic [2:0] ResultSrc0W;                                    // Slot 0's writeback select from the controller
+  logic       FuseBrA2E, FuseBrB2E;                           // Fused ALU + branch: slot 1's rs1 / rs2 is slot 0's result
+
   logic [2:0] ForwardAE, ForwardBE;                           // Select signals for forwarding multiplexers
   logic       RegWriteW;                                      // Register will be written in Writeback stage
   logic       BranchSignedE;                                  // Branch does signed comparison on operands
@@ -209,6 +221,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     .StructuralStallD(StructuralStall0D), .LoadStallD, .StoreStallD, .Rs1D, .Rs2D, .Rs2E, .MemRWD(MemRW0D),
     .Rs1_2D, .Rs2_2D, .StructuralStall2D,                     // lane 2's hazard, computed here against the real RdE
+    .FuseLoadD(FuseD),                                        // slot 0's add also does slot 1's load
     .SlowResultE(SlowResult0E), .LateBrE, .PredTakenE,
     .StallE, .FlushE, .FlagsE, .FWriteIntE,
     .PCSrcE, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE,
@@ -226,7 +239,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     // privpiperegs.sv pipelines, so the Memory-stage copy is only needed for slot 1's replay.
     .FlushDCacheM, .InstrValidM, .InstrValidE, .InstrValidD, .FWriteIntM, .IllegalBaseInstrM(),
     .RegWriteM, .RegWriteOtherM(RegWrite2M),                  // lane 1 forwards from lane 2
-    .StallW, .FlushW, .RegWriteW, .IntDivW, .ResultSrcW, .CSRWriteFenceM, .InvalidateICacheM,
+    .StallW, .FlushW, .RegWriteW, .IntDivW, .ResultSrcW(ResultSrc0W), .CSRWriteFenceM, .InvalidateICacheM,
     .RegWriteOtherW(RegWrite2W),
     .RdW, .RdE, .RdM, .RdOtherM(Rd2M), .RdOtherW(Rd2W));
 
@@ -239,14 +252,16 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     // The load-use hazard cannot be computed here: it depends on the Execute-stage control of the
     // real pipeline (MemReadE, CSRReadE, MDUE), which only c has.  c computes it for both lanes.
     .StructuralStallD(), .LoadStallD(), .StoreStallD(),
-    .Rs1_2D(5'b0), .Rs2_2D(5'b0), .StructuralStall2D(), .SlowResultE(), .LateBrE(1'b0), .PredTakenE(1'b0),
+    .Rs1_2D(5'b0), .Rs2_2D(5'b0), .StructuralStall2D(), .SlowResultE(), .LateBrE(1'b0), .PredTakenE(1'b0), .FuseLoadD(1'b0),
     .Rs1D(Rs1_2D), .Rs2D(Rs2_2D), .Rs2E(Rs2_2E), .MemRWD(MemRW2D),
     // An unpaired slot 1 is flushed on its way into Execute rather than being allowed down the
     // pipeline and suppressed at each consumer.  Its control signals, RegWrite2M/W and Rd2M/W then
     // come out as zero on their own, so nothing downstream needs to know about pairing.
     // Branch2E, Jump2E and PCSrc2E therefore describe a slot 1 that issued.  Slot 0 is never a branch
     // or a jump beside a slot 1 branch or jal, so a slot 1 control transfer is never killed by slot 0.
-    .StallE, .FlushE(FlushE | ~Issue2D), .FlagsE(Flags2E), .FWriteIntE(1'b0),
+    // A fused slot 1 is flushed the same way: slot 0 does its load, so slot 1 is a bubble from Execute on.
+    // It still retires -- Issue2E/M/W stay set, so minstret and the tracer count it.
+    .StallE, .FlushE(FlushE | ~Issue2D | FuseD), .FlagsE(Flags2E), .FWriteIntE(1'b0),
     .PCSrcE(PCSrc2E), .ALUSrcAE(ALUSrcA2E), .ALUSrcBE(ALUSrcB2E), .ALUResultSrcE(ALUResultSrc2E), .ALUSelectE(ALUSelect2E),
     .Funct3E(Funct3_2E), .Funct7E(Funct7_2E), .IntDivE(IntDiv2E), .W64E(W64_2E), .UW64E(UW64_2E), .SubArithE(SubArith2E),
     .BranchD(Branch2D), .BranchE(Branch2E), .JumpD(Jump2D), .JumpE(Jump2E),
@@ -312,7 +327,23 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   // slot 1 and silently return the wrong product, so the memory funct3 goes out on its own net
   // instead, exactly as LSUAdrE does for the address.
   mux2 #(2) memrwmmux(MemRW0M, MemRW2M, Mem2M, MemRWM);
-  mux2 #(3) memfunct3mmux(Funct3M, Funct3_2M, Mem2M, MemFunct3M);
+  mux2 #(3) mem0funct3mmux(Funct3M, FuseFunct3M, FuseM, Mem0Funct3M);
+  mux2 #(3) memfunct3mmux(Mem0Funct3M, Funct3_2M, Mem2M, MemFunct3M);
+
+  // Indexed-load fusion (issue.sv).  Slot 0's controller turns the add into the load (FuseLoadD), and
+  // slot 1's controller is flushed into Execute above.  What is left for here:
+  //   - the load's width and signedness.  Slot 0's Funct3 belongs to the add and also drives its ALU
+  //     (sh2add is funct3 100), so the load's funct3 rides beside it to Memory, for the LSU only.
+  //       sh2add a5,a5,s1 ; lw a5,0(a5)    ALU uses 100 (shift by 2), LSU uses 010 (word, signed)
+  //   - a fault.  The trap would name the add's PC, so as in the paper the pair is replayed unfused: the
+  //     existing slot 1 replay (Replay2M) suppresses the trap, slot 0 commits as the add alone and writes
+  //     its sum (still in IFResultW, since the ALU result is carried to Writeback for every instruction),
+  //     and fetch restarts at the load, which runs alone and traps with its own PC.
+  assign FuseD = Issue2D & Fuse2D;
+  flopenrc #(4) FuseEReg(clk, reset, FlushE, ~StallE, {FuseD, Instr2D[14:12]}, {FuseE, FuseFunct3E});
+  flopenrc #(4) FuseMReg(clk, reset, FlushM, ~StallM, {FuseE, FuseFunct3E}, {FuseM, FuseFunct3M});
+  flopenrc #(1) UnfuseWReg(clk, reset, FlushW, ~StallW, FuseM & Replay2M, UnfuseW);
+  mux2 #(3) resultsrcwmux(ResultSrc0W, 3'b000, UnfuseW, ResultSrcW);   // 000: the ALU result, the add's sum
 
   // Which lane owns the single multiply/divide unit, by the same reasoning as the load/store unit
   // above: the issue rules permit at most one MDU operation per bundle.  Unlike Mem2E this select
@@ -338,7 +369,15 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   logic LateA2DQ, LateB2DQ;
   assign LateA2DQ = LateA2D & (Rs1_2D == InstrD[11:7]);
   assign LateB2DQ = LateB2D & (Rs2_2D == InstrD[11:7]);
-  flopenrc #(2) Late2EReg(clk, reset, FlushE | ~Issue2D, ~StallE, {LateA2DQ, LateB2DQ}, {LateA2RawE, LateB2RawE});
+  // A fused slot 1's rs1 is slot 0's rd too, but it is a bubble, so it is never late.
+  flopenrc #(2) Late2EReg(clk, reset, FlushE | ~Issue2D | FuseD, ~StallE, {LateA2DQ, LateB2DQ}, {LateA2RawE, LateB2RawE});
+
+  // Fused ALU + branch (issue.sv): which of the branch's operands is slot 0's result, so slot 1's comparator
+  // takes it from slot 0's ALU (datapath.sv).  It never also goes late: a branch's ALU operands are the PC
+  // and the offset, so LateSelA2E/LateSelB2E below are 00.  And slot 0 is then never late itself (Late0D
+  // and LateBrD refuse when LateA2DQ/LateB2DQ is set), so its result is ready in Execute.
+  //   addi t0, t0, -1 ; bnez t0, L      FuseBrA2E = 1: compare slot 0's t0 with x0
+  flopenrc #(2) FuseBrEReg(clk, reset, FlushE | ~Issue2D, ~StallE, {FuseBr2D & LateA2DQ, FuseBr2D & LateB2DQ}, {FuseBrA2E, FuseBrB2E});
 
   // The late ALU also takes an operand that the bundle now in Execute produces too late to forward --
   // a load, a multiply or divide, a CSR read or an FPU-to-integer move in slot 0, or a load, multiply
@@ -400,6 +439,8 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   // are not it for an instruction that spills across a fetch boundary.  InstrD is already decompressed,
   // so lateok.sv's 32-bit table covers compressed instructions too (c.addi is addi, c.beqz is beq).
   lateok #(P) lateok0(.Instr(InstrD), .MemRW(2'b00), .IsBranch(1'b0), .Recognized(1'b1), .LateOK(LateOK0D));
+  // A fused slot 0 is never late either -- its Execute sum is the load's address -- and needs no term of
+  // its own: the fused load reads slot 0's rd, so LateA2DQ is set and the last line already refuses it.
   assign Late0D = LateOK0D & (|LateWA0D | |LateWB0D) &
                   ~(Issue2D & (LateA2DQ | LateB2DQ | |LateWA2D | |LateWB2D));
   flopenrc #(1) Late0EReg(clk, reset, FlushE, ~StallE, Late0D, Late0RawE);
@@ -534,7 +575,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     .ImmSrc2D, .Instr2D, .Rs1_2D, .Rs2_2D, .Rs2_2E, .Forward2AE, .Forward2BE,                       // slot 1
     .ALUSrcA2E, .ALUSrcB2E, .ALUResultSrc2E, .ALUSelect2E, .Funct3_2E, .Funct7_2E,                  // slot 1
     .W64_2E, .UW64_2E, .SubArith2E, .BSelect2E, .ZBBSelect2E, .BALUControl2E, .BMUActive2E, .CZero2E, // slot 1
-    .BranchSigned2E, .Flags2E, .IEUAdr2E, .Jump2E, .PCLink2E,                                       // slot 1 branch / jal
+    .BranchSigned2E, .Flags2E, .IEUAdr2E, .Jump2E, .PCLink2E, .FuseBrA2E, .FuseBrB2E,               // slot 1 branch / jal
     .RegWrite2W, .Rd2W,                                                                             // slot 1 write port
     .Mem2E, .ResultSrc2W,                                                                           // slot 1 memory steering
     .Mdu2E, .MDUSrcAE, .MDUSrcBE,                                                                   // slot 1 multiply steering
