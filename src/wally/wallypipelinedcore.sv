@@ -392,7 +392,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
                  .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .VPUFrontEndBusyD, .VPUBackEndBusyE,
                  .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE,
-                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW);
+                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW,
+                 .STATUS_VS, .VTYPE_REGW);
 
   end else begin
     assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD} = '0;

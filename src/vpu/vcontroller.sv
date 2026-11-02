@@ -35,6 +35,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   input logic                         StallW,
   input logic [31:0]                  InstrD,                     // Instruction in Decode stage
   input logic                         VectorD,                    // This instruction is a vector
+  // CSR state
+  input logic [1:0]                   STATUS_VS,                  // vector (VS) field in status register
+  input logic [P.XLEN-1:0]            VTYPE_REGW,                 // vtype
 
   // Decode stage outputs
   output logic [4:0]                  Vs1FinalD, Vs2FinalD,       // Vector Source 1 and 2
@@ -42,7 +45,8 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VMD,                        // 0 = mask enabled, 1 mask disabled
   output logic [5:0]                  Funct6D,
   output logic [2:0]                  Funct3D,
-  output logic                        RegWriteD,
+  output logic                        VWriteIntD,                 // writes integer register
+  output logic                        VWriteFPD,                  // writes floating-point register
   output logic                        VRegWriteD,
   output logic [1:0]                  VALUSrcAD,
   output logic                        VALUSrcBD,
@@ -64,18 +68,26 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [6:0]  lmulDecodedD;
   logic        MicroOpNotLastD;
 
+  logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
+  logic [4:0]  VOpClassD;                 // execution block requirement for EU
+  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic        VReductionD;               // instr is a reduction op
+  logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
   //logic [2:0]  lmulD;                  // *** should be set by vset* instruction
 
   assign lmulDecodedD = 7'b0100_000; // m4
 
 
   vdecoder #(P) vdecoder(.clk, .reset, .VectorStallD, .VectorFlushD,
-                         .InstrD, .Vs1D, .Vs2D, .VdD, .VMD,
-                         .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD,
-                         .VALUResultSrcD, .VALUSrcAD, .VALUSrcBD, .IllegalVPUInstrD);
+                         .InstrD, .STATUS_VS, .VTYPE_REGW, .Vs1D, .Vs2D, .VdD, .VMD,
+                         .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
+                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
+                         .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD);
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
-                               .VectorD, .Vs1D, .Vs2D, .VdD, .ControllerValidD, .ExecutionUnitReadyD,
+                               .VectorD, .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .lmulDecodedD,
                                .MicroOpNotLastD);
 
