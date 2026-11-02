@@ -25,6 +25,7 @@ Linux-capable cores with caches and virtual memory.
 | External Bus | AHB | AHB | TileLink | AXI4 | AXI4 | AXI4 | Custom cache refill interfaces | TileLink | Native cache and peripheral buses | AXI4 | CHI
 | CoreMark/MHz | 4.20footnote:cmcvw[From the README, built with CORE-V-Wally's own CoreMark port. The common port in benchmarks/comparison gives 3.46 on rv32imc and 4.20 on rv64gc.] | 4.33footnote:cmcvw[] | 3.10 | 3.44footnote:cmcva6[The testharness's 2,000,000-cycle limit is raised.] | 3.53footnote:cmcva6[] | —footnote:cmpend[Not yet measured.] | 3.38 | —footnote:cmpend[] | 5.37footnote:cmnax[NaxRiscv's simulator memory has a 1-cycle minimum latency and then delivers each 64-bit beat with probability 100/128 per cycle.] | —footnote:cmpend[] | —footnote:cmpend[]
 | CoreMark IPC | 0.89 | 0.88 | 0.76 | 0.73 | 0.72 | —footnote:cmpend[] | 0.83 | —footnote:cmpend[] | 1.33 | —footnote:cmpend[] | —footnote:cmpend[]
+| Embench Speed | 1.87footnote:embcvw64[With the common build and the medany GCC 16.1 toolchain used for every RV64 core; the README's 2.03 uses GCC 15.2 with the program linked at 0x4000_0000.] | 1.70footnote:embcvw[From the README, built with CORE-V-Wally's own Embench build; the common build in benchmarks/comparison gives 1.548 on rv32imc (README 1.556).] | 1.58 | 1.58 | 1.49 | —footnote:cmpend[] | 1.64footnote:embsarg[Built for RV64IM: Sargantana has no C, and the medany toolchain has no RV64IMA library without it.] | —footnote:cmpend[] | 2.65 | —footnote:cmpend[] | —footnote:cmpend[]
 |===
 
 == Embedded cores with caches or tightly coupled memories
@@ -45,6 +46,7 @@ Higher-performance embedded cores.
 | External Bus | AHB | Wishbone-style XBUS | Ibex memory interface (OBI-like) with ECC | AXI4 | AHB-Lite (instruction, data, and system ports) | Wishbone | AXI4 | AXI4 | AXI4
 | CoreMark/MHz | 4.01footnote:cmcvw[] | 1.24 | 4.15footnote:cmibex[The boot code enables the instruction cache, which resets disabled; with the testbench's zero-wait memory it makes no difference (4.16 without).] | 4.77footnote:cmveer[With the stack, which holds CoreMark's data, in the DCCM, as VeeR's own CoreMark does; EH1 scores 1.85 with it in external memory.]footnote:cmel2[5 iterations: the testbench stops at 2,000,000 cycles.] | 3.04footnote:cme906[The configuration's boot code enables the caches, which reset disabled. Code and data share one zero-wait-state SRAM.] | 2.88footnote:cmvex[The testbench memory takes 2 cycles per 32-bit Wishbone beat, so a cache line refill takes 16 cycles.] | 5.33 | 5.17footnote:cmveer[] | 6.33footnote:cmveer[]footnote:cmeh2[With one hardware thread.]
 | CoreMark IPC | 0.82 | 0.25 | 0.84 | 0.97 | 0.73 | 0.69 | 1.08 | 1.24 | 1.29footnote:ipcother[The core's `minstret` is missing or does not count, so the instruction count is that of the same binary on another core: CoreMark's timed region executes the same instructions on every core built for the same ISA.]
+| Embench Speed | 1.62footnote:embcvw[] | 0.52 | 1.60 | 1.67footnote:emblong[On a copy of the simulator rebuilt with a higher cycle limit; the riscv-arch-test build stops before the longest benchmarks finish.] | —footnote:emb906[edn, huffbench, picojpeg, and ud stop retiring instructions after their timed region; under investigation.] | 1.11 | 1.76 | 1.48footnote:emblong[] | 1.93
 |===
 
 == Microcontroller cores
@@ -65,6 +67,7 @@ Small pipelined cores without caches.
 | External Bus | AHB | OBI | AHB-Lite (instruction and system ports) | AXI4 (instruction and data ports) | AHB5 (instruction and data ports) | OBI | OBI | OBI with integrity | OBI with integrity | OBI
 | CoreMark/MHz | 3.50footnote:cmcvw[] | 2.76 | 2.59 | —footnote:cmpend[] | 4.30 | 3.43footnote:cmcnt[The boot code clears `mcountinhibit`: the counters reset stopped.] | 3.43footnote:cmcnt[] | 2.77footnote:cmcnt[]footnote:cme40s[At reset settings: `cpuctrl.dataindtiming` = 1 makes divides and branches fixed-latency (3.11 for RV32IMC and 3.47 for RV32IMCB with it cleared). On a testbench adapted from CV32E40X's, with zero-wait memory.] | 3.05footnote:cmcnt[]footnote:cme40s[] | 3.43footnote:cmcnt[]footnote:cme40x[On a copy of the riscv-arch-test testbench without its fixed 2-cycle data-bus stalls (2.04 with them).]
 | CoreMark IPC | 0.84 | 0.66 | 0.64footnote:ipcother[] | —footnote:cmpend[] | 0.87 | 0.82 | 0.82 | 0.66 | 0.62 | 0.82
+| Embench Speed | 1.56footnote:embcvw[] | 1.22 | 0.80footnote:emblong[] | —footnote:cmpend[] | 1.71 | 1.53 | 1.53 | 1.36 | 1.41 | 1.53
 |===
 
 == Minimal cores
@@ -85,6 +88,7 @@ The smallest cores, for control tasks.
 | External Bus | AHB | None | AXI4-Lite | Reduced Wishbone
 | CoreMark/MHz | 0.35footnote:cmcvw[] | 1.04footnote:cmcvw[] | 0.95footnote:cmpico[Timed with `rdcycle`: PicoRV32 has no `mcycle`.] | 0.072footnote:cmserv[SERV has no cycle counter: timed with the testbench's `servant_timer`, which counts cycles.]
 | CoreMark IPC | 0.25 | 0.71 | 0.23 | 0.017footnote:ipcother[]
+| Embench Speed | 0.20footnote:embcvw[] | 0.63footnote:embcvw[] | 0.39 | 0.033footnote:emblong[]
 |===
 
 == Reproducing the Tables
@@ -107,6 +111,19 @@ are not included; CORE-V-Wally's microcontroller configurations are synthesized 
 Small, multi-ported, or associative arrays (register files, TLBs, queues, small predictor tables) are synthesized as flip-flops.
 Large one- and two-port arrays (cache data and tags, large predictor tables) are SRAM macros generated with the TSMC 28HPC+
 memory compilers; Logic Area excludes them, Total Area includes them, and RAM Bits is their capacity.
+
+=== Embench
+
+Embench speed runs on the same testbenches with the common build in link:../benchmarks/comparison/README.md[benchmarks/comparison]:
+the flags of CORE-V-Wally's Embench speed build (`-O3 -flto -funroll-loops`, plus `-fwrapv` on RV32), no F or D on any core
+(so the floating-point benchmarks use software floating point), riscv64-unknown-elf-gcc 15.2.0 for RV32, and a medany GCC 16.1.0
+toolchain for RV64. The score is the geometric mean over the 22 benchmarks of Embench's baseline time divided by the measured
+cycles at 1 MHz, as Embench's `benchmark_speed.py` computes it, and a benchmark counts only if its own check passes.
+
+----
+export ACT_CONFIGS=... CI_TOOLS=... RV64_TOOLCHAIN=<bin directory of a medany riscv64-unknown-elf toolchain>
+benchmarks/comparison/embench/run_all.sh <core> ...
+----
 
 === CoreMark
 

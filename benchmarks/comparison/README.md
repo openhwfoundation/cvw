@@ -51,3 +51,24 @@ configuration uses, and the program boots, halts, and prints like an ACT test.
     `+time_out=200000000`, because the testharness stops at 2,000,000 cycles by default.
 
 The run commands and limits for each core are in the table at the top of `run_all.sh`.
+
+## Embench (`embench/`)
+
+- Each Embench benchmark is built with `build.sh <name> <act-config-dir> <march> <mabi> <benchmark> [cflags]`
+  with the flags of CORE-V-Wally's Embench speed build (cvw #2031): `-O3 -flto -funroll-loops`, plus `-fwrapv`
+  on RV32, `-fdata-sections -ffunction-sections -Wl,-gc-sections`, and newlib's libm and libc. It links
+  `../coremark/crt.S` (with `-DNO_MEMFUNCS`, so newlib's `memcpy` and `memset` are used) and this directory's
+  `main.c`, a copy of Embench's that also prints whether the benchmark's own check passed.
+- `-march` has no F or D on any core, because with them GCC removes much of the timed work in nbody, st, and
+  minver; the floating-point benchmarks therefore use software floating point.
+- RV32 builds use riscv64-unknown-elf-gcc 15.2.0. RV64 builds use a toolchain whose newlib is built with
+  `-mcmodel=medany` (GCC 16.1.0; set `RV64_TOOLCHAIN`), because these cores' RAM starts at 0x8000_0000, beyond
+  the reach of the default medlow newlib. Sargantana, which has no C, is built for RV64IM (the medany toolchain has
+  no non-compressed RV64IMA library; Embench does not use atomics).
+- `boardsupport.c` reads `mcycle` (or `rdcycle` with `-DUSE_RDCYCLE`, or the counter at `-DMTIME_ADDR`) in
+  `start_trigger` and `stop_trigger` and prints the cycles. `score.sh` computes the score as Embench's
+  `benchmark_speed.py` does at 1 MHz: the geometric mean over the 22 benchmarks of baseline time / (cycles / 1000).
+- `run_all.sh` uses `ACT_CONFIGS` and `CI_TOOLS` as above. In `CI_TOOLS` it also expects simulators rebuilt with
+  higher cycle limits, because some Embench benchmarks run longer than the ACT builds allow:
+  `veer-eh1-longrun` and `veer-el2-longrun` (VeeR built as ACT's install scripts do, plus `-GMAX_CYCLES=2000000000`),
+  and `e902-longrun` (`+define+MAX_RUN_TIME=20000000000`).
