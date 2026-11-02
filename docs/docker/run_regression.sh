@@ -8,7 +8,7 @@
 # Options:
 # - CVW_GIT: git clone address, only main branch supported
 # - CLEAN_CVW: declared with empty string to clone
-# - BUILD_RISCOF: declared with empty string to rebuild RISCOF
+# - BUILD_ACT: declared with empty string to rebuild the ACT tests
 # - RUN_QUESTA: declared with empty string to run vsim to check
 
 # now only main branch is supported
@@ -47,9 +47,9 @@ export QUESTAPATH=/cad/mentor/questa_sim-xxxx.x_x/questasim/bin
 # make
 
 cd ${CVW_HOME}
-# build it only if BUILD_RISCOF is defined with empty string
-if [[ "${BUILD_RISCOF}" -eq 1 ]]; then
-    make install && make riscof && make testfloat
+# build the tests only if BUILD_ACT is defined with empty string
+if [[ "${BUILD_ACT}" -eq 1 ]]; then
+    make install && make act && make testfloat
 fi
 
 if [[ "${RUN_QUESTA}" -eq 1 ]] ; then

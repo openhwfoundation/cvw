@@ -7,9 +7,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 import argparse
+import glob
 import os
+import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 # Global variables
 WALLY  = os.environ.get("WALLY")
@@ -19,14 +22,13 @@ srcdir = f"{WALLY}/src"
 tbdir  = f"{WALLY}/testbench"
 logdir = f"{simdir}/logs"
 
-# run a Linux command and return the result as a string in a form that VCS can use
-def runFindCommand(cmd):
-    res = subprocess.check_output(cmd, shell=True)
-    res = str(res)
-    res = res.replace("\\n", " ")  # replace newline with space
-    res = res.replace("'", "")  # strip off quotation marks
-    res = res[1:] # strip off leading b from byte string
-    return res
+# Memories that are generated per FPGA target rather than compiled into the simulation
+EXCLUDED_SOURCES = {f"{srcdir}/generic/mem/{name}.sv" for name in
+                    ("rom1p1r_128x64", "ram2p1r1wbe_128x64", "rom1p1r_128x32", "ram2p1r1wbe_2048x64")}
+
+def svFiles(directory):
+    """Every .sv file under directory, as a sorted list of paths."""
+    return sorted(str(f) for f in Path(directory).rglob("*.sv") if str(f) not in EXCLUDED_SOURCES)
 
 def parseArgs():
     parser = argparse.ArgumentParser()
@@ -43,53 +45,48 @@ def parseArgs():
     return parser.parse_args()
 
 def generateFileList(testbench, params):
-    rtlsrc_cmd = f'find {srcdir} -name "*.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x64.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_128x64.sv" ! -path "{srcdir}/generic/mem/rom1p1r_128x32.sv" ! -path "{srcdir}/generic/mem/ram2p1r1wbe_2048x64.sv"'
-    rtlsrc_files = runFindCommand(rtlsrc_cmd)
-    tbcommon_cmd = f'find {tbdir}/common -name "*.sv"'
-    tbcommon_files = runFindCommand(tbcommon_cmd)
-    tb_file = f"{tbdir}/{testbench}.sv"
+    files = [f"{tbdir}/{testbench}.sv", *svFiles(srcdir), *svFiles(f"{tbdir}/common")]
     # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
-    ethernet_files = ""
     if "RVVI_SYNTH_SUPPORTED=1" in params.split():
-        ethernet_files = f"{WALLY}/addins/verilog-ethernet/*/*.sv {WALLY}/addins/verilog-ethernet/*/*/*/*.sv"
-    return f"{tb_file} {rtlsrc_files} {tbcommon_files} {ethernet_files}"
+        files += svFiles(f"{WALLY}/addins/verilog-ethernet")
+    return files
 
 def getCompileOptions(wkdir, args):
     """Build compile-time options for VCS."""
     compileOptions = []
     if args.lockstep:
-        compileOptions.extend(["+incdir+$IMPERAS_HOME/ImpPublic/include/host",
-                                "+incdir+$IMPERAS_HOME/ImpPublic/include/host/rvvi",
-                                "+incdir+$IMPERAS_HOME/ImpProprietary/include/host",
-                                "+incdir+$IMPERAS_HOME/ImpProprietary/include/host/idv",
-                                "$IMPERAS_HOME/ImpPublic/source/host/rvvi/*.sv",
-                                "$IMPERAS_HOME/ImpProprietary/source/host/idv/*.sv"])
+        imperas = os.environ.get("IMPERAS_HOME", "")
+        compileOptions.extend([f"+incdir+{imperas}/ImpPublic/include/host",
+                               f"+incdir+{imperas}/ImpPublic/include/host/rvvi",
+                               f"+incdir+{imperas}/ImpProprietary/include/host",
+                               f"+incdir+{imperas}/ImpProprietary/include/host/idv",
+                               *sorted(glob.glob(f"{imperas}/ImpPublic/source/host/rvvi/*.sv")),
+                               *sorted(glob.glob(f"{imperas}/ImpProprietary/source/host/idv/*.sv"))])
     if args.breker:
         WALLY_UVM_PKG = os.environ.get('WALLY_UVM_PKG')
         if not WALLY_UVM_PKG:
             raise RuntimeError("WALLY_UVM_PKG environment variable is not set for Breker test!")
         compileOptions.extend([f"+incdir+{WALLY}/testbench/trek_files",
                                f"+incdir+{os.path.dirname(WALLY_UVM_PKG)}",
-                                " -ntb_opts uvm",
+                               "-ntb_opts", "uvm",
                                f"{WALLY_UVM_PKG}",
-                               "-top trek_uvm",])
-    if args.params:
-        compileOptions.append(setupParamOverrides(wkdir, args))
-    if args.define:
-        compileOptions.append(args.define)
-    return " ".join(compileOptions)
+                               "-top", "trek_uvm"])
+    if args.params.strip():
+        compileOptions.extend(setupParamOverrides(wkdir, args))
+    compileOptions.extend(args.define.split())
+    return compileOptions
 
 def getSimvOptions(args):
     """Build runtime options for the simulation binary."""
     simvOptions = []
     if args.lockstep:
-        simvOptions.append("-sv_lib $IMPERAS_HOME/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0/model")
+        simvOptions.extend(["-sv_lib", f"{os.environ.get('IMPERAS_HOME', '')}/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0/model"])
     if args.breker:
         BREKER_HOME = os.environ.get("BREKER_HOME")
         if not BREKER_HOME:
             raise RuntimeError("BREKER_HOME environment variable is not set for Breker test!")
-        simvOptions.append(f"-sv_lib {BREKER_HOME}/linux64/lib/libtrek")
-    return " ".join(simvOptions)
+        simvOptions.extend(["-sv_lib", f"{BREKER_HOME}/linux64/lib/libtrek"])
+    return simvOptions
 
 def setupParamOverrides(wkdir, args):
     paramOverrideFile = os.path.join(wkdir, "param_overrides.txt")
@@ -98,7 +95,7 @@ def setupParamOverrides(wkdir, args):
             [param, value] = param.split("=")
             value = value.replace("\\'", "'") if "\\'" in value else f'"{value}"' # transform quotes/bit indicators
             f.write(f"assign {value} {args.tb}/{param}\n")
-    return f" -parameters {wkdir}/param_overrides.txt "
+    return ["-parameters", paramOverrideFile]
 
 def compileDesign(wkdir, args):
     """Compile the design with VCS."""
@@ -106,17 +103,20 @@ def compileDesign(wkdir, args):
     os.makedirs(logdir, exist_ok=True)
     rtlFiles = generateFileList(args.tb, args.params)
     compileOptions = getCompileOptions(wkdir, args)
-    includePath = f"+incdir+{cfgdir}/{args.config} +incdir+{cfgdir}/deriv/{args.config} +incdir+{cfgdir}/shared +incdir+$WALLY/tests +incdir+{tbdir} +incdir+{srcdir}"
-    vcsStandardFlags = "+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF -suppress +warn -sverilog +vc -Mupdate -line -full64 -lca -ntb_opts sensitive_dyn"
-    vcsCMD = f"vcs {vcsStandardFlags} -top {args.tb} {compileOptions} -Mdir={wkdir} {includePath} {srcdir}/cvw.sv {rtlFiles} -o {wkdir}/sim_out -work {wkdir} -Mlib={wkdir} -l {logdir}/{args.config}_{args.tb}_compile.log"
-    print(f"Compiling VCS: {vcsCMD}")
-    subprocess.run(vcsCMD, shell=True, check=True)
+    includePath = [f"+incdir+{cfgdir}/{args.config}", f"+incdir+{cfgdir}/deriv/{args.config}", f"+incdir+{cfgdir}/shared",
+                   f"+incdir+{WALLY}/tests", f"+incdir+{tbdir}", f"+incdir+{srcdir}"]
+    vcsStandardFlags = ["+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF",
+                        "-suppress", "+warn", "-sverilog", "+vc", "-Mupdate", "-line", "-full64", "-lca", "-ntb_opts", "sensitive_dyn"]
+    vcsCMD = ["vcs", *vcsStandardFlags, "-top", args.tb, *compileOptions, f"-Mdir={wkdir}", *includePath, f"{srcdir}/cvw.sv",
+              *rtlFiles, "-o", f"{wkdir}/sim_out", "-work", wkdir, f"-Mlib={wkdir}", "-l", f"{logdir}/{args.config}_{args.tb}_compile.log"]
+    print(f"Compiling VCS: {shlex.join(vcsCMD)}")
+    subprocess.run(vcsCMD, check=True)
 
 def run(wkdir, args):
     """Run simulation using the pre-compiled binary."""
     simvOptions = getSimvOptions(args)
-    simvCMD = f"{wkdir}/sim_out +TEST={args.testsuite} {args.args} -no_save {simvOptions}"
-    subprocess.run(simvCMD, shell=True, check=True)
+    simvCMD = [f"{wkdir}/sim_out", f"+TEST={args.testsuite}", *shlex.split(args.args), "-no_save", *simvOptions]
+    subprocess.run(simvCMD, check=True)
 
 def main(args):
     wkdir = args.wkdir if args.wkdir else f"{simdir}/wkdir/{args.config}_{args.testsuite}"

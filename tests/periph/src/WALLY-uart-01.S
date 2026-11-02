@@ -236,12 +236,12 @@ WORD UART_THR, 0x0D, write08_test # Write 13 to transmit register
 WORD 0x0, 0xC401, uart_data_wait  # Interrupt due to trigger threshold reached
 WORD UART_THR, 0x0E, write08_test # Write 14 to transmit register
 WORD UART_THR, 0x0F, write08_test # Write 15 to transmit register
-WORD 0x0, 0xC101, uart_data_wait
+WORD 0x0, 0xC401, uart_data_wait  # 15 characters in the FIFO, at or above the trigger level of 14; 0x0F overran the full FIFO
 WORD UART_LSR, 0x61, read08_test      # FIFO contains data, no overrun error
 WORD UART_THR, 0x10, write08_test     # Write 16 to transmit register, filling RX shift register
 WORD UART_THR, 0x11, write08_test     # Write 17 to transmit register, destroying contents held in shift register
 WORD 0x0, 0x06, uart_lsr_intr_wait    # Wait for LSR interrupt ID
-WORD UART_LSR, 0xA3, read08_test      # Read overrun error from LSR
+WORD UART_LSR, 0x23, read08_test      # Read overrun error from LSR (an overrun is not an error in the FIFO, so LSR[7] stays clear)
 
 WORD 0x0, 0x0, terminate_test
 
@@ -324,9 +324,9 @@ WORD 0x0000C401 // 66
 WORD SEXT32(0xFFFFFFC1) // 67: Threshold = 14
 WORD 0x0000C101 // 68
 WORD 0x0000C401 // 69
-WORD 0x0000C101 // 70
+WORD 0x0000C401 // 70
 WORD 0x00000061 // 71: FIFO has data, no overrun
 WORD 0x00000006 // 72: wait for interrupt
-WORD SEXT32(0xFFFFFFA3) // 73: FIFO overrun error
+WORD 0x00000023 // 73: FIFO overrun error
 WORD 0x0000000B // 74: ecall from test termination
 expected_signature_end:

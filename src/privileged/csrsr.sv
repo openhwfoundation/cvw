@@ -15,20 +15,9 @@
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrsr import cvw::*;  #(parameter cvw_t P) (
+module csrsr import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset, StallW,
   input  logic              WriteMSTATUSM, WriteMSTATUSHM, WriteSSTATUSM,
   input  logic              TrapToM, TrapToHSM, FRegWriteM,
@@ -59,7 +48,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6
   // Lower privilege status registers are a subset of the full status register
-  if (P.XLEN==64) begin : csrsr64 // RV64
+  if (P.XLEN == 64) begin : csrsr64 // RV64
     assign MSTATUS_REGW  = {STATUS_SD, 23'b0, STATUS_MPV, STATUS_GVA, STATUS_MBE, STATUS_SBE, STATUS_SXL, STATUS_UXL, 9'b0,
                            STATUS_TSR, STATUS_TW, STATUS_TVM, STATUS_MXR, STATUS_SUM, STATUS_MPRV,
                            STATUS_XS, STATUS_FS, STATUS_MPP, 2'b0,
@@ -85,7 +74,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   end
 
   // extract values to write to upper status register on 64/32-bit access
-  if (P.XLEN==64) begin : upperstatus
+  if (P.XLEN == 64) begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & CSRWriteValM[37];
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[36];
   end else begin : upperstatus
@@ -109,6 +98,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
 
   assign MSTATUS_MPV = STATUS_MPV;
 
+  // MPP (mstatus[12:11]) is WARL: only accept supported privilege modes
   always_comb
     if      (CSRWriteValM[12:11] == P.U_MODE & P.U_SUPPORTED) STATUS_MPP_NEXT = P.U_MODE;
     else if (CSRWriteValM[12:11] == P.S_MODE & P.S_SUPPORTED) STATUS_MPP_NEXT = P.S_MODE;
@@ -133,7 +123,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
       case (EndiannessPrivMode)
         P.M_MODE: BigEndianM = STATUS_MBE;
         P.S_MODE: BigEndianM = STATUS_SBE;
-        default: BigEndianM  = STATUS_UBE;
+        default:  BigEndianM = STATUS_UBE;
       endcase
     end
   end else begin : endianmux
@@ -142,7 +132,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
 
   // registers for STATUS bits
   // complex register with reset, write enable, and the ability to update other bits in certain cases
-  always_ff @(posedge clk) //, posedge reset)
+  always_ff @(posedge clk)
     if (reset) begin
       STATUS_TSR_INT  <= 1'b0;
       STATUS_TW_INT   <= 1'b0;
@@ -173,7 +163,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
         STATUS_SPP  <= PrivilegeModeW[0];
       end else if (mretM) begin // Privileged 3.1.6.1
         STATUS_MIE      <= STATUS_MPIE; // restore global interrupt enable
-        STATUS_MPIE     <= 1'b1; //
+        STATUS_MPIE     <= 1'b1;
         STATUS_MPP      <= P.U_SUPPORTED ? P.U_MODE : P.M_MODE; // set MPP to lowest supported privilege level
         STATUS_MPRV_INT <= STATUS_MPRV_INT & (STATUS_MPP == P.M_MODE); // page 21 of privileged spec.
       end else if (sretM & P.S_SUPPORTED & ~VirtModeW) begin
@@ -198,12 +188,10 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
         STATUS_MBE      <= nextMBE;
         STATUS_SBE      <= nextSBE;
-      // coverage off
-      // MSTATUSH only exists in 32-bit configurations, will not be hit on rv64gc
+      // MSTATUSH only exists in 32-bit configurations; coverage-exclusions-rv64gc.do excludes it on rv64gc
       end else if ((P.XLEN == 32) & WriteMSTATUSHM) begin
         STATUS_MBE      <= P.BIGENDIAN_SUPPORTED & CSRWriteValM[5];
         STATUS_SBE      <= P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[4];
-      // coverage on
       end else if (P.S_SUPPORTED & WriteSSTATUSM) begin // write a subset of the STATUS bits
         STATUS_MXR_INT  <= P.S_SUPPORTED & CSRWriteValM[19];
         STATUS_SUM_INT  <= P.VIRTMEM_SUPPORTED & CSRWriteValM[18];

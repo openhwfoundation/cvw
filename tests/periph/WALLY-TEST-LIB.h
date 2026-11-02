@@ -31,8 +31,9 @@
 //   signature pointers (t1/a6).  SIG_NEXT is invoked after every signature write: it compares the
 //   entry just written at 0(a6) against the expected value at 0(s11), and on a mismatch jumps to
 //   selfcheck_fail, which records the entry index, address, expected and actual values in
-//   selfcheck_record and halts.  terminate_test also confirms that exactly the expected number of
-//   entries were written.  s9, s10, and s11 are reserved for this purpose.
+//   selfcheck_record (for debugging) and halts.  terminate_test also confirms that exactly the
+//   expected number of entries were written.  s9, s10, and s11 are reserved for this purpose.
+//   The result is reported to the testbench through tohost: 1 = pass, (status << 1) | 1 = fail.
 //
 //   selfcheck_record layout (XLEN-bit entries):
 //      0: status: 0 = test did not finish, 1 = passed, 2 = entry mismatch, 3 = wrong number of entries
@@ -1177,7 +1178,7 @@ selfcheck_fail:
     SREG a6, (2*REGBYTES)(t0)  // address of the entry
     SREG s10, (3*REGBYTES)(t0) // expected value
     SREG s9, (4*REGBYTES)(t0)  // actual value
-    li x1, 1
+    li x1, (2 << 1) | 1  // tohost: fail, exit code 2 = entry mismatch
     j write_tohost      // halt
 
 // Reached from terminate_test when the number of signature entries written differs from the number expected.
@@ -1196,7 +1197,7 @@ selfcheck_length_fail:
     sub t2, s9, t2
     srli t2, t2, REGSHIFT      // number of entries expected
     SREG t2, (3*REGBYTES)(t0)
-    li x1, 1
+    li x1, (3 << 1) | 1  // tohost: fail, exit code 3 = wrong number of entries
     j write_tohost      // halt
 
 .macro TEST_STACK_AND_DATA

@@ -3,49 +3,70 @@
 //
 // Written: Rose Thompson rose@rosethompson.net
 //
-// Purpose: basic check that global history and gshare branch npredictors are working as expected.  Requires manual inspection.
-// TODO: *** Automate checking prediction accuracy.
+// Purpose: Simple examples of how the global history and gshare branch predictors behave, useful for
+//          watching the predictor in a waveform.  oneLoopTest runs five 30-iteration loops whose bodies
+//          shrink from six instructions to one.  Each global_hist_N_space_test runs 200 iterations of a
+//          loop containing a branch that alternates between taken and not taken, with a different
+//          number of instructions around the alternating branch in each test, so the branches land in
+//          the global history at different spacings.  A global history predictor should learn the
+//          alternating pattern after a few iterations.
+//          The test checks each loop's architectural results; it does not check prediction accuracy.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // load code to initialize stack, handle interrupts, terminate
-
 #include "WALLY-init-lib.h"
+#include "WALLY-selfcheck.h"
 
-# run-elf.bash find this in project description
+// CHECK_HIST index: check the global_hist results, t1 = 101 and t3 = a0 (checks index and index+1).
+// The values are copied first because SC_CHECK_EQ uses t0 and t1.
+.macro CHECK_HIST index
+        mv a2, t1
+        mv a3, t3
+        li a1, 101
+        SC_CHECK_EQ a2, a1, \index
+        SC_CHECK_EQ a3, a0, (\index + 1)
+.endm
+
 main:
+        SC_STRICT_TRAPS
 
-        addi sp, sp, 8
-        sd ra, 0(sp)
+        # Each subroutine leaves its alternating-branch count in t1 and its instruction count in t3.
+        # In the global_hist tests the alternating branch is taken on the 100 even iterations, which
+        # each add 1 to t1, so t1 ends at 101.
         jal ra, oneLoopTest
+        li a1, 30
+        SC_CHECK_EQ t3, a1, 1
         jal ra, global_hist_6_space_test
+        li a0, 2300                 # 200 iterations x 10, plus 3 on each of the 100 taken iterations
+        CHECK_HIST 2
         jal ra, global_hist_4_space_test
+        li a0, 1100                 # 200 x 5, plus 1 on each taken iteration
+        CHECK_HIST 4
         jal ra, global_hist_3_space_test
+        li a0, 1100
+        CHECK_HIST 6
         jal ra, global_hist_2_space_test
+        li a0, 400                  # 200 x 2
+        CHECK_HIST 8
         jal ra, global_hist_1_space_test
+        li a0, 200
+        CHECK_HIST 10
         jal ra, global_hist_0_space_test
+        li a0, 0
+        CHECK_HIST 12
 
         fence.I
 
 finished:
-    j done
+        SC_PASS
+        j done
 
         .data
 
@@ -65,7 +86,7 @@ oneLoopTest1:
   li   t6, 100
   li   a0, 1000
   li   a1, 10000
-  bne t3, t4, oneLoopTest1     # this branch toggles between taken and not taken.
+  bne t3, t4, oneLoopTest1     # loop branch: taken 29 times, then not taken
 
   mv t3, t1
   mv t4, t2
@@ -75,7 +96,7 @@ oneLoopTest2:
   li   t5, 10      # filler instructions
   li   t6, 100
   li   a0, 1000
-  bne t3, t4, oneLoopTest2     # this branch toggles between taken and not taken.
+  bne t3, t4, oneLoopTest2     # loop branch: taken 29 times, then not taken
 
   mv t3, t1
   mv t4, t2
@@ -84,7 +105,7 @@ oneLoopTest3:
   addi t3, t3, 1
   li   t5, 10      # filler instructions
   li   t6, 100
-  bne t3, t4, oneLoopTest3     # this branch toggles between taken and not taken.
+  bne t3, t4, oneLoopTest3     # loop branch: taken 29 times, then not taken
 
   mv t3, t1
   mv t4, t2
@@ -92,14 +113,14 @@ oneLoopTest4:
   # instruction
   addi t3, t3, 1
   li   t5, 10      # filler instructions
-  bne t3, t4, oneLoopTest4     # this branch toggles between taken and not taken.
+  bne t3, t4, oneLoopTest4     # loop branch: taken 29 times, then not taken
 
   mv t3, t1
   mv t4, t2
 oneLoopTest5:
   # instruction
   addi t3, t3, 1
-  bne t3, t4, oneLoopTest5     # this branch toggles between taken and not taken.
+  bne t3, t4, oneLoopTest5     # loop branch: taken 29 times, then not taken
 
   ret
 

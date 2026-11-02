@@ -11,17 +11,6 @@
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // load code to initialize stack, handle interrupts, terminate
@@ -80,9 +69,11 @@ interrupt:              # must be a timer interrupt
 
 exception:
     csrr t0, mcause
-    li t1, 0xC          # is it an instruction page fault
-    li a0, 3            # set a0 to 3 to ecall looks like a program terminate
-    beq t0, t1, ecall   # terminate program for instruction page fault
+    li t1, 0xC          # is it an instruction page fault?
+    bne t0, t1, notipf
+    li a0, 3            # yes: handle it as a request to change to machine mode,
+    j ecall             # since the faulting code cannot be fetched
+notipf:
     li t1, 8            # is it an ecall trap?
     andi t0, t0, 0xFC # if CAUSE = 8, 9, or 11
     bne t0, t1, trap_return # ignore other exceptions

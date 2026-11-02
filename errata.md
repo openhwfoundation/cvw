@@ -21,4 +21,5 @@ Please contribute by making a pull request to modify this document on GitHub.  S
 | 388 | Fig. 9.6 | The top-left controller label is shown as "Controller1". | Replace with "Controller 1". | Sotaro Fujimoto, Japan | 7/14/26 |
 | 394 | sidebar | "Fig. 20.3 shows a full-featured GPIO peripheral with an APB interface." | Replace "Fig. 20.3" with "Fig. 20.4". | Sotaro Fujimoto, Japan | 7/19/26 |
 | 455 | Table 10.2, `ClearDirty` row | The flush condition is listed as `(Flush & ~LineDirty)`. | Change it to `(Flush & LineDirty)`, consistent with Section 10.4.5.4 and `cachefsm.sv`. | 王晗宇, China | 9/2/26 |
+| 815 | Table I.1, jalr row | "PC = [Address]," | Change it to "PC = Address," | 迟浩岐, China | 10/22/26 |
 | 885   | 23.2.2.4-5 | The ramspeed benchmark is no longer supported and has been removed from the Buildroot Linux image. | n/a | David Harris, Claremont, CA | 1/4/26 |
