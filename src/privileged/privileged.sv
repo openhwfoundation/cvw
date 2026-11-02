@@ -89,6 +89,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              DebugHaltReq, DebugResumeReq,
   input  logic              DebugResetHaltReq,
   input  logic              DebugHaveResetAck,
+  input  logic              DebugFPRWrite,
   // CSR outputs
   output logic [P.XLEN-1:0] CSRReadValM,
   output logic [P.XLEN-1:0] CSRReadValW,                                    // Value read from CSR
@@ -193,6 +194,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
     .DebugCSREnable, .DebugRegWDATA, .DebugRegAddr, .DebugRegWrite,
     .DebugMode, .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq,
     .BreakpointFaultM, .NextHalt, .NextResume, .DebugHalted, .DebugRunning, .NextHaltCause, .DebugEBreak,
+    .DebugFPRWrite,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
     .NextPrivilegeModeM, .PrivilegeModeW, .CauseM, .SelHPTW,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,

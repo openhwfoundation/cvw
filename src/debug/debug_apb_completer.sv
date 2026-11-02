@@ -36,6 +36,8 @@ module debug_apb_completer import cvw::*; #(parameter cvw_t P) (
   input  logic [P.LLEN-1:0]   DebugPWDATA,
   input  logic [P.LLEN/8-1:0] DebugPSTRB,
   input  logic [15:0]         DebugPADDR,
+  // Non Bus signals
+  input  logic                DebugMode,
   // APB Completer signals
   output logic                DebugPREADY,
   output logic [P.LLEN-1:0]   DebugPRDATA,
@@ -48,6 +50,8 @@ module debug_apb_completer import cvw::*; #(parameter cvw_t P) (
   output logic [11:0]         DebugRegAddr,
   output logic                DebugRegWrite,
   output logic [P.LLEN-1:0]   DebugRegWDATA,
+  // For setting STATUS_FS dirty on FPR writes
+  output logic                DebugFPRWrite,
   // Read values from each set of registers
   input  logic [P.XLEN-1:0]   DebugR1D,
   input  logic [P.FLEN-1:0]   DebugFRD1D,
@@ -60,6 +64,7 @@ module debug_apb_completer import cvw::*; #(parameter cvw_t P) (
   // interfaces with this, it will reject partial writes.
   logic GPRAccess, FPRAccess, CSRAccess, Exists;
   logic IllegalPartialWrite, FPRPartialWrite;
+  logic WriteAttempt, IllegalReadOnlyCSRWrite;
 
   debugregdecode #(P) decode(.RegNO(DebugPADDR), .CSRAccess, .GPRAccess, .FPRAccess);
 
@@ -68,12 +73,16 @@ module debug_apb_completer import cvw::*; #(parameter cvw_t P) (
   assign DebugCSREnable = DebugPENABLE & CSRAccess;
   assign DebugFPREnable = DebugPENABLE & FPRAccess;
 
+  assign DebugFPRWrite = DebugMode & DebugRegWrite & DebugFPREnable;
+
   if (P.F_SUPPORTED) assign FPRPartialWrite = FPRAccess & ~&DebugPSTRB[P.FLEN/8-1:0];
   else               assign FPRPartialWrite = 1'b0;
 
   assign IllegalPartialWrite = DebugPWRITE & ((GPRAccess | CSRAccess) & ~&DebugPSTRB[P.XLEN/8-1:0] | FPRPartialWrite);
 
-  assign DebugPSLVERR = DebugPENABLE & (IllegalDebugCSRAccess | ~Exists | IllegalPartialWrite);
+  assign WriteAttempt = DebugPENABLE & DebugPSELRegister & DebugPWRITE;
+  assign IllegalReadOnlyCSRWrite = WriteAttempt & CSRAccess & (DebugPADDR[11:10] == 2'b11);
+  assign DebugPSLVERR = DebugPENABLE & (IllegalDebugCSRAccess | ~Exists | IllegalPartialWrite | IllegalReadOnlyCSRWrite);
 
   assign DebugRegAddr = DebugPADDR[11:0];
   assign DebugRegWrite = DebugPENABLE & DebugPSELRegister & DebugPWRITE & ~DebugPSLVERR;

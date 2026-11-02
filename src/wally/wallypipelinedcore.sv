@@ -207,6 +207,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [11:0]                   DebugRegAddr;
   logic                          DebugRegWrite;
 
+  logic                          DebugFPRWrite;
+
   // instruction fetch unit: PC, branch prediction, instruction cache
   ifu #(P) ifu(.clk, .reset,
     .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
@@ -347,7 +349,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
       .DebugCSREnable, .DebugRegWDATA(DebugRegWDATA[P.XLEN-1:0]), .DebugRegAddr, .DebugRegWrite,
-      .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq, .DebugHaveResetAck,
+      .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq, .DebugHaveResetAck, .DebugFPRWrite,
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
@@ -418,15 +420,17 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   if (P.SDEXT_SUPPORTED) begin : debug_apb
     debug_apb_completer #(P) debug_apb(.DebugPCLK, .DebugPRESETn,
       .DebugPENABLE, .DebugPSELRegister, .DebugPWRITE, .DebugPWDATA, .DebugPSTRB, .DebugPADDR,
+      .DebugMode,
       .DebugPREADY, .DebugPRDATA, .DebugPSLVERR,
       .DebugGPREnable, .DebugFPREnable, .DebugCSREnable,
       .DebugRegAddr, .DebugRegWrite, .DebugRegWDATA,
+      .DebugFPRWrite,
       .DebugR1D, .DebugFRD1D, .CSRReadValM,
       .IllegalDebugCSRAccess);
   end else begin
     assign {DebugPREADY, DebugPRDATA, DebugPSLVERR,
       DebugGPREnable, DebugFPREnable, DebugCSREnable,
-      DebugRegAddr, DebugRegWrite, DebugRegWDATA} = '0;
+      DebugRegAddr, DebugRegWrite, DebugRegWDATA, DebugFPRWrite} = '0;
   end
 
 endmodule

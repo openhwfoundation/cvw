@@ -39,6 +39,7 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
   input  logic              SelHPTW,
   input  logic              DebugSetPrivMode,
   input  logic [1:0]        DebugPrivilegeMode,
+  input  logic              DebugFPRWrite,
   output logic [P.XLEN-1:0] MSTATUS_REGW, SSTATUS_REGW, MSTATUSH_REGW,
   output logic [1:0]        STATUS_MPP,
   output logic              STATUS_SPP, STATUS_TSR, STATUS_TW,
@@ -216,6 +217,6 @@ module csrsr import cvw::*;  #(parameter cvw_t P) (
         STATUS_SPIE     <= P.S_SUPPORTED & CSRWriteValM[5];
         STATUS_SIE      <= P.S_SUPPORTED & CSRWriteValM[1];
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
-      end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM) STATUS_FS_INT <= 2'b11;
+      end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM | DebugFPRWrite) STATUS_FS_INT <= 2'b11;
     end
 endmodule

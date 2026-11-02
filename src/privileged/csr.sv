@@ -88,6 +88,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   input  logic                     DebugHalted, DebugRunning,
   input  logic [2:0]               NextHaltCause,
   input  logic                     DebugEBreak,
+  input  logic                     DebugFPRWrite,
   // outputs from CSRs
   output logic [1:0]               STATUS_MPP,
   output logic                     STATUS_SPP, STATUS_TSR, STATUS_TVM,
@@ -268,7 +269,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     .WriteMSTATUSM, .WriteMSTATUSHM, .WriteSSTATUSM,
     .TrapM, .FRegWriteM, .NextPrivilegeModeM, .PrivilegeModeW,
     .mretM, .sretM, .WriteFRMM, .SetOrWriteFFLAGSM, .CSRWriteValM, .SelHPTW,
-    .DebugSetPrivMode, .DebugPrivilegeMode,
+    .DebugSetPrivMode, .DebugPrivilegeMode, .DebugFPRWrite,
     .MSTATUS_REGW, .SSTATUS_REGW, .MSTATUSH_REGW,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TW,
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TVM,
