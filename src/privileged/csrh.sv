@@ -499,7 +499,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
                                            : {CSRWriteValM[P.XLEN-1:2], 2'b00};
   flopenr #(P.XLEN) VSTVECreg(clk, reset, WriteVSTVECM, VSTVECWriteValM, VSTVEC_REGW);
   flopenr #(P.XLEN) VSSCRATCHreg(clk, reset, WriteVSSCRATCHM, CSRWriteValM, VSSCRATCH_REGW);
-  flopenr #(P.XLEN) VSEPCreg(clk, reset, (TrapToVSM | WriteVSEPCM), TrapToVSM ? NextEPCM : CSRWriteValM, VSEPC_REGW);
+  flopenr #(P.XLEN) VSEPCreg(clk, reset, (TrapToVSM | WriteVSEPCM), TrapToVSM ? NextEPCM : (P.ZCA_SUPPORTED ? {CSRWriteValM[P.XLEN-1:1], 1'b0} : {CSRWriteValM[P.XLEN-1:2], 2'b00}), VSEPC_REGW);
   // VSCAUSE is WLRL; allow CSR writes to set full VSXLEN value, but let traps override.
   assign NextVSCAUSEM = TrapToVSM ? {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}
                                 : CSRWriteValM;
