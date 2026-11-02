@@ -87,7 +87,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
           .DisableTranslation, .PTE, .PageTypeWriteVal,
           .TLBWrite, .TLBFlush, .TLBFlushAll, .TLBPAdr, .TLBMiss,
           .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
-  end else begin : tlb // just pass address through as physical
+  end else begin : notlb // just pass address through as physical
     assign Translate    = 1'b0;
     assign TLBMiss      = 1'b0;
     assign TLBPageFault = 1'b0;

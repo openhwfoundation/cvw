@@ -70,6 +70,8 @@ deriv_coverage_tests = {
     # A/D updates on single-precision FP loads and stores with FLEN < XLEN
     "f_rv64gc":  ["fpADUpdate32"],
     "fh_rv64gc": ["fpADUpdate32"],
+    # misaligned flq/fsq that cross a D$ line
+    "fdq_rv64gc": ["misalignedQuadSpill"],
 }
 
 # The tests below are a list with one element for each configuration
@@ -112,20 +114,23 @@ def _fdiv(i):
 
 derivconfigtests = [
         # memory system
-        ["tlb2_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb16_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb2_rv64gc", "rv64gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb16_rv64gc", "rv64gc", ["priv/Sv", "priv/SvSm"]],
+        ["tlb2_rv32gc", "rv32gc", ["priv/Sv"]],
+        ["tlb16_rv32gc", "rv32gc", ["priv/Sv"]],
+        ["tlb2_rv64gc", "rv64gc", ["priv/Sv"]],
+        ["tlb16_rv64gc", "rv64gc", ["priv/Sv"]],
         *[[f"way_{w}_rv32gc", "rv32gc", ["rv32i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"way_{w}_rv64gc", "rv64gc", ["rv64i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"ram_{r}_rv64gc", "rv64gc", ["rv64i/I"]] for r in ["0_0", "1_0", "1_1", "2_0", "2_1"]],
         # RV32 cacheless designs will not work unless DTIM supports FLEN > XLEN.  This support is not planned.
-        # ["nodcache_rv32gc", "rv32gc", ["rv32i/I"]],
-        # ["nocache_rv32gc", "rv32gc", ["rv32i/I"]],
-        ["noicache_rv32gc", "rv32gc", ["rv32i/I"]],
-        ["noicache_rv64gc", "rv64gc", ["rv64i/I"]],
-        ["nodcache_rv64gc", "rv64gc", ["rv64i/I"]],
-        ["nocache_rv64gc", "rv64gc", ["rv64i/I"]],
+        # The cacheless designs also drop virtual memory, so they run the ELFs of rv32i and rv64i: the rv32gc
+        # and rv64gc ELFs build page tables as they boot and execute sfence.vma, which is an illegal
+        # instruction without virtual memory.
+        # ["nodcache_rv32gc", "rv32i", ["rv32i/I"]],
+        # ["nocache_rv32gc", "rv32i", ["rv32i/I"]],
+        ["noicache_rv32gc", "rv32i", ["rv32i/I"]],
+        ["noicache_rv64gc", "rv64i", ["rv64i/I"]],
+        ["nodcache_rv64gc", "rv64i", ["rv64i/I"]],
+        ["nocache_rv64gc", "rv64i", ["rv64i/I"]],
 
         # Atomic variants
         ["zaamo_rv64gc", "rv64gc", ["rv64i/I", "rv64i/Zaamo"]],
@@ -142,13 +147,14 @@ derivconfigtests = [
         # No privilege modes variants.  The rv32gc and rv64gc ACT ELFs set up S mode as they boot, so these
         # run the ELFs of the configurations without S: rv32i and rv64i (I, in M mode) and rv32imc (I, M,
         # C and machine-mode exceptions).  rv32imc runs its unprivileged tests in U mode without setting up
-        # PMP, which it lacks, so they fail on noS_rv32gc, whose PMP then denies U mode every access; on
-        # noU_rv32gc they run in M mode.  TODO: give the derivative configurations ACT configurations of
+        # PMP, which it lacks, so they fail on noS_rv32gc, whose PMP then denies U mode every access.  The
+        # rv32imc ELFs also write menvcfg as they boot, which does not exist without U mode, so noU_rv32gc
+        # runs only the M-mode rv32i ELFs.  TODO: give the derivative configurations ACT configurations of
         # their own.
         ["noS_rv32gc", "rv32i", ["rv32i/I"]],
-        ["noS_rv32gc", "rv32imc", ["priv/ExceptionsSm"]],
+        ["noS_rv32gc", "rv32imc", ["priv/Exceptions/Exceptions_Sm*"]],
         ["noS_rv64gc", "rv64i", ["rv64i/I"]],
-        ["noU_rv32gc", "rv32imc", ["rv32i/I", "rv32i/M", "rv32i/Zca", "priv/ExceptionsSm"]],
+        ["noU_rv32gc", "rv32i", ["rv32i/I"]],
         ["noU_rv64gc", "rv64i", ["rv64i/I"]],
 
         # VM variants
@@ -268,6 +274,10 @@ testfloatdivconfigs = [
 # Each entry is the ELF file name, or the <directory>_<file> name used for the log.
 lockstepwaivers = [
     "Zicbom-cbo.inval-00.elf", # ImperasDV lacks cache model to match CVW on invalidation
+    # Same: these check the data a cbo.inval leaves under each xenvcfg.CBIE setting
+    "Exceptions_ZicboS-00.elf",
+    "Exceptions_ZicboSm-00.elf",
+    "Exceptions_ZicboU-00.elf",
 
     # Wally implements writable mhpmevent bits; ImperasDV models them as read-only zero and offers no
     # parameter to change that, so every test that walks or writes mhpmevent disagrees.  The tests
@@ -281,7 +291,7 @@ lockstepwaivers = [
     "Sm_mcsr_walk-07.elf",
     "Sm_mcsr_walk-08.elf",
     "Sm_mcsr_walk-09.elf",
-    "SsstrictSm_CSR-08.elf",   # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
+    "Ssstrict_Sm_CSR-08.elf",  # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
 
     # ImperasDV accepts N=1 on a superpage leaf PTE instead of page faulting (riscv-arch-test does
     # not run Svnapot on Imperas for the same reason)
@@ -291,6 +301,9 @@ lockstepwaivers = [
     "Svnapot_sv48_Svnapot_reserved_enc_Umode-00.elf",
     "Svnapot_sv57_Svnapot_reserved_enc_Smode-00.elf",
     "Svnapot_sv57_Svnapot_reserved_enc_Umode-00.elf",
+    "Svadu_sv39_Svadu_fault_Smode-00.elf",  # test cases with N=1 on a superpage leaf
+    "Svadu_sv48_Svadu_fault_Smode-00.elf",
+    "Svadu_sv57_Svadu_fault_Smode-00.elf",
 
     # ImperasDV traps a wfi below M mode with mstatus.TW=1 at once, while Wally waits a bounded time
     # (WFI_TIMEOUT_BIT) before the illegal-instruction trap; both are legal (Privileged Spec

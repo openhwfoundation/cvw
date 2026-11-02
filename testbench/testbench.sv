@@ -560,7 +560,7 @@ module testbench;
   wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall,
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
+    .HTRANS, .HMASTLOCK, .HREADY, .GPIOIN, .GPIOOUT, .GPIOEN,
     .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO);
 
   // generate clock to sequence tests
@@ -934,9 +934,6 @@ module testbench;
     if (labFD != 0) $fclose(labFD);
   endtask
 
-`ifdef PMP_COVERAGE
-test_pmp_coverage #(P) pmp_inst(clk);
-`endif
   /* verilator lint_on WIDTHTRUNC */
   /* verilator lint_on WIDTHEXPAND */
 

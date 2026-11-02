@@ -39,21 +39,20 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   output logic                 HMASTLOCK,           // AHB master lock.  Wally does not use
   output logic                 HREADY,              // AHB ready
   // I/O Interface
-  input  logic                 TIMECLK,             // Optional clock for CLINT MTIME counter
-  input  logic [31:0]          GPIOIN,              // GPIO input values
-  output logic [31:0]          GPIOOUT,             // output values for GPIO
-  output logic [31:0]          GPIOEN,              // output enables for GPIO
-  input  logic                 UARTSin,             // UART serial input
-  output logic                 UARTSout,            // UART serial output
-  input  logic                 SPIIn,               // SPI pins in
-  output logic                 SPIOut,              // SPI pins out
-  output logic [3:0]           SPICS,               // SPI chip select pins
-  output logic                 SPICLK,              // SPI clock
-  input  logic                 SDCIn,               // SD card data[0], to SPI data in
-  output logic                 SDCCmd,              // SD card command, from SPI data out
-  output logic [3:0]           SDCCS,               // SD card chip select, from SPI chip select
-  output logic                 SDCCLK,              // SD card clock, from SPI clock
-  output logic [3:0]           PWMGPIO              // PWM GPIO output
+  input  logic [31:0]          GPIOIN,          // inputs from GPIO
+  output logic [31:0]          GPIOOUT,         // output values for GPIO
+  output logic [31:0]          GPIOEN,          // output enables for GPIO
+  input  logic                 UARTSin,         // UART serial data input
+  output logic                 UARTSout,        // UART serial data output
+  input  logic                 SPIIn,           // SPI pins in
+  output logic                 SPIOut,          // SPI pins out
+  output logic [3:0]           SPICS,           // SPI chip select pins
+  output logic                 SPICLK,          // SPI clock
+  input  logic                 SDCIn,           // SDC DATA[0]     to     SPI DI
+  output logic                 SDCCmd,          // SDC CMD         from   SPI DO
+  output logic [3:0]           SDCCS,           // SDC Card Detect from   SPI CS
+  output logic                 SDCCLK,          // SDC Clock       from   SPI Clock
+  output logic [3:0]           PWMGPIO          // PWM GPIO output
 );
 
   // Uncore signals
@@ -74,8 +73,8 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   );
 
   // instantiate uncore if a bus interface exists
-  if (P.BUS_SUPPORTED) begin : uncoregen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
-    uncore #(P) uncore(.HCLK, .HRESETn, .TIMECLK,
+  if (P.BUS_SUPPORTED) begin : uncoregen
+    uncore #(P) uncore(.HCLK, .HRESETn,
       .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .HRDATAEXT,
       .HREADYEXT, .HRESPEXT, .HRDATA, .HREADY, .HRESP, .HSELEXT,
       .MTimerInt, .MSwInt, .MExtInt, .SExtInt, .GPIOIN, .GPIOOUT, .GPIOEN, .UARTSin,

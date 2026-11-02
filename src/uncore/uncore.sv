@@ -18,22 +18,21 @@
 
 module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
-  input  logic                 HCLK, HRESETn,             // AHB clock and reset (active low)
-  input  logic                 TIMECLK,                   // Optional clock for CLINT MTIME counter
-  input  logic [P.PA_BITS-1:0] HADDR,                     // AHB address
-  input  logic [P.AHBW-1:0]    HWDATA,                    // AHB write data
-  input  logic [P.XLEN/8-1:0]  HWSTRB,                    // AHB byte write enables
-  input  logic                 HWRITE,                    // AHB write (1) or read (0)
-  input  logic [2:0]           HSIZE,                     // AHB transfer size
-  input  logic [2:0]           HBURST,                    // AHB burst type
-  input  logic [3:0]           HPROT,                     // AHB protection.  Wally does not use
-  input  logic [1:0]           HTRANS,                    // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
-  input  logic                 HMASTLOCK,                 // AHB master lock.  Wally does not use
-  input  logic [P.AHBW-1:0]    HRDATAEXT,                 // AHB read data from external memory
-  input  logic                 HREADYEXT, HRESPEXT,       // AHB ready and response from external memory
-  output logic [P.AHBW-1:0]    HRDATA,                    // AHB read data
-  output logic                 HREADY, HRESP,             // AHB ready and response
-  output logic                 HSELEXT,                   // AHB select for external memory
+  input  logic                 HCLK, HRESETn,
+  input  logic [P.PA_BITS-1:0] HADDR,
+  input  logic [P.AHBW-1:0]    HWDATA,
+  input  logic [P.XLEN/8-1:0]  HWSTRB,
+  input  logic                 HWRITE,
+  input  logic [2:0]           HSIZE,
+  input  logic [2:0]           HBURST,
+  input  logic [3:0]           HPROT,
+  input  logic [1:0]           HTRANS,
+  input  logic                 HMASTLOCK,
+  input  logic [P.AHBW-1:0]    HRDATAEXT,
+  input  logic                 HREADYEXT, HRESPEXT,
+  output logic [P.AHBW-1:0]    HRDATA,
+  output logic                 HREADY, HRESP,
+  output logic                 HSELEXT,
   // peripheral pins
   output logic                 MTimerInt, MSwInt,         // Machine timer and software interrupts
   output logic                 MExtInt, SExtInt,          // Machine and supervisor external interrupts
@@ -133,7 +132,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
 
-  if (P.UART_SUPPORTED == 1) begin : uartgen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
+  if (P.UART_SUPPORTED == 1) begin : uartgen
     uart_apb #(P) uart(
       .PCLK, .PRESETn, .PSEL(PSEL[3]), .PADDR(PADDR[2:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[3]), .PREADY(PREADY[3]),
