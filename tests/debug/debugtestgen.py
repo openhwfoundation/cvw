@@ -106,6 +106,10 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
     test_name = os.path.splitext(os.path.basename(elf))[0]
     build_dir = "build32" if isa == "32" else "build"
 
+    # Parallel OpenOCD instances will collide on gdb/telnet/and tcl
+    # ports, so disabling those ports for parallel test generation is
+    # necessary.
+
     openocd_args = [
         "openocd",
         "-c", f"set PORT {port}",
@@ -113,7 +117,8 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
         "-c", f"set ISA32 {1 if isa == '32' else 0}",
         "-c", f"set BUILD_DIR {build_dir}",
         "-c", f"set TEST_NAME {test_name}",
-        "-c", f"source {tclscript}"
+        "-c", f"source {tclscript}",
+        "-c", "gdb port disabled; telnet port disabled; tcl port disabled"
     ]
     print(" ".join(openocd_args))
     return subprocess.Popen(openocd_args)
@@ -134,6 +139,9 @@ def main(args):
 
     openocd_proc = start_openocd(args.tcl, args.isa, args.test, port)
     openocd_proc.wait()
+    spikeinst.kill()
+    spikeinst.wait()
+
     print(os.path.splitext(args.test))
 
 if __name__ == "__main__":

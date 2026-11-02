@@ -118,9 +118,11 @@ $(BUILD)/%.elf: rv64/%.S
 	$(CC) $(ASFLAGS) -o $@ $<
 
 $(TVBUILDDIR)/%.tv: $(BUILD)/%.elf.objdump
-	./debugtestgen.py -s $(BUILD)/$(basename $(notdir $@)).elf -t $(TVDIR)/$(basename $(notdir $@)).tcl -i 64
-	grep "41b" $(LOGSDIR)/$(basename $(notdir $@)).log | sed 's/.*41b \([^;]*\).*/\1/' > $@
-	echo 'w 40000001 @10 -> + 00000000 @00' >> $@
+	@./debugtestgen.py -s $(BUILD)/$(basename $(notdir $@)).elf -t $(TVDIR)/$(basename $(notdir $@)).tcl -i 64
+	@grep "41b" $(LOGSDIR)/$(basename $(notdir $@)).log | sed 's/.*41b \([^;]*\).*/\1/' > $@
+	@if [ ! -s $@ ]; then printf '\033[31mFAIL\033[0m %s\n' $@; exit 1; \
+	else printf '\033[1;32mBUILT\033[0m %s\n' $@; fi
+	@echo 'w 40000001 @10 -> + 00000000 @00' >> $@
 
 # --------------------------------------------------------------------
 # 32 Bit build
@@ -132,9 +134,11 @@ $(BUILD32)/%.elf: rv32/%.S
 	$(CC) $(ASFLAGS32) -o $@ $<
 
 $(TVBUILDDIR32)/%.tv: $(BUILD32)/%.elf.objdump
-	./debugtestgen.py -s $(BUILD32)/$(basename $(notdir $@)).elf -t $(TVDIR)/$(basename $(notdir $@)).tcl -i 32
-	grep "41b" $(LOGSDIR32)/$(basename $(notdir $@)).log | sed 's/.*41b \([^;]*\).*/\1/' > $@
-	echo 'w 40000001 @10 -> + 00000000 @00' >> $@
+	@./debugtestgen.py -s $(BUILD32)/$(basename $(notdir $@)).elf -t $(TVDIR)/$(basename $(notdir $@)).tcl -i 32
+	@grep "41b" $(LOGSDIR32)/$(basename $(notdir $@)).log | sed 's/.*41b \([^;]*\).*/\1/' > $@
+	@if [ ! -s $@ ]; then printf '\033[31mFAIL\033[0m %s\n' $@; exit 1; \
+	else printf '\033[1;32mBUILT\033[0m %s\n' $@; fi
+	@echo 'w 40000001 @10 -> + 00000000 @00' >> $@
 
 clean:
 	@rm -rf $(BUILD)
