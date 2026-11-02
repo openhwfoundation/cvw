@@ -29,7 +29,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processor
   input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
   input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
-  input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
+  input  logic [2:0]           Size,               // access size: 000 = 8 bits, 001 = 16 bits, 010 = 32 bits, 011 = 64 bits, 100 = 128 bits
   input  logic [P.XLEN-1:0]    PTE,                // page table entry
   input  logic [2:0]           PageTypeWriteVal,   // page type
   input  logic                 TLBWrite,           // write TLB entry
@@ -60,6 +60,8 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        PMAStoreAmoAccessFaultM;  // Store or AMO access fault from PMA
   logic                        PMPStoreAmoAccessFaultM;  // Store or AMO access fault from PMP
   logic                        DataMisalignedM;          // load or store misaligned
+  logic                        SizeMisalignedM;          // misaligned for an access of 64 bits or less
+  logic [1:0]                  CheckSize;                // access size for the PMA and PMP checks
   logic                        Translate;                // Translation occurs when virtual memory is active and DisableTranslation is off
   logic                        TLBPageFault;             // Page fault from TLB
   logic                        ReadNoAmoAccessM;         // Read that is not part of atomic operation causes Load faults.  Otherwise StoreAmo faults
@@ -112,7 +114,12 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Check physical memory accesses
   ///////////////////////////////////////////
 
-  pmachecker #(P) pmachecker(.PhysicalAddress, .PAOutOfRange, .Size, .CMOpM,
+  // Region size masks stop at 64 bits, so a 128-bit flq/fsq is checked as 64-bit: main memory accepts it, and
+  // only an I/O region that takes 64-bit accesses on a 64-bit bus does, as two beats
+  if (P.LLEN == 128) assign CheckSize = Size[2] ? 2'b11 : Size[1:0];
+  else               assign CheckSize = Size[1:0];
+
+  pmachecker #(P) pmachecker(.PhysicalAddress, .PAOutOfRange, .Size(CheckSize), .CMOpM,
     .AtomicAccessM, .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .PBMemoryType,
     .Cacheable, .Idempotent, .SelTIM,
     .PMAInstrAccessFaultF, .PMALoadAccessFaultM, .PMAStoreAmoAccessFaultM);
@@ -120,7 +127,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   if (P.PMP_ENTRIES > 0) begin : pmp
     pmpchecker #(P) pmpchecker(.PhysicalAddress, .EffectivePrivilegeModeW,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-      .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .Size, .CMOpM,
+      .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .Size(CheckSize), .CMOpM,
       .PMPInstrAccessFaultF, .PMPLoadAccessFaultM, .PMPStoreAmoAccessFaultM);
   end else begin
     assign PMPInstrAccessFaultF     = 1'b0;
@@ -132,12 +139,14 @@ module mmu import cvw::*;  #(parameter cvw_t P,
 
   // Misaligned faults
   always_comb // exclusion-tag: immu-wordaccess
-    case (Size)
-      2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu
-      2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu
-      2'b10:  DataMisalignedM = VAdr[1] | VAdr[0]; // lw, sw, flw, fsw, lwu
-      2'b11:  DataMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd
+    case (Size[1:0])
+      2'b00:  SizeMisalignedM = 1'b0;              // lb, sb, lbu
+      2'b01:  SizeMisalignedM = VAdr[0];           // lh, sh, lhu
+      2'b10:  SizeMisalignedM = VAdr[1] | VAdr[0]; // lw, sw, flw, fsw, lwu
+      2'b11:  SizeMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd
     endcase
+  if (P.LLEN == 128) assign DataMisalignedM = Size[2] ? |VAdr[3:0] : SizeMisalignedM; // flq, fsq
+  else               assign DataMisalignedM = SizeMisalignedM;
 
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
   // When ZICCLSM_SUPPORTED, misaligned uncachable accesses are lower priority than page and access faults, so must wait for TLB to resolve

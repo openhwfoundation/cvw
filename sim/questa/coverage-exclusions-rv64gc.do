@@ -424,10 +424,10 @@ coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line
 
 # IMMU only makes word-sized accesses (Size = 2'b10), so the byte, halfword and doubleword arms of the
 # misalignment case never run, and the fetch address bit 0 is always 0 (row 4, VAdr[0]_1, of the word arm).
-foreach arm {"2'b00:  DataMisalignedM" "2'b01:  DataMisalignedM" "2'b11:  DataMisalignedM"} {
+foreach arm {"2'b00:  SizeMisalignedM" "2'b01:  SizeMisalignedM" "2'b11:  SizeMisalignedM"} {
   coverage exclude -scope /core/ifu/immu/immu -linerange [GetLineNum ${SRC}/mmu/mmu.sv $arm] -item bs 1
 }
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "2'b10:  DataMisalignedM"] 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "2'b10:  SizeMisalignedM"] 4
 
 # IMMU never disables translations (DisableTranslation_1).
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign Translate"] 2
@@ -518,9 +518,10 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 #set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY2"]
 #coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line -item c 1 -feccondrow 1
 
-# DATA_PHASE ~BusAtomic_0 (BusAtomic_1, row 4): priority-masked by the HREADY & BusAtomic branch above it.
+# DATA_PHASE ~BusAtomic_0 (BusAtomic_1, row 2 of (~BusAtomic & HREADY) once rv64gc's constant UncachedFinalBeat
+# folds away): priority-masked by the HREADY & BusAtomic branch above it.
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY3"]
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow $line 4
+coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow $line 2
 
 # CACHE_WRITEBACK -> CACHE_FETCH: HREADY_0, and FinalBeatCount_0 (CacheBusRW[1] is only raised with CacheBusAck).
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY4"]

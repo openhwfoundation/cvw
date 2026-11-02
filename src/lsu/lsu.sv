@@ -262,7 +262,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
     dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-      .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUFunct3M[1:0]),
+      .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),
       .InstrAccessFaultF(), .LoadAccessFaultM(LSULoadAccessFaultM),
@@ -336,6 +336,8 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
       logic                    BusCMOZero;
       logic [3:0]              CacheCMOpM;
       logic                    BusAtomic;
+      logic [AHBWLOGBWPL-1:0]  UncachedThreshold;                                // Largest beat index of an uncached access
+      logic [P.LLEN-1:0]       UncachedReadDataWordM;                            // Uncached read data replicated across the LLEN word
 
       // Each datapath is gated on the extension that needs it: cbo.zero to uncached memory on Zicboz,
       // the cache CMO port on either CBO extension, and uncached AMOs on Zaamo.
@@ -376,11 +378,19 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
         .HSIZE(LSUHSIZE), .HBURST(LSUHBURST), .HTRANS(LSUHTRANS), .HWRITE(LSUHWRITE), .HREADY(LSUHREADY),
         .BeatCount, .SelBusBeat, .CacheReadDataWordM(DCacheReadDataWordM[P.LLEN-1:0]), .WriteDataM(LSUWriteDataM),
         .Size(LSUSizeM), .HADDR(LSUHADDR), .CacheBusAdr(DCacheBusAdr), .CacheBusRW, .BusAtomic, .BusCMOZero, .CacheableOrFlushCacheM,
-        .CacheBusAck(DCacheBusAck), .FetchBuffer, .PAdr(PAdrM),
+        .CacheBusAck(DCacheBusAck), .FetchBuffer, .PAdr(PAdrM), .UncachedThreshold,
         .Cacheable(CacheableOrFlushCacheM), .BusRW, .Stall(GatedStallW),
         .BusStall(LSUBusStallM), .BusCommitted(BusCommittedM));
 
-      mux3 #(P.LLEN) UnCachedDataMux(.d0(DCacheReadDataWordSpillM), .d1({LLENPOVERAHBW{FetchBuffer[P.XLEN-1:0]}}),
+      // An uncached access fills one FetchBuffer word per beat.  Word j of the LLEN word repeats FetchBuffer word
+      // j mod (number of beats), so subwordread finds an access narrower than LLEN wherever its address puts it.
+      for (genvar j = 0; j < LLENPOVERAHBW; j++) begin : uncachedreaddata
+        logic [AHBWLOGBWPL-1:0] Word;
+        assign Word = AHBWLOGBWPL'(j) & UncachedThreshold;
+        assign UncachedReadDataWordM[j*P.AHBW +: P.AHBW] = FetchBuffer[Word*P.AHBW +: P.AHBW];
+      end
+
+      mux3 #(P.LLEN) UnCachedDataMux(.d0(DCacheReadDataWordSpillM), .d1(UncachedReadDataWordM),
                                     .d2({{P.LLEN-P.XLEN{1'b0}}, DTIMReadDataWordM[P.XLEN-1:0]}),
                                     .s({SelDTIM, ~(CacheableOrFlushCacheM)}), .y(ReadDataWordMuxM));
     end else begin : passthrough // No Cache, use simple ahbinterface instead of ahbcacheinterface

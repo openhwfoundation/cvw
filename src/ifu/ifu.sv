@@ -194,7 +194,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
-         .Size(2'b10),
+         .Size(3'b010),
          .PTE(PTE),
          .PageTypeWriteVal(PageType),
          .TLBWrite(ITLBWriteF),
@@ -299,7 +299,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
             .Size(3'b010), .HADDR(IFUHADDR), .HREADY(IFUHREADY), .HWRITE(IFUHWRITE), .CacheBusAdr(ICacheBusAdr),
             .BeatCount(), .Cacheable(CacheableF), .SelBusBeat(), .WriteDataM('0), .BusAtomic('0),
             .CacheBusAck(ICacheBusAck), .HWDATA(), .CacheableOrFlushCacheM(1'b0), .CacheReadDataWordM('0),
-            .FetchBuffer, .PAdr(PCPF),
+            .FetchBuffer, .PAdr(PCPF), .UncachedThreshold(),
             .BusRW, .Stall(GatedStallD),
             .BusStall, .BusCommitted(BusCommittedF));
 
