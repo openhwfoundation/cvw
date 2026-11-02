@@ -528,9 +528,29 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   // control bits
   logic IllegalVEncodingD;                         // not a supported vector encoding
+  logic IllegalVOperandD;                          // an operand is reserved under the current vtype
 
   assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
-  assign IllegalVPUInstrD = IllegalVEncodingD;
+  assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
+
+  // Reserved operands: element width, group size and alignment, and overlap
+  logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand
+  logic VScalarMoveD;                              // vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s: element 0 only
+  logic VWholeRegD;                                // vmv<nr>r.v, vl<nr>r.v, vs<nr>r.v
+  logic VdNoOverlapD;                              // vd may not overlap a source, nor v0 when masked
+
+  assign VdEnD  = VRegWriteD | (OpD == 7'b0100111);                                 // written, or store data
+  assign Vs2EnD = VLoadStoreD ? MopD[0] :                                           // load/store: only the index
+                  (OpD == 7'b1010111) & ~VSETD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
+  assign Vs1EnD = (OPIVVD | OPMVVD | OPFVVD) & ~VUnaryD;
+  assign VScalarMoveD = (OPMVXD | OPFVFD) & (Funct6D == 6'b010000) | VUnaryWriteIntD | VUnaryWriteFPD;
+  assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[5];
+  assign VdNoOverlapD = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS) |
+                        (VOpClassD == VOPCLASS_MASK) | (VOpClassD == VOPCLASS_SLIDE) & ~Funct6D[0];   // slideups
+
+  vreserved #(P) vreserved(.SewD, .VlmulD(VTYPE_REGW[2:0]), .VdD, .Vs2D, .Vs1D, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+    .VdEnD, .Vs2EnD, .Vs1EnD, .VReductionD, .VScalarMoveD, .VWholeRegD, .NfD(VLoadStoreD ? NfD : Vs1D[2:0]),
+    .VLSModeD, .VMD, .VRegWriteD, .VdNoOverlapD, .IllegalVOperandD);
 
   // load/store runs in LSU; arithmetic categories set by class above
   assign VEUTypeD = VLoadStoreD       ? VEUTYPE_MEM :
