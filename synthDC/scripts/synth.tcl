@@ -298,6 +298,26 @@ set filename [format "%s%s" $outputDir "/reports/report_clock.rep"]
 set filename [format "%s%s" $outputDir  "/reports/timing.rep"]
 redirect $filename { report_timing -capacitance -transition_time -nets -nworst 1 }
 
+# Paths launched and captured on opposite clock edges (into the register files, which are written on the falling
+# edge, or through latches) have half a period.  Report the worst path for each pair of edges, and compute fmax
+# from the most restrictive: required period = period - slack for full-cycle paths, period - 2 * slack for half-cycle.
+set filename [format "%s%s" $outputDir "/reports/fmax.rep"]
+redirect $filename { echo "Edges      Slack (ns)  Required period (ns)" }
+set required_period 0
+foreach {launch capture cycles} {rise rise 1 fall fall 1 rise fall 0.5 fall rise 0.5} {
+    redirect $outputDir/reports/timing_${launch}_${capture}.rep { report_timing -${launch}_from [get_clocks $my_clk] -${capture}_to [get_clocks $my_clk] -capacitance -transition_time -nets -nworst 1 }
+    set path [get_timing_paths -${launch}_from [get_clocks $my_clk] -${capture}_to [get_clocks $my_clk] -max_paths 1]
+    if { [sizeof_collection $path] == 0 } { continue }
+    set slack [get_attribute $path slack]
+    if { ![string is double -strict $slack] } { continue }
+    set req [expr {$my_period - $slack / $cycles}]
+    if { $req > $required_period } { set required_period $req }
+    redirect -append $filename { echo [format "%-4s %-4s  %10.6f  %10.6f" $launch $capture $slack $req] }
+}
+if { $required_period > 0 } {
+    redirect -append $filename { echo [format "fmax %.1f MHz" [expr {1000.0 / $required_period}]] }
+}
+
 set filename [format "%s%s" $outputDir  "/reports/mindelay.rep"]
 redirect $filename { report_timing -capacitance -transition_time -nets -delay_type min -nworst 1 }
 
