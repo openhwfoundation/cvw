@@ -62,8 +62,6 @@ def parseArgs():
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--lockstepverbose", "-lv", help="Run ImperasDV lock, step, and compare with tracing enabled", action="store_true")
     parser.add_argument("--rvvi", "-r", help="Simulate rvvi hardware interface and ethernet.", action="store_true")
-    parser.add_argument("--speedopt", help="Verilator: build the model for speed (C++ -O3) when booting Linux (buildroot); "
-                        "--no-speedopt uses the default build", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
 
@@ -355,7 +353,7 @@ def runQuesta(args, flags, env):
 def runVerilator(args):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
-    speedopt = args.speedopt and args.test == "buildroot"  # speed-optimized model only for Linux boots
+    speedopt = args.test == "buildroot"  # speed-optimized model only for Linux boots
     bhash = buildHash(args.params, args.define, "speedopt" if speedopt else "")
     workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = workdir / f"V{args.tb}"
