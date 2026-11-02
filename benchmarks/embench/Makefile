@@ -16,6 +16,9 @@ CONFIG = rv64gc
 XLENFLAGS = -mcmodel=medany
 # the board's linker script specifies elf32
 XLENLDFLAGS = -Wl,--oformat=elf64-littleriscv
+# the size builds' dummy libgcc lacks the 64-bit integer/double conversions; each stub in its own section
+# so that -gc-sections keeps only the ones a benchmark calls
+SIZESTUBS = -ffunction-sections $(CURDIR)/dummy-libgcc64.c
 else
 ARCH = rv32imac_zicsr
 ABI = ilp32
@@ -55,10 +58,10 @@ build_sizeopt_speed:
 
 # uses the build_all.py python file to build the tests in addins/embench-iot/bd_speed/ optimized for speed and size
 build_speedopt_size:
-	$(embench_dir)/build_all.py --builddir=bd_speedopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S $(MFLAGS) $(XLENLDFLAGS)" --cflags="-O2 -msave-restore $(MFLAGS) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
+	$(embench_dir)/build_all.py --builddir=bd_speedopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S $(SIZESTUBS) $(MFLAGS) $(XLENLDFLAGS)" --cflags="-O2 -msave-restore $(MFLAGS) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
 
 build_sizeopt_size:
-	$(embench_dir)/build_all.py --builddir=bd_sizeopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S $(MFLAGS) $(XLENLDFLAGS)" --cflags="-Os -msave-restore $(MFLAGS) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
+	$(embench_dir)/build_all.py --builddir=bd_sizeopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S $(SIZESTUBS) $(MFLAGS) $(XLENLDFLAGS)" --cflags="-Os -msave-restore $(MFLAGS) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
 
 # builds dependencies, then launches sim and finally runs python wrapper script to present results
 sim: sim_build_memfile sim_run speed
