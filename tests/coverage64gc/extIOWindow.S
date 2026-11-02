@@ -10,8 +10,7 @@
 //          misaligned accesses, AMOs and LR/SC in the window take access faults
 //          while they succeed elsewhere in EXT_MEM; a fetch from the window
 //          takes an instruction access fault; and an indirect call predicted
-//          to the window but resolved elsewhere completes normally (the
-//          testbench fails the run if any fetch reaches the window on the bus).
+//          to the window but resolved elsewhere completes without a trap.
 //          The D$ accesses and the exceptions are counted with mhpmcounter13
 //          and mhpmcounter23.  On a configuration without external memory at
 //          0x90000000 (rv64gc) the first load faults and the test passes
@@ -180,8 +179,8 @@ main:
     bnez s6, 1b
 
     #    b. The same call site now calls normal code.  The prediction points
-    #       into the window, but the wrong-path fetch must not reach the bus
-    #       (checked by the testbench) and the call completes without a trap.
+    #       into the window, so the wrong-path fetch takes a PMA fault, which
+    #       must be discarded: the call completes without a trap.
     li s8, 0
     la a5, nearby
     jal ra, callsite
