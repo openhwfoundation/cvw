@@ -487,7 +487,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
         case (last_abstract_reg)
           16'h7b0: begin
             // Do not check any unimplemented features for now
-            if ((expected[33:2] & 32'hF000_01E3) == (actual[33:2] & 32'hF000_01E3)) begin
+            if ((expected[33:2] & 32'hFFFF_F3EF) == (actual[33:2] & 32'hFFFF_F3EF)) begin
               result = 1;
             end else begin
               result = 0;
@@ -517,6 +517,17 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       end else if (state == DMREG_READ | state == ABSTRACT_READ) begin
         case (last_addr)
+          7'h10: begin
+            if (expected[29:0] == actual[29:0]) begin
+              // Spike is not spec compliant with halt request. Halt
+              // request is WARZ, but Spike returns it as 1 after it
+              // has been asserted.
+              result = 1;
+            end else begin
+              result = 0;
+            end
+          end
+
           7'h11: begin
             if (expected[33:8] == actual[33:8] & expected[6] == actual[6]) begin
               // Ignore hasresethaltreq differences. Spike doesn't seem to implement it.
@@ -543,10 +554,11 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
           // The case where the AbstractCS register is read during the
           // Abstract Register Read process. Spike actually asserts
           // the busy signal for a regular Abstract Access Register
-          // GPR read for some reason.
+          // GPR read because Spike uses a program buffer to perform
+          // those accesses.
           7'h16: begin
             // $display("HERE");
-            if ((expected[14] != actual[14]) | (expected[17] != actual[17])) begin
+            if (expected[14] != actual[14]) begin
               result = 1;
             end else if (last_aarsize == 3'd3 & P.XLEN == 32 & (expected[12:10] != 3'd2)) begin
               // Had to add this case because Spike wants to report a
@@ -559,11 +571,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
                 // Ignore fails in DMSTATUS when trying to read
                 // Trigger Module registers, as this is a known
                 // difference until Trigger Modules are implemented.
-                16'h7a0: begin
-                  result = 1;
-                end
-                16'h7a1: result = 1;
-                16'h7a4: result = 1;
+                16'h7a0, 16'h7a1, 16'h7a4: result = 1;
                 default: result = 0;
               endcase
             end
