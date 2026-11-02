@@ -21,6 +21,7 @@ Linux-capable cores with caches and virtual memory.
 | Branch Predictor | 1K gshare, 1K BTB, 16 RAS | 1K gshare, 1K BTB, 16 RAS | 512-entry BHT, 28-entry BTB, 6-entry RAS | 128-entry BHT, 32-entry BTB, 2-entry RAS | 128-entry BHT, 32-entry BTB, 2-entry RAS | 512-entry gshare, 32-entry BTB, 8-entry RAS | 128-entry bimodal, 128-entry BTB, 16-entry RAS | TAGE-L, BTB, 32-entry RAS | 64 Kbit bi-mode BHT, 1024-entry BTB, 12-entry RAS | TAGE-SC, 2048-entry FTB, ITTAGE, RAS | 4 KB gshare, 512-entry BTB, 16-entry RAS
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[In the `wallypipelinedsoc` uncore; the other cores leave interrupt controllers and timers to the SoC.] | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | None | None | None | None | None | None | CLINT, PLIC, debug (in the cluster) | None | None
 | External Bus | AHB | AHB | TileLink | AXI4 | AXI4 | AXI4 | Custom cache refill interfaces | TileLink | AXI4 | CHI | Native cache and peripheral buses
+| CoreMark/MHz | 4.20footnote:cmcvw[From the README, built with CORE-V-Wally's own CoreMark port. The common port in benchmarks/comparison gives 3.46 on rv32imc and 4.20 on rv64gc.] | 4.33footnote:cmcvw[] | 3.10 | 3.44footnote:cmcva6[The testharness's 2,000,000-cycle limit is raised.] | 3.53footnote:cmcva6[] | —footnote:cmpend[Not yet measured.] | 3.38 | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[] | —footnote:cmpend[]
 |===
 
 == Embedded cores with caches or tightly coupled memories
@@ -39,6 +40,7 @@ Higher-performance embedded cores.
 | Branch Predictor | Static (backward taken) | None | None | 512-entry gshare BHT, 512-entry BTB, 8-entry RAS | Static (backward taken) | 32-entry BHT, 2-entry RAS | 128-entry gshare BHT, 32-entry BTB, 4-entry RAS | 512-entry gshare BHT, 512-entry BTB, 4-entry RAS
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | CLINT | None | PIC, 2 timers, debug module, DMA | None | Nonefootnote:a65cvxif[Includes the CV-X-IF example coprocessor, which decodes some custom and floating-point opcodes.] | PIC, 2 timers, debug module, DMA | PIC, 2 timers, debug module, DMA
 | External Bus | AHB | Wishbone-style XBUS | Ibex memory interface (OBI-like) with ECC | AXI4 | Wishbone | AXI4 | AXI4 | AXI4
+| CoreMark/MHz | 4.01footnote:cmcvw[] | 1.24 | 4.15footnote:cmibex[The boot code enables the instruction cache, which resets disabled; with the testbench's zero-wait memory it makes no difference (4.16 without).] | 4.77footnote:cmveer[With the stack, which holds CoreMark's data, in the DCCM, as VeeR's own CoreMark does; EH1 scores 1.85 with it in external memory.]footnote:cmel2[5 iterations: the testbench stops at 2,000,000 cycles.] | —footnote:cmpend[] | 5.33 | 5.17footnote:cmveer[] | 6.33footnote:cmveer[]footnote:cmeh2[With one hardware thread.]
 |===
 
 == Microcontroller cores
@@ -57,6 +59,7 @@ Small pipelined cores without caches.
 | Branch Predictor | Static (backward taken) | None | None | None | 1-entry BTB | None | None | None | None | None
 | Peripherals | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | None | CLIC | None | None | None | None | None | None | None
 | External Bus | AHB | OBI | AHB-Lite (instruction and system ports) | AXI4 (instruction and data ports) | AHB5 (instruction and data ports) | OBI | OBI | OBI with integrity | OBI with integrity | OBI
+| CoreMark/MHz | 3.50footnote:cmcvw[] | 2.76 | 2.59 | —footnote:cmpend[] | 4.30 | 3.43footnote:cmcnt[The boot code clears `mcountinhibit`: the counters reset stopped.] | 3.43footnote:cmcnt[] | 2.77footnote:cmcnt[]footnote:cme40s[At reset settings: `cpuctrl.dataindtiming` = 1 makes divides and branches fixed-latency (3.11 for RV32IMC and 3.47 for RV32IMCB with it cleared). On a testbench adapted from CV32E40X's, with zero-wait memory.] | 3.05footnote:cmcnt[]footnote:cme40s[] | 3.43footnote:cmcnt[]footnote:cme40x[On a copy of the riscv-arch-test testbench without its fixed 2-cycle data-bus stalls (2.04 with them).]
 |===
 
 == Minimal cores
@@ -75,6 +78,7 @@ The smallest cores, for control tasks.
 | Branch Predictor | None | None | None | None
 | Peripherals | None | None | None | None
 | External Bus | AHB | None | AXI4-Lite | Reduced Wishbone
+| CoreMark/MHz | 0.35footnote:cmcvw[] | 1.04footnote:cmcvw[] | 0.95footnote:cmpico[Timed with `rdcycle`: PicoRV32 has no `mcycle`.] | 0.072footnote:cmserv[SERV has no cycle counter: timed with the testbench's `servant_timer`, which counts cycles.]
 |===
 
 == Reproducing the Tables
@@ -87,6 +91,24 @@ variants, and B stands for Zba, Zbb, and Zbs.
 The other rows summarize each core's documentation and RTL at the commit ACT pins in
 `.github/scripts/install-<core>.sh`, for the build parameters that script and the configuration's `run_cmd.txt` use.
 The CORE-V-Wally columns come from the link:../README.md#configurations[Configurations table] in the README.
+
+=== CoreMark
+
+CoreMark runs on each core's riscv-arch-test testbench with the common port in
+link:../benchmarks/comparison/README.md[benchmarks/comparison], which documents every choice:
+
+* The program boots, halts, and prints with the configuration's `rvmodel_macros.h` and links with its `link.ld`.
+* Time is `mcycle` (or the noted substitute), and CoreMark/MHz = Iterations × 10^6^ / Total ticks, with 10 iterations unless noted.
+  A result counts only if CoreMark reports "Correct operation validated".
+* Every core is compiled with riscv64-unknown-elf-gcc 15.2.0 and the flags of CORE-V-Wally's `benchmarks/coremark`,
+  for its subset of IMAFDC, Zba, Zbb, Zbs, and Zbc; other extensions such as Zcb, Zicond, scalar crypto, and V are not used.
+* `ee_u32` is `signed int` on RV64, as in CORE-V-Wally's and SiFive's RV64 ports, and `unsigned int` on RV32.
+* Core-specific steps, each footnoted in the table, are behind compile flags of the port.
+
+----
+export ACT_CONFIGS=<directory of ACT configuration directories> CI_TOOLS=<directory of ACT core installs>
+benchmarks/comparison/coremark/run_all.sh            # all cores, or name the ones to run
+----
 
 [cols="2,3,3",options="header"]
 |===
