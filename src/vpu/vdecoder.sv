@@ -188,7 +188,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
                          VOPCLASS_FCVT     = 5'b10010,  // FP conversions
                          VOPCLASS_FCMP     = 5'b10011,  // FP min, max, compares, min/max reductions
                          VOPCLASS_FMISC    = 5'b10100,  // FP sign inject, move, merge, classify, estimates
-                         VOPCLASS_LS       = 5'b11000;  // loads, stores
+                         VOPCLASS_LOAD     = 5'b11000,  // loads
+                         VOPCLASS_STORE    = 5'b11001;  // stores
 
 `define VOPERANDW 7                           // operand controls: Reduction_VdEEW_Vs2EEW_Vs1EEW
 `define VEUCTRLW (5 + `VOPERANDW)             // VOpClass, then the operand controls
@@ -473,11 +474,14 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   // Width field sizes the data for unit-stride and strided, and the index (vs2) for indexed
   logic [1:0] VdEEWSelD, Vs2EEWSelD, Vs1EEWSelD;   // relative EEW codes from the tables
+  logic [4:0] VLoadStoreClassD;                    // VOPCLASS_LOAD or VOPCLASS_STORE
+
+  assign VLoadStoreClassD = (OpD == 7'b0100111) ? VOPCLASS_STORE : VOPCLASS_LOAD;
 
   assign {VOpClassD, VReductionD, VdEEWSelD, Vs2EEWSelD, Vs1EEWSelD} =
-    VLoadStoreD ? (MopD[0]                                      ? {VOPCLASS_LS, `VOPERANDW'b0_00_11_00} :
-                   (MopD == 2'b00) & (LSumopD == 5'b01011)      ? {VOPCLASS_LS, `VOPERANDW'b0_10_00_00} :
-                                                                  {VOPCLASS_LS, `VOPERANDW'b0_11_00_00}) :
+    VLoadStoreD ? (MopD[0]                                      ? {VLoadStoreClassD, `VOPERANDW'b0_00_11_00} :
+                   (MopD == 2'b00) & (LSumopD == 5'b01011)      ? {VLoadStoreClassD, `VOPERANDW'b0_10_00_00} :
+                                                                  {VLoadStoreClassD, `VOPERANDW'b0_11_00_00}) :
     VUnaryD     ? VUnaryControlsD : VEUControlsD;
 
   // Effective element width, log2(EEW): a mask is EEW 1 (000)
