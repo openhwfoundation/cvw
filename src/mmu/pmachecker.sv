@@ -19,7 +19,7 @@
 module pmachecker import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.PA_BITS-1:0] PhysicalAddress,
   input  logic                 PAOutOfRange,   // Untranslated address has nonzero bits above PA_BITS
-  input  logic [1:0]           Size,
+  input  logic [2:0]           Size,           // access size: 000 = 8 bits, 001 = 16 bits, 010 = 32 bits, 011 = 64 bits, 100 = 128 bits
   input  logic [3:0]           CMOpM,
   input  logic                 AtomicAccessM,  // Atomic access
   input  logic                 ExecuteAccessF, // Execute access
@@ -32,7 +32,7 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   output logic                 PMAStoreAmoAccessFaultM
 );
 
-  logic                        PMAAccessFault;
+  logic                        PMAAccessFault, PMADataAccessFault;
   logic                        AccessRW, AccessRWXC, AccessRX;
   logic [12:0]                 SelRegions;
   logic                        AtomicAllowed;
@@ -45,7 +45,7 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
 
   // Determine which region of physical memory (if any) is being accessed
   // SelRegions: 0 none, 1 DTIM, 2 IROM, 3 EXT_MEM, 4 BOOTROM, 5 UNCORE_RAM, 6 CLINT, 7 GPIO, 8 UART, 9 PLIC, 10 SDC, 11 SPI, 12 PWM
-  adrdecs #(P) adrdecs(PhysicalAddress, AccessRW, AccessRX, AccessRWXC, Size, SelRegions);
+  adrdecs #(P) adrdecs(PhysicalAddress, AccessRW, AccessRX, AccessRWXC, Size[1:0], SelRegions);
 
   // Only non-core RAM/ROM memory regions are cacheable. PBMT can override cacheable; NC and IO are uncachable
   assign CacheableRegion = SelRegions[3] | SelRegions[4] | SelRegions[5];  // exclusion-tag: unused-cacheable
@@ -64,6 +64,10 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   // Detect access faults.  An address outside the physical address space selects no region.
   assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed;
   assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault;
-  assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMAAccessFault;
-  assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMAAccessFault;
+  // The bus is at most 64 bits wide, so a 128-bit flq/fsq may access only cacheable memory: not an I/O region,
+  // and not a Svpbmt NC or IO page
+  if (P.LLEN == 128) assign PMADataAccessFault = PMAAccessFault | Size[2] & ~Cacheable;
+  else               assign PMADataAccessFault = PMAAccessFault;
+  assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMADataAccessFault;
+  assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMADataAccessFault;
 endmodule

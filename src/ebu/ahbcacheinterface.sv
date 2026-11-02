@@ -55,7 +55,6 @@ module ahbcacheinterface import cvw::*; #(
   input  logic                   BusAtomic,              // Uncached atomic memory operation
   input  logic [2:0]             Size,                   // Size of uncached memory operation
   input  logic                   BusCMOZero,             // Uncached cbo.zero must write zero to full sized cacheline without going through the cache
-  output logic [AHBWLOGBWPL-1:0] UncachedThreshold,      // Largest beat index of an uncached access: 0 unless it is wider than the bus
 
   // lsu/ifu interface
   input  logic                   Stall,                  // Core pipeline is stalled
@@ -64,17 +63,11 @@ module ahbcacheinterface import cvw::*; #(
   output logic                   BusCommitted);          // Bus is busy with an in flight memory operation and it is not safe to take an interrupt
 
   localparam              BeatCountThreshold = BEATSPERLINE - 1;      // Largest beat index
-  localparam logic [2:0]  AHBWSIZE = 3'($clog2(P.AHBW/8));            // HSIZE of a full bus-width beat
-  // Only RV64 with Q can make an uncached access wider than the bus: a 128-bit flq/fsq through a Svpbmt NC or IO
-  // page, or to an I/O region that takes 64-bit accesses.  RV32 has no Svpbmt, its main memory is cacheable, and
-  // its I/O regions take at most 32-bit accesses.  The I$ never makes one.
-  localparam logic        WIDE_UNCACHED = !READ_ONLY_CACHE & (LLENPOVERAHBW > 1) & (P.XLEN == 64);
   logic [P.PA_BITS-1:0]   LocalHADDR;                                 // Address after selecting between cached and uncached operation
   logic [AHBWLOGBWPL-1:0] BeatCountDelayed;                           // Beat within the cache line in the second (Data) cache stage
   logic                   CaptureEn;                                  // Enable updating the Fetch buffer with valid data from HRDATA
   logic [P.AHBW-1:0]      PreHWDATA;                                  // AHB Address phase write data
   logic [P.PA_BITS-1:0]   PAdrZero;
-  logic                   UncachedWide;                               // Uncached access is wider than the bus
 
   genvar                      index;
 
@@ -90,16 +83,7 @@ module ahbcacheinterface import cvw::*; #(
   mux2 #(P.PA_BITS) localadrmux(PAdrZero, CacheBusAdr, Cacheable, LocalHADDR);
   assign HADDR = ({{P.PA_BITS-AHBWLOGBWPL{1'b0}}, BeatCount} << $clog2(P.AHBW/8)) + LocalHADDR;
 
-  // An uncached access wider than the bus takes 2^(Size-AHBWSIZE) bus-width beats
-  if (WIDE_UNCACHED) begin : wideuncached
-    assign UncachedWide = Size > AHBWSIZE;
-    assign UncachedThreshold = UncachedWide ? AHBWLOGBWPL'((1 << (Size - AHBWSIZE)) - 1) : '0;
-  end else begin
-    assign UncachedWide = 1'b0;
-    assign UncachedThreshold = '0;
-  end
-
-  mux2 #(3) sizemux(.d0(Size), .d1(AHBWSIZE), .s(Cacheable | BusCMOZero | UncachedWide), .y(HSIZE));
+  mux2 #(3) sizemux(.d0(Size), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
 
   // When AHBW is less than LLEN need extra muxes to select the subword from cache's read data.
   logic [P.AHBW-1:0]          CacheReadDataWordAHB;
@@ -112,17 +96,7 @@ module ahbcacheinterface import cvw::*; #(
     assign CacheReadDataWordAHB = AHBWordSets[BeatCount[$clog2(LLENPOVERAHBW)-1:0]];
   end else assign CacheReadDataWordAHB = CacheReadDataWordM[P.AHBW-1:0];
 
-  // Each beat of an uncached access wider than the bus sends the next AHBW word of its write data
-  logic [P.AHBW-1:0]          WriteDataWordAHB;
-  if (WIDE_UNCACHED) begin : uncachedwritedata
-    logic [P.AHBW-1:0]          WriteDataWordSets [(LLENPOVERAHBW)-1:0];
-    for (index = 0; index < LLENPOVERAHBW; index++) begin : writedatasetsmux
-      assign WriteDataWordSets[index] = WriteDataM[(index*P.AHBW)+P.AHBW-1: (index*P.AHBW)];
-    end
-    assign WriteDataWordAHB = WriteDataWordSets[BeatCount[$clog2(LLENPOVERAHBW)-1:0]];
-  end else assign WriteDataWordAHB = WriteDataM[P.AHBW-1:0];
-
-  mux2 #(P.AHBW) HWDATAMux(.d0(CacheReadDataWordAHB), .d1(WriteDataWordAHB),
+  mux2 #(P.AHBW) HWDATAMux(.d0(CacheReadDataWordAHB), .d1(WriteDataM[P.AHBW-1:0]),
     .s(~(CacheableOrFlushCacheM)), .y(PreHWDATA));
   flopen #(P.AHBW) wdreg(HCLK, HREADY, PreHWDATA, HWDATA); // delay HWDATA by 1 cycle per spec
 
@@ -135,8 +109,8 @@ module ahbcacheinterface import cvw::*; #(
     flopen #(P.AHBW/8) HWSTRBReg(HCLK, HREADY, BusByteMaskM[P.AHBW/8-1:0], HWSTRB);
   end
 
-  buscachefsm #(BeatCountThreshold, AHBWLOGBWPL, READ_ONLY_CACHE, P.BURST_EN, WIDE_UNCACHED) AHBBuscachefsm(
-    .HCLK, .HRESETn, .Flush, .BusRW, .BusAtomic, .UncachedThreshold, .Stall, .BusCommitted, .BusStall, .CaptureEn, .SelBusBeat,
+  buscachefsm #(BeatCountThreshold, AHBWLOGBWPL, READ_ONLY_CACHE, P.BURST_EN) AHBBuscachefsm(
+    .HCLK, .HRESETn, .Flush, .BusRW, .BusAtomic, .Stall, .BusCommitted, .BusStall, .CaptureEn, .SelBusBeat,
     .CacheBusRW, .BusCMOZero, .CacheBusAck, .BeatCount, .BeatCountDelayed,
     .HREADY, .HTRANS, .HWRITE, .HBURST);
 endmodule

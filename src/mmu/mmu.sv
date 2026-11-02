@@ -61,7 +61,6 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        PMPStoreAmoAccessFaultM;  // Store or AMO access fault from PMP
   logic                        DataMisalignedM;          // load or store misaligned
   logic                        SizeMisalignedM;          // misaligned for an access of 64 bits or less
-  logic [1:0]                  CheckSize;                // access size for the PMA and PMP checks
   logic                        Translate;                // Translation occurs when virtual memory is active and DisableTranslation is off
   logic                        TLBPageFault;             // Page fault from TLB
   logic                        ReadNoAmoAccessM;         // Read that is not part of atomic operation causes Load faults.  Otherwise StoreAmo faults
@@ -114,12 +113,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Check physical memory accesses
   ///////////////////////////////////////////
 
-  // Region size masks stop at 64 bits, so a 128-bit flq/fsq is checked as 64-bit: main memory accepts it, and
-  // only an I/O region that takes 64-bit accesses on a 64-bit bus does, as two beats
-  if (P.LLEN == 128) assign CheckSize = Size[2] ? 2'b11 : Size[1:0];
-  else               assign CheckSize = Size[1:0];
-
-  pmachecker #(P) pmachecker(.PhysicalAddress, .PAOutOfRange, .Size(CheckSize), .CMOpM,
+  pmachecker #(P) pmachecker(.PhysicalAddress, .PAOutOfRange, .Size, .CMOpM,
     .AtomicAccessM, .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .PBMemoryType,
     .Cacheable, .Idempotent, .SelTIM,
     .PMAInstrAccessFaultF, .PMALoadAccessFaultM, .PMAStoreAmoAccessFaultM);
@@ -127,7 +121,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   if (P.PMP_ENTRIES > 0) begin : pmp
     pmpchecker #(P) pmpchecker(.PhysicalAddress, .EffectivePrivilegeModeW,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-      .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .Size(CheckSize), .CMOpM,
+      .ExecuteAccessF, .WriteAccessM, .ReadAccessM, .Size(Size[1:0]), .CMOpM,
       .PMPInstrAccessFaultF, .PMPLoadAccessFaultM, .PMPStoreAmoAccessFaultM);
   end else begin
     assign PMPInstrAccessFaultF     = 1'b0;
