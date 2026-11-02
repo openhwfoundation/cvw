@@ -3,6 +3,8 @@
 These tables compare CORE-V-Wally configurations with other open-source cores that have
 https://github.com/riscv/riscv-arch-test[riscv-arch-test] (ACT) configurations.
 Each column describes the configuration ACT builds, at the core commit ACT pins; the column heading links to that commit.
+Areas do not include L2 caches or tightly coupled memories (ICCM, DCCM, IROM, DTIM): they cover the core and its L1 caches,
+as CORE-V-Wally's own results do.
 See the <<_reproducing_the_tables,last section>> for where each entry comes from.
 
 == Application cores
@@ -95,6 +97,16 @@ variants, and B stands for Zba, Zbb, and Zbs.
 The other rows summarize each core's documentation and RTL at the commit ACT pins in
 `.github/scripts/install-<core>.sh`, for the build parameters that script and the configuration's `run_cmd.txt` use.
 The CORE-V-Wally columns come from the link:../README.md#configurations[Configurations table] in the README.
+
+=== Synthesis
+
+Every core is synthesized with CORE-V-Wally's `synthDC` flow: Design Compiler in topographical mode with TSMC 28HPC+ TT
+libraries (0.9 V, 25 °C) and TLU+ parasitics, so timing and area include wire delays.
+The area covers the core and its L1 caches. L2 caches and tightly coupled memories (VeeR ICCM and DCCM, CORE-V-Wally IROM and DTIM)
+are not included; CORE-V-Wally's microcontroller configurations are synthesized with the AHB bus in their place.
+Small, multi-ported, or associative arrays (register files, TLBs, queues, small predictor tables) are synthesized as flip-flops.
+Large one- and two-port arrays (cache data and tags, large predictor tables) are SRAM macros generated with the TSMC 28HPC+
+memory compilers; Logic Area excludes them, Total Area includes them, and RAM Bits is their capacity.
 
 === CoreMark
 
