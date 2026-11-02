@@ -30,15 +30,12 @@
 
 module vmul import cvw::*; #(parameter cvw_t P)
   (
-   input logic [P.VPU_INT_BLEN-1:0] A, B,
-   output logic [P.VPU_INT_BLEN-1:0] Product
+   input logic [P.ELEN-1:0] A, B,
+   output logic [P.ELEN-1:0] Product
    );
 
   // *** simplest implementation for now, just multiply, SEW = e64
 
-  genvar i;
-  for(i = 0; i < P.VPU_INT_LANES; i++) begin
-    assign Product[P.ELEN*(i+1)-1:P.ELEN*i] = A[P.ELEN*(i+1)-1:P.ELEN*i] * B[P.ELEN*(i+1)-1:P.ELEN*i];
-  end
+  assign Product = A * B;
 
 endmodule

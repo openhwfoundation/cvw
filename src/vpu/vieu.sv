@@ -167,7 +167,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   mux2 #(P.VPU_INT_BLEN) vscrbmux(VRD2SelectedE, {XLENTOINTLANES{ForwardedSrcBE}}, VALUSrcBE, VSrcBE);
 
-  vlane #(P) vlane(VSrcAE, VSrcBE, Funct6E, Funct3E, VALUResultE);
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, Funct6E, Funct3E, VALUResultE);
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~LocalStallM, VALUResultE, VALUResultM); // *** may need an enable
 

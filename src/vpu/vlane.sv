@@ -29,21 +29,21 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
-  input  logic [P.VPU_INT_BLEN-1:0] SrcA, SrcB,    // lane operands
+  input  logic [P.ELEN-1:0] SrcA, SrcB,    // lane operands
   input  logic [5:0] Funct6E,
   input  logic [2:0] Funct3E,
-  output logic [P.VPU_INT_BLEN-1:0] LaneResult     // lane result
+  output logic [P.ELEN-1:0] LaneResult     // lane result
 );
 
-  logic [P.VPU_INT_BLEN-1:0] SumE, ProductE;
+  logic [P.ELEN-1:0] SumE, ProductE;
   logic mul;  // whether the instruction is multiply
 
   assign mul = (Funct6E == 6'b100101) & (Funct3E[1:0] == 2'b10);
 
-  valu #(P) valu(.A(SrcA), .B(SrcB), .Sum(SumE));
+  valu #(P) valu(.A(SrcA), .B(SrcB), .Funct6E(Funct6E), .Funct3E(Funct3E), .Sum(SumE));
 
   vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
 
-  mux2 #(P.VPU_INT_BLEN) resultmux(SumE, ProductE, mul, LaneResult);
+  mux2 #(P.ELEN) resultmux(SumE, ProductE, mul, LaneResult);
 
 endmodule
