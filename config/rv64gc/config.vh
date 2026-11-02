@@ -224,6 +224,6 @@ localparam DIVCOPIES = 32'd4;
 
 // Memory synthesis configuration
 localparam logic USE_SRAM = 0;
-localparam logic LATCH_BASED_REGISTERFILE = 0; // integer register file built from latches (smaller ASIC area); flops for FPGAs
+localparam logic LATCH_BASED_REGISTERFILE = 0; // integer register file built from latches for smaller ASIC area, or flops for FPGAs
 
 `include "config-shared.vh"
