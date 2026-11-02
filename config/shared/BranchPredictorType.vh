@@ -6,3 +6,4 @@
 `define BP_LOCAL_BASIC  (32'd5)
 `define BP_LOCAL_AHEAD  (32'd6)
 `define BP_LOCAL_REPAIR (32'd7)
+`define BP_STATIC       (32'd8)

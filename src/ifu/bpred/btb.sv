@@ -35,13 +35,18 @@ module btb import cvw::*;  #(parameter cvw_t P,
   input  logic [3:0]        IClassW
 );
 
+  // The BTB holds the low ADRBITS bits of each target; the upper bits are taken from the PC of the branch.
+  // A target outside that range is mispredicted and corrected by the full-width check in the Execute stage.
+  localparam ADRBITS = P.BTB_ADDR_BITS;
+
   logic [Depth-1:0]        PCNextFIndex, PCFIndex, PCDIndex, PCEIndex, PCMIndex, PCWIndex;
   logic                    MatchD, MatchE, MatchM, MatchW, MatchX;
-  logic [P.XLEN+3:0]       ForwardBTBPredF;
-  logic [P.XLEN+3:0]       TableBTBPredF;
-  logic [P.XLEN-1:0]       IEUAdrW;
+  logic [ADRBITS+3:0]      ForwardBTBPredF;
+  logic [ADRBITS+3:0]      TableBTBPredF;
+  logic [ADRBITS-1:0]      BPBTALowF, BPBTALowD, BPBTALowE;
+  logic [ADRBITS-1:0]      IEUAdrW;
   logic [P.XLEN-1:0]       PCW;
-  logic [P.XLEN-1:0]       BPBTAD, BPBTAE;
+  logic [P.XLEN-1:0]       BPBTAE;
   logic                    BPBTAWrongE;
   logic                    BTBWrongM;
 
@@ -63,24 +68,31 @@ module btb import cvw::*;  #(parameter cvw_t P,
   assign MatchW = PCFIndex == PCWIndex;
   assign MatchX = MatchD | MatchE | MatchM | MatchW;
 
-  assign ForwardBTBPredF = MatchD ? {IClassD, BPBTAD} :
-                           MatchE ? {IClassE, IEUAdrE} :
-                           MatchM ? {IClassM, IEUAdrM} :
+  assign ForwardBTBPredF = MatchD ? {IClassD, BPBTALowD} :
+                           MatchE ? {IClassE, IEUAdrE[ADRBITS-1:0]} :
+                           MatchM ? {IClassM, IEUAdrM[ADRBITS-1:0]} :
                            {IClassW, IEUAdrW};
 
-  assign {BTBIClassF, BPBTAF} = MatchX ? ForwardBTBPredF : {TableBTBPredF};
+  assign {BTBIClassF, BPBTALowF} = MatchX ? ForwardBTBPredF : {TableBTBPredF};
 
-  // An optimization may be using a PC relative address.
-  ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**Depth), .WIDTH(P.XLEN+4)) memory(
+  ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**Depth), .WIDTH(ADRBITS+4)) memory(
     .clk, .ce1(~StallF | reset), .ra1(PCNextFIndex), .rd1(TableBTBPredF),
-    .ce2(~StallW & ~FlushW), .wa2(PCMIndex), .wd2({IClassM, IEUAdrM}), .we2(BTBWrongM), .bwe2('1));
+    .ce2(~StallW & ~FlushW), .wa2(PCMIndex), .wd2({IClassM, IEUAdrM[ADRBITS-1:0]}), .we2(BTBWrongM), .bwe2('1));
 
-  flopenrc #(P.XLEN) BTBD(clk, reset, FlushD, ~StallD, BPBTAF, BPBTAD);
+  flopenrc #(ADRBITS) BTBD(clk, reset, FlushD, ~StallD, BPBTALowF, BPBTALowD);
 
   // BPBTAE is not strictly necessary.  However it is used by two parts of wally.
   // 1. It gates updates to the BTB when the prediction does not change.  This saves power.
   // 2. BPBTAWrongE is used by the performance counters to track when the BTB's BPBTA or instruction class is wrong.
-  flopenrc #(P.XLEN) BTBTargetEReg(clk, reset, FlushE, ~StallE, BPBTAD, BPBTAE);
+  flopenrc #(ADRBITS) BTBTargetEReg(clk, reset, FlushE, ~StallE, BPBTALowD, BPBTALowE);
+
+  if (ADRBITS < P.XLEN) begin
+    assign BPBTAF = {PCF[P.XLEN-1:ADRBITS], BPBTALowF};
+    assign BPBTAE = {PCE[P.XLEN-1:ADRBITS], BPBTALowE};
+  end else begin
+    assign BPBTAF = BPBTALowF;
+    assign BPBTAE = BPBTALowE;
+  end
   // IClass = {Call, Return, Jump, Branch}: target is checked for branches and non-return jumps (the RAS predicts returns)
   assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[0] | IClassE[1] & ~IClassE[2]);
 
@@ -88,6 +100,6 @@ module btb import cvw::*;  #(parameter cvw_t P,
   assign BTBWrongM = BPBTAWrongM | IClassWrongM;
 
   flopenr #(P.XLEN) PCWReg(clk, reset, ~StallW, PCM, PCW);
-  flopenr #(P.XLEN) IEUAdrWReg(clk, reset, ~StallW, IEUAdrM, IEUAdrW);
+  flopenr #(ADRBITS) IEUAdrWReg(clk, reset, ~StallW, IEUAdrM[ADRBITS-1:0], IEUAdrW);
 
 endmodule

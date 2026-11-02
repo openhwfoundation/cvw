@@ -164,6 +164,7 @@ typedef struct packed {
   int           BPRED_NUM_LHR;
   int           BPRED_SIZE;
   int           BTB_SIZE;
+  int           BTB_ADDR_BITS;
   int           RAS_SIZE;
   logic         INSTR_CLASS_PRED; // is class predictor enabled
 
