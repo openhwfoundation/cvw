@@ -27,7 +27,8 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module specialcase import cvw::*;  #(parameter cvw_t P, parameter V=0) (
+module specialcase import cvw::*;  #(parameter cvw_t P,
+                                     parameter logic V = 0) (
   input  logic                 Xs,                // X sign
   input  logic [P.NF:0]        Xm, Ym, Zm,        // input significand's
   input  logic                 XNaN, YNaN, ZNaN,  // are the inputs NaN
