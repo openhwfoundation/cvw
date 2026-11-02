@@ -18,6 +18,8 @@ export MAXCORES ?= 1
 # MAXOPT turns on flattening, boundary optimization, and retiming
 # The output netlist is hard to interpret, but significantly better PPA
 export MAXOPT ?= 0
+# AUTOUNGROUP=1 lets compile_ultra ungroup the hierarchy (faster); 0 keeps it, for area reports per module
+export AUTOUNGROUP ?= 1
 export DRIVE ?= FLOP
 export USESRAM ?= 0
 export WIDTH ?= 32

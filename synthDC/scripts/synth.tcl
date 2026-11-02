@@ -26,6 +26,7 @@ set cfg $::env(CONFIGDIR)
 set hdl_src "../src"
 set saifpower $::env(SAIFPOWER)
 set maxopt $::env(MAXOPT)
+set autoungroup $::env(AUTOUNGROUP)
 set drive $::env(DRIVE)
 set width $::env(WIDTH)
 
@@ -243,8 +244,17 @@ if { $maxopt == 1 } {
     optimize_registers
 } else {
     # Boundary optimization removes logic that is dead across module ports (such as pipeline registers whose
-    # outputs a configuration never reads); -no_autoungroup keeps the hierarchy so area is still reported per module.
-    compile_ultra -no_seq_output_inversion -no_autoungroup
+    # outputs a configuration never reads).  Automatic ungrouping gives a faster design; AUTOUNGROUP=0 keeps
+    # the hierarchy so that area can be reported per module.  The core below the wrapper is kept either way,
+    # so the reports on it still work.
+    if { $wrapper == 1 } {
+        set_ungroup [get_cells dut] false
+    }
+    if { $autoungroup == 1 } {
+        compile_ultra -no_seq_output_inversion
+    } else {
+        compile_ultra -no_seq_output_inversion -no_autoungroup
+    }
 }
 
 # Eliminate need for assign statements (yuck!)
