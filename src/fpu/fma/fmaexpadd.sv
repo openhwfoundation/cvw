@@ -17,9 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmaexpadd import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.NE-1:0]      Xe, Ye,         // X and Y exponents
-  input  logic                 XZero, YZero,   // X, Y are zero
-  output logic [P.NE+1:0]      Pe              // Product exponent
+  input  logic [P.NE-1:0]      Xe, Ye,         // input's exponents
+  input  logic                 XZero, YZero,   // are the inputs zero
+  output logic [P.NE+1:0]      Pe              // product's biased exponent in B(NE+2.0) format
 );
 
   logic                        PZero;          // is the product zero?

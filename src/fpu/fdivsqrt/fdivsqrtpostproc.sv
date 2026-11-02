@@ -18,20 +18,20 @@
 
 module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk, reset,
-  input  logic                 StallM,              // Stall Memory stage
-  input  logic [P.DIVb+3:0]    WS, WC,              // Residual in carry-save form (Q4.DIVb)
-  input  logic [P.DIVb+3:0]    D,                   // Divisor (Q4.DIVb)
-  input  logic [P.DIVb:0]      FirstU, FirstUM,     // Result and result minus 1 ulp entering the iteration (U1.DIVb)
-  input  logic [P.DIVb+1:0]    FirstC,              // Digit position marker entering the iteration (Q2.DIVb)
-  input  logic                 SqrtE,               // Square root operation in Execute stage
-  input  logic                 SqrtM, SpecialCaseM, // Square root operation, special case result
-  input  logic [P.XLEN-1:0]    AM,                  // Integer dividend A (U/Q(XLEN.0))
-  input  logic                 RemOpM, ALTBM, BZeroM, AsM, BsM, W64M, // Remainder operation, |A| < |B|, divisor is zero, operand signs, RV64 W-type instruction
-  input  logic [P.DIVBLEN-1:0] IntNormShiftM,       // Integer divide normalization shift
-  output logic [P.DIVb:0]      UmM,                 // Divide/sqrt result significand (U1.DIVb)
-  output logic                 WZeroE,              // Residual is zero; terminate early
-  output logic                 DivStickyM,          // Divide/sqrt sticky bit
-  output logic [P.XLEN-1:0]    FIntDivResultM       // Integer divide result from FPU divider in Memory stage
+  input  logic                 StallM,
+  input  logic [P.DIVb+3:0]    WS, WC,            // Q4.DIVb
+  input  logic [P.DIVb+3:0]    D,                 // Q4.DIVb
+  input  logic [P.DIVb:0]      FirstU, FirstUM,   // U1.DIVb
+  input  logic [P.DIVb+1:0]    FirstC,            // Q2.DIVb
+  input  logic                 SqrtE,
+  input  logic                 SqrtM, SpecialCaseM,
+  input  logic [P.XLEN-1:0]    AM,                // U/Q(XLEN.0)
+  input  logic                 RemOpM, ALTBM, BZeroM, AsM, BsM, W64M,
+  input  logic [P.DIVBLEN-1:0] IntNormShiftM,
+  output logic [P.DIVb:0]      UmM,               // U1.DIVb result significand
+  output logic                 WZeroE,
+  output logic                 DivStickyM,
+  output logic [P.XLEN-1:0]    FIntDivResultM     // U/Q(XLEN.0)
 );
 
   logic [P.DIVb+3:0]         Sum;

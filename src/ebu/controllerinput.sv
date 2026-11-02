@@ -19,10 +19,10 @@
 
 module controllerinput #(
   parameter PA_BITS,
-  parameter SAVE_ENABLED = 1 // 1: Save manager inputs if Save = 1, 0: Don't save inputs
+  parameter SAVE_ENABLED = 1           // 1: Save manager inputs if Save = 1, 0: Don't save inputs
 )(
-  input  logic                HCLK,      // AHB clock
-  input  logic                HRESETn,   // AHB reset (active low)
+  input  logic                HCLK,
+  input  logic                HRESETn,
   input  logic                Save,      // Two or more managers requesting (HTRANS != 00) at the same time.  Save the non-granted manager inputs
   input  logic                Restore,   // Restore the saved manager inputs when it is finally granted
   input  logic                Disable,   // Suppress HREADY to the non-granted manager

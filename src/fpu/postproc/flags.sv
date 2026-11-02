@@ -19,37 +19,37 @@
 module flags import cvw::*; #(parameter cvw_t P) (
   input  logic                 Xs,                     // X sign
   input  logic [P.FMTBITS-1:0] OutFmt,                 // output format
-  input  logic                 InfIn,                  // An input is infinity
-  input  logic                 XInf, YInf, ZInf,       // X, Y, Z are infinity
-  input  logic                 NaNIn,                  // An input is a NaN
-  input  logic                 XSNaN, YSNaN, ZSNaN,    // X, Y, Z are signaling NaN
-  input  logic                 XZero, YZero,           // X, Y are zero
-  input  logic [P.NE+1:0]      FullRe,                 // Result exponent with extra bits for sign and overflow
-  input  logic [P.NE+1:0]      Me,                     // Normalized exponent
+  input  logic                 InfIn,                  // is an Inf input being used
+  input  logic                 XInf, YInf, ZInf,       // inputs are infinity
+  input  logic                 NaNIn,                  // is a NaN input being used
+  input  logic                 XSNaN, YSNaN, ZSNaN,    // inputs are signaling NaNs
+  input  logic                 XZero, YZero,           // inputs are zero
+  input  logic [P.NE+1:0]      FullRe,                 // Re with bits to determine sign and overflow
+  input  logic [P.NE+1:0]      Me,                     // exponent of the normalized sum
   // rounding
-  input  logic                 Plus1,                  // Add one for rounding
-  input  logic                 Round, Guard, Sticky,   // Round, guard, and sticky bits for rounding
-  input  logic                 UfPlus1,                // Add one for rounding with unbounded exponent
+  input  logic                 Plus1,                  // do you add one for rounding
+  input  logic                 Round, Guard, Sticky,   // bits used to determine rounding
+  input  logic                 UfPlus1,                // do you add one for rounding for the unbounded exponent result
   // convert
-  input  logic                 CvtOp,                  // Conversion operation
-  input  logic                 ToInt,                  // FP to integer conversion
-  input  logic                 IntToFp,                // Integer to FP conversion
-  input  logic                 Int64,                  // 64-bit integer conversion
-  input  logic                 Signed,                 // Signed integer conversion
-  input  logic [P.NE:0]        CvtCe,                  // Conversion calculated exponent
-  input  logic [1:0]           CvtNegResMsbs,          // Most significant bits of possibly negated integer result
+  input  logic                 CvtOp,                  // conversion operation?
+  input  logic                 ToInt,                  // convert to integer
+  input  logic                 IntToFp,                // convert integer to floating point
+  input  logic                 Int64,                  // convert to 64 bit integer
+  input  logic                 Signed,                 // convert to a signed integer
+  input  logic [P.NE:0]        CvtCe,                  // the calculated exponent - Cvt
+  input  logic [1:0]           CvtNegResMsbs,          // the negative integer result's most significant bits
   // divsqrt
-  input  logic                 DivOp,                  // Divide or square root operation
-  input  logic                 Sqrt,                   // Square root operation
+  input  logic                 DivOp,                  // divsqrt operation?
+  input  logic                 Sqrt,                   // Sqrt?
   // fma
-  input  logic                 FmaOp,                  // FMA operation
-  input  logic                 FmaAs, FmaPs,           // FMA aligned addend and product signs
+  input  logic                 FmaOp,                  // Fma operation?
+  input  logic                 FmaAs, FmaPs,           // the product and modified Z signs
   // flags
   output logic                 DivByZero,              // divide by zero flag
   output logic                 Overflow,               // overflow flag to select result
   output logic                 Invalid,                // invalid flag to select the result
-  output logic                 IntInvalid,             // Integer conversion invalid flag
-  output logic [4:0]           PostProcFlg             // Postprocessor exception flags
+  output logic                 IntInvalid,             // invalid integer result to select
+  output logic [4:0]           PostProcFlg             // flags
 );
 
   logic                        SigNaN;                 // is an input a signaling NaN

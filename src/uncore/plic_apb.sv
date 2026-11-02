@@ -23,18 +23,18 @@
 // up to 63 sources supported; in the future, allow up to 1023 sources
 
 module plic_apb import cvw::*; #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn,                        // APB clock and reset (active low)
-  input  logic                PSEL,                                 // APB peripheral select
-  input  logic [27:0]         PADDR,                                // APB address
-  input  logic [P.XLEN-1:0]   PWDATA,                               // APB write data
-  input  logic [P.XLEN/8-1:0] PSTRB,                                // APB byte write strobes
-  input  logic                PWRITE,                               // APB write (1) or read (0)
-  input  logic                PENABLE,                              // APB enable (access phase)
-  output logic [P.XLEN-1:0]   PRDATA,                               // APB read data
-  output logic                PREADY,                               // APB ready
-  input  logic                UARTIntr, GPIOIntr, SPIIntr, SDCIntr, // Peripheral interrupts
-  input  logic [3:0]          PWMIntr,                              // PWM interrupts, one per comparator
-  output logic                MExtInt, SExtInt                      // Machine and supervisor external interrupts
+  input  logic                PCLK, PRESETn,
+  input  logic                PSEL,
+  input  logic [27:0]         PADDR,
+  input  logic [P.XLEN-1:0]   PWDATA,
+  input  logic [P.XLEN/8-1:0] PSTRB,
+  input  logic                PWRITE,
+  input  logic                PENABLE,
+  output logic [P.XLEN-1:0]   PRDATA,
+  output logic                PREADY,
+  input  logic                UARTIntr, GPIOIntr, SPIIntr, SDCIntr,
+  input  logic [3:0]          PWMIntr,                        // one source per PWM comparator
+  output logic                MExtInt, SExtInt
 );
 
   // number of contexts

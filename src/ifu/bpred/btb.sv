@@ -20,19 +20,19 @@ module btb import cvw::*; #(parameter cvw_t P,
                             parameter Depth = 10) (
   input  logic              clk,
   input  logic              reset,
-  input  logic              StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW, // Stall and flush each stage
-  input  logic [P.XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM, // Next PC to fetch, PC in Fetch, Decode, Execute, Memory stages
+  input  logic              StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW,
+  input  logic [P.XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM, // PC at various stages
   output logic [P.XLEN-1:0] BPBTAF,                      // BTB's guess at PC
   output logic [3:0]        BTBIClassF,                  // BTB's guess at instruction class
   output logic              BPBTAWrongM,                 // BTB target prediction was wrong
   // update
-  input  logic              IClassWrongM,                // Instruction class prediction was wrong
-  input  logic [P.XLEN-1:0] IEUAdrE,                     // Memory address or branch/jump target in Execute stage
-  input  logic [P.XLEN-1:0] IEUAdrM,                     // Memory address or branch/jump target in Memory stage
-  input  logic [3:0]        IClassD,                     // Instruction class in Decode stage, one-hot {call, return, jump, branch}
-  input  logic [3:0]        IClassE,                     // Instruction class in Execute stage, one-hot {call, return, jump, branch}
-  input  logic [3:0]        IClassM,                     // Instruction class in Memory stage, one-hot {call, return, jump, branch}
-  input  logic [3:0]        IClassW                      // Instruction class in Writeback stage, one-hot {call, return, jump, branch}
+  input  logic              IClassWrongM,                // BTB's instruction class guess was wrong
+  input  logic [P.XLEN-1:0] IEUAdrE,                     // Branch/jump target address to insert into btb
+  input  logic [P.XLEN-1:0] IEUAdrM,                     // Branch/jump target address to insert into btb
+  input  logic [3:0]        IClassD,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassE,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassM,                     // Instruction class to insert into btb
+  input  logic [3:0]        IClassW
 );
 
   logic [Depth-1:0]        PCNextFIndex, PCFIndex, PCDIndex, PCEIndex, PCMIndex, PCWIndex;

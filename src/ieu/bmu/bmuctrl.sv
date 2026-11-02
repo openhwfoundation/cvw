@@ -28,10 +28,10 @@ module bmuctrl import cvw::*; #(parameter cvw_t P) (
   output logic        BSubArithD,              // TRUE if bclr[i], andn, orn, xnor, min[u], max[u] instruction in Decode Stage
   output logic        IllegalBitmanipInstrD,   // Indicates if it is unrecognized B instruction in Decode Stage
   // Execute stage control signals
-  input  logic        StallE, FlushE,          // Stall and flush Execute stage
-  output logic [2:0]  ALUSelectD,              // ALU operation select in Decode stage
+  input  logic        StallE, FlushE,          // Stall, flush Execute stage
+  output logic [2:0]  ALUSelectD,              // ALU select
   output logic [3:0]  BSelectE,                // BMU result select (binary encoded; see bitmanipalu)
-  output logic [3:0]  ZBBSelectE,              // Zbb result select
+  output logic [3:0]  ZBBSelectE,              // ZBB mux select signal
   output logic [2:0]  BALUControlE,            // ALU Control signals for B instructions in Execute Stage
   output logic        BMUActiveE               // Bit manipulation instruction being executed
 );

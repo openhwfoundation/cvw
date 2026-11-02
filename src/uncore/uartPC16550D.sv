@@ -22,18 +22,18 @@
 
 module uartPC16550D #(parameter UART_PRESCALE) (
   // Processor Interface
-  input  logic       PCLK, PRESETn,                  // APB clock and reset (active low)
-  input  logic [2:0] A,                              // Register address
+  input  logic       PCLK, PRESETn,                  // UART clock and active low reset
+  input  logic [2:0] A,                              // address input (8 registers)
   input  logic [7:0] Din,                            // 8-bit WriteData
   output logic [7:0] Dout,                           // 8-bit ReadData
-  input  logic       MEMRb, MEMWb,                   // Register read and write strobes (active low)
-  output logic       INTR, TXRDYb, RXRDYb,           // UART interrupt and DMA ready signals
+  input  logic       MEMRb, MEMWb,                   // Active low memory read/write
+  output logic       INTR, TXRDYb, RXRDYb,           // interrupt and ready lines
   // Clocks
   output logic       BAUDOUTb,                       // active low baud clock
   input  logic       RCLK,                           // usually BAUDOUTb tied to RCLK externally
   // E1A Driver
-  input  logic       SIN, DSRb, DCDb, CTSb, RIb,     // UART serial and modem control inputs
-  output logic       SOUT, RTSb, DTRb, OUT1b, OUT2b  // UART serial and modem control outputs
+  input  logic       SIN, DSRb, DCDb, CTSb, RIb,     // UART external serial and flow-control inputs
+  output logic       SOUT, RTSb, DTRb, OUT1b, OUT2b  // UART external serial and flow-control outputs
 );
 
   // register map

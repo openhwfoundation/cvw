@@ -16,20 +16,20 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_apb import cvw::*; #(parameter cvw_t P) (
-  input  logic                PCLK, PRESETn, // APB clock and reset (active low)
-  input  logic                PSEL,          // APB peripheral select
-  input  logic [7:0]          PADDR,         // APB address
-  input  logic [P.XLEN-1:0]   PWDATA,        // APB write data
-  input  logic [P.XLEN/8-1:0] PSTRB,         // APB byte write strobes
-  input  logic                PWRITE,        // APB write (1) or read (0)
-  input  logic                PENABLE,       // APB enable (access phase)
-  output logic                PREADY,        // APB ready
-  output logic [P.XLEN-1:0]   PRDATA,        // APB read data
-  output logic                SPIOut,        // SPI pins out
-  input  logic                SPIIn,         // SPI pins in
-  output logic [3:0]          SPICS,         // SPI chip select pins
-  output logic                SPIIntr,       // SPI interrupt
-  output logic                SPICLK         // SPI clock
+  input  logic                PCLK, PRESETn,
+  input  logic                PSEL,
+  input  logic [7:0]          PADDR,
+  input  logic [P.XLEN-1:0]   PWDATA,
+  input  logic [P.XLEN/8-1:0] PSTRB,
+  input  logic                PWRITE,
+  input  logic                PENABLE,
+  output logic                PREADY,
+  output logic [P.XLEN-1:0]   PRDATA,
+  output logic                SPIOut,
+  input  logic                SPIIn,
+  output logic [3:0]          SPICS,
+  output logic                SPIIntr,
+  output logic                SPICLK
 );
 
   // register map

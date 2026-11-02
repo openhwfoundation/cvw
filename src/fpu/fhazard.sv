@@ -17,14 +17,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fhazard(
-  input  logic [4:0]  Adr1D, Adr2D, Adr3D,                // FP source register addresses in Decode stage
-  input  logic [4:0]  Adr1E, Adr2E, Adr3E,                // FP source register addresses in Execute stage
-  input  logic        FRegWriteE, FRegWriteM, FRegWriteW, // FP register write enable in Execute, Memory, Writeback stages
-  input  logic [4:0]  RdE, RdM, RdW,                      // Destination register in Execute, Memory, Writeback stages
-  input  logic [1:0]  FResSelM,                           // FPU result select in Memory stage
-  input  logic        XEnD, YEnD, ZEnD,                   // X, Y, Z inputs used in Decode stage
-  output logic        FPUStallD,                          // FPU stalls Decode stage
-  output logic [1:0]  ForwardXE, ForwardYE, ForwardZE     // Forwarding select for X, Y, Z inputs
+  input  logic [4:0]  Adr1D, Adr2D, Adr3D,                // read data addresses
+  input  logic [4:0]  Adr1E, Adr2E, Adr3E,                // read data addresses
+  input  logic        FRegWriteE, FRegWriteM, FRegWriteW, // is the fp register being written to
+  input  logic [4:0]  RdE, RdM, RdW,                      // the address being written to
+  input  logic [1:0]  FResSelM,                           // the result being selected
+  input  logic        XEnD, YEnD, ZEnD,                   // are the inputs needed
+  output logic        FPUStallD,                          // stall the decode stage
+  output logic [1:0]  ForwardXE, ForwardYE, ForwardZE     // select a forwarded value
 );
 
   logic MatchDE; // is a value needed in decode stage being worked on in execute stage
@@ -42,7 +42,7 @@ module fhazard(
     else if ((AdrE == RdW) & FRegWriteW) ForwardSel = 2'b01;
     else                                 ForwardSel = 2'b00;
   endfunction
-
+      // forward from the memory stage only if the result is already available there
   always_comb begin
     ForwardXE = ForwardSel(Adr1E);
     ForwardYE = ForwardSel(Adr2E);

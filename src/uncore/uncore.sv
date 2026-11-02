@@ -34,22 +34,22 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   output logic                 HREADY, HRESP,
   output logic                 HSELEXT,
   // peripheral pins
-  output logic                 MTimerInt, MSwInt,         // Machine timer and software interrupts
-  output logic                 MExtInt, SExtInt,          // Machine and supervisor external interrupts
-  output logic [63:0]          MTIME_CLINT,               // MTIME from CLINT
-  input  logic [31:0]          GPIOIN,                    // GPIO input values
-  output logic [31:0]          GPIOOUT, GPIOEN,           // GPIO output values and output enables
+  output logic                 MTimerInt, MSwInt,         // Timer and software interrupts from CLINT
+  output logic                 MExtInt, SExtInt,          // External interrupts from PLIC
+  output logic [63:0]          MTIME_CLINT,               // MTIME, from CLINT
+  input  logic [31:0]          GPIOIN,                    // GPIO pin input value
+  output logic [31:0]          GPIOOUT, GPIOEN,           // GPIO pin output value and enable
   input  logic                 UARTSin,                   // UART serial input
   output logic                 UARTSout,                  // UART serial output
-  input  logic                 SPIIn,                     // SPI pins in
-  output logic                 SPIOut,                    // SPI pins out
-  output logic [3:0]           SPICS,                     // SPI chip select pins
-  output logic                 SPICLK,                    // SPI clock
-  input  logic                 SDCIn,                     // SD card data[0], to SPI data in
-  output logic                 SDCCmd,                    // SD card command, from SPI data out
-  output logic [3:0]           SDCCS,                     // SD card chip select, from SPI chip select
-  output logic                 SDCCLK,                    // SD card clock, from SPI clock
-  output logic [3:0]           PWMGPIO                    // PWM GPIO output
+  input  logic                 SPIIn,
+  output logic                 SPIOut,
+  output logic [3:0]           SPICS,
+  output logic                 SPICLK,
+  input  logic                 SDCIn,
+  output logic                 SDCCmd,
+  output logic [3:0]           SDCCS,
+  output logic                 SDCCLK,
+  output logic [3:0]           PWMGPIO
 );
 
   logic [P.XLEN-1:0]           HREADRam;

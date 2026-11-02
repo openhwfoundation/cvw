@@ -17,21 +17,21 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module shiftcorrection import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.NORMSHIFTSZ-1:0] Shifted,                // Normalization shifter output
+  input  logic [P.NORMSHIFTSZ-1:0] Shifted,                // normalization shifter output
   // divsqrt
-  input  logic                     DivOp,                  // Divide or square root operation
+  input  logic                     DivOp,                  // is it a divsqrt operation
   input  logic                     DivResSubnorm,          // is the divsqrt result subnormal
-  input  logic [P.NE+1:0]          DivUe,                  // Divide/sqrt result exponent
-  input  logic                     DivSubnormShiftPos,     // Subnormal divide/sqrt shift amount is positive
+  input  logic [P.NE+1:0]          DivUe,                  // the divsqrt result's exponent
+  input  logic                     DivSubnormShiftPos,     // is the subnorm divider shift amount positive (ie not underflowed)
   // fma
-  input  logic                     FmaOp,                  // FMA operation
+  input  logic                     FmaOp,                  // is it an fma operation
   input  logic [P.NE+1:0]          NormSumExp,             // exponent of the normalized sum not taking into account Subnormal or zero results
   input  logic                     FmaPreResultSubnorm,    // is the result subnormal - calculated before LZA correction
-  input  logic                     FmaSZero,               // FMA sum is zero
+  input  logic                     FmaSZero,
   // output
-  output logic [P.NE+1:0]          FmaMe,                  // FMA normalized sum exponent
-  output logic [P.NORMSHIFTSZ-1:0] Mf,                     // Normalized fraction
-  output logic [P.NE+1:0]          Ue                      // Divide/sqrt result exponent
+  output logic [P.NE+1:0]          FmaMe,                  // exponent of the normalized sum
+  output logic [P.NORMSHIFTSZ-1:0] Mf,                     // the shifted sum after correction
+  output logic [P.NE+1:0]          Ue                      // corrected exponent for divider
 );
 
   logic                            ResSubnorm;             // is the result Subnormal

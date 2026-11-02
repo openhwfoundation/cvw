@@ -21,17 +21,17 @@ module packetizer import cvw::*; #(parameter cvw_t P,
                                    parameter logic [31:0] RVVI_INIT_TIME_OUT = 32'd4,
                                    parameter logic [31:0] RVVI_PACKET_DELAY = 32'd2
 ) (
-  input  logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi,                      // RVVI packet
-  input  logic                                          valid,                     // RVVI packet valid
-  input  logic                                          m_axi_aclk, m_axi_aresetn, // AXI clock and reset (active low)
-  output logic                                          RVVIStall,                 // Stall the processor while the RVVI packet is sent
+  input  logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi,
+  input  logic                                          valid,
+  input  logic                                          m_axi_aclk, m_axi_aresetn,
+  output logic                                          RVVIStall,
   // axi 4 write address channel
   // axi 4 write data channel
-  output logic [31:0]                                   RvviAxiWdata,              // AXI write data
-  output logic [3:0]                                    RvviAxiWstrb,              // AXI write strobes
-  output logic                                          RvviAxiWlast,              // AXI write last
-  output logic                                          RvviAxiWvalid,             // AXI write valid
-  input  logic                                          RvviAxiWready              // AXI write ready
+  output logic [31:0]                                   RvviAxiWdata,
+  output logic [3:0]                                    RvviAxiWstrb,
+  output logic                                          RvviAxiWlast,
+  output logic                                          RvviAxiWvalid,
+  input  logic                                          RvviAxiWready
 );
 
   localparam NearTotalFrameLengthBits = 2*48+16+72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16);

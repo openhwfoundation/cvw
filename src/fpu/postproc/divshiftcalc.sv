@@ -17,10 +17,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module divshiftcalc import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.NE+1:0]              DivUe,              // Divide/sqrt result exponent
+  input  logic [P.NE+1:0]              DivUe,              // divsqrt exponent
   output logic [P.LOGNORMSHIFTSZ-1:0]  DivShiftAmt,        // divsqrt shift amount
   output logic                         DivResSubnorm,      // is the divsqrt result subnormal
-  output logic                         DivSubnormShiftPos  // Subnormal divide/sqrt shift amount is positive
+  output logic                         DivSubnormShiftPos  // is the subnormal shift amount positive
 );
 
   logic [P.LOGNORMSHIFTSZ-1:0]         NormShift;          // normalized result shift amount

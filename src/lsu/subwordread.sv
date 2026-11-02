@@ -17,12 +17,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module subwordread import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.LLEN-1:0] ReadDataWordMuxM, // Read data word before subword selection
-  input  logic [3:0]        PAdrM,            // Physical memory address
-  input  logic [2:0]        Funct3M,          // funct3 field of instruction in Memory stage
-  input  logic              FpLoadStoreM,     // FP load or store
-  input  logic              BigEndianM,       // Memory access is big-endian
-  output logic [P.LLEN-1:0] ReadDataM         // Read data from memory in Memory stage
+  input  logic [P.LLEN-1:0] ReadDataWordMuxM,
+  input  logic [3:0]        PAdrM,
+  input  logic [2:0]        Funct3M,
+  input  logic              FpLoadStoreM,
+  input  logic              BigEndianM,
+  output logic [P.LLEN-1:0] ReadDataM
 );
 
   localparam ADRBITS = $clog2(P.LLEN)-3;

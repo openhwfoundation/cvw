@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module neg #(parameter WIDTH = 8) (
-  input  logic [WIDTH-1:0] a,  // Input
-  output logic [WIDTH-1:0] y); // Negated input
+  input  logic [WIDTH-1:0] a,
+  output logic [WIDTH-1:0] y);
 
   assign y = ~a + 1;
 endmodule

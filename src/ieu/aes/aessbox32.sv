@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aessbox32(
-  input  logic [31:0] a, // Input
-  output logic [31:0] y  // Output
+  input  logic [31:0] a,
+  output logic [31:0] y
 );
 
   // substitution boxes for each byte of the 32-bit word

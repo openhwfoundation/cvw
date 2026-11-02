@@ -17,8 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmpchecker import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.PA_BITS-1:0]     PhysicalAddress,                           // Physical address
-  input  logic [1:0]               EffectivePrivilegeModeW,                   // Current privilege level of the processor, accounting for mstatus.MPRV
+  input  logic [P.PA_BITS-1:0]     PhysicalAddress,
+  input  logic [1:0]               EffectivePrivilegeModeW,
   // ModelSim has a switch -svinputport which controls whether input ports
   // are nets (wires) or vars by default. The default setting of this switch is
   // `relaxed`, which means that signals are nets if and only if they are
@@ -26,14 +26,14 @@ module pmpchecker import cvw::*; #(parameter cvw_t P) (
   // this will be understood as a var. However, if we don't supply the `var`
   // keyword, the compiler warns us that it's interpreting the signal as a var,
   // which we might not intend.
-  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],      // PMP configuration CSRs
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],     // PMP address CSRs
-  input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM, // Access type: execute, write, read
-  input  logic [1:0]               Size,                                      // Access size (log2 bytes)
-  input  logic [3:0]               CMOpM,                                     // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
-  output logic                     PMPInstrAccessFaultF,                      // PMP instruction access fault
-  output logic                     PMPLoadAccessFaultM,                       // PMP load access fault
-  output logic                     PMPStoreAmoAccessFaultM                    // PMP store/AMO access fault
+  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],
+  input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM,
+  input  logic [1:0]               Size,
+  input  logic [3:0]               CMOpM,
+  output logic                     PMPInstrAccessFaultF,
+  output logic                     PMPLoadAccessFaultM,
+  output logic                     PMPStoreAmoAccessFaultM
 );
 
   // Bit i is high when the address falls in PMP region i

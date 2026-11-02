@@ -17,11 +17,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vm64check import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,       // Current address translation mode
-  input  logic [P.XLEN-1:0]         VAdr,            // Address before translation (virtual or physical)
-  output logic                      SV39Mode,        // Translation mode is Sv39
-  output logic                      SV48Mode,        // Translation mode is Sv48
-  output logic                      UpperBitsUnequal // Virtual address upper bits are not a sign extension
+  input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,
+  input  logic [P.XLEN-1:0]         VAdr,
+  output logic                      SV39Mode,
+  output logic                      SV48Mode,
+  output logic                      UpperBitsUnequal
 );
 
   if (P.XLEN == 64) begin

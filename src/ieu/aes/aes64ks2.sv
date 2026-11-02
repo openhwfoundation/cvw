@@ -15,9 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aes64ks2(
-  input  logic [63:0]  rs2,   // Source operand 2
-  input  logic [63:32] rs1,   // Source operand 1
-  output logic [63:0]  result // Result
+  input  logic [63:0]  rs2,
+  input  logic [63:32] rs1,
+  output logic [63:0]  result
 );
 
   logic [31:0]         w0, w1;

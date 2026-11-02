@@ -18,7 +18,7 @@
 
 module packoutput import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
-  input  logic [P.FMTBITS-1:0]    Fmt,       // FP format: 00 single, 01 double, 10 half, 11 quad
+  input  logic [P.FMTBITS-1:0]    Fmt,       // output format
   output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
 );
 

@@ -18,26 +18,26 @@
 
 module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
-  input  logic                 reset_ext,           // external asynchronous reset pin
-  output logic                 reset,               // reset synchronized to clk to prevent races on release
+  input  logic                 reset_ext,       // external asynchronous reset pin
+  output logic                 reset,           // reset synchronized to clk to prevent races on release
   // AHB Interface
-  input  logic [P.AHBW-1:0]    HRDATAEXT,           // AHB read data from external memory
-  input  logic                 HREADYEXT, HRESPEXT, // AHB ready and response from external memory
-  output logic                 HSELEXT,             // AHB select for external memory
+  input  logic [P.AHBW-1:0]    HRDATAEXT,
+  input  logic                 HREADYEXT, HRESPEXT,
+  output logic                 HSELEXT,
   // fpga debug signals
-  input  logic                 ExternalStall,       // External stall (FPGA debug)
+  input  logic                 ExternalStall,
   // outputs to external memory, shared with uncore memory
-  output logic                 HCLK, HRESETn,       // AHB clock and reset (active low)
-  output logic [P.PA_BITS-1:0] HADDR,               // AHB address
-  output logic [P.AHBW-1:0]    HWDATA,              // AHB write data
-  output logic [P.XLEN/8-1:0]  HWSTRB,              // AHB byte write enables
-  output logic                 HWRITE,              // AHB write (1) or read (0)
-  output logic [2:0]           HSIZE,               // AHB transfer size
-  output logic [2:0]           HBURST,              // AHB burst type
-  output logic [3:0]           HPROT,               // AHB protection.  Wally does not use
-  output logic [1:0]           HTRANS,              // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
-  output logic                 HMASTLOCK,           // AHB master lock.  Wally does not use
-  output logic                 HREADY,              // AHB ready
+  output logic                 HCLK, HRESETn,
+  output logic [P.PA_BITS-1:0] HADDR,
+  output logic [P.AHBW-1:0]    HWDATA,
+  output logic [P.XLEN/8-1:0]  HWSTRB,
+  output logic                 HWRITE,
+  output logic [2:0]           HSIZE,
+  output logic [2:0]           HBURST,
+  output logic [3:0]           HPROT,
+  output logic [1:0]           HTRANS,
+  output logic                 HMASTLOCK,
+  output logic                 HREADY,
   // I/O Interface
   input  logic [31:0]          GPIOIN,          // inputs from GPIO
   output logic [31:0]          GPIOOUT,         // output values for GPIO

@@ -15,9 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module satCounter2 (
-  input  logic       BrDir,    // Branch direction: 1 taken
-  input  logic [1:0] OldState, // Current counter state
-  output logic [1:0] NewState  // Next counter state
+  input  logic       BrDir,
+  input  logic [1:0] OldState,
+  output logic [1:0] NewState
 );
 
   always_comb begin

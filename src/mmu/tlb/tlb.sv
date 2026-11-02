@@ -40,29 +40,29 @@
 module tlb import cvw::*; #(parameter cvw_t P,
                             parameter TLB_ENTRIES = 8, ITLB = 0) (
   input  logic                     clk, reset,
-  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,               // Current address translation mode
-  input  logic [P.ASID_BITS-1:0]   SATP_ASID,               // satp.ASID
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV, // mstatus.MXR, SUM, MPRV: control address translation permissions
-  input  logic [1:0]               STATUS_MPP,              // mstatus.MPP: machine previous privilege mode
-  input  logic                     ENVCFG_PBMTE,            // Page-based memory types enabled
-  input  logic                     ENVCFG_ADUE,             // HPTW A/D Update enable
-  input  logic [1:0]               EffectivePrivilegeModeW, // Current privilege level of the processor, accounting for mstatus.MPRV
-  input  logic                     ReadAccess,              // Read access
-  input  logic                     WriteAccess,             // Write access
-  input  logic [3:0]               CMOpM,                   // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
-  input  logic                     DisableTranslation,      // Disable translation for D$ flush and HPTW accesses, which use physical addresses
-  input  logic [P.XLEN-1:0]        VAdr,                    // Address before translation (virtual or physical)
-  input  logic [P.XLEN-1:0]        PTE,                     // Page table entry
-  input  logic [2:0]               PageTypeWriteVal,        // Page type to write to TLB
-  input  logic                     TLBWrite,                // Write TLB entry
-  input  logic                     TLBFlush,                // Invalidate TLB entries (ASID-specific flush preserves global entries)
-  input  logic                     TLBFlushAll,             // Flush global (G = 1) entries too
-  output logic [P.PA_BITS-1:0]     TLBPAdr,                 // Translated physical address
-  output logic                     TLBMiss,                 // TLB miss
-  output logic                     Translate,               // Virtual address translation is enabled
-  output logic                     TLBPageFault,            // TLB page fault
-  output logic                     UpdateDA,                // TLB hit needs to set the dirty or access bit
-  output logic [1:0]               PBMemoryType             // PBMT field of PTE during TLB hit, or 00 otherwise
+  input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
+  input  logic [P.ASID_BITS-1:0]   SATP_ASID,
+  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
+  input  logic [1:0]               STATUS_MPP,
+  input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
+  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processor, accounting for mstatus.MPRV
+  input  logic                     ReadAccess,
+  input  logic                     WriteAccess,
+  input  logic [3:0]               CMOpM,
+  input  logic                     DisableTranslation,
+  input  logic [P.XLEN-1:0]        VAdr,             // address input before translation (could be physical or virtual)
+  input  logic [P.XLEN-1:0]        PTE,              // page table entry to write
+  input  logic [2:0]               PageTypeWriteVal,
+  input  logic                     TLBWrite,
+  input  logic                     TLBFlush,
+  input  logic                     TLBFlushAll,      // Flush global (G=1) entries too
+  output logic [P.PA_BITS-1:0]     TLBPAdr,
+  output logic                     TLBMiss,
+  output logic                     Translate,
+  output logic                     TLBPageFault,
+  output logic                     UpdateDA,
+  output logic [1:0]               PBMemoryType     // PBMT field of PTE during TLB hit, or 00 otherwise
 );
 
   logic [TLB_ENTRIES-1:0]         Matches, WriteEnables, PTE_Gs, PTE_NAPOTs; // used as the one-hot encoding of WriteIndex

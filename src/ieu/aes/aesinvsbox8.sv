@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module aesinvsbox8(
-  input  logic [7:0] a, // Input
-  output logic [7:0] y  // Output
+  input  logic [7:0] a,
+  output logic [7:0] y
 );
 
   // Rijndael inverse S-box lookup table

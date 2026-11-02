@@ -21,11 +21,11 @@
 
 module ram1p1rwe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 44) (
   input  logic                     clk,
-  input  logic                     ce,   // Chip enable
-  input  logic [$clog2(DEPTH)-1:0] addr, // Address
-  input  logic [WIDTH-1:0]         din,  // Write data
-  input  logic                     we,   // Write enable
-  output logic [WIDTH-1:0]         dout  // Read data
+  input  logic                     ce,
+  input  logic [$clog2(DEPTH)-1:0] addr,
+  input  logic [WIDTH-1:0]         din,
+  input  logic                     we,
+  output logic [WIDTH-1:0]         dout
 );
 
   //////////////////////////////////////////////////////////////////////////////

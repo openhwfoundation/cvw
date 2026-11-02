@@ -17,15 +17,15 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module cvtshiftcalc import cvw::*; #(parameter cvw_t P) (
-  input  logic                     XZero,              // X is zero
-  input  logic                     ToInt,              // FP to integer conversion
-  input  logic                     IntToFp,            // Integer to FP conversion
+  input  logic                     XZero,              // is the input zero?
+  input  logic                     ToInt,              // to integer conversion?
+  input  logic                     IntToFp,            // integer to floating point conversion?
   input  logic [P.FMTBITS-1:0]     OutFmt,             // output format
-  input  logic [P.NE:0]            CvtCe,              // Conversion calculated exponent
-  input  logic [P.NF:0]            Xm,                 // X significand
+  input  logic [P.NE:0]            CvtCe,              // the calculated exponent
+  input  logic [P.NF:0]            Xm,                 // input mantissas
   input  logic [P.CVTLEN-1:0]      CvtLzcIn,           // input to the Leading Zero Counter (without msb)
-  input  logic                     CvtResSubnormUf,    // Conversion result is subnormal or underflows
-  output logic                     CvtResUf,           // Conversion result underflows
+  input  logic                     CvtResSubnormUf,    // is the conversion result subnormal or underflows
+  output logic                     CvtResUf,           // does the cvt result underflow
   output logic [P.CVTLEN+P.NF:0]   CvtShiftIn          // number to be shifted
 );
 

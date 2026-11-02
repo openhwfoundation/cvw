@@ -20,37 +20,37 @@ module fpu import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   // Hazards
-  input  logic                 StallE, StallM, StallW,             // Stall Execute, Memory, Writeback stages
-  input  logic                 FlushE, FlushM, FlushW,             // Flush Execute, Memory, Writeback stages
-  output logic                 FPUStallD,                          // FPU stalls Decode stage
-  output logic                 FDivBusyE,                          // FPU divider busy
+  input  logic                 StallE, StallM, StallW,             // stall signals (from HZU)
+  input  logic                 FlushE, FlushM, FlushW,             // flush signals (from HZU)
+  output logic                 FPUStallD,                          // Stall the decode stage (To HZU)
+  output logic                 FDivBusyE,                          // Is the divide/sqrt unit busy (stall execute stage) (to HZU)
   // CSRs
-  input  logic [1:0]           STATUS_FS,                          // mstatus.FS: FPU state (00 off)
-  input  logic [2:0]           FRM_REGW,                           // Rounding mode from fcsr
+  input  logic [1:0]           STATUS_FS,                          // Is floating-point enabled? (From privileged unit)
+  input  logic [2:0]           FRM_REGW,                           // Rounding mode (from CSR)
   // Decode stage
-  input  logic [31:0]          InstrD,                             // Instruction in Decode stage
+  input  logic [31:0]          InstrD,                             // instruction (from IFU)
   // Execute stage
-  input  logic [2:0]           Funct3E,                            // funct3 field of instruction in Execute stage
-  input  logic                 IntDivE, W64E,                      // Integer divide or remainder, RV64 W-type instruction
-  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE,     // Source operands A and B after forwarding, before ALU source select
-  input  logic [4:0]           RdE,                                // Destination register in Execute stage
-  output logic                 FWriteIntE,                         // FPU instruction writes integer register file in Execute stage
-  output logic                 FCvtIntE,                           // FPU converts float to integer in Execute stage
+  input  logic [2:0]           Funct3E,                            // Funct fields of instruction specify type of operations
+  input  logic                 IntDivE, W64E,                      // Integer division on FPU
+  input  logic [P.XLEN-1:0]    ForwardedSrcAE, ForwardedSrcBE,     // Integer input for convert, move, and int div (from IEU)
+  input  logic [4:0]           RdE,                                // which FP register to write to (from IEU)
+  output logic                 FWriteIntE,                         // integer register write enable (to IEU)
+  output logic                 FCvtIntE,                           // Convert to int (to IEU)
   // Memory stage
-  input  logic [2:0]           Funct3M,                            // funct3 field of instruction in Memory stage
-  input  logic [4:0]           RdM,                                // Destination register in Memory stage
-  output logic                 FRegWriteM,                         // FP register write enable in Memory stage
-  output logic                 FpLoadStoreM,                       // FP load or store
-  output logic [P.FLEN-1:0]    FWriteDataM,                        // FP data to store
-  output logic [P.XLEN-1:0]    FIntResM,                           // FPU result to integer register file (fmv, fclass, fcmp)
-  output logic                 IllegalFPUInstrD,                   // Illegal FP instruction
-  output logic [4:0]           SetFflagsM,                         // FP exception flags to set in fflags
+  input  logic [2:0]           Funct3M,                            // Funct fields of instruction specify type of operations
+  input  logic [4:0]           RdM,                                // which FP register to write to (from IEU)
+  output logic                 FRegWriteM,                         // FP register write enable (to privileged unit)
+  output logic                 FpLoadStoreM,                       // Fp load instruction? (to LSU)
+  output logic [P.FLEN-1:0]    FWriteDataM,                        // Data to be written to memory (to LSU)
+  output logic [P.XLEN-1:0]    FIntResM,                           // data to be written to integer register (to IEU)
+  output logic                 IllegalFPUInstrD,                   // Is the instruction an illegal fpu instruction (to IFU)
+  output logic [4:0]           SetFflagsM,                         // FPU flags (to privileged unit)
   // Writeback stage
-  input  logic [4:0]           RdW,                                // Destination register in Writeback stage
-  input  logic [P.FLEN-1:0]    ReadDataW,                          // Read data from memory in Writeback stage
-  output logic [P.XLEN-1:0]    FCvtIntResW,                        // Float-to-integer conversion result
-  output logic                 FCvtIntW,                           // FPU converts float to integer in Writeback stage
-  output logic [P.XLEN-1:0]    FIntDivResultW                      // Integer divide result from FPU divider in Writeback stage
+  input  logic [4:0]           RdW,                                // which FP register to write to (from IEU)
+  input  logic [P.FLEN-1:0]    ReadDataW,                          // Read data (from LSU)
+  output logic [P.XLEN-1:0]    FCvtIntResW,                        // convert result to be written to integer register (to IEU)
+  output logic                 FCvtIntW,                           // select FCvtIntRes (to IEU)
+  output logic [P.XLEN-1:0]    FIntDivResultW                      // Result from integer division (to IEU)
 );
 
   // RISC-V FPU specifics:

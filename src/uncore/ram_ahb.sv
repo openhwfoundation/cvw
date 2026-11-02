@@ -18,20 +18,20 @@
 
 module ram_ahb import cvw::*; #(parameter cvw_t P,
                                 parameter RANGE = 65535, PRELOAD = 0) (
-  input  logic                 HCLK, HRESETn,      // AHB clock and reset (active low)
-  input  logic                 HSELRam,            // AHB select for RAM
-  input  logic [P.PA_BITS-1:0] HADDR,              // AHB address
-  input  logic                 HWRITE,             // AHB write (1) or read (0)
-  input  logic                 HREADY,             // AHB ready
-  input  logic [1:0]           HTRANS,             // AHB transfer type: 00 IDLE, 10 NONSEQ, 11 SEQ
-  input  logic [P.XLEN-1:0]    HWDATA,             // AHB write data
-  input  logic [P.XLEN/8-1:0]  HWSTRB,             // AHB byte write enables
-  output logic [P.XLEN-1:0]    HREADRam,           // AHB read data from RAM
-  output logic                 HRESPRam, HREADYRam // AHB response and ready from RAM
+  input  logic                 HCLK, HRESETn,
+  input  logic                 HSELRam,
+  input  logic [P.PA_BITS-1:0] HADDR,
+  input  logic                 HWRITE,
+  input  logic                 HREADY,
+  input  logic [1:0]           HTRANS,
+  input  logic [P.XLEN-1:0]    HWDATA,
+  input  logic [P.XLEN/8-1:0]  HWSTRB,
+  output logic [P.XLEN-1:0]    HREADRam,
+  output logic                 HRESPRam, HREADYRam
 );
 
-  localparam DEPTH      = (RANGE+1)/64'(P.XLEN/8); // RANGE is a mask (size-1), DEPTH is in XLEN-bit words
-  localparam ADDR_WIDTH = $clog2(DEPTH);
+  localparam                   DEPTH = (RANGE+1)/64'(P.XLEN/8);  // RANGE is a mask (size-1), DEPTH is in XLEN-bit words
+  localparam                   ADDR_WIDTH = $clog2(DEPTH);
   localparam OFFSET     = $clog2(P.XLEN/8);
 
   logic [P.PA_BITS-1:0]        HADDRD, RamAddr;

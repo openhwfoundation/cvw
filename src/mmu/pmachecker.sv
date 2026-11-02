@@ -17,19 +17,19 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pmachecker import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.PA_BITS-1:0] PhysicalAddress,        // Physical address
-  input  logic                 PAOutOfRange,           // Untranslated address has nonzero bits above PA_BITS
-  input  logic [1:0]           Size,                   // Access size (log2 bytes)
-  input  logic [3:0]           CMOpM,                  // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
-  input  logic                 AtomicAccessM,          // Atomic access
-  input  logic                 ExecuteAccessF,         // Execute access
-  input  logic                 WriteAccessM,           // Write access
-  input  logic                 ReadAccessM,            // Read access
-  input  logic [1:0]           PBMemoryType,           // PBMT field of PTE during TLB hit, or 00 otherwise
-  output logic                 Cacheable, Idempotent, SelTIM, // PMA attributes: cacheable, idempotent, tightly integrated memory
-  output logic                 PMAInstrAccessFaultF,   // PMA instruction access fault
-  output logic                 PMALoadAccessFaultM,    // PMA load access fault
-  output logic                 PMAStoreAmoAccessFaultM // PMA store/AMO access fault
+  input  logic [P.PA_BITS-1:0] PhysicalAddress,
+  input  logic                 PAOutOfRange,   // Untranslated address has nonzero bits above PA_BITS
+  input  logic [1:0]           Size,
+  input  logic [3:0]           CMOpM,
+  input  logic                 AtomicAccessM,  // Atomic access
+  input  logic                 ExecuteAccessF, // Execute access
+  input  logic                 WriteAccessM,   // Write access
+  input  logic                 ReadAccessM,    // Read access
+  input  logic [1:0]           PBMemoryType,   // PBMT field of PTE during TLB hit, or 00 otherwise
+  output logic                 Cacheable, Idempotent, SelTIM,
+  output logic                 PMAInstrAccessFaultF,
+  output logic                 PMALoadAccessFaultM,
+  output logic                 PMAStoreAmoAccessFaultM
 );
 
   logic                        PMAAccessFault;

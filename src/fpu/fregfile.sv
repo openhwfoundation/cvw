@@ -19,9 +19,9 @@
 module fregfile #(parameter FLEN) (
   input  logic            clk, reset,
   input  logic            we4,            // write enable
-  input  logic [4:0]      a1, a2, a3, a4, // Source registers to read (a1, a2, a3), destination register to write (a4)
+  input  logic [4:0]      a1, a2, a3, a4, // addresses
   input  logic [FLEN-1:0] wd4,            // write data
-  output logic [FLEN-1:0] rd1, rd2, rd3   // Read data for ports 1, 2, and 3
+  output logic [FLEN-1:0] rd1, rd2, rd3   // read data
 );
 
   logic [FLEN-1:0] rf[31:0];

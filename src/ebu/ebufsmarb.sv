@@ -17,21 +17,21 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ebufsmarb (
-  input  logic       HCLK,       // AHB clock
-  input  logic       HRESETn,    // AHB reset (active low)
-  input  logic [2:0] HBURST,     // AHB burst type
+  input  logic       HCLK,
+  input  logic       HRESETn,
+  input  logic [2:0] HBURST,     // AHB burst length
 
-  input  logic       HREADY,     // AHB ready
+  input  logic       HREADY,
 
-  input  logic       LSUReq,     // LSU requests the bus
-  input  logic       IFUReq,     // IFU requests the bus
+  input  logic       LSUReq,
+  input  logic       IFUReq,
 
-  output logic       IFUSave,    // Save the IFU request while the LSU is granted
-  output logic       IFURestore, // Restore the saved IFU request
-  output logic       IFUDisable, // Suppress HREADY to the IFU
-  output logic       IFUSelect,  // Grant the bus to the IFU
-  output logic       LSUDisable, // Suppress HREADY to the LSU
-  output logic       LSUSelect); // Grant the bus to the LSU
+  output logic       IFUSave,
+  output logic       IFURestore,
+  output logic       IFUDisable,
+  output logic       IFUSelect,
+  output logic       LSUDisable,
+  output logic       LSUSelect);
 
   typedef enum logic [1:0] {IDLE, ARBITRATE} statetype;
   statetype          CurrState, NextState;

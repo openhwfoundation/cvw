@@ -17,14 +17,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtstage4 import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Divisor, 2x divisor, and their complements (Q4.DIVb)
-  input  logic [P.DIVb:0]   U, UM,              // Partial result and partial result minus 1 ulp (U1.DIVb)
-  input  logic [P.DIVb+3:0] WS, WC,             // Residual in carry-save form (Q4.DIVb)
-  input  logic [P.DIVb+1:0] C,                  // Digit position marker (Q2.DIVb)
-  input  logic              SqrtE,              // Square root operation in Execute stage
-  output logic [P.DIVb+1:0] CNext,              // Next digit position marker (Q2.DIVb)
-  output logic [P.DIVb:0]   UNext, UMNext,      // Next partial result and next partial result minus 1 ulp (U1.DIVb)
-  output logic [P.DIVb+3:0] WSNext, WCNext      // Next residual in carry-save form (Q4.DIVb)
+  input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Q4.DIVb
+  input  logic [P.DIVb:0]   U, UM,              // U1.DIVb
+  input  logic [P.DIVb+3:0] WS, WC,             // Q4.DIVb
+  input  logic [P.DIVb+1:0] C,                  // Q2.DIVb
+  input  logic              SqrtE,
+  output logic [P.DIVb+1:0] CNext,              // Q2.DIVb
+  output logic [P.DIVb:0]   UNext, UMNext,      // U1.DIVb
+  output logic [P.DIVb+3:0] WSNext, WCNext      // Q4.DIVb
 );
 
   logic [P.DIVb+3:0]        Dsel;               // Q4.DIVb

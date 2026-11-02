@@ -17,33 +17,33 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_controller (
-  input  logic        PCLK,              // APB clock
-  input  logic        PRESETn,           // APB reset (active low)
+  input  logic        PCLK,
+  input  logic        PRESETn,
 
   // Start Transmission
-  input  logic        TransmitStart,     // Start transmission
-  input  logic        TransmitRegLoaded, // Transmit shift register loaded
-  input  logic        ResetSCLKenable,   // Reset the SCLK divider counter
+  input  logic        TransmitStart,
+  input  logic        TransmitRegLoaded,
+  input  logic        ResetSCLKenable,
 
   // Registers
-  input  logic [11:0] SckDiv,            // SCLK divider
-  input  logic [1:0]  SckMode,           // SCLK mode: {polarity, phase}
-  input  logic [1:0]  CSMode,            // Chip select mode
-  input  logic [15:0] Delay0,            // Delay register 0: {sckcs, cssck}
-  input  logic [15:0] Delay1,            // Delay register 1: {interxfr, intercs}
-  input  logic [3:0]  FrameLength,       // Bits per frame
+  input  logic [11:0] SckDiv,
+  input  logic [1:0]  SckMode,
+  input  logic [1:0]  CSMode,
+  input  logic [15:0] Delay0,
+  input  logic [15:0] Delay1,
+  input  logic [3:0]  FrameLength,
 
   // Is the Transmit FIFO Empty?
-  input  logic        TransmitFIFOEmpty, // Transmit FIFO is empty
+  input  logic        TransmitFIFOEmpty,
 
   // Control signals
-  output logic        SCLKenable,        // SCLK divider tick
-  output logic        ShiftEdge,         // Shift out transmit data on this SCLK edge
-  output logic        SampleEdge,        // Sample the receive data on this SCLK edge
-  output logic        EndOfFrame,        // End of frame
-  output logic        Transmitting,      // Controller is transmitting
-  output logic        InactiveState,     // Controller is inactive or between chip selects
-  output logic        SPICLK             // SPI clock
+  output logic        SCLKenable,
+  output logic        ShiftEdge,
+  output logic        SampleEdge,
+  output logic        EndOfFrame,
+  output logic        Transmitting,
+  output logic        InactiveState,
+  output logic        SPICLK
 );
 
   // CSMode Stuff

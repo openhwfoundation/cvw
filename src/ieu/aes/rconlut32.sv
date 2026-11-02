@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module rconlut32(
-  input  logic [3:0]  rd,  // Round number
-  output logic [31:0] rcon // AES round constant
+  input  logic [3:0]  rd,
+  output logic [31:0] rcon
 );
 
   logic [7:0] rcon8;

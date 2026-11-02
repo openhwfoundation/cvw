@@ -17,9 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module endianswap #(parameter LEN) (
-  input  logic            BigEndianM, // Memory access is big-endian
-  input  logic [LEN-1:0]  a,          // Input
-  output logic [LEN-1:0]  y           // Output
+  input  logic            BigEndianM,
+  input  logic [LEN-1:0]  a,
+  output logic [LEN-1:0]  y
 );
 
   if (LEN == 128) begin

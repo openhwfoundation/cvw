@@ -18,13 +18,13 @@
 
 module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
-  input  logic              IFDivStartE,           // Start integer or FP divide/sqrt
-  input  logic              FDivBusyE,             // FPU divider busy
-  input  logic              SqrtE,                 // Square root operation in Execute stage
-  input  logic [P.DIVb+3:0] X, D,                  // Dividend or radicand X and divisor D (Q4.DIVb)
-  output logic [P.DIVb:0]   FirstU, FirstUM,       // Result and result minus 1 ulp entering the iteration (U1.DIVb)
-  output logic [P.DIVb+1:0] FirstC,                // Digit position marker entering the iteration (Q2.DIVb)
-  output logic [P.DIVb+3:0] FirstWS, FirstWC       // Residual in carry-save form entering the iteration (Q4.DIVb)
+  input  logic              IFDivStartE,
+  input  logic              FDivBusyE,
+  input  logic              SqrtE,
+  input  logic [P.DIVb+3:0] X, D,                  // Q4.DIVb
+  output logic [P.DIVb:0]   FirstU, FirstUM,       // U1.DIVb
+  output logic [P.DIVb+1:0] FirstC,                // Q2.DIVb
+  output logic [P.DIVb+3:0] FirstWS, FirstWC       // Q4.DIVb
 );
 
   logic [P.DIVb+3:0]      WSNext[P.DIVCOPIES-1:0]; // Q4.DIVb

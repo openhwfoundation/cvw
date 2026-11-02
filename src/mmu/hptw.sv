@@ -28,46 +28,46 @@
 
 module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic [P.XLEN-1:0] SATP_REGW,              // satp CSR
-  input  logic [P.XLEN-1:0] PCSpillF,               // PCF, or PCF + 2 for the second half of a spilled fetch
-  input  logic [P.XLEN+1:0] IEUAdrExtM,             // Memory stage address, zero-extended to XLEN+2 bits
-  input  logic [1:0]        MemRWM, AtomicM,        // Memory read/write and atomic operation in Memory stage
-  input  logic              FpLoadStoreM,           // FP load or store in Memory stage
+  input  logic [P.XLEN-1:0] SATP_REGW,              // includes SATP.MODE to determine number of levels in page table
+  input  logic [P.XLEN-1:0] PCSpillF,               // addresses to translate
+  input  logic [P.XLEN+1:0] IEUAdrExtM,             // addresses to translate
+  input  logic [1:0]        MemRWM, AtomicM,
+  input  logic              FpLoadStoreM,           // FP load/store in M
   // system status
-  input  logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV, // mstatus.MXR, SUM, MPRV: control address translation permissions
-  input  logic [1:0]        STATUS_MPP,             // mstatus.MPP: machine previous privilege mode
+  input  logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV,
+  input  logic [1:0]        STATUS_MPP,
   input  logic              ENVCFG_ADUE,            // HPTW A/D Update enable
   input  logic              ENVCFG_PBMTE,           // Page-based memory types enabled
-  input  logic [1:0]        PrivilegeModeW,         // Current privilege mode
-  input  logic [P.XLEN-1:0] ReadDataM,              // Read data from memory in Memory stage
-  input  logic [P.XLEN-1:0] WriteDataM,             // Write data from IEU
-  input  logic              DCacheBusStallM,        // D$ or bus stalled
+  input  logic [1:0]        PrivilegeModeW,
+  input  logic [P.XLEN-1:0] ReadDataM,              // page table entry from LSU
+  input  logic [P.XLEN-1:0] WriteDataM,
+  input  logic              DCacheBusStallM,        // stall from LSU
   input  logic              MemAccessInFlightM,     // LSU has started (or performed and is holding) the M-stage memory access; do not pre-empt it
   input  logic              MemAccessDoneM,         // LSU has performed and captured the M-stage memory access; it will not be re-issued
-  input  logic [2:0]        Funct3M,                // funct3 field of instruction in Memory stage
-  input  logic [6:0]        Funct7M,                // funct7 field of instruction in Memory stage
-  input  logic              ITLBMissOrUpdateAF,     // ITLB miss or access bit update requires an HPTW walk
-  input  logic              DTLBMissOrUpdateDAM,    // DTLB miss or A/D bit update requires an HPTW walk
-  input  logic              FlushW,                 // Flush Writeback stage
-  input  logic [3:0]        CMOpM,                  // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
-  output logic [P.XLEN-1:0] PTE,                    // Page table entry
-  output logic [2:0]        PageType,               // Page type to TLBs
-  output logic              ITLBWriteF, DTLBWriteM, // Write ITLB, write DTLB
-  output logic [1:0]        PreLSURWM,              // IEU or HPTW memory read/write: [1] read, [0] write
-  output logic [P.XLEN+1:0] IHAdrM,                 // IEU or HPTW memory address
-  output logic [P.XLEN-1:0] IHWriteDataM,           // IEU or HPTW write data
-  output logic [1:0]        LSUAtomicM,             // IEU or HPTW atomic operation: 10 AMO, 01 LR/SC
-  output logic [2:0]        LSUFunct3M,             // IEU or HPTW memory operation size and signedness
-  output logic [6:0]        LSUFunct7M,             // IEU or HPTW AMO operation
-  output logic [3:0]        LSUCMOpM,               // IEU or HPTW cache management operation
+  input  logic [2:0]        Funct3M,
+  input  logic [6:0]        Funct7M,
+  input  logic              ITLBMissOrUpdateAF,
+  input  logic              DTLBMissOrUpdateDAM,
+  input  logic              FlushW,
+  input  logic [3:0]        CMOpM,
+  output logic [P.XLEN-1:0] PTE,                    // page table entry to TLBs
+  output logic [2:0]        PageType,               // page type to TLBs
+  output logic              ITLBWriteF, DTLBWriteM, // write TLB with new entry
+  output logic [1:0]        PreLSURWM,
+  output logic [P.XLEN+1:0] IHAdrM,
+  output logic [P.XLEN-1:0] IHWriteDataM,
+  output logic [1:0]        LSUAtomicM,
+  output logic [2:0]        LSUFunct3M,
+  output logic [6:0]        LSUFunct7M,
+  output logic [3:0]        LSUCMOpM,
   output logic              LSUFpLoadStoreM,        // FpLoadStoreM, cleared for the walker's PTE accesses
-  output logic              HPTWFlushW,             // HPTW walk needs to flush and replay the memory operation
-  output logic              SelHPTW,                // HPTW is accessing memory through the LSU
-  output logic              HPTWStall,              // HPTW walk in progress; stall the pipeline
-  input  logic              LSULoadAccessFaultM, LSUStoreAmoAccessFaultM, // Load and store/AMO access faults from LSU
-  input  logic              LSULoadPageFaultM, LSUStoreAmoPageFaultM, // Load and store/AMO page faults from LSU
-  output logic              LoadAccessFaultM, StoreAmoAccessFaultM, HPTWInstrAccessFaultF, // Load, store/AMO, and instruction walk access faults
-  output logic              LoadPageFaultM, StoreAmoPageFaultM, HPTWInstrPageFaultF // Load, store/AMO, and instruction walk page faults
+  output logic              HPTWFlushW,
+  output logic              SelHPTW,
+  output logic              HPTWStall,
+  input  logic              LSULoadAccessFaultM, LSUStoreAmoAccessFaultM,
+  input  logic              LSULoadPageFaultM, LSUStoreAmoPageFaultM,
+  output logic              LoadAccessFaultM, StoreAmoAccessFaultM, HPTWInstrAccessFaultF,
+  output logic              LoadPageFaultM, StoreAmoPageFaultM, HPTWInstrPageFaultF
 );
 
   typedef enum logic [3:0] {L0_ADR, L0_RD,
@@ -270,11 +270,11 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
   always_comb
     case (WalkerState)
-      L4_RD:   NextPageType = PETAPAGE;
-      L3_RD:   NextPageType = TERAPAGE;
-      L2_RD:   NextPageType = GIGAPAGE;
-      L1_RD:   NextPageType = MEGAPAGE;
-      L0_RD:   NextPageType = KILOPAGE;
+      L4_RD:   NextPageType = PETAPAGE;  // petapage
+      L3_RD:   NextPageType = TERAPAGE;  // terapage
+      L2_RD:   NextPageType = GIGAPAGE;  // gigapage
+      L1_RD:   NextPageType = MEGAPAGE;  // megapage
+      L0_RD:   NextPageType = KILOPAGE;  // kilopage
       default: NextPageType = PageType;
     endcase
 

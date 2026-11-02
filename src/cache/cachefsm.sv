@@ -20,7 +20,7 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
   input  logic       clk,
   input  logic       reset,
   // hazard and privilege unit
-  input  logic       Stall,             // Pipeline is stalled
+  input  logic       Stall,             // Stall the cache, preventing new accesses. In-flight access finished but does not return to READY
   input  logic       FlushStage,        // Pipeline flush of second stage (prevent writes and bus operations)
   input  logic       InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
   output logic       CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
@@ -29,10 +29,10 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
   input  logic [1:0] CacheRW,           // [1] Read, [0] Write
   input  logic       FlushCache,        // Flush all dirty lines back to memory
   input  logic       InvalidateCache,   // Clear all valid bits
-  input  logic [3:0] CMOpM,             // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  input  logic [3:0] CMOpM,             // 0001: cbo.inval; 0010: cbo.clean; 0100: cbo.flush; 1000: cbo.zero
   // Bus controls
-  input  logic       CacheBusAck,       // Bus operation for the cache completed
-  output logic [1:0] CacheBusRW,        // Cache bus operation: 10 line fetch, 01 line writeback
+  input  logic       CacheBusAck,       // Bus operation completed
+  output logic [1:0] CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
   // performance counter outputs
   output logic       CacheMiss,         // Cache miss
   output logic       CacheAccess,       // Cache access
@@ -43,8 +43,8 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
   input  logic       HitLineDirty,      // The cache hit way is dirty
   input  logic       FlushAdrFlag,      // On last set of a cache flush
   input  logic       FlushWayFlag,      // On the last way for any set of a cache flush
-  output logic       SelAdrData,        // Data array address select: 0 NextSet, 1 PAdr
-  output logic       SelAdrTag,         // Tag array address select: 0 NextSet, 1 PAdr
+  output logic       SelAdrData,        // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
+  output logic       SelAdrTag,         // [0] SRAM reads from NextAdr, [1] SRAM reads from PAdr
   output logic       SetValid,          // Set the valid bit in the selected way and set
   output logic       ClearValid,        // Clear the valid bit in the selected way and set
   output logic       SetDirty,          // Set the dirty bit in the selected way and set

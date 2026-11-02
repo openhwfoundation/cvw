@@ -17,19 +17,19 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fcvt import cvw::*; #(parameter cvw_t P) (
-  input  logic                    Xs,           // X sign
-  input  logic [P.NE-1:0]         Xe,           // X exponent
-  input  logic [P.NF:0]           Xm,           // X significand
+  input  logic                    Xs,           // input's sign
+  input  logic [P.NE-1:0]         Xe,           // input's exponent
+  input  logic [P.NF:0]           Xm,           // input's fraction
   input  logic [P.XLEN-1:0]       Int,          // integer input - from IEU
-  input  logic [2:0]              OpCtrl,       // FPU operation control
-  input  logic                    ToInt,        // FP to integer conversion
-  input  logic                    XZero,        // X is zero
-  input  logic [P.FMTBITS-1:0]    Fmt,          // FP format: 00 single, 01 double, 10 half, 11 quad
+  input  logic [2:0]              OpCtrl,       // choose which operation (look below for values)
+  input  logic                    ToInt,        // is fp->int (since it's writing to the integer register)
+  input  logic                    XZero,        // is the input zero
+  input  logic [P.FMTBITS-1:0]    Fmt,          // the input's precision (11=quad 01=double 00=single 10=half)
   output logic [P.NE:0]           Ce,           // the calculated exponent
-  output logic [P.LOGCVTLEN-1:0]  ShiftAmt,     // Shift amount
+  output logic [P.LOGCVTLEN-1:0]  ShiftAmt,     // how much to shift by
   output logic                    ResSubnormUf, // does the result underflow or is subnormal
   output logic                    Cs,           // the result's sign
-  output logic                    IntZero,      // Integer input is zero
+  output logic                    IntZero,      // is the integer zero?
   output logic [P.CVTLEN-1:0]     LzcIn         // input to the Leading Zero Counter (priority encoder)
 );
 

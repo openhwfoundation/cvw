@@ -27,26 +27,26 @@ module cache import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]             CacheRW,           // [1] Read, [0] Write
   input  logic                   FlushCache,        // Flush all dirty lines back to memory
   input  logic                   InvalidateCache,   // Clear all valid bits
-  input  logic [3:0]             CMOpM,             // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
-  input  logic [OFFSETLEN+SETLEN-1:0] NextSet,      // Set and offset bits of the next access address (untranslated)
+  input  logic [3:0]             CMOpM,             // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
+  input  logic [OFFSETLEN+SETLEN-1:0] NextSet,      // Set and offset bits of the virtual address
   input  logic [PA_BITS-1:0]     PAdr,              // Physical address
-  input  logic [(WORDLEN-1)/8:0] ByteMask,          // Byte write enables
-  input  logic [WORDLEN-1:0]     WriteData,         // Write data
+  input  logic [(WORDLEN-1)/8:0] ByteMask,          // Which bytes to write (D$ only)
+  input  logic [WORDLEN-1:0]     WriteData,         // Data to write to cache (D$ only)
   output logic                   CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
   output logic                   CacheStall,        // Cache stalls pipeline during multicycle operation
-  output logic [WORDLEN-1:0]     ReadDataWord,      // Word read from cache line
-  // to performance counters
+  output logic [WORDLEN-1:0]     ReadDataWord,      // Word read from cache (goes to CPU and bus)
+  // to performance counters to cpu
   output logic                   CacheMiss,         // Cache miss
   output logic                   CacheAccess,       // Cache access
   // lsu control
-  input  logic                   SelHPTW,           // HPTW is accessing memory through the LSU
+  input  logic                   SelHPTW,           // Use PAdr from Hardware Page Table Walker rather than NextSet
   // Bus fsm interface
-  input  logic                   CacheBusAck,       // Bus operation for the cache completed
-  input  logic                   SelBusBeat,        // Select the cache line word from BeatCount rather than PAdr
-  input  logic [LOGBWPL-1:0]     BeatCount,         // Beat within the cache line in the Address phase
-  input  logic [LINELEN-1:0]     FetchBuffer,       // Data captured from the bus
-  output logic [1:0]             CacheBusRW,        // Cache bus operation: 10 line fetch, 01 line writeback
-  output logic [PA_BITS-1:0]     CacheBusAdr        // Cache line address for bus access
+  input  logic                   CacheBusAck,       // Bus operation completed
+  input  logic                   SelBusBeat,        // Word in cache line comes from BeatCount
+  input  logic [LOGBWPL-1:0]     BeatCount,         // Beat in burst
+  input  logic [LINELEN-1:0]     FetchBuffer,       // Buffer long enough to hold entire cache line arriving from bus
+  output logic [1:0]             CacheBusRW,        // [1] Read (cache line fetch) or [0] write bus (cache line writeback)
+  output logic [PA_BITS-1:0]     CacheBusAdr        // Address for bus access
 );
 
   // Cache parameters

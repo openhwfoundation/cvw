@@ -18,19 +18,19 @@
 
 module fdivsqrtfsm import cvw::*; #(parameter cvw_t P) (
   input  logic                clk, reset,
-  input  logic                XInfE, YInfE,           // X, Y are infinity
-  input  logic                XZeroE, YZeroE,         // X, Y are zero
-  input  logic                XNaNE, YNaNE,           // X, Y are NaN
-  input  logic                FDivStartE, IDivStartE, // Start FP divide/sqrt, start integer divide
-  input  logic                XsE, WZeroE,            // X sign, residual is zero
-  input  logic                SqrtE,                  // Square root operation in Execute stage
-  input  logic                StallM, FlushE,         // Stall Memory stage, flush Execute stage
-  input  logic                IntDivE,                // Integer divide or remainder instruction in Execute stage
-  input  logic                ISpecialCaseE,          // Integer divide special case (divide by zero or |A| < |B|)
-  input  logic [P.DURLEN-1:0] CyclesE,                // Number of iteration cycles
-  output logic                IFDivStartE,            // Start integer or FP divide/sqrt
-  output logic                FDivBusyE, FDivDoneE,   // FPU divider busy, done
-  output logic                SpecialCaseM            // Special case result; skip the iteration
+  input  logic                XInfE, YInfE,
+  input  logic                XZeroE, YZeroE,
+  input  logic                XNaNE, YNaNE,
+  input  logic                FDivStartE, IDivStartE,
+  input  logic                XsE, WZeroE,
+  input  logic                SqrtE,
+  input  logic                StallM, FlushE,
+  input  logic                IntDivE,
+  input  logic                ISpecialCaseE,
+  input  logic [P.DURLEN-1:0] CyclesE,
+  output logic                IFDivStartE,
+  output logic                FDivBusyE, FDivDoneE,
+  output logic                SpecialCaseM
 );
 
   typedef enum logic [1:0] {IDLE, BUSY, DONE} statetype;

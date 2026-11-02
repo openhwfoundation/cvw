@@ -20,40 +20,40 @@ module fctrl import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   // input control signals
-  input  logic                 StallE, StallM, StallW,             // Stall Execute, Memory, Writeback stages
-  input  logic                 FlushE, FlushM, FlushW,             // Flush Execute, Memory, Writeback stages
-  input  logic                 IntDivE,                            // Integer divide or remainder instruction in Execute stage
-  input  logic [2:0]           FRM_REGW,                           // Rounding mode from fcsr
-  input  logic [1:0]           STATUS_FS,                          // mstatus.FS: FPU state (00 off)
-  input  logic                 FDivBusyE,                          // FPU divider busy
+  input  logic                 StallE, StallM, StallW,             // stall signals
+  input  logic                 FlushE, FlushM, FlushW,             // flush signals
+  input  logic                 IntDivE,                            // is integer division
+  input  logic [2:0]           FRM_REGW,                           // rounding mode from CSR
+  input  logic [1:0]           STATUS_FS,                          // is FPU enabled?
+  input  logic                 FDivBusyE,                          // is the divider busy
   // instruction
-  input  logic [31:0]          InstrD,                             // Instruction in Decode stage
-  input  logic [6:0]           Funct7D,                            // funct7 field of instruction in Decode stage
+  input  logic [31:0]          InstrD,                             // the full instruction
+  input  logic [6:0]           Funct7D,                            // bits 31:25 of instruction - may contain precision
   input  logic [6:0]           OpD,                                // bits 6:0 of instruction
   input  logic [4:0]           Rs2D,                               // bits 24:20 of instruction
-  input  logic [2:0]           Funct3D,                            // funct3 field of instruction in Decode stage
+  input  logic [2:0]           Funct3D,                            // bits 14:12 of instruction - may contain rounding mode
   // input mux selections
-  output logic                 XEnD, YEnD, ZEnD,                   // X, Y, Z inputs used in Decode stage
-  output logic                 XEnE, YEnE, ZEnE,                   // X, Y, Z inputs used in Execute stage
+  output logic                 XEnD, YEnD, ZEnD,                   // enable inputs
+  output logic                 XEnE, YEnE, ZEnE,                   // enable inputs
   // operation mux selections
-  output logic                 FCvtIntE, FCvtIntW,                 // FPU converts float to integer in Execute, Writeback stages
-  output logic [2:0]           FrmE, FrmM,                         // FP rounding mode in Execute, Memory stages
-  output logic [P.FMTBITS-1:0] FmtE, FmtM,                         // FP format in Execute, Memory stages
-  output logic [2:0]           OpCtrlE, OpCtrlM,                   // FPU operation control in Execute, Memory stages
-  output logic                 FpLoadStoreM,                       // FP load or store
-  output logic [1:0]           PostProcSelE, PostProcSelM,         // Postprocessor result select in Execute, Memory stages
-  output logic [1:0]           FResSelE, FResSelM, FResSelW,       // FPU result select in Execute, Memory, Writeback stages
+  output logic                 FCvtIntE, FCvtIntW,                 // convert to integer operation
+  output logic [2:0]           FrmE, FrmM,                         // FP rounding mode
+  output logic [P.FMTBITS-1:0] FmtE, FmtM,                         // FP format
+  output logic [2:0]           OpCtrlE, OpCtrlM,                   // Select which operation to do in each component
+  output logic                 FpLoadStoreM,                       // FP load or store instruction
+  output logic [1:0]           PostProcSelE, PostProcSelM,         // select result in the post processing unit
+  output logic [1:0]           FResSelE, FResSelM, FResSelW,       // Select one of the results that finish in the memory stage
   output logic                 FPUActiveE,                         // FP instruction being executed
-  output logic                 ZfaE, ZfaM,                         // Zfa variant of FP instruction in Execute, Memory stages
+  output logic                 ZfaE, ZfaM,                         // Zfa variants of instructions (fli, fminm, fmaxm, fround, froundnx, fleq, fltq, fmvh, fmvp, fcvtmod)
   output logic                 ZfaFRoundNXE,                       // Zfa froundnx instruction
   // register control signals
-  output logic                 FRegWriteE, FRegWriteM, FRegWriteW, // FP register write enable in Execute, Memory, Writeback stages
-  output logic                 FWriteIntE, FWriteIntM,             // FPU instruction writes integer register file in Execute, Memory stages
-  output logic [4:0]           Adr1D, Adr2D, Adr3D,                // FP source register addresses in Decode stage
-  output logic [4:0]           Adr1E, Adr2E, Adr3E,                // FP source register addresses in Execute stage
+  output logic                 FRegWriteE, FRegWriteM, FRegWriteW, // FP register write enable
+  output logic                 FWriteIntE, FWriteIntM,             // Write to integer register
+  output logic [4:0]           Adr1D, Adr2D, Adr3D,                // addresses of each input
+  output logic [4:0]           Adr1E, Adr2E, Adr3E,                // addresses of each input
   // other control signals
-  output logic                 IllegalFPUInstrD,                   // Illegal FP instruction
-  output logic                 FDivStartE, IDivStartE              // Start FP divide/sqrt, start integer divide
+  output logic                 IllegalFPUInstrD,                   // Is the instruction an illegal fpu instruction
+  output logic                 FDivStartE, IDivStartE              // Start division or square root
 );
 
   localparam FCTRLW = 14; // width of ControlsD

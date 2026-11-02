@@ -33,15 +33,15 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   input  logic                        SetDirty,       // Set the dirty bit in the selected way and set
   input  logic                        SelVictim,      // Overrides HitWay Tag matching.  Selects the victim tag/data regardless of hit
   input  logic                        ClearDirty,     // Clear the dirty bit in the selected way and set
-  input  logic                        FlushCache,     // Flush all dirty lines back to memory
-  input  logic                        VictimWay,      // LRU victim way to evict
+  input  logic                        FlushCache,     // [0] Use SelAdr, [1] SRAM reads/writes from FlushAdr
+  input  logic                        VictimWay,      // LRU selected this way as victim to evict
   input  logic                        FlushWay,       // This way is selected for flush and possible writeback if dirty
   input  logic                        InvalidateCache, // Clear all valid bits
   input  logic [LINELEN/8-1:0]        LineByteMask,   // Final byte enables to cache (D$ only)
 
   output logic [LINELEN-1:0]          ReadDataLineWay, // This way's read data if valid
-  output logic                        HitWay,         // Way is valid and its tag matches PAdr
-  output logic                        ValidWay,       // Way is valid in the selected set
+  output logic                        HitWay,         // This way hits
+  output logic                        ValidWay,       // This way is valid
   output logic                        HitDirtyWay,    // The hit way is dirty
   output logic                        DirtyWay,       // The selected way is dirty
   output logic [TAGLEN-1:0]           TagWay);        // This way's tag if valid

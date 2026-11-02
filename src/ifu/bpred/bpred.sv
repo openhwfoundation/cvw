@@ -12,45 +12,45 @@
 // Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 module bpred import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              StallF, StallD, StallE, StallM, StallW, // Stall Fetch, Decode, Execute, Memory, Writeback stages
-  input  logic              FlushD, FlushE, FlushM, FlushW, // Flush Decode, Execute, Memory, Writeback stages
+  input  logic              StallF, StallD, StallE, StallM, StallW,
+  input  logic              FlushD, FlushE, FlushM, FlushW,
   // Fetch stage
   // the prediction
-  input  logic [31:0]       InstrD,                         // Instruction in Decode stage
-  input  logic [P.XLEN-1:0] PCNextF,                        // Next PC to fetch
-  input  logic [P.XLEN-1:0] PCPlus2or4F,                    // PCF+2/4
-  output logic [P.XLEN-1:0] PC1NextF,                       // Branch Predictor predicted or corrected fetch address on misprediction
-  output logic [P.XLEN-1:0] NextValidPCE,                   // Address of next valid instruction after the instruction in the Memory stage
+  input  logic [31:0]       InstrD,                    // Decompressed decode stage instruction. Used to decode instruction class
+  input  logic [P.XLEN-1:0] PCNextF,                   // Next Fetch Address
+  input  logic [P.XLEN-1:0] PCPlus2or4F,               // PCF+2/4
+  output logic [P.XLEN-1:0] PC1NextF,                  // Branch Predictor predicted or corrected fetch address on misprediction
+  output logic [P.XLEN-1:0] NextValidPCE,              // Address of next valid instruction after the instruction in the Memory stage
 
   // Update Predictor
-  input  logic [P.XLEN-1:0] PCF,                            // PC in Fetch stage
-  input  logic [P.XLEN-1:0] PCD,                            // PC in Decode stage
-  input  logic [P.XLEN-1:0] PCE,                            // PC in Execute stage
-  input  logic [P.XLEN-1:0] PCM,                            // PC in Memory stage
+  input  logic [P.XLEN-1:0] PCF,                       // Fetch stage instruction address
+  input  logic [P.XLEN-1:0] PCD,                       // Decode stage instruction address. Also the address the branch predictor took
+  input  logic [P.XLEN-1:0] PCE,                       // Execution stage instruction address
+  input  logic [P.XLEN-1:0] PCM,                       // Memory stage instruction address
 
-  input  logic [31:0]       PostSpillInstrRawF,             // Fetched 32-bit instruction after merging the two halves of a spill
+  input  logic [31:0]       PostSpillInstrRawF,        // Instruction
 
   // Branch and jump outcome
-  input  logic              InstrValidD, InstrValidE,       // Instruction in Decode, Execute stages is valid
-  input  logic              BranchD, BranchE,               // Branch instruction in Decode, Execute stages
-  input  logic              JumpD, JumpE,                   // Jump instruction in Decode, Execute stages
-  input  logic              PCSrcE,                         // Select next PC: 1 branch/jump target IEUAdrE, 0 PC + 2/4
-  input  logic [P.XLEN-1:0] IEUAdrE,                        // Memory address or branch/jump target in Execute stage
-  input  logic [P.XLEN-1:0] IEUAdrM,                        // Memory address or branch/jump target in Memory stage
-  input  logic [P.XLEN-1:0] PCLinkE,                        // PC + 2 or 4 of instruction in Execute stage (link address)
-  output logic [3:0]        IClassM,                        // Instruction class in Memory stage, one-hot {call, return, jump, branch}
+  input  logic              InstrValidD, InstrValidE,
+  input  logic              BranchD, BranchE,
+  input  logic              JumpD, JumpE,
+  input  logic              PCSrcE,                    // Execution stage branch is taken
+  input  logic [P.XLEN-1:0] IEUAdrE,                   // The branch/jump target address
+  input  logic [P.XLEN-1:0] IEUAdrM,                   // The branch/jump target address
+  input  logic [P.XLEN-1:0] PCLinkE,                   // The address following the branch instruction. (AKA Fall through address)
+  output logic [3:0]        IClassM,                   // The valid instruction class. 1-hot encoded as {call, return, jump, branch}
 
   // Report branch prediction status
-  output logic              BPWrongE,                       // Branch predictor was wrong in Execute stage
-  output logic              BPWrongM,                       // Branch predictor was wrong in Memory stage
-  output logic              BPDirWrongM,                    // Branch direction mispredicted in Memory stage
-  output logic              BTAWrongM,                      // Branch target prediction was wrong
-  output logic              RASPredPCWrongM,                // RAS return address prediction was wrong
-  output logic              IClassWrongM                    // Instruction class prediction was wrong
+  output logic              BPWrongE,                  // Prediction is wrong
+  output logic              BPWrongM,                  // Prediction is wrong
+  output logic              BPDirWrongM,               // Prediction direction is wrong
+  output logic              BTAWrongM,                 // Prediction target wrong
+  output logic              RASPredPCWrongM,           // RAS prediction is wrong
+  output logic              IClassWrongM               // Class prediction is wrong
 );
 
 

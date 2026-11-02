@@ -17,9 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmtparams import cvw::*; #(parameter cvw_t P) (
-  input  logic [P.FMTBITS-1:0] Fmt,   // FP format: 00 single, 01 double, 10 half, 11 quad
-  output logic [P.NE-2:0]      Bias,  // Exponent bias
-  output logic [P.LOGFLEN-1:0] Nf     // Number of fractional bits in selected format
+  input  logic [P.FMTBITS-1:0] Fmt,   // format
+  output logic [P.NE-2:0]      Bias,  // exponent bias
+  output logic [P.LOGFLEN-1:0] Nf     // number of fraction bits
 );
 
   if (P.FPSIZES == 1) begin

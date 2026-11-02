@@ -19,63 +19,63 @@
 module controller import cvw::*; #(parameter cvw_t P) (
   input  logic        clk, reset,
   // Decode stage control signals
-  input  logic        StallD, FlushD,          // Stall and flush Decode stage
+  input  logic        StallD, FlushD,          // Stall, flush Decode stage
   input  logic [31:0] InstrD,                  // Instruction in Decode stage
-  input  logic [1:0]  STATUS_FS,               // mstatus.FS: FPU state (00 off)
+  input  logic [1:0]  STATUS_FS,               // is FPU enabled?
   input  logic [3:0]  ENVCFG_CBE,              // Cache block operation enables
   output logic [2:0]  ImmSrcD,                 // Type of immediate extension
-  input  logic        IllegalIEUFPUInstrD,     // Illegal integer or FP instruction in Decode stage
+  input  logic        IllegalIEUFPUInstrD,     // Illegal IEU and FPU instruction
   output logic        IllegalBaseInstrD,       // Illegal base integer instruction, or illegal RV32E access to upper 16 registers
-  output logic        JumpD,                   // Jump instruction in Decode stage
-  output logic        BranchD,                 // Branch instruction in Decode stage
-  output logic        StructuralStallD,        // Structural hazard stall in Decode stage
-  output logic        LoadStallD,              // Load-use stall, for performance counters
-  output logic        StoreStallD,             // Store-load hazard stall, for performance counters
-  output logic [4:0]  Rs1D, Rs2D, Rs2E,        // Source registers rs1 and rs2 in Decode stage, rs2 in Execute stage
+  output logic        JumpD,                   // Jump instruction
+  output logic        BranchD,                 // Branch instruction
+  output logic        StructuralStallD,        // Structural stalls detected by controller
+  output logic        LoadStallD,              // Structural stalls for load, sent to performance counters
+  output logic        StoreStallD,             // load after store hazard
+  output logic [4:0]  Rs1D, Rs2D, Rs2E,        // Register sources to read in Decode or Execute stage
   // Execute stage control signals
-  input  logic        StallE, FlushE,          // Stall and flush Execute stage
+  input  logic        StallE, FlushE,          // Stall, flush Execute stage
   input  logic [1:0]  FlagsE,                  // Comparison flags ({eq, lt})
-  input  logic        FWriteIntE,              // FPU instruction writes integer register file in Execute stage
-  input  logic        FCvtIntE,                // FPU converts float to integer in Execute stage
-  output logic        PCSrcE,                  // Select next PC: 1 branch/jump target IEUAdrE, 0 PC + 2/4
-  output logic        ALUSrcAE, ALUSrcBE,      // ALU source select for operands A and B
+  input  logic        FWriteIntE,              // Write integer register, coming from FPU controller
+  input  logic        FCvtIntE,                // FPU convert float to int
+  output logic        PCSrcE,                  // Select signal to choose next PC (for datapath and Hazard unit)
+  output logic        ALUSrcAE, ALUSrcBE,      // ALU operands
   output logic        ALUResultSrcE,           // Selects result to pass on to Memory stage
-  output logic [2:0]  ALUSelectE,              // ALU operation select in Execute stage
-  output logic [2:0]  Funct3E,                 // funct3 field of instruction in Execute stage
-  output logic [6:0]  Funct7E,                 // funct7 field of instruction in Execute stage
-  output logic        IntDivE,                 // Integer divide or remainder instruction in Execute stage
-  output logic        W64E, UW64E,             // RV64 W-type and .uw-type instruction in Execute stage
+  output logic [2:0]  ALUSelectE,              // ALU mux select signal
+  output logic [2:0]  Funct3E,                 // Instruction's funct3 field
+  output logic [6:0]  Funct7E,                 // Instruction's funct7 field
+  output logic        IntDivE,                 // Integer divide
+  output logic        W64E, UW64E,             // RV64 W/.uw-type operation
   output logic        SubArithE,               // Subtraction or arithmetic shift
-  output logic        JumpE,                   // Jump instruction in Execute stage
-  output logic        BranchE,                 // Branch instruction in Execute stage
+  output logic        JumpE,                   // jump instruction
+  output logic        BranchE,                 // Branch instruction
   output logic        BranchSignedE,           // Branch comparison operands are signed (if it's a branch)
   output logic [3:0]  BSelectE,                // BMU result select (binary encoded; see bitmanipalu)
-  output logic [3:0]  ZBBSelectE,              // Zbb result select
+  output logic [3:0]  ZBBSelectE,              // ZBB mux select signal in Execute stage
   output logic [2:0]  BALUControlE,            // ALU Control signals for B instructions in Execute Stage
   output logic        BMUActiveE,              // Bit manipulation instruction being executed
   output logic [1:0]  CZeroE,                  // {czero.nez, czero.eqz} instructions active
   output logic        MDUActiveE,              // Mul/Div instruction being executed
-  output logic [3:0]  CMOpM,                   // Cache management operation: 1 cbo.inval, 2 cbo.clean, 4 cbo.flush, 8 cbo.zero
+  output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic        IFUPrefetchE,            // instruction prefetch
-  output logic        LSUPrefetchM,            // Data prefetch (presently unused)
-  output logic [1:0]  ForwardAE, ForwardBE,    // Forwarding select for ALU operands A and B
+  output logic        LSUPrefetchM,            // data prefetch
+  output logic [1:0]  ForwardAE, ForwardBE,    // Select signals for forwarding multiplexers
   // Memory stage control signals
-  input  logic        StallM, FlushM,          // Stall and flush Memory stage
-  output logic [1:0]  MemRWE,                  // Memory read/write control in Execute stage: [1] read, [0] write
-  output logic [1:0]  MemRWM,                  // Memory read/write control in Memory stage: [1] read, [0] write
-  output logic        CSRReadM, CSRWriteM, PrivilegedM, // CSR read, CSR write, and privileged instructions
-  output logic [1:0]  AtomicM,                 // Atomic memory operation: 10 AMO, 01 LR/SC
-  output logic [2:0]  Funct3M,                 // funct3 field of instruction in Memory stage
-  output logic        InvalidateICacheM, FlushDCacheM, // Invalidate I$ (fence.i), flush D$
-  output logic        InstrValidD, InstrValidE, InstrValidM, // Instruction in Decode, Execute, Memory stages is valid
-  output logic        FWriteIntM,              // FPU instruction writes integer register file in Memory stage
+  input  logic        StallM, FlushM,          // Stall, flush Memory stage
+  output logic [1:0]  MemRWE,                  // Mem read/write: MemRWE[1] = 1 for read, MemRWE[0] = 1 for write
+  output logic [1:0]  MemRWM,                  // Mem read/write: MemRWM[1] = 1 for read, MemRWM[0] = 1 for write
+  output logic        CSRReadM, CSRWriteM, PrivilegedM, // CSR read, write, or privileged instruction
+  output logic [1:0]  AtomicM,                 // Atomic (AMO) instruction
+  output logic [2:0]  Funct3M,                 // Instruction's funct3 field
+  output logic        InvalidateICacheM, FlushDCacheM, // Invalidate I$, flush D$
+  output logic        InstrValidD, InstrValidE, InstrValidM, // Instruction is valid
+  output logic        FWriteIntM,              // FPU controller writes integer register file
   // Writeback stage control signals
-  input  logic        StallW, FlushW,          // Stall and flush Writeback stage
-  output logic        RegWriteW, IntDivW,      // Write register file, integer divide instruction in Writeback stage
+  input  logic        StallW, FlushW,          // Stall, flush Writeback stage
+  output logic        RegWriteW, IntDivW,      // Instruction writes a register, is an integer divide
   output logic [2:0]  ResultSrcW,              // Select source of result to write back to register file
   // Stall during CSRs
-  output logic        CSRWriteFenceM,          // CSR write or fence instruction; flush the following instructions
-  output logic [4:0]  RdE, RdM,                // Destination register in Execute, Memory stages
+  output logic        CSRWriteFenceM,          // CSR write or fence instruction; needs to flush the following instructions
+  output logic [4:0]  RdE, RdM,                // Pipelined destination registers
   // Forwarding controls
   output logic [4:0]  RdW                      // Destination register in Writeback stage
 );

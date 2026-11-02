@@ -18,35 +18,35 @@
 
 module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] A, B,                   // Operands
-  input  logic              W64, UW64,              // RV64 W-type and .uw-type instruction
-  input  logic [3:0]        BSelect,                // BMU result select (binary encoded; see bitmanipalu)
-  input  logic [3:0]        ZBBSelect,              // Zbb result select
-  input  logic [2:0]        Funct3,                 // funct3 field of instruction
-  input  logic [6:0]        Funct7,                 // funct7 field of instruction
-  input  logic [4:0]        Rs2E,                   // rs2 field of instruction in Execute stage
-  input  logic              LT,                     // Less than (signed)
-  input  logic              LTU,                    // Less than (unsigned)
+  input  logic              W64, UW64,              // W64/.uw-type instruction
+  input  logic [3:0]        BSelect,                // BMU result select (binary encoded; see result mux)
+  input  logic [3:0]        ZBBSelect,              // ZBB mux select signal
+  input  logic [2:0]        Funct3,                 // Funct3 field of opcode indicates operation to perform
+  input  logic [6:0]        Funct7,                 // Funct7 field for ZKND and ZKNE operations
+  input  logic [4:0]        Rs2E,                   // Register source2 for RNUM of ZKNE/ZKND
+  input  logic              LT,                     // less than flag
+  input  logic              LTU,                    // less than unsigned flag
   input  logic [2:0]        BALUControl,            // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActive,              // Bit manipulation instruction being executed
   input  logic [P.XLEN-1:0] PreALUResult,           // ALU result after RV64 W-type sign extension
   input  logic [P.XLEN-1:0] FullResult,             // ALU result before RV64 W-type sign extension
   output logic [P.XLEN-1:0] CondMaskB,              // B is conditionally masked for ZBS instructions
   output logic [P.XLEN-1:0] CondShiftA,             // A is conditionally shifted for ShAdd instructions
-  output logic [P.XLEN-1:0] ALUResult);             // ALU result
+  output logic [P.XLEN-1:0] ALUResult);             // Result
 
-  logic [P.XLEN-1:0]        ZBBResult;              // ZBB Result
-  logic [P.XLEN-1:0]        ZBCResult;              // ZBC Result
-  logic [P.XLEN-1:0]        ZBKBResult;             // ZBKB Result
-  logic [P.XLEN-1:0]        ZBKXResult;             // ZBKX Result
-  logic [P.XLEN-1:0]        ZKNHResult;             // ZKNH Result
-  logic [P.XLEN-1:0]        ZKNDEResult;            // ZKNE or ZKND Result
-  logic [P.XLEN-1:0]        MaskB;                  // BitMask of B
-  logic [P.XLEN-1:0]        RevA;                   // Bit-reversed A
-  logic                     Mask;                   // Indicates if it is ZBS instruction
-  logic                     PreShift;               // Indicates if it is sh1add, sh2add, sh3add instruction
-  logic [1:0]               PreShiftAmt;            // Amount to Pre-Shift A
-  logic [P.XLEN-1:0]        CondZextA;              // A Conditional Extend Intermediary Signal
-  logic [P.XLEN-1:0]        ABMU, BBMU;             // Gated data inputs to reduce BMU activity
+  logic [P.XLEN-1:0]        ZBBResult;               // ZBB Result
+  logic [P.XLEN-1:0]        ZBCResult;               // ZBC Result
+  logic [P.XLEN-1:0]        ZBKBResult;              // ZBKB Result
+  logic [P.XLEN-1:0]        ZBKXResult;              // ZBKX Result
+  logic [P.XLEN-1:0]        ZKNHResult;              // ZKNH Result
+  logic [P.XLEN-1:0]        ZKNDEResult;             // ZKNE or ZKND Result
+  logic [P.XLEN-1:0]        MaskB;                   // BitMask of B
+  logic [P.XLEN-1:0]        RevA;                    // Bit-reversed A
+  logic                     Mask;                    // Indicates if it is ZBS instruction
+  logic                     PreShift;                // Indicates if it is sh1add, sh2add, sh3add instruction
+  logic [1:0]               PreShiftAmt;             // Amount to Pre-Shift A
+  logic [P.XLEN-1:0]        CondZextA;               // A Conditional Extend Intermediary Signal
+  logic [P.XLEN-1:0]        ABMU, BBMU;              // Gated data inputs to reduce BMU activity
 
   // gate data inputs to BMU to only operate when BMU is active
   assign ABMU = A & {P.XLEN{BMUActive}};

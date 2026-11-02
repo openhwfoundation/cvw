@@ -20,21 +20,21 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
                                   parameter integer MAX_CSRS = 5,
                                   parameter integer TOTAL_CSRS = 36) (
   input  logic                                          clk, reset,
-  input  logic                                          StallE, StallM, StallW, FlushE, FlushM, FlushW, // Stall and flush Execute, Memory, Writeback stages
+  input  logic                                          StallE, StallM, StallW, FlushE, FlushM, FlushW,
   // required
-  input  logic [P.XLEN-1:0]                             PCM,                       // PC in Memory stage
-  input  logic                                          InstrValidM,               // Instruction in Memory stage is valid
-  input  logic [31:0]                                   InstrRawD,                 // 32-bit instruction or raw compressed 16-bit instruction in bottom half
-  input  logic [63:0]                                   Mcycle, Minstret,          // mcycle and minstret counters
-  input  logic                                          TrapM,                     // Trap is occurring
-  input  logic [1:0]                                    PrivilegeModeW,            // Current privilege mode
+  input  logic [P.XLEN-1:0]                             PCM,
+  input  logic                                          InstrValidM,
+  input  logic [31:0]                                   InstrRawD,
+  input  logic [63:0]                                   Mcycle, Minstret,
+  input  logic                                          TrapM,
+  input  logic [1:0]                                    PrivilegeModeW,
   // registers gpr and fpr
-  input  logic                                          GPRWen, FPRWen,            // GPR and FPR write enables
-  input  logic [4:0]                                    GPRAddr, FPRAddr,          // GPR and FPR addresses written
-  input  logic [P.XLEN-1:0]                             GPRValue, FPRValue,        // GPR and FPR write values
-  input  var logic [P.XLEN-1:0]                         CSRArray [TOTAL_CSRS-1:0], // CSR values
-  output logic                                          valid,                     // RVVI packet valid
-  output logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi                       // RVVI packet
+  input  logic                                          GPRWen, FPRWen,
+  input  logic [4:0]                                    GPRAddr, FPRAddr,
+  input  logic [P.XLEN-1:0]                             GPRValue, FPRValue,
+  input  var logic [P.XLEN-1:0]                         CSRArray [TOTAL_CSRS-1:0],
+  output logic                                          valid,
+  output logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi
 );
 
   // pipeline controls
