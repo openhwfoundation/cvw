@@ -45,6 +45,8 @@ Wally default configurations are listed below.  Synthesis results are from TSMC 
 
 CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks, so Embench is compiled without F and D for every configuration, and its floating-point benchmarks use software floating point rather than the FPU.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, rv32imcb, and rv64i using the AHB bus in place of the IROM and DTIM.  The area of each configuration is at the listed clock frequency.  Flip-flops and gates are standard cells; gates exclude buffers and inverters.  rv32e, rv32i, rv32imc, and rv32imcb build the integer register file from latches (`LATCH_BASED_REGISTERFILE`), counted separately, including a clock-gate latch for each register.  RAM bits are the SRAM bits used for I$ and D$ data and tags, BTB, and PHT; the SRAM macros take 0.31 mm^2 in rv32gc and rv64gc.
 
+See also [comparison to other cores](docs/comparison.adoc).
+
 # Verification
 
 Wally is presently at Technology Readiness Level 4, passing the [RISC-V architectural certification tests](https://github.com/riscv/riscv-arch-test) and custom tests, and booting Linux in simulation and on an FPGA.  The rv32imc, rv32gc, and rv64gc configurations achieve 100% code and functional coverage.  See the [Test Plan](docs/testplans/testplan.md) for details.
