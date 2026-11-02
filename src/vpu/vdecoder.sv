@@ -194,14 +194,14 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 `define VOPERANDW 7                           // operand controls: Reduction_VdEEW_Vs2EEW_Vs1EEW
 `define VEUCTRLW (5 + `VOPERANDW)             // VOpClass, then the operand controls
 
-  logic [7:0]           SupportedFunct6D;       // members this family defines, one bit per funct6[2:0]
+  logic [7:0]           ValidFunct6D;           // members this family defines, one bit per funct6[2:0]
   logic [`VEUCTRLW-1:0] VEUControlsD;
   logic [`VEUCTRLW-1:0] VUnaryControlsD;
   logic                 VFunctD;                // OP-V encoding is defined
   logic                 VUnaryD;                // vs1 holds opcode, not a source register
-  logic                 SupportedUnaryD;        // VUnaryD value is valid
+  logic                 ValidUnaryD;            // VUnaryD value is valid
   logic                 VUnaryWriteIntD, VUnaryWriteFPD;  // writes rd or fd instead of Vd
-  logic [7:0]           SupportedCvtD;          // legality of floating-point conversions
+  logic [7:0]           ValidCvtD;              // legality of floating-point conversions
 
   assign VUnaryD = (OPMVVD & ((Funct6D == 6'b010000) | (Funct6D == 6'b010010) | (Funct6D == 6'b010100))) |
                    (OPFVVD & ((Funct6D == 6'b010000) | (Funct6D == 6'b010010) | (Funct6D == 6'b010011))) |
@@ -211,82 +211,82 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   always_comb
     if (OPIVVD)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b1111_0101;   // 7:vmax 6:vmaxu 5:vmin 4:vminu 3:- 2:vsub 1:- 0:vadd
-        3'b001:  SupportedFunct6D = 8'b0101_1110;   // 7:- 6:vrgatherei16 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
-        3'b010:  SupportedFunct6D = 8'b1000_1111;   // 7:vmerge/vmv 6:- 5:- 4:- 3:vmsbc 2:vsbc 1:vmadc 0:vadc
-        3'b011:  SupportedFunct6D = 8'b0011_1111;   // 7:- 6:- 5:vmsle 4:vmsleu 3:vmslt 2:vmsltu 1:vmsne 0:vmseq
-        3'b100:  SupportedFunct6D = 8'b1010_1111;   // 7:vsmul 6:- 5:vsll 4:- 3:vssub 2:vssubu 1:vsadd 0:vsaddu
-        3'b101:  SupportedFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
-        3'b110:  SupportedFunct6D = 8'b0000_0011;   // 7:- 6:- 5:- 4:- 3:- 2:- 1:vwredsum 0:vwredsumu
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b1111_0101;   // 7:vmax 6:vmaxu 5:vmin 4:vminu 3:- 2:vsub 1:- 0:vadd
+        3'b001:  ValidFunct6D = 8'b0101_1110;   // 7:- 6:vrgatherei16 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
+        3'b010:  ValidFunct6D = 8'b1000_1111;   // 7:vmerge/vmv 6:- 5:- 4:- 3:vmsbc 2:vsbc 1:vmadc 0:vadc
+        3'b011:  ValidFunct6D = 8'b0011_1111;   // 7:- 6:- 5:vmsle 4:vmsleu 3:vmslt 2:vmsltu 1:vmsne 0:vmseq
+        3'b100:  ValidFunct6D = 8'b1010_1111;   // 7:vsmul 6:- 5:vsll 4:- 3:vssub 2:vssubu 1:vsadd 0:vsaddu
+        3'b101:  ValidFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
+        3'b110:  ValidFunct6D = 8'b0000_0011;   // 7:- 6:- 5:- 4:- 3:- 2:- 1:vwredsum 0:vwredsumu
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPIVXD)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b1111_1101;   // 7:vmax 6:vmaxu 5:vmin 4:vminu 3:vrsub 2:vsub 1:- 0:vadd
-        3'b001:  SupportedFunct6D = 8'b1101_1110;   // 7:vslidedown 6:vslideup 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
-        3'b010:  SupportedFunct6D = 8'b1000_1111;   // 7:vmerge/vmv 6:- 5:- 4:- 3:vmsbc 2:vsbc 1:vmadc 0:vadc
-        3'b011:  SupportedFunct6D = 8'b1111_1111;   // 7:vmsgt 6:vmsgtu 5:vmsle 4:vmsleu 3:vmslt 2:vmsltu 1:vmsne 0:vmseq
-        3'b100:  SupportedFunct6D = 8'b1010_1111;   // 7:vsmul 6:- 5:vsll 4:- 3:vssub 2:vssubu 1:vsadd 0:vsaddu
-        3'b101:  SupportedFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b1111_1101;   // 7:vmax 6:vmaxu 5:vmin 4:vminu 3:vrsub 2:vsub 1:- 0:vadd
+        3'b001:  ValidFunct6D = 8'b1101_1110;   // 7:vslidedown 6:vslideup 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
+        3'b010:  ValidFunct6D = 8'b1000_1111;   // 7:vmerge/vmv 6:- 5:- 4:- 3:vmsbc 2:vsbc 1:vmadc 0:vadc
+        3'b011:  ValidFunct6D = 8'b1111_1111;   // 7:vmsgt 6:vmsgtu 5:vmsle 4:vmsleu 3:vmslt 2:vmsltu 1:vmsne 0:vmseq
+        3'b100:  ValidFunct6D = 8'b1010_1111;   // 7:vsmul 6:- 5:vsll 4:- 3:vssub 2:vssubu 1:vsadd 0:vsaddu
+        3'b101:  ValidFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPIVID)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b0000_1001;   // 7:- 6:- 5:- 4:- 3:vrsub 2:- 1:- 0:vadd
-        3'b001:  SupportedFunct6D = 8'b1101_1110;   // 7:vslidedown 6:vslideup 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
-        3'b010:  SupportedFunct6D = 8'b1000_0011;   // 7:vmerge/vmv 6:- 5:- 4:- 3:- 2:- 1:vmadc 0:vadc
-        3'b011:  SupportedFunct6D = 8'b1111_0011;   // 7:vmsgt 6:vmsgtu 5:vmsle 4:vmsleu 3:- 2:- 1:vmsne 0:vmseq
-        3'b100:  SupportedFunct6D = 8'b1010_0011;   // 7:vmv1r/vmv2r/vm 6:- 5:vsll 4:- 3:- 2:- 1:vsadd 0:vsaddu
-        3'b101:  SupportedFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b0000_1001;   // 7:- 6:- 5:- 4:- 3:vrsub 2:- 1:- 0:vadd
+        3'b001:  ValidFunct6D = 8'b1101_1110;   // 7:vslidedown 6:vslideup 5:- 4:vrgather 3:vxor 2:vor 1:vand 0:-
+        3'b010:  ValidFunct6D = 8'b1000_0011;   // 7:vmerge/vmv 6:- 5:- 4:- 3:- 2:- 1:vmadc 0:vadc
+        3'b011:  ValidFunct6D = 8'b1111_0011;   // 7:vmsgt 6:vmsgtu 5:vmsle 4:vmsleu 3:- 2:- 1:vmsne 0:vmseq
+        3'b100:  ValidFunct6D = 8'b1010_0011;   // 7:vmv1r/vmv2r/vm 6:- 5:vsll 4:- 3:- 2:- 1:vsadd 0:vsaddu
+        3'b101:  ValidFunct6D = 8'b1111_1111;   // 7:vnclip.w 6:vnclipu.w 5:vnsra.w 4:vnsrl.w 3:vssra 2:vssrl 1:vsra 0:vsrl
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPMVVD)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b1111_1111;   // 7:vredmax 6:vredmaxu 5:vredmin 4:vredminu 3:vredxor 2:vredor 1:vredand 0:vredsum
-        3'b001:  SupportedFunct6D = 8'b0000_1111;   // 7:- 6:- 5:- 4:- 3:vasub 2:vasubu 1:vaadd 0:vaaddu
-        3'b010:  SupportedFunct6D = 8'b1001_0101;   // 7:vcompress 6:- 5:- 4:vid/viota/vmsb 3:- 2:vsext/vzext 1:- 0:vcpop/vfirst/v
-        3'b011:  SupportedFunct6D = 8'b1111_1111;   // 7:vmxnor 6:vmnor 5:vmnand 4:vmorn 3:vmxor 2:vmor 1:vmand 0:vmandn
-        3'b100:  SupportedFunct6D = 8'b1111_1111;   // 7:vmulh 6:vmulhsu 5:vmul 4:vmulhu 3:vrem 2:vremu 1:vdiv 0:vdivu
-        3'b101:  SupportedFunct6D = 8'b1010_1010;   // 7:vnmsac 6:- 5:vmacc 4:- 3:vnmsub 2:- 1:vmadd 0:-
-        3'b110:  SupportedFunct6D = 8'b1111_1111;   // 7:vwsub.w 6:vwsubu.w 5:vwadd.w 4:vwaddu.w 3:vwsub 2:vwsubu 1:vwadd 0:vwaddu
-        3'b111:  SupportedFunct6D = 8'b1011_1101;   // 7:vwmaccsu 6:- 5:vwmacc 4:vwmaccu 3:vwmul 2:vwmulsu 1:- 0:vwmulu
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b1111_1111;   // 7:vredmax 6:vredmaxu 5:vredmin 4:vredminu 3:vredxor 2:vredor 1:vredand 0:vredsum
+        3'b001:  ValidFunct6D = 8'b0000_1111;   // 7:- 6:- 5:- 4:- 3:vasub 2:vasubu 1:vaadd 0:vaaddu
+        3'b010:  ValidFunct6D = 8'b1001_0101;   // 7:vcompress 6:- 5:- 4:vid/viota/vmsb 3:- 2:vsext/vzext 1:- 0:vcpop/vfirst/v
+        3'b011:  ValidFunct6D = 8'b1111_1111;   // 7:vmxnor 6:vmnor 5:vmnand 4:vmorn 3:vmxor 2:vmor 1:vmand 0:vmandn
+        3'b100:  ValidFunct6D = 8'b1111_1111;   // 7:vmulh 6:vmulhsu 5:vmul 4:vmulhu 3:vrem 2:vremu 1:vdiv 0:vdivu
+        3'b101:  ValidFunct6D = 8'b1010_1010;   // 7:vnmsac 6:- 5:vmacc 4:- 3:vnmsub 2:- 1:vmadd 0:-
+        3'b110:  ValidFunct6D = 8'b1111_1111;   // 7:vwsub.w 6:vwsubu.w 5:vwadd.w 4:vwaddu.w 3:vwsub 2:vwsubu 1:vwadd 0:vwaddu
+        3'b111:  ValidFunct6D = 8'b1011_1101;   // 7:vwmaccsu 6:- 5:vwmacc 4:vwmaccu 3:vwmul 2:vwmulsu 1:- 0:vwmulu
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPMVXD)
       case (Funct6D[5:3])
-        3'b001:  SupportedFunct6D = 8'b1100_1111;   // 7:vslide1down 6:vslide1up 5:- 4:- 3:vasub 2:vasubu 1:vaadd 0:vaaddu
-        3'b010:  SupportedFunct6D = 8'b0000_0001;   // 7:- 6:- 5:- 4:- 3:- 2:- 1:- 0:vmv
-        3'b100:  SupportedFunct6D = 8'b1111_1111;   // 7:vmulh 6:vmulhsu 5:vmul 4:vmulhu 3:vrem 2:vremu 1:vdiv 0:vdivu
-        3'b101:  SupportedFunct6D = 8'b1010_1010;   // 7:vnmsac 6:- 5:vmacc 4:- 3:vnmsub 2:- 1:vmadd 0:-
-        3'b110:  SupportedFunct6D = 8'b1111_1111;   // 7:vwsub.w 6:vwsubu.w 5:vwadd.w 4:vwaddu.w 3:vwsub 2:vwsubu 1:vwadd 0:vwaddu
-        3'b111:  SupportedFunct6D = 8'b1111_1101;   // 7:vwmaccsu 6:vwmaccus 5:vwmacc 4:vwmaccu 3:vwmul 2:vwmulsu 1:- 0:vwmulu
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b001:  ValidFunct6D = 8'b1100_1111;   // 7:vslide1down 6:vslide1up 5:- 4:- 3:vasub 2:vasubu 1:vaadd 0:vaaddu
+        3'b010:  ValidFunct6D = 8'b0000_0001;   // 7:- 6:- 5:- 4:- 3:- 2:- 1:- 0:vmv
+        3'b100:  ValidFunct6D = 8'b1111_1111;   // 7:vmulh 6:vmulhsu 5:vmul 4:vmulhu 3:vrem 2:vremu 1:vdiv 0:vdivu
+        3'b101:  ValidFunct6D = 8'b1010_1010;   // 7:vnmsac 6:- 5:vmacc 4:- 3:vnmsub 2:- 1:vmadd 0:-
+        3'b110:  ValidFunct6D = 8'b1111_1111;   // 7:vwsub.w 6:vwsubu.w 5:vwadd.w 4:vwaddu.w 3:vwsub 2:vwsubu 1:vwadd 0:vwaddu
+        3'b111:  ValidFunct6D = 8'b1111_1101;   // 7:vwmaccsu 6:vwmaccus 5:vwmacc 4:vwmaccu 3:vwmul 2:vwmulsu 1:- 0:vwmulu
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPFVVD)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b1111_1111;   // 7:vfredmax 6:vfmax 5:vfredmin 4:vfmin 3:vfredosum 2:vfsub 1:vfredusum 0:vfadd
-        3'b001:  SupportedFunct6D = 8'b0000_0111;   // 7:- 6:- 5:- 4:- 3:- 2:vfsgnjx 1:vfsgnjn 0:vfsgnj
-        3'b010:  SupportedFunct6D = 8'b0000_1101;   // 7:- 6:- 5:- 4:- 3:vfclass/vfrec7 2:vfcvt/vfncvt/v 1:- 0:vfmv
-        3'b011:  SupportedFunct6D = 8'b0001_1011;   // 7:- 6:- 5:- 4:vmfne 3:vmflt 2:- 1:vmfle 0:vmfeq
-        3'b100:  SupportedFunct6D = 8'b0001_0001;   // 7:- 6:- 5:- 4:vfmul 3:- 2:- 1:- 0:vfdiv
-        3'b101:  SupportedFunct6D = 8'b1111_1111;   // 7:vfnmsac 6:vfmsac 5:vfnmacc 4:vfmacc 3:vfnmsub 2:vfmsub 1:vfnmadd 0:vfmadd
-        3'b110:  SupportedFunct6D = 8'b0101_1111;   // 7:- 6:vfwsub.w 5:- 4:vfwadd.w 3:vfwredosum 2:vfwsub 1:vfwredusum 0:vfwadd
-        3'b111:  SupportedFunct6D = 8'b1111_0001;   // 7:vfwnmsac 6:vfwmsac 5:vfwnmacc 4:vfwmacc 3:- 2:- 1:- 0:vfwmul
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b1111_1111;   // 7:vfredmax 6:vfmax 5:vfredmin 4:vfmin 3:vfredosum 2:vfsub 1:vfredusum 0:vfadd
+        3'b001:  ValidFunct6D = 8'b0000_0111;   // 7:- 6:- 5:- 4:- 3:- 2:vfsgnjx 1:vfsgnjn 0:vfsgnj
+        3'b010:  ValidFunct6D = 8'b0000_1101;   // 7:- 6:- 5:- 4:- 3:vfclass/vfrec7 2:vfcvt/vfncvt/v 1:- 0:vfmv
+        3'b011:  ValidFunct6D = 8'b0001_1011;   // 7:- 6:- 5:- 4:vmfne 3:vmflt 2:- 1:vmfle 0:vmfeq
+        3'b100:  ValidFunct6D = 8'b0001_0001;   // 7:- 6:- 5:- 4:vfmul 3:- 2:- 1:- 0:vfdiv
+        3'b101:  ValidFunct6D = 8'b1111_1111;   // 7:vfnmsac 6:vfmsac 5:vfnmacc 4:vfmacc 3:vfnmsub 2:vfmsub 1:vfnmadd 0:vfmadd
+        3'b110:  ValidFunct6D = 8'b0101_1111;   // 7:- 6:vfwsub.w 5:- 4:vfwadd.w 3:vfwredosum 2:vfwsub 1:vfwredusum 0:vfwadd
+        3'b111:  ValidFunct6D = 8'b1111_0001;   // 7:vfwnmsac 6:vfwmsac 5:vfwnmacc 4:vfwmacc 3:- 2:- 1:- 0:vfwmul
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
     else if (OPFVFD)
       case (Funct6D[5:3])
-        3'b000:  SupportedFunct6D = 8'b0101_0101;   // 7:- 6:vfmax 5:- 4:vfmin 3:- 2:vfsub 1:- 0:vfadd
-        3'b001:  SupportedFunct6D = 8'b1100_0111;   // 7:vfslide1down 6:vfslide1up 5:- 4:- 3:- 2:vfsgnjx 1:vfsgnjn 0:vfsgnj
-        3'b010:  SupportedFunct6D = 8'b1000_0001;   // 7:vfmerge/vfmv 6:- 5:- 4:- 3:- 2:- 1:- 0:vfmv
-        3'b011:  SupportedFunct6D = 8'b1011_1011;   // 7:vmfge 6:- 5:vmfgt 4:vmfne 3:vmflt 2:- 1:vmfle 0:vmfeq
-        3'b100:  SupportedFunct6D = 8'b1001_0011;   // 7:vfrsub 6:- 5:- 4:vfmul 3:- 2:- 1:vfrdiv 0:vfdiv
-        3'b101:  SupportedFunct6D = 8'b1111_1111;   // 7:vfnmsac 6:vfmsac 5:vfnmacc 4:vfmacc 3:vfnmsub 2:vfmsub 1:vfnmadd 0:vfmadd
-        3'b110:  SupportedFunct6D = 8'b0101_0101;   // 7:- 6:vfwsub.w 5:- 4:vfwadd.w 3:- 2:vfwsub 1:- 0:vfwadd
-        3'b111:  SupportedFunct6D = 8'b1111_0001;   // 7:vfwnmsac 6:vfwmsac 5:vfwnmacc 4:vfwmacc 3:- 2:- 1:- 0:vfwmul
-        default: SupportedFunct6D = 8'b0000_0000;
+        3'b000:  ValidFunct6D = 8'b0101_0101;   // 7:- 6:vfmax 5:- 4:vfmin 3:- 2:vfsub 1:- 0:vfadd
+        3'b001:  ValidFunct6D = 8'b1100_0111;   // 7:vfslide1down 6:vfslide1up 5:- 4:- 3:- 2:vfsgnjx 1:vfsgnjn 0:vfsgnj
+        3'b010:  ValidFunct6D = 8'b1000_0001;   // 7:vfmerge/vfmv 6:- 5:- 4:- 3:- 2:- 1:- 0:vfmv
+        3'b011:  ValidFunct6D = 8'b1011_1011;   // 7:vmfge 6:- 5:vmfgt 4:vmfne 3:vmflt 2:- 1:vmfle 0:vmfeq
+        3'b100:  ValidFunct6D = 8'b1001_0011;   // 7:vfrsub 6:- 5:- 4:vfmul 3:- 2:- 1:vfrdiv 0:vfdiv
+        3'b101:  ValidFunct6D = 8'b1111_1111;   // 7:vfnmsac 6:vfmsac 5:vfnmacc 4:vfmacc 3:vfnmsub 2:vfmsub 1:vfnmadd 0:vfmadd
+        3'b110:  ValidFunct6D = 8'b0101_0101;   // 7:- 6:vfwsub.w 5:- 4:vfwadd.w 3:- 2:vfwsub 1:- 0:vfwadd
+        3'b111:  ValidFunct6D = 8'b1111_0001;   // 7:vfwnmsac 6:vfwmsac 5:vfwnmacc 4:vfwmacc 3:- 2:- 1:- 0:vfwmul
+        default: ValidFunct6D = 8'b0000_0000;
       endcase
-    else       SupportedFunct6D = 8'b0000_0000;   // funct3 = 111 is vset{i}vl{i}, decoded above
+    else       ValidFunct6D = 8'b0000_0000;   // funct3 = 111 is vset{i}vl{i}, decoded above
 
   // Control signals for EU
   // VEUControlsD = VOpClass_Reduction_VdEEW_Vs2EEW_Vs1EEW, operand order of vop vd, vs2, vs1
@@ -420,54 +420,54 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // unary, vs1 is opcode region
   always_comb begin
     VUnaryControlsD = {VOPCLASS_ADD,      `VOPERANDW'b0_00_00_00};
-    SupportedUnaryD = 1'b0;
+    ValidUnaryD     = 1'b0;
     VUnaryWriteIntD = 1'b0;
     VUnaryWriteFPD  = 1'b0;
-    SupportedCvtD   = 8'b0000_0000;
+    ValidCvtD       = 8'b0000_0000;
     if (OPMVVD & (Funct6D == 6'b010000)) begin            // VWXUNARY0, all three write an integer register
       VUnaryWriteIntD = 1'b1;
       case (Vs1D)
-        5'b00000: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MOVE,     `VOPERANDW'b0_00_00_00}; end // vmv.x.s
-        5'b10000: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // vcpop.m
-        5'b10001: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // vfirst.m
+        5'b00000: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MOVE,     `VOPERANDW'b0_00_00_00}; end // vmv.x.s
+        5'b10000: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // vcpop.m
+        5'b10001: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // vfirst.m
         default: ;                                                                                // reserved vs1
       endcase
     end else if (OPMVVD & (Funct6D == 6'b010010)) begin   // VXUNARY0
-      SupportedUnaryD = (Vs1D[4:3] == 2'b00) & (Vs1D[2:1] != 2'b00) &
-                        (SewD >= 3'd7 - {1'b0, Vs1D[2:1]});     // source of 8 bits or more: vf2 SEW >= 16, vf4 >= 32, vf8 >= 64
+      ValidUnaryD = (Vs1D[4:3] == 2'b00) & (Vs1D[2:1] != 2'b00) &
+                    (SewD >= 3'd7 - {1'b0, Vs1D[2:1]});     // source of 8 bits or more: vf2 SEW >= 16, vf4 >= 32, vf8 >= 64
       VUnaryControlsD = {VOPCLASS_EXT,      `VOPERANDW'b0_00_11_00};                                               // vzext, vsext
     end else if (OPMVVD & (Funct6D == 6'b010100)) begin   // VMUNARY0
       case (Vs1D)
-        5'b00001: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsbf.m
-        5'b00010: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsof.m
-        5'b00011: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsif.m
-        5'b10000: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // viota.m
-        5'b10001: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_00_00}; end // vid.v
+        5'b00001: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsbf.m
+        5'b00010: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsof.m
+        5'b00011: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_10_10_00}; end // vmsif.m
+        5'b10000: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_10_00}; end // viota.m
+        5'b10001: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_MASK,     `VOPERANDW'b0_00_00_00}; end // vid.v
         default: ;                                                                                // reserved vs1
       endcase
     end else if (OPFVVD & (Funct6D == 6'b010000)) begin   // VWFUNARY0
-      SupportedUnaryD = (Vs1D == 5'b00000);
+      ValidUnaryD = (Vs1D == 5'b00000);
       VUnaryWriteFPD  = 1'b1;
       VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00};                                               // vfmv.f.s
     end else if (OPFVVD & (Funct6D == 6'b010010)) begin   // VFUNARY0
       case (Vs1D[4:3])
       // 7:rtz.x 6:rtz.xu 5:- 4:f.f 3:f.x 2:f.xu 1:x.f 0:xu.f
-        2'b00:   begin SupportedCvtD = 8'b1100_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_00_00_00}; end // vfcvt
-        2'b01:   begin SupportedCvtD = 8'b1101_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_01_00_00}; end // vfwcvt
-        2'b10:   begin SupportedCvtD = 8'b1111_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_00_01_00}; end // vfncvt
+        2'b00:   begin ValidCvtD = 8'b1100_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_00_00_00}; end // vfcvt
+        2'b01:   begin ValidCvtD = 8'b1101_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_01_00_00}; end // vfwcvt
+        2'b10:   begin ValidCvtD = 8'b1111_1111; VUnaryControlsD = {VOPCLASS_FCVT,     `VOPERANDW'b0_00_01_00}; end // vfncvt
         default: ;                                                                                     // reserved width group
       endcase
-      SupportedUnaryD = SupportedCvtD[Vs1D[2:0]];
+      ValidUnaryD = ValidCvtD[Vs1D[2:0]];
     end else if (OPFVVD & (Funct6D == 6'b010011)) begin   // VFUNARY1
       case (Vs1D)
-        5'b00000: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FDIV,     `VOPERANDW'b0_00_00_00}; end // vfsqrt.v, on the divider
-        5'b00100: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfrsqrt7.v
-        5'b00101: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfrec7.v
-        5'b10000: begin SupportedUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfclass.v
+        5'b00000: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FDIV,     `VOPERANDW'b0_00_00_00}; end // vfsqrt.v, on the divider
+        5'b00100: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfrsqrt7.v
+        5'b00101: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfrec7.v
+        5'b10000: begin ValidUnaryD = 1'b1; VUnaryControlsD = {VOPCLASS_FMISC,    `VOPERANDW'b0_00_00_00}; end // vfclass.v
         default: ;                                                                                // reserved vs1
       endcase
     end else if (OPIVID & (Funct6D == 6'b100111)) begin   // vmv<nr>r.v, vs1 holds nr-1
-      SupportedUnaryD = (Vs1D == 5'd0) | (Vs1D == 5'd1) | (Vs1D == 5'd3) | (Vs1D == 5'd7);
+      ValidUnaryD = (Vs1D == 5'd0) | (Vs1D == 5'd1) | (Vs1D == 5'd3) | (Vs1D == 5'd7);
       VUnaryControlsD = {VOPCLASS_MOVE,     `VOPERANDW'b0_00_00_00};
     end
   end
@@ -497,7 +497,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   mux4 #(3) Vs1EEWMux(SewD, WideSewD, 3'b000, 3'd4,                             Vs1EEWSelD, Vs1EEWD);  // vrgatherei16 index
 
   // Legality of instruction decode
-  assign VFunctD      = SupportedFunct6D[Funct6D[2:0]] & (~VUnaryD | SupportedUnaryD) &
+  assign VFunctD      = ValidFunct6D[Funct6D[2:0]] & (~VUnaryD | ValidUnaryD) &
                         (~(OPFVVD | OPFVFD) | P.ZVE32F_SUPPORTED);
 
   // Main vector instruction decoder
