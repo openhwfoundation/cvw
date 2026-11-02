@@ -27,6 +27,8 @@ cv32a6_imac_sv32|cv32a6_imac_sv32|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|10||NONE|
 cv64a6_imafdc_sv39|cv64a6_imafdc_sv39|rv64imafdc_zicsr_zba_zbb_zbs_zbc|lp64|10||NONE|CVA6_SNAPSHOT=$T/cva6-snapshot-longrun $T/cva6/bin/run-cva6.sh --target cv64a6_imafdc_sv39_hpdcache --timeout 7200 --elf
 rocket|rocket-saturn-rv64gcvh|rv64imafdc_zicsr_zba_zbb_zbs|lp64|10||NONE|PATH=$T/rocket/bin:$PATH run-rocket.sh --elf
 boom|boom-v3-medium-rv64gc|rv64imafdc_zicsr|lp64|10||NONE|$T/boom/bin/run-boom.sh --elf
+c910|c910-openc910|rv64imafdc_zicsr|lp64|10||c910.env|$T/c910-padfix/run-c910.sh --timeout 14400 --elf
+xiangshan|xiangshan-kmhv2|rv64imafdc_zicsr_zba_zbb_zbs_zbc|lp64|3||xiangshan.env|XIANGSHAN_CYCLES=200000000 run-xiangshan.sh --timeout 86400 --elf
 vexriscv-imac|vexriscv-imac|rv32imac_zicsr|ilp32|10||vexriscv.env|VEXRISCV_CYCLES=400000000 run-vexriscv.sh --elf
 naxriscv-rv64imafdc|naxriscv-rv64imafdc|rv64imafdc_zicsr|lp64|10||naxriscv.env|NAXRISCV_CYCLES=400000000 run-naxriscv.sh --elf
 shakti-eclass|shakti-eclass-rv32imac|rv32imac_zicsr|ilp32|10||shakti.env|run-shakti.sh --core eclass --timeout 3000 --elf

@@ -49,6 +49,10 @@ configuration uses, and the program boots, halts, and prints like an ACT test.
     cv32e40x-dv core testbench.
   - `cva6-snapshot-longrun`: a `CVA6_SNAPSHOT` directory whose `Variane_testharness` wrappers pass
     `+time_out=200000000`, because the testharness stops at 2,000,000 cycles by default.
+  - `c910-padfix/run-c910.sh`: a copy of `run-c910.sh` that pads the program image to a whole word
+    (`truncate -s %4`) before converting it to `mem.pat`, so that a short last word is not dropped.
+  - `xiangshan.env`: puts `run-xiangshan.sh` on `PATH` and sets `XIANGSHAN_EMU` to the emulator built by
+    `install-xiangshan.sh` (`KunminghuV2Config`). XiangShan is not in riscv-arch-test's CI.
 
 The run commands and limits for each core are in the table at the top of `run_all.sh`.
 

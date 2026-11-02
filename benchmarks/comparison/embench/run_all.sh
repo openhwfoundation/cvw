@@ -32,6 +32,8 @@ rocket|rocket-saturn-rv64gcvh|rv64imac_zicsr_zba_zbb_zbs|lp64||export PATH='$T'/
 shakti-eclass|shakti-eclass-rv32imac|rv32imac_zicsr|ilp32||source '$T'/shakti.env|run-shakti.sh --core eclass --timeout 14400 --elf
 shakti-cclass|shakti-cclass-rv64gc|rv64imac_zicsr|lp64||source '$T'/shakti.env|run-shakti.sh --core cclass --timeout 14400 --elf
 boom|boom-v3-medium-rv64gc|rv64imac_zicsr|lp64||true|'$T'/boom/bin/run-boom.sh --elf
+c910|c910-openc910|rv64imac_zicsr|lp64||source '$T'/c910.env|'$T'/c910-padfix/run-c910.sh --timeout 86400 --elf
+xiangshan|xiangshan-kmhv2|rv64imac_zicsr_zba_zbb_zbs_zbc|lp64||source '$T'/xiangshan.env; export XIANGSHAN_CYCLES=400000000|run-xiangshan.sh --timeout 172800 --elf
 cvw-rv32imc|cvw-rv32imc|rv32imc_zicsr|ilp32||cd $WALLY; source ./setup.sh >/dev/null 2>&1|wsim --sim verilator rv32imc --elf
 cvw-rv64gc|cvw-rv64gc|rv64imac_zicsr_zba_zbb_zbs_zbc|lp64||cd $WALLY; source ./setup.sh >/dev/null 2>&1|wsim --sim verilator rv64gc --elf
 '
