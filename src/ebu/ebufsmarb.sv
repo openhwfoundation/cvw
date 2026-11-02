@@ -83,7 +83,7 @@ module ebufsmarb (
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
   assign BeatCntReset = NextState == IDLE;
-  assign FinalBeat = (BeatCount == Threshold); // Detect when we are waiting on the final access.
+  assign FinalBeat = (BeatCount == Threshold) & HREADY; // The final access completes; a wait state on it keeps the count
   // Counting the beats in the EBU is only necessary when both the LSU and IFU request concurrently.
   // LSU has priority. HREADY serves double duty during a burst transaction.  It indicates when the
   // beat completes and when the transaction finishes.  However there is nothing external to
