@@ -518,7 +518,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
       end else if (state == DMREG_READ | state == ABSTRACT_READ) begin
         case (last_addr)
           7'h10: begin
-            if (expected[29:0] == actual[29:0]) begin
+            if (expected[31:2] == actual[31:2]) begin
               // Spike is not spec compliant with halt request. Halt
               // request is WARZ, but Spike returns it as 1 after it
               // has been asserted.
