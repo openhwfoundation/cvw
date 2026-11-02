@@ -29,6 +29,9 @@ e906|e906-rv32imafc-u-pmp|rv32imac_zicsr|ilp32||source '$T'/e906.env|run-e906.sh
 vexriscv|vexriscv-imac|rv32imac_zicsr|ilp32||source '$T'/vexriscv.env; export VEXRISCV_CYCLES=1000000000|run-vexriscv.sh --elf
 naxriscv|naxriscv-rv64imafdc|rv64imac_zicsr|lp64||source '$T'/naxriscv.env; export NAXRISCV_CYCLES=1000000000|run-naxriscv.sh --elf
 rocket|rocket-saturn-rv64gcvh|rv64imac_zicsr_zba_zbb_zbs|lp64||export PATH='$T'/rocket/bin:$PATH|run-rocket.sh --elf
+shakti-eclass|shakti-eclass-rv32imac|rv32imac_zicsr|ilp32||source '$T'/shakti.env|run-shakti.sh --core eclass --timeout 14400 --elf
+shakti-cclass|shakti-cclass-rv64gc|rv64imac_zicsr|lp64||source '$T'/shakti.env|run-shakti.sh --core cclass --timeout 14400 --elf
+boom|boom-v3-medium-rv64gc|rv64imac_zicsr|lp64||true|'$T'/boom/bin/run-boom.sh --elf
 cvw-rv32imc|cvw-rv32imc|rv32imc_zicsr|ilp32||cd $WALLY; source ./setup.sh >/dev/null 2>&1|wsim --sim verilator rv32imc --elf
 cvw-rv64gc|cvw-rv64gc|rv64imac_zicsr_zba_zbb_zbs_zbc|lp64||cd $WALLY; source ./setup.sh >/dev/null 2>&1|wsim --sim verilator rv64gc --elf
 '

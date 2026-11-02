@@ -25,7 +25,7 @@ Linux-capable cores with caches and virtual memory.
 | External Bus | AHB | AHB | TileLink | AXI4 | AXI4 | AXI4 | Custom cache refill interfaces | TileLink | Native cache and peripheral buses | AXI4 | CHI
 | CoreMark/MHz | 4.20footnote:cmcvw[From the README, built with CORE-V-Wally's own CoreMark port. The common port in benchmarks/comparison gives 3.46 on rv32imc and 4.20 on rv64gc.] | 4.33footnote:cmcvw[] | 3.10 | 3.44footnote:cmcva6[The testharness's 2,000,000-cycle limit is raised.] | 3.53footnote:cmcva6[] | 3.43 | 3.38 | 5.88 | 5.37footnote:cmnax[NaxRiscv's simulator memory has a 1-cycle minimum latency and then delivers each 64-bit beat with probability 100/128 per cycle.] | —footnote:cmpend[Not yet measured.] | —footnote:cmpend[]
 | CoreMark IPC | 0.89 | 0.88 | 0.76 | 0.73 | 0.72 | 0.85 | 0.83 | 1.46 | 1.33 | —footnote:cmpend[] | —footnote:cmpend[]
-| Embench Speed | 1.87footnote:embcvw64[With the common build and the medany GCC 16.1 toolchain used for every RV64 core; the README's 2.03 uses GCC 15.2 with the program linked at 0x4000_0000.] | 1.70footnote:embcvw[From the README, built with CORE-V-Wally's own Embench build; the common build in benchmarks/comparison gives 1.548 on rv32imc (README 1.556).] | 1.58 | 1.58 | 1.49 | —footnote:cmpend[] | 1.64footnote:embsarg[Built for RV64IM: Sargantana has no C, and the medany toolchain has no RV64IMA library without it.] | —footnote:cmpend[] | 2.65 | —footnote:cmpend[] | —footnote:cmpend[]
+| Embench Speed | 1.87footnote:embcvw64[With the common build and the medany GCC 16.1 toolchain used for every RV64 core; the README's 2.03 uses GCC 15.2 with the program linked at 0x4000_0000.] | 1.70footnote:embcvw[From the README, built with CORE-V-Wally's own Embench build; the common build in benchmarks/comparison gives 1.548 on rv32imc (README 1.556).] | 1.58 | 1.58 | 1.49 | 1.58 | 1.64footnote:embsarg[Built for RV64IM: Sargantana has no C, and the medany toolchain has no RV64IMA library without it.] | —footnote:cmpend[] | 2.65 | —footnote:cmpend[] | —footnote:cmpend[]
 |===
 
 == Embedded cores with caches or tightly coupled memories
@@ -67,7 +67,7 @@ Small pipelined cores without caches.
 | External Bus | AHB | OBI | AHB-Lite (instruction and system ports) | AXI4 (instruction and data ports) | AHB5 (instruction and data ports) | OBI | OBI | OBI with integrity | OBI with integrity | OBI
 | CoreMark/MHz | 3.50footnote:cmcvw[] | 2.76 | 2.59 | 0.56footnote:cmshe[E-class has no caches, and in its testbench every fetch and load is an AXI4 transaction to block RAM, about 8 cycles per instruction.] | 4.30 | 3.43footnote:cmcnt[The boot code clears `mcountinhibit`: the counters reset stopped.] | 3.43footnote:cmcnt[] | 2.77footnote:cmcnt[]footnote:cme40s[At reset settings: `cpuctrl.dataindtiming` = 1 makes divides and branches fixed-latency (3.11 for RV32IMC and 3.47 for RV32IMCB with it cleared). On a testbench adapted from CV32E40X's, with zero-wait memory.] | 3.05footnote:cmcnt[]footnote:cme40s[] | 3.43footnote:cmcnt[]footnote:cme40x[On a copy of the riscv-arch-test testbench without its fixed 2-cycle data-bus stalls (2.04 with them).]
 | CoreMark IPC | 0.84 | 0.66 | 0.64footnote:ipcother[] | 0.13footnote:ipcother[] | 0.87 | 0.82 | 0.82 | 0.66 | 0.62 | 0.82
-| Embench Speed | 1.56footnote:embcvw[] | 1.22 | 0.80footnote:emblong[] | —footnote:cmpend[] | 1.71 | 1.53 | 1.53 | 1.36 | 1.41 | 1.53
+| Embench Speed | 1.56footnote:embcvw[] | 1.22 | 0.80footnote:emblong[] | 0.26 | 1.71 | 1.53 | 1.53 | 1.36 | 1.41 | 1.53
 |===
 
 == Minimal cores

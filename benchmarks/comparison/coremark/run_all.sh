@@ -11,6 +11,8 @@ cv32e40s-imc|cv32e40s-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|NONE|
 cv32e40s-imcb|cv32e40s-rv32imcb-pma-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DCLEAR_MCOUNTINHIBIT|NONE|$T/cv32e40s-tb/bin/run-cv32e40s.sh --cfg rv32imcb-pma-pmp --maxcycles 400000000 --elf
 cv32e40x|cv32e40x-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|CVE40X_DV_ROOT=$T/cv32e40x-dv-nostall CERT_MAXCYCLES=400000000 run-cv32e40x.sh --cfg rv32imc --elf
 e902|e902-rv32emc-u-pmp|rv32emc_zicsr|ilp32e|10||e902.env|run-e902.sh --timeout 3000 --elf
+e906|e906-rv32imafc-u-pmp|rv32imac_zicsr|ilp32|10||e906.env|run-e906.sh --timeout 3000 --elf
+e906-f|e906-rv32imafc-u-pmp|rv32imafc_zicsr|ilp32|10||e906.env|run-e906.sh --timeout 3000 --elf
 hazard3|hazard3-rv32imacb-u-pmp|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|10||hazard3.env|run-hazard3.sh --cycles 400000000 --timeout 3000 --elf
 ibex|ibex-opentitan|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DIBEX_ICACHE|ibex.env|run-ibex.sh --cycles 400000000 --timeout 3000 --elf
 neorv32|neorv32-rv32imacb-u-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10||neorv32.env|run-neorv32.sh --cycles 400000000 --timeout 3000 --elf
@@ -24,8 +26,11 @@ cv32a65x|cv32a65x|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10||NONE|CVA6_SNAPSHOT=$T/
 cv32a6_imac_sv32|cv32a6_imac_sv32|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|10||NONE|CVA6_SNAPSHOT=$T/cva6-snapshot-longrun $T/cva6/bin/run-cva6.sh --target cv32a6_imac_sv32 --timeout 7200 --elf
 cv64a6_imafdc_sv39|cv64a6_imafdc_sv39|rv64imafdc_zicsr_zba_zbb_zbs_zbc|lp64|10||NONE|CVA6_SNAPSHOT=$T/cva6-snapshot-longrun $T/cva6/bin/run-cva6.sh --target cv64a6_imafdc_sv39_hpdcache --timeout 7200 --elf
 rocket|rocket-saturn-rv64gcvh|rv64imafdc_zicsr_zba_zbb_zbs|lp64|10||NONE|PATH=$T/rocket/bin:$PATH run-rocket.sh --elf
+boom|boom-v3-medium-rv64gc|rv64imafdc_zicsr|lp64|10||NONE|$T/boom/bin/run-boom.sh --elf
 vexriscv-imac|vexriscv-imac|rv32imac_zicsr|ilp32|10||vexriscv.env|VEXRISCV_CYCLES=400000000 run-vexriscv.sh --elf
 naxriscv-rv64imafdc|naxriscv-rv64imafdc|rv64imafdc_zicsr|lp64|10||naxriscv.env|NAXRISCV_CYCLES=400000000 run-naxriscv.sh --elf
+shakti-eclass|shakti-eclass-rv32imac|rv32imac_zicsr|ilp32|10||shakti.env|run-shakti.sh --core eclass --timeout 3000 --elf
+shakti-cclass|shakti-cclass-rv64gc|rv64imafdc_zicsr|lp64|10||shakti.env|run-shakti.sh --core cclass --timeout 3000 --elf
 '
 while IFS='|' read n cfg march mabi it extra env cmd; do
   [ -z "$n" ] && continue
