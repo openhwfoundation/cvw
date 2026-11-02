@@ -57,9 +57,10 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [31:0]       MCOUNTINHIBIT_REGW, MCOUNTEREN_REGW, SCOUNTEREN_REGW,
   input  logic [63:0]       MTIME_CLINT,
+  input  logic              DebugStopCounters,
+  input  logic              DebugEBreak,
   output logic [P.XLEN-1:0] CSRCReadValM,
-  output logic              IllegalCSRCAccessM,
-  input  logic              DebugStopCounters
+  output logic              IllegalCSRCAccessM
 );
 
   localparam MHPMCOUNTERBASE  = 12'hB00;
@@ -103,7 +104,7 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   // Determine when to increment each counter
   assign CounterEvent[0]    = 1'b1;                                                      // MCYCLE always increments
   assign CounterEvent[1]    = 1'b0;                                                      // Counter 1 doesn't exist
-  assign CounterEvent[2]    = InstrValidNotFlushedM;                                     // MINSTRET instructions retired
+  assign CounterEvent[2]    = InstrValidNotFlushedM & ~DebugEBreak;                      // MINSTRET instructions retired
   if (P.COUNTERS > 3) begin : cevent                                                   // User-defined counters
     // Ideally all events would be counted in the M stage, but the pipelining is costly. The counters may
     // count an event in a previous pipeline stage.

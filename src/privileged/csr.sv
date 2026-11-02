@@ -337,7 +337,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     .InterruptM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .CSRAdrM, .PrivilegeModeW(CSRPrivilegeMode), .CSRWriteValM,
     .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW,
-    .MTIME_CLINT, .CSRCReadValM, .IllegalCSRCAccessM, .DebugStopCounters);
+    .MTIME_CLINT, .DebugStopCounters, .DebugEBreak, .CSRCReadValM, .IllegalCSRCAccessM);
 
   if (P.SDEXT_SUPPORTED) begin : debug
     csrd #(P) csrd(.clk, .reset,
