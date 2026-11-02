@@ -165,8 +165,13 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       CSRDebugRWM;
   logic [1:0]              CSRDebugOpM;
 
+  // Debug Mode privilege
+  logic [1:0] CSRPrivilegeMode;
+
   // Trigger Module signals
   logic                    TriggerHalt;
+
+  assign CSRPrivilegeMode = DebugMode ? P.M_MODE : PrivilegeModeW;
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
@@ -288,12 +293,12 @@ module csr import cvw::*;  #(parameter cvw_t P) (
 
   if (P.S_SUPPORTED) begin : csrs
     logic STCE;
-    assign STCE = P.SSTC_SUPPORTED & (PrivilegeModeW == P.M_MODE | (MCOUNTEREN_REGW[1] & ENVCFG_STCE));
+    assign STCE = P.SSTC_SUPPORTED & (CSRPrivilegeMode == P.M_MODE | (MCOUNTEREN_REGW[1] & ENVCFG_STCE));
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
       .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
       .STATUS_TVM,
-      .CSRWriteValM, .PrivilegeModeW,
+      .CSRWriteValM, .PrivilegeModeW(CSRPrivilegeMode),
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
       .SCOUNTEREN_REGW,
       .SATP_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MTIME_CLINT, .STCE,
@@ -330,9 +335,9 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM, .BPWrongM,
     .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .sfencevmaM,
     .InterruptM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
-    .CSRAdrM, .PrivilegeModeW, .CSRWriteValM,
+    .CSRAdrM, .PrivilegeModeW(CSRPrivilegeMode), .CSRWriteValM,
     .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW,
-    .MTIME_CLINT,  .CSRCReadValM, .IllegalCSRCAccessM, .DebugStopCounters);
+    .MTIME_CLINT, .CSRCReadValM, .IllegalCSRCAccessM, .DebugStopCounters);
 
   if (P.SDEXT_SUPPORTED) begin : debug
     csrd #(P) csrd(.clk, .reset,
