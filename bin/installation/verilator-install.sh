@@ -17,7 +17,7 @@
 ##
 ################################################################################################
 
-VERILATOR_VERSION=v5.036 # Last release as of May 30, 2025
+VERILATOR_VERSION=60f166e1ef2a52ddbf46df0c5bd88783bd1f4a2b # Commit as of October 19, 2026; no release yet has the covergroup fixes functional coverage needs
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script
@@ -57,7 +57,8 @@ if check_tool_version $VERILATOR_VERSION; then
     unset VERILATOR_ROOT
     cd "$RISCV"/verilator
     autoconf
-    ./configure --prefix="$RISCV"
+    # Verilator needs Python 3.8 or newer, but OpenSUSE 15.6's python3 is 3.6, so use the version installed for Wally
+    ./configure --prefix="$RISCV" PYTHON3="${PYTHON_VERSION:-python3}"
     make -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     make install 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     if [ "$clean" = true ]; then

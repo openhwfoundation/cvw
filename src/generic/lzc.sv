@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
+// lzc.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 7/5/2022
-// Modified: 2/11/2026 james.stine@okstate.edu/marcus@infinitymdm.dev
+// Written:  Katherine Parry me@KatherineParry.com 27 May 2022
+// Modified: James Stine james.stine@okstate.edu, Marcus Mellor marcus@infinitymdm.dev, Kevin Kim
 //
-// Purpose: Leading Zero Counter
+// Purpose: Leading zero counter.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

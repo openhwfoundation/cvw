@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // fpu.sv
 //
-// Written: me@KatherineParry.com, James Stine, Brett Mathis, David Harris
-// Modified: 6/23/2021
+// Written:  Katherine Parry me@KatherineParry.com, James Stine, Brett Mathis, David Harris
+// Modified: Rose Thompson, Cedar Turek, Ben Bracker
 //
-// Purpose: Floating Point Unit Top-Level Interface
+// Purpose: Floating-point unit.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

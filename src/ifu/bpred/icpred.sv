@@ -1,17 +1,15 @@
 ///////////////////////////////////////////
 // icpred.sv
 //
-// Written: Rose Thomposn rose@rosethompson.net
-// Created: February 26, 2023
-// Modified: February 26, 2023
+// Written:  Rose Thompson rose@rosethompson.net 26 February 2023
+// Modified: David Harris
 //
-// Purpose: Partial decode of instructions into control flow instructions (cfi)P
-//          Call, Return, Jump, and Branch
+// Purpose: Instruction class predecoder.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

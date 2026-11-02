@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // ram1p1rwbe_64x22.sv
 //
-// Written: james.stine@okstate.edu 2 February 2023
-// Modified:
+// Written:  James Stine james.stine@okstate.edu 2 February 2023
+// Modified: David Harris
 //
-// Purpose: RAM wrapper for instantiating RAM IP
+// Purpose: 64x22 single-port SRAM macro wrapper.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

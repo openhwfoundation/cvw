@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // priorityaomux.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 24 January 2024
-// Modified: 24 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 24 January 2024
+// Modified:
 //
-// Purpose: priority AND-OR MUX.
+// Purpose: Priority AND-OR multiplexer.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

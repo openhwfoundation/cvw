@@ -1,19 +1,18 @@
 ///////////////////////////////////////////
 // gpio_apb.sv
 //
-// Written: David_Harris@hmc.edu 14 January 2021
-// Modified: bbracker@hmc.edu 15 Apr. 2021
+// Written:  David Harris David_Harris@hmc.edu 14 January 2021
+// Modified: Ben Bracker bbracker@hmc.edu
 //
-// Purpose: General Purpose I/O peripheral
-//   See FE310-G002-Manual-v19p05 for specifications
-//   No interrupts, drive strength, or pull-ups supported
+// Purpose: GPIO on APB.
+//          See FE310-G002-Manual-v19p05. No interrupts, drive strength, or pull-ups.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

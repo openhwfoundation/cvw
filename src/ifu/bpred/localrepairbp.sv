@@ -1,16 +1,15 @@
 ///////////////////////////////////////////
-// localrepairbp
+// localrepairbp.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 15 April 2023
+// Written:  Rose Thompson rose@rosethompson.net 15 April 2023
+// Modified:
 //
-// Purpose: Local history branch predictor with speculation and repair using CBH.
+// Purpose: Local-history direction predictor with repair.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +85,6 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
 
   assign IndexLHRD = {PCE[m+1] ^ PCE[1], PCE[m:2]};
   assign LHRNextE = BranchD ? {BPDirD[1], LHRE[k-1:1]} : LHRE;
-  // RT: TODO active research: replace with a small CAM, quantify benefit
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**m), .WIDTH(k)) SHB(.clk(clk),
     .ce1(~StallF), .ce2(~StallE & ~FlushE),
     .ra1(IndexLHRNextF),
@@ -95,7 +93,6 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
     .wd2(LHRNextE),
     .we2(BranchD),
     .bwe2('1));
-  // RT: TODO active research: replace with small CAM, quantify benefit
   logic [2**m-1:0]        FlushedBits;
   always_ff @(posedge clk) begin // speculative history flushed bit array
     SpeculativeFlushedF <= FlushedBits[IndexLHRNextF];

@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // tlblru.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 16 February 2021
-// Modified:
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 16 February 2021
+// Modified: David Harris, Kip Macsai-Goren
 //
-// Purpose: Implementation of bit pseudo least-recently-used algorithm for
-//          cache evictions. Outputs the index of the next entry to be written.
+// Purpose: TLB pseudo-LRU replacement.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

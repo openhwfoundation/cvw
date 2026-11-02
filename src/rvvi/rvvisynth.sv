@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // rvvisynth.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 23 January 2024
-// Modified: 23 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 23 January 2024
+// Modified:
 //
-// Purpose: Synthesizable rvvi bridge from Wally to generic compressed format.
+// Purpose: Synthesizable RVVI tracer.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

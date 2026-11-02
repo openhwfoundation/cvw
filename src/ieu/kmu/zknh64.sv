@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // zknh64.sv
 //
-// Written: kelvin.tran@okstate.edu, james.stine@okstate.edu
-// Created: 13 February 2024
+// Written:  Kelvin Tran kelvin.tran@okstate.edu, James Stine james.stine@okstate.edu 13 February 2024
+// Modified: David Harris
 //
-// Purpose: RISC-V ZKNH 64-Bit top level unit: RV64 NIST Hash
+// Purpose: RV64 Zknh SHA unit.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
-// crsr.sv
+// csrsr.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Ben Bracker, Noah Boorstin, Katherine Parry, Kip Macsai-Goren, Rose Thompson, Jordan Carlin, Haiqua Ghaffar
 //
-// Purpose: Status register (and environment configuration register and others shared across modes)
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Status CSRs (mstatus, mstatush, sstatus).
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

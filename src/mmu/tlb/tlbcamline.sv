@@ -1,20 +1,17 @@
 ///////////////////////////////////////////
 // tlbcamline.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 6 April 2021
-// Modified: kmacsaigoren@hmc.edu 1 June 2021
-//            Implemented SV48 on top of SV39. This included adding SvMode input signal and the wally constants
-//            Mostly this was done to make the PageNumberMixer work.
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 6 April 2021
+// Modified: David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu, Ayesha Anwaar, Muhammad Zain
 //
-// Purpose: CAM line for the translation lookaside buffer (TLB)
-//          Determines whether a virtual page number matches the stored key.
+// Purpose: One TLB CAM entry.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

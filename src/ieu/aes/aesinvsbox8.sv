@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // aesinvsbox8.sv
 //
-// Written: ryan.swann@okstate.edu, james.stine@okstate.edu
-// Created: 20 February 2024
+// Written:  Ryan Swann ryan.swann@okstate.edu, James Stine james.stine@okstate.edu 20 February 2024
+// Modified:
 //
-// Purpose: Rinjdael Inverted S-BOX in form of a LUT
+// Purpose: AES inverse S-box.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

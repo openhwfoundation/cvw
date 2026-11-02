@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // csrindextoaddr.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 24 January 2024
-// Modified: 24 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 24 January 2024
+// Modified:
 //
-// Purpose: Converts the rvvi CSR index into the CSR address
+// Purpose: Converts a one-hot RVVI CSR index to an address.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

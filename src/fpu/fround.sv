@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // fround.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 4/21/2024
+// Written:  David Harris David_Harris@hmc.edu 21 April 2024
+// Modified: Corey Hickson, Jordan Carlin, Vikram Krishna
 //
-// Purpose: Floating-point round to integer for Zfa
+// Purpose: Zfa fround and froundnx.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

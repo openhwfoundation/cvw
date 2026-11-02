@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
-// galoismultforward.sv
+// galoismultforward8.sv
 //
-// Written: ryan.swann@okstate.edu, james.stine@okstate.edu, David_Harris@hmc.edu
-// Created: 20 February 2024
+// Written:  Ryan Swann ryan.swann@okstate.edu, James Stine james.stine@okstate.edu, David Harris David_Harris@hmc.edu 20 February 2024
+// Modified: Kelvin Tran
 //
-// Purpose: Galois field operations for mix columns operation
+// Purpose: GF(2^8) multiply by 2 for AES MixColumns.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

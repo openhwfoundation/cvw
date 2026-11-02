@@ -1,20 +1,17 @@
 ///////////////////////////////////////////
 // tlb.sv
 //
-// Written: jtorrey@hmc.edu 16 February 2021
-// Modified: kmacsaigoren@hmc.edu 1 June 2021
-//            Implemented SV48 on top of SV39. This included adding the SvMode signal,
-//            and using it to decide the translate signal and get the virtual page number
+// Written:  Jessica Torrey jtorrey@hmc.edu 16 February 2021
+// Modified: Thomas Fleming, David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu, Rose Thompson, Ayesha Anwaar, Muhammad Zain
 //
-// Purpose: Translation lookaside buffer
-//          Cache of virtural-to-physical address translations
+// Purpose: Translation lookaside buffer.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
-// fclassivy.sv
+// fclassify.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 7/5/2022
+// Written:  Katherine Parry me@KatherineParry.com 2 July 2021
+// Modified: David Harris
 //
-// Purpose: Floating-point classify unit
+// Purpose: Floating-point classify (fclass).
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

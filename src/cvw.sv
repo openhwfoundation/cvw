@@ -1,13 +1,15 @@
 //////////////////////////////////////////
 // cvw.sv
 //
-// Written: David_Harris@hmc.edu 27 January 2022
+// Written:  David Harris David_Harris@hmc.edu 27 January 2023
+// Modified: Rose Thompson, James Stine, Naiche Whyte-Aguayo, Kevin Kim, Jordan Carlin
 //
-// Purpose: package with shared CORE-V-Wally global parameters
+// Purpose: Package defining the cvw_t configuration structure.
 //
-// A component of the Wally configurable RISC-V project.
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

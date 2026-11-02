@@ -1,19 +1,17 @@
 ///////////////////////////////////////////
 // pmachecker.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 20 April 2021
-// Modified:
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 20 April 2021
+// Modified: David Harris, Rose Thompson, Muhammad Zain
 //
-// Purpose: Examines all physical memory accesses and identifies attributes of
-//          the memory region accessed.
-//          Can report illegal accesses to the trap unit and cause a fault.
+// Purpose: Physical memory attribute checker.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

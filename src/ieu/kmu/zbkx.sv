@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // zbkx.sv
 //
-// Written: kelvin.tran@okstate.edu, james.stine@okstate.edu
-// Created: 1 February 2024
+// Written:  Kelvin Tran kelvin.tran@okstate.edu, James Stine james.stine@okstate.edu 1 February 2024
+// Modified: David Harris
 //
-// Purpose: RISC-V ZBKX top level unit: crossbar permutation instructions for crypto
+// Purpose: Zbkx xperm4 and xperm8.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

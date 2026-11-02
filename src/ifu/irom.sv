@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // irom.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 30 January 2022
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 30 January 2022
+// Modified: David Harris
 //
-// Purpose: simple instruction ROM
+// Purpose: Instruction ROM.
+//
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

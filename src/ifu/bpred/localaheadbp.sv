@@ -1,16 +1,15 @@
 ///////////////////////////////////////////
-// localaheadbp
+// localaheadbp.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 16 March 2021
+// Written:  Rose Thompson rose@rosethompson.net 16 March 2021
+// Modified:
 //
-// Purpose: local history branch predictor with ahead pipelining and SRAM memories.
+// Purpose: Ahead-pipelined local-history direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

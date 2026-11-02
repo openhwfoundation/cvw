@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
-// busfsm.sv
+// buscachefsm.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: December 29, 2021
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 December 2021
+// Modified: David Harris
 //
-// Purpose: Controller for cache to AHB bus interface
+// Purpose: AHB bus state machine for cache bursts and uncached accesses.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

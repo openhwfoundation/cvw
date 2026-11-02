@@ -1,4 +1,4 @@
-# RV32 self-checking coverage tests.  Kept out of tests/coverage, whose ELFs the nightly
+# RV32 self-checking coverage tests for rv32gc.  Kept out of tests/coverage64gc, whose ELFs the nightly
 # regression runs on rv64gc in lockstep.
 MAKEFLAGS += --no-builtin-rules
 SOURCES  ?= $(sort $(wildcard *.S))

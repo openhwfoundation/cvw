@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // subcachelineread.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 4 February 2022
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 4 February 2022
+// Modified:
 //
-// Purpose: Muxes the cache line down to the word size.  Also include possible save/restore registers/muxes.
+// Purpose: Selects the addressed word from a cache line.
 //
 // Documentation: RISC-V System on Chip Design
-
+//
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

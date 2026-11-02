@@ -1,22 +1,18 @@
 ///////////////////////////////////////////
-// abhmulticontroller
+// ebu.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: August 29, 2022
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 August 2022
+// Modified: David Harris
 //
-// Purpose: AHB multi controller interface to merge LSU and IFU controls.
-//          See ARM_HIH0033A_AMBA_AHB-Lite_SPEC 1.0
-//          Arbitrates requests from instruction and data streams
-//          Connects core to peripherals and I/O pins on SOC
-//          Bus width presently matches XLEN
+// Purpose: External bus unit: arbitrates the IFU and LSU onto one AHB-Lite bus.
+//          See ARM IHI0033A AMBA AHB-Lite Specification 1.0. Bus width presently matches XLEN.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,16 +1,15 @@
 ///////////////////////////////////////////
 // ifu.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Thomas Fleming, Jarred Allen, Kip Macsai-Goren, Shreya Sanghai, Ben Bracker, Jordan Carlin
 //
-// Purpose: Instruction Fetch Unit
-//           PC, branch prediction, instruction cache
+// Purpose: Instruction fetch unit.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +214,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 
     // Hold a page table walk fault for the current fetch (issues #1538, #1766).
-    // A walk that faults (access fault on a page table entry address, or reserved bits in a non-leaf PTE) writes
+    // A walk that faults (access fault on a page table entry address, reserved bits in a non-leaf PTE, or an invalid PTE) writes
     // nothing into the ITLB, so the miss would re-request a walk every cycle.  The walker reports the fault as a
     // one-cycle pulse; remember it until the fetch advances (PCF changes), present it to the pipeline as a level,
     // suppress further walk requests, and do not fetch.

@@ -1,21 +1,16 @@
 ///////////////////////////////////////////
 // spi_apb.sv
 //
-// Written: Naiche Whyte-Aguayo nwhyteaguayo@g.hmc.edu
-//          Jacob Pease jacobpease@protonmail.com (October 29th, 2024)
-// Created: November 16th, 2022
+// Written:  Naiche Whyte-Aguayo nwhyteaguayo@g.hmc.edu, Jacob Pease jacobpease@protonmail.com 16 November 2022
+// Modified: Rose Thompson
 //
-// Purpose: SPI peripheral
+// Purpose: SPI controller on APB, after the SiFive FU540-C000 SPI.
+//          Not supported: flash read sequencer mode, dual and quad modes.
 //
-// SPI module is written to the specifications described in FU540-C000-v1.0. At the top level, it is consists of synchronous 8 byte transmit and receive FIFOs connected to shift registers.
-// The FIFOs are connected to WALLY by an apb control register interface, which includes various control registers for modifying the SPI transmission along with registers for writing
-// to the transmit FIFO and reading from the receive FIFO. The transmissions themselves are then controlled by a finite state machine. The SPI module uses 4 tristate pins for SPI input/output,
-// along with a 4 bit Chip Select signal, a clock signal, and an interrupt signal to WALLY.
-// Current limitations: Flash read sequencer mode not implemented, dual and quad mode not supported
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// A component of the Wally configurable RISC-V project.
-//
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

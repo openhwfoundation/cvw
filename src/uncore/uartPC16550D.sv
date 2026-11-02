@@ -1,23 +1,19 @@
 ///////////////////////////////////////////
-// uart.sv
+// uartPC16550D.sv
 //
-// Written: David_Harris@hmc.edu 21 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 21 January 2021
+// Modified: Rose Thompson, Ben Bracker, Lucio, Jacob Pease
 //
-// Purpose: Universal Asynchronous Receiver/ Transmitter with FIFOs
-//          Emulates interface of Texas Instruments PC16550D
-//          https://media.digikey.com/pdf/Data%20Sheets/Texas%20Instruments%20PDFs/PC16550D.pdf
-//          Compatible with UART in Imperas Virtio model
-//
-//  Compatible with most of PC16550D with the following known exceptions:
-//   Generates 2 rather than 1.5 stop bits when 5-bit word length is selected and LCR[2] = 1
+// Purpose: UART emulating the TI PC16550D.
+//          Datasheet: https://media.digikey.com/pdf/Data%20Sheets/Texas%20Instruments%20PDFs/PC16550D.pdf
+//          Exception: 2 rather than 1.5 stop bits with 5-bit words and LCR[2] = 1.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // trap.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: dottolia@hmc.edu 14 April 2021: Add support for vectored interrupts
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Domenico Ottolia dottolia@hmc.edu, Rose Thompson, Ben Bracker, Jinghe Yu, Kip Macsai-Goren, Thomas Fleming
 //
-// Purpose: Handle Traps: Exceptions and Interrupts
+// Purpose: Exception and interrupt prioritization.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

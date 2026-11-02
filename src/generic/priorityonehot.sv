@@ -1,25 +1,15 @@
 ///////////////////////////////////////////
 // priorityonehot.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 7 April 2021
-// Modified: Teo Ene 15 Apr 2021:
-//              Temporarily removed parameterized priority encoder for non-parameterized one
-//              To get synthesis working quickly
-//           Kmacsaigoren@hmc.edu 28 May 2021:
-//              Added working version of parameterized priority encoder.
-//           David_Harris@Hmc.edu switched to one-hot output
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 7 April 2021
+// Modified: David Harris David_Harris@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu, Madeleine Masser-Frye, Teo Ene
 //
-// Purpose: Priority circuit producing a 1 in the output in the column where
-//          the least significant 1 appears in the input.
-//
-//  Example:  msb           lsb
-//        in  01011101010100000
-//        out 00000000000100000
+// Purpose: One-hot marking of the least significant 1.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,

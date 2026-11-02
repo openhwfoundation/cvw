@@ -1,19 +1,17 @@
 ///////////////////////////////////////////
 // btb.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: February 15, 2021
-// Modified: 24 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 15 February 2021
+// Modified: David Harris
 //
-// Purpose: Branch Target Buffer (BTB). The BTB predicts the target address of all control flow instructions.
-//          It also guesses the type of instruction; jalr(r), return, jump (jr), or branch.
+// Purpose: Branch target buffer.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

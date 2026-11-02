@@ -1,16 +1,17 @@
 ///////////////////////////////////////////
 // fcvt.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 7/5/2022
+// Written:  Katherine Parry me@KatherineParry.com 26 May 2022
+// Modified:
 //
-// Purpose: Floating point conversions of configurable size
+// Purpose: Floating-point and integer conversions.
 //
 // Documentation: RISC-V System on Chip Design
 //
-// Int component of the Wally configurable RISC-V project.
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

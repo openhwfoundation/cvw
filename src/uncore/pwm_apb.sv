@@ -1,18 +1,19 @@
 ///////////////////////////////////////////
 // pwm_apb.sv
 //
-// Written: naichewa@gmail.com 4/29/2026
-// Modified:
+// Written:  Naiche Whyte-Aguayo 29 April 2026
+// Modified: David Harris
 //
-// Purpose: PWM module
+// Purpose: PWM on APB.
 //
 // Documentation:
 // Based on PWM design from SiFive FU540-C000 manual version 1.0
 // https://pdos.csail.mit.edu/6.828/2025/readings/FU540-C000-v1.0.pdf
+//
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2026 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

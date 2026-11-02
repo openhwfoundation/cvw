@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // uncore.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: Ben Bracker 6 Mar 2021 to better fit AMBA 3 AHB-Lite spec
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Jacob Pease, Ben Bracker, Noah Boorstin, Naiche Whyte-Aguayo, Thomas Fleming
 //
-// Purpose: System-on-Chip components outside the core
-//          Memories, peripherals, external bus control
+// Purpose: Memories and peripherals outside the core.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +19,6 @@
 module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
   input  logic [P.PA_BITS-1:0] HADDR,
   input  logic [P.AHBW-1:0]    HWDATA,
   input  logic [P.XLEN/8-1:0]  HWSTRB,
@@ -136,7 +134,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
 
-  if (P.UART_SUPPORTED == 1) begin : uartgen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
+  if (P.UART_SUPPORTED == 1) begin : uartgen
     uart_apb #(P) uart(
       .PCLK, .PRESETn, .PSEL(PSEL[3]), .PADDR(PADDR[2:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[3]), .PREADY(PREADY[3]),

@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // bmuctrl.sv
 //
-// Written: Kevin Kim <kekim@hmc.edu>, kelvin.tran@okstate.edu
-// Created: 16 February 2023
-// Modified: 6 March 2023, 9 March 2024
+// Written:  Kevin Kim kekim@hmc.edu, Kelvin Tran kelvin.tran@okstate.edu 16 February 2023
+// Modified: David Harris, James Stine
 //
-// Purpose: Top level bit manipulation instruction decoder
+// Purpose: Bit-manipulation and scalar crypto decoder.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

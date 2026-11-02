@@ -1,18 +1,17 @@
-
 ///////////////////////////////////////////
 // fmtparams.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 5/11/24
+// Written:  David Harris David_Harris@hmc.edu 11 May 2024
+// Modified:
 //
-// Purpose: Look up bias of exponent and number of fractional bits for the selected format
+// Purpose: Exponent bias and fraction width for the selected format.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // aplusbeq0.sv
 //
-// Written: David_Harris@hmc.edu 9/7/2022
+// Written:  David Harris David_Harris@hmc.edu 7 September 2022
 // Modified:
 //
-// Purpose: Determine if A+B = 0.  Used in FP divider.
+// Purpose: Detects A + B == 0 without a carry-propagate add.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

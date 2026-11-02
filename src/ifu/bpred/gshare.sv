@@ -1,18 +1,15 @@
 ///////////////////////////////////////////
 // gshare.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 16 March 2021
-// Adapted from ssanghai@hmc.edu (Shreya Sanghai)
-// Modified: 20 February 2023
+// Written:  Rose Thompson rose@rosethompson.net, Shreya Sanghai ssanghai@hmc.edu 16 March 2021
+// Modified:
 //
-// Purpose: gshare and Global History Branch predictors
+// Purpose: Gshare / global-history direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

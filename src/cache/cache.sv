@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // cache.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 7 July 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 7 July 2021
+// Modified: David Harris, Alec Vercruysse, Katherine Parry, Limnanthes Serafini
 //
-// Purpose: Implements the I$ and D$. Interfaces with requests from IEU and HPTW and ahbcacheinterface
+// Purpose: Configurable set-associative cache for the I$ and D$.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

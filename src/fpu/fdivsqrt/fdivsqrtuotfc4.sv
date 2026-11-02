@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // fdivsqrtuotfc4.sv
 //
-// Written: me@KatherineParry.com, cturek@hmc.edu
-// Modified:7/14/2022
+// Written:  Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 15 July 2022
+// Modified: David Harris
 //
-// Purpose: Radix 4 unified on-the-fly converter
+// Purpose: Radix-4 on-the-fly quotient/root converter.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

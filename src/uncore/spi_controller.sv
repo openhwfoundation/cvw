@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // spi_controller.sv
 //
-// Written: Jacob Pease jacobpease@protonmail.com
-// Created: October 28th, 2024
+// Written:  Jacob Pease jacobpease@protonmail.com 28 October 2024
+// Modified: Naiche Whyte-Aguayo
 //
-// Purpose: Controller logic for SPI
+// Purpose: SPI clock, chip select, and shift timing.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

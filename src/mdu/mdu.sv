@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // mdu.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: James Stine, Rose Thompson
 //
-// Purpose: M extension multiply and divide
+// Purpose: Multiply/divide unit (M extension).
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

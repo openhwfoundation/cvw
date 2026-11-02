@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // fdivsqrtpreproc.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 7 July 2022
+// Modified: Kevin Kim, Alessandro Maiuolo
 //
-// Purpose: Divide/Square root preprocessing: integer absolute value and W64, normalization shift
+// Purpose: Divide and square root operand normalization.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,20 +1,18 @@
 ///////////////////////////////////////////
 // ram1p1rwe.sv
-// 1 port sram.
 //
-// Written: avercruysse@hmc.edu (Modified from ram1p1rwbe, by rose@rosethompson.net)
-// Created: 04 April 2023
+// Written:  Alec Vercruysse avercruysse@hmc.edu 4 April 2023
+// Modified: Rose Thompson rose@rosethompson.net, David Harris
 //
-// Purpose: ram1p1wre, but without byte-enable. Used for icache data.
-//          Be careful using this module, since coverage is turned off for (ce & we).
-//          In read-only caches, we never get (we=1, ce=0), so this waiver is needed.
+// Purpose: Single-port RAM with a word write enable, for read-only cache ways.
+//          Coverage is turned off for (ce & we): read-only caches never have we=1 with ce=0.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,19 +1,17 @@
 ///////////////////////////////////////////
 // tlbram.sv
 //
-// Written: jtorrey@hmc.edu & tfleming@hmc.edu 16 February 2021
-// Modified:
+// Written:  Jessica Torrey jtorrey@hmc.edu, Thomas Fleming tfleming@hmc.edu 16 February 2021
+// Modified: David Harris, Kip Macsai-Goren
 //
-// Purpose: Stores page table entries of cached address translations.
-//          Outputs the physical page number and access bits of the current
-//          virtual address on a TLB hit.
+// Purpose: TLB PTE storage.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

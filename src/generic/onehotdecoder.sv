@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // onehotdecoder.sv
 //
-// Written: rose@rosethompson.net July 09, 2021
+// Written:  Rose Thompson rose@rosethompson.net 9 July 2021
 // Modified:
 //
-// Purpose: Bin to one hot decoder. Power of 2 only.
+// Purpose: Binary to one-hot decoder.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

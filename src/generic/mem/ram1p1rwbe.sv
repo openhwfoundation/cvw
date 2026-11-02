@@ -1,22 +1,17 @@
 ///////////////////////////////////////////
-// ram1p1r2be.sv
-// 1 port sram with byte enables
+// ram1p1rwbe.sv
 //
-// Written: rose@rosethompson.net
-// Created: 3 May 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 3 May 2021
+// Modified: David Harris, James Stine, Jacob Pease
 //
-// Purpose: Storage and read/write access to data cache data, tag valid, dirty, and replacement.
-//          Basic sram with 1 read write port.
-//          When clk rises Addr and LineWriteData are sampled.
-//          Following the clk edge read data is output from the sampled Addr.
+// Purpose: Single-port RAM with byte write enables.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
