@@ -900,8 +900,10 @@ module testbench;
     #1;
     IDV_MAX_ERRORS = 3;
     elffilename = ElfFile;
-    debugger_filename = {"../../", debugfile};
-    $display("%s", debugger_filename);
+    if (debugfile != "none") begin
+      debugger_filename = {"../../", debugfile};
+      $display("%s", debugger_filename);
+    end
 
     // Initialize REF (do this before initializing the DUT)
     if (!rvviVersionCheck(RVVI_API_VERSION)) begin
