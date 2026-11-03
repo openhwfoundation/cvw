@@ -1,0 +1,2 @@
+// Code coverage (run_vcs --ccov) is collected for the core only, as Questa saves /testbench/dut/core
++tree testbench.dut.core
