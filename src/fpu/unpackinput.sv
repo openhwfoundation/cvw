@@ -37,20 +37,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
   logic              BadNaNBox;   // incorrectly NaN Boxed
   logic              FracZero;    // is the fraction zero
   logic              ExpNonZero;  // is the exponent non-zero
-  logic [P.NE-1:0]   BiasedExp;   // exponent converted to the largest supported precision, before the subnormal adjustment
   logic [P.FLEN-1:0] In;
-
-  // Inputs in a smaller format are converted to the largest supported precision:
-  //   - the fraction gets trailing zeros
-  //   - the exponent is re-biased by keeping its msb, inserting NE-NEx copies of ~msb, and keeping the low bits.
-  //     Example single to double conversion, adding the bias difference 1023 - 127 = 896:
-  //       1023 = 0011 1111 1111
-  //       127  = 0000 0111 1111 (subtract this)
-  //       896  = 0011 1000 0000
-  //       sexp = 0000 bbbb bbbb (add this) b = bit d = ~b
-  //       dexp = 0bdd dbbb bbbb
-  //   - zero, subnormal, infinity, and NaN are detected from the unconverted exponent (ExpNonZero, ExpMax)
-  //   - a subnormal number has an effective biased exponent of 1, so the exponent lsb is forced to 1 when the exponent is zero
 
   // Gate input when FPU is not active to save power and simulation
   assign In = A & {P.FLEN{FPUActive}};
@@ -60,28 +47,28 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
     assign Sgn = In[P.FLEN-1];  // sign bit
     assign Frac = In[P.NF-1:0];  // fraction (no assumed 1)
     assign ExpNonZero = |In[P.FLEN-2:P.NF];  // is the exponent non-zero
-    assign BiasedExp = In[P.FLEN-2:P.NF];  // exponent
+    assign Exp = {In[P.FLEN-2:P.NF+1], In[P.NF] | ~ExpNonZero};  // exponent.  subnormal numbers have effective biased exponent of 1
     assign ExpMax = &In[P.FLEN-2:P.NF];  // is the exponent all 1's
     assign PostBox = In;
 
   end else if (P.FPSIZES == 2) begin   // if there are 2 floating point formats supported
-      // largest format | smaller format
-      //----------------------------------
-      //      P.FLEN     |     P.LEN1       length of floating point number
-      //      P.NE       |     P.NE1        length of exponent
-      //      P.NF       |     P.NF1        length of fraction
-      //      P.BIAS     |     P.BIAS1      exponent's bias value
-      //      P.FMT      |     P.FMT1       precision's format value - Q=11 D=01 S=00 H=10
+    // largest format | smaller format
+    //----------------------------------
+    //      P.FLEN     |     P.LEN1       length of floating point number
+    //      P.NE       |     P.NE1        length of exponent
+    //      P.NF       |     P.NF1        length of fraction
+    //      P.BIAS     |     P.BIAS1      exponent's bias value
+    //      P.FMT      |     P.FMT1       precision's format value - Q=11 D=01 S=00 H=10
 
-      // Possible combinations specified by spec:
-      //      double and single
-      //      single and half
+    // Possible combinations specified by spec:
+    //      double and single
+    //      single and half
 
-      // Not needed but can also handle:
-      //      quad   and double
-      //      quad   and single
-      //      quad   and half
-      //      double and half
+    // Not needed but can also handle:
+    //      quad   and double
+    //      quad   and single
+    //      quad   and half
+    //      double and half
 
     assign BadNaNBox = ~(Fmt | (&In[P.FLEN-1:P.LEN1])); // Check NaN boxing: the smaller format (Fmt = 0) needs all upper bits set
     always_comb
@@ -90,40 +77,50 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
       end else
         PostBox = In;
 
-      // choose sign bit depending on format - 1=larger precision 0=smaller precision
+    // choose sign bit depending on format - 1=larger precision 0=smaller precision
     assign Sgn = Fmt ? In[P.FLEN-1] : (BadNaNBox ? 0 : In[P.LEN1-1]); // improperly boxed NaNs are treated as positive
 
-      // extract the fraction, add trailing zeroes to the mantissa if necessary
+    // extract the fraction, add trailing zeroes to the mantissa if necessary
     assign Frac = Fmt ? In[P.NF-1:0] : {In[P.NF1-1:0], (P.NF-P.NF1)'(0)};
 
-      // is the exponent non-zero
+    // is the exponent non-zero
     assign ExpNonZero = Fmt ? |In[P.FLEN-2:P.NF] : |In[P.LEN1-2:P.NF1];
 
-      // example double to single conversion:
-    assign BiasedExp = Fmt ? In[P.FLEN-2:P.NF] : {In[P.LEN1-2], {P.NE-P.NE1{~In[P.LEN1-2]}}, In[P.LEN1-3:P.NF1]};
+    // example double to single conversion:
+    // 1023 = 0011 1111 1111
+    // 127  = 0000 0111 1111 (subtract this)
+    // 896  = 0011 1000 0000
+    // sexp = 0000 bbbb bbbb (add this) b = bit d = ~b
+    // dexp = 0bdd dbbb bbbb
+    // also need to take into account possible zero/Subnorm/inf/NaN values
 
-      // is the exponent all 1's
+    // extract the exponent, converting the smaller exponent into the larger precision if necessary
+    //      - re-bias by keeping the msb, inserting NE-NE1 copies of ~msb, and keeping the low bits
+    //      - if the original precision had a subnormal number, force the exponent lsb to 1 (effective biased exponent of 1)
+    assign Exp = Fmt ? {In[P.FLEN-2:P.NF+1], In[P.NF] | ~ExpNonZero} : {In[P.LEN1-2], {P.NE-P.NE1{~In[P.LEN1-2]}}, In[P.LEN1-3:P.NF1+1], In[P.NF1] | ~ExpNonZero};
+
+    // is the exponent all 1's
     assign ExpMax = Fmt ? &In[P.FLEN-2:P.NF] : &In[P.LEN1-2:P.NF1];
 
   end else if (P.FPSIZES == 3) begin       // three floating point precisions supported
 
-      // largest format | larger format  | smallest format
-      //---------------------------------------------------
-      //      P.FLEN     |     P.LEN1      |    P.LEN2       length of floating point number
-      //      P.NE       |     P.NE1       |    P.NE2        length of exponent
-      //      P.NF       |     P.NF1       |    P.NF2        length of fraction
-      //      P.BIAS     |     P.BIAS1     |    P.BIAS2      exponent's bias value
-      //      P.FMT      |     P.FMT1      |    P.FMT2       precision's format value - Q=11 D=01 S=00 H=10
+    // largest format | larger format  | smallest format
+    //---------------------------------------------------
+    //      P.FLEN     |     P.LEN1      |    P.LEN2       length of floating point number
+    //      P.NE       |     P.NE1       |    P.NE2        length of exponent
+    //      P.NF       |     P.NF1       |    P.NF2        length of fraction
+    //      P.BIAS     |     P.BIAS1     |    P.BIAS2      exponent's bias value
+    //      P.FMT      |     P.FMT1      |    P.FMT2       precision's format value - Q=11 D=01 S=00 H=10
 
-      // Possible combinations specified by spec:
-      //      quad   and double and single
-      //      double and single and half
+    // Possible combinations specified by spec:
+    //      quad   and double and single
+    //      double and single and half
 
-      // Not needed but can also handle:
-      //      quad   and double and half
-      //      quad   and single and half
+    // Not needed but can also handle:
+    //      quad   and double and half
+    //      quad   and single and half
 
-      // Check NaN boxing
+    // Check NaN boxing
     always_comb
       case (Fmt)
         P.FMT:  BadNaNBox = 1'b0;
@@ -140,7 +137,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
       else
         PostBox = In;
 
-      // extract the sign bit
+    // extract the sign bit
     always_comb
       if (BadNaNBox) Sgn = 1'b0; // improperly boxed NaNs are treated as positive
       else
@@ -151,7 +148,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
           default: Sgn = 1'bx;
         endcase
 
-      // extract the fraction
+    // extract the fraction
     always_comb
       case (Fmt)
         P.FMT:   Frac = In[P.NF-1:0];
@@ -160,7 +157,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
         default: Frac = {P.NF{1'bx}};
       endcase
 
-      // is the exponent non-zero
+    // is the exponent non-zero
     always_comb
       case (Fmt)
         P.FMT:   ExpNonZero = |In[P.FLEN-2:P.NF];   // if input is largest precision (P.FLEN - ie quad or double)
@@ -169,16 +166,24 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
         default: ExpNonZero = 1'bx;
       endcase
 
-    // convert the exponent to use the largest precision's bias
+    // example double to single conversion:
+    // 1023 = 0011 1111 1111
+    // 127  = 0000 0111 1111 (subtract this)
+    // 896  = 0011 1000 0000
+    // sexp = 0000 bbbb bbbb (add this) b = bit d = ~b
+    // dexp = 0bdd dbbb bbbb
+    // also need to take into account possible zero/Subnorm/inf/NaN values
+
+    // convert the larger precision's exponent to use the largest precision's bias
     always_comb
       case (Fmt)
-        P.FMT:   BiasedExp = In[P.FLEN-2:P.NF];
-        P.FMT1:  BiasedExp = {In[P.LEN1-2], {P.NE-P.NE1{~In[P.LEN1-2]}}, In[P.LEN1-3:P.NF1]};
-        P.FMT2:  BiasedExp = {In[P.LEN2-2], {P.NE-P.NE2{~In[P.LEN2-2]}}, In[P.LEN2-3:P.NF2]};
-        default: BiasedExp = {P.NE{1'bx}};
+        P.FMT:   Exp = {In[P.FLEN-2:P.NF+1], In[P.NF] | ~ExpNonZero};
+        P.FMT1:  Exp = {In[P.LEN1-2], {P.NE-P.NE1{~In[P.LEN1-2]}}, In[P.LEN1-3:P.NF1+1], In[P.NF1] | ~ExpNonZero};
+        P.FMT2:  Exp = {In[P.LEN2-2], {P.NE-P.NE2{~In[P.LEN2-2]}}, In[P.LEN2-3:P.NF2+1], In[P.NF2] | ~ExpNonZero};
+        default: Exp = {P.NE{1'bx}};
       endcase
 
-      // is the exponent all 1's
+    // is the exponent all 1's
     always_comb
       case (Fmt)
         P.FMT:   ExpMax = &In[P.FLEN-2:P.NF];
@@ -189,15 +194,15 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
 
   end else if (P.FPSIZES == 4) begin      // if all precisions are supported - quad, double, single, and half
 
-      //    quad    |  double   |  single   |  half
-      //-------------------------------------------------------------------
-      //   P.Q_LEN  |  P.D_LEN  |  P.S_LEN  |  P.H_LEN     length of floating point number
-      //   P.Q_NE   |  P.D_NE   |  P.S_NE   |  P.H_NE      length of exponent
-      //   P.Q_NF   |  P.D_NF   |  P.S_NF   |  P.H_NF      length of fraction
-      //   P.Q_BIAS |  P.D_BIAS |  P.S_BIAS |  P.H_BIAS    exponent's bias value
-      //   P.Q_FMT  |  P.D_FMT  |  P.S_FMT  |  P.H_FMT     precision's format value - Q=11 D=01 S=00 H=10
+    //    quad    |  double   |  single   |  half
+    //-------------------------------------------------------------------
+    //   P.Q_LEN  |  P.D_LEN  |  P.S_LEN  |  P.H_LEN     length of floating point number
+    //   P.Q_NE   |  P.D_NE   |  P.S_NE   |  P.H_NE      length of exponent
+    //   P.Q_NF   |  P.D_NF   |  P.S_NF   |  P.H_NF      length of fraction
+    //   P.Q_BIAS |  P.D_BIAS |  P.S_BIAS |  P.H_BIAS    exponent's bias value
+    //   P.Q_FMT  |  P.D_FMT  |  P.S_FMT  |  P.H_FMT     precision's format value - Q=11 D=01 S=00 H=10
 
-      // Check NaN boxing
+    // Check NaN boxing
     always_comb
       case (Fmt)
         P.Q_FMT: BadNaNBox = 1'b0;
@@ -217,7 +222,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
       end else
         PostBox = In;
 
-      // extract sign bit
+    // extract sign bit
     always_comb
       if (BadNaNBox) Sgn = 1'b0; // improperly boxed NaNs are treated as positive
       else
@@ -228,7 +233,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
           P.H_FMT: Sgn = In[P.H_LEN-1];
         endcase
 
-      // extract the fraction
+    // extract the fraction
     always_comb
       case (Fmt)
         P.Q_FMT: Frac = In[P.Q_NF-1:0];
@@ -237,7 +242,7 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
         P.H_FMT: Frac = {In[P.H_NF-1:0], (P.Q_NF-P.H_NF)'(0)};
       endcase
 
-      // is the exponent non-zero
+    // is the exponent non-zero
     always_comb
       case (Fmt)
         P.Q_FMT: ExpNonZero = |In[P.Q_LEN-2:P.Q_NF];
@@ -246,13 +251,22 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
         P.H_FMT: ExpNonZero = |In[P.H_LEN-2:P.H_NF];
       endcase
 
-    // convert the exponent into quad precision
+    // example double to single conversion:
+    // 1023 = 0011 1111 1111
+    // 127  = 0000 0111 1111 (subtract this)
+    // 896  = 0011 1000 0000
+    // sexp = 0000 bbbb bbbb (add this) b = bit d = ~b
+    // dexp = 0bdd dbbb bbbb
+    // also need to take into account possible zero/Subnorm/inf/NaN values
+
+    // convert the double precision exponent into quad precision
+    // 1 is added to the exponent if the input is zero or subnormal
     always_comb
       case (Fmt)
-        P.Q_FMT: BiasedExp = In[P.Q_LEN-2:P.Q_NF];
-        P.D_FMT: BiasedExp = {In[P.D_LEN-2], {P.Q_NE-P.D_NE{~In[P.D_LEN-2]}}, In[P.D_LEN-3:P.D_NF]};
-        P.S_FMT: BiasedExp = {In[P.S_LEN-2], {P.Q_NE-P.S_NE{~In[P.S_LEN-2]}}, In[P.S_LEN-3:P.S_NF]};
-        P.H_FMT: BiasedExp = {In[P.H_LEN-2], {P.Q_NE-P.H_NE{~In[P.H_LEN-2]}}, In[P.H_LEN-3:P.H_NF]};
+        P.Q_FMT: Exp = {In[P.Q_LEN-2:P.Q_NF+1], In[P.Q_NF] | ~ExpNonZero};
+        P.D_FMT: Exp = {In[P.D_LEN-2], {P.Q_NE-P.D_NE{~In[P.D_LEN-2]}}, In[P.D_LEN-3:P.D_NF+1], In[P.D_NF] | ~ExpNonZero};
+        P.S_FMT: Exp = {In[P.S_LEN-2], {P.Q_NE-P.S_NE{~In[P.S_LEN-2]}}, In[P.S_LEN-3:P.S_NF+1], In[P.S_NF] | ~ExpNonZero};
+        P.H_FMT: Exp = {In[P.H_LEN-2], {P.Q_NE-P.H_NE{~In[P.H_LEN-2]}}, In[P.H_LEN-3:P.H_NF+1], In[P.H_NF] | ~ExpNonZero};
       endcase
 
     // is the exponent all 1's
@@ -267,7 +281,6 @@ module unpackinput import cvw::*; #(parameter cvw_t P) (
   end
 
   // Output logic
-  assign Exp = {BiasedExp[P.NE-1:1], BiasedExp[0] | ~ExpNonZero}; // subnormal numbers have effective biased exponent of 1
   assign FracZero = ~|Frac & ~BadNaNBox; // is the fraction zero?
   assign Man = {ExpNonZero, Frac}; // add the assumed one (or zero if Subnormal or zero) to create the significand
   assign NaN = ((ExpMax & ~FracZero) | BadNaNBox) & En; // is the input a NaN?
