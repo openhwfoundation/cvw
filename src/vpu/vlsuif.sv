@@ -38,8 +38,7 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   output logic [4:0]                  VdW,                            // destination vector register (to vregfile)
   output logic                        ValidW,                         // writeback control: load data valid (to vregfile)
 
-  input logic                         VWrite,                         // temporary signal to indicate a vector write operation is in progress
-  input logic                         VRead,                          // temporary signal to indicate a vector read operation is in progress
+  input logic [1:0]                   VMemRWD,                        // vector memory read/write: [1] = read, [0] = write
 
   // datapath from vregfile
   input logic [P.VLEN-1:0]            Vs3D,                           // store data (vs3)
@@ -55,22 +54,22 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   output logic [P.VLEN-1:0]           VReadDataW                      // Read data (to vregfile)
 );
 
-  logic              VReadE, VReadM, VReadW;
+  logic [1:0]        VMemRWE, VMemRWM, VMemRWW;
   logic [4:0]        VdE, VdM;
   logic [P.VLEN-1:0] Vs3E;
 
   assign VSizeM = 3'b110;
 
-  // read control and destination register travel with the instruction to writeback
-  flopr #(1) vreadE(clk, reset, VRead, VReadE);
-  flopr #(1) vreadM(clk, reset, VReadE, VReadM);
-  flopr #(1) vreadW(clk, reset, VReadM, VReadW);
+  // memory read/write control and destination register travel with the instruction to writeback
+  flopr #(2) vmemrwE(clk, reset, VMemRWD, VMemRWE);
+  flopr #(2) vmemrwM(clk, reset, VMemRWE, VMemRWM);
+  flopr #(2) vmemrwW(clk, reset, VMemRWM, VMemRWW);
 
   flopr #(5) vdE(clk, reset, VdD, VdE);
   flopr #(5) vdM(clk, reset, VdE, VdM);
   flopr #(5) vdW(clk, reset, VdM, VdW);
 
-  assign ValidW = VReadW;
+  assign ValidW = VMemRWW[1];
 
   // address flop
   assign VEUAdrE = ForwardedSrcAE;
