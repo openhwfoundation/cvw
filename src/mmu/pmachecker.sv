@@ -32,6 +32,8 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   output logic                 PMAStoreAmoAccessFaultM
 );
 
+  localparam logic [2:0]       AHBWSIZE = 3'($clog2(P.AHBW/8)); // bus width as an access size
+
   logic                        PMAAccessFault, PMADataAccessFault;
   logic                        AccessRW, AccessRWXC, AccessRX;
   logic [12:0]                 SelRegions;
@@ -72,10 +74,10 @@ module pmachecker import cvw::*;  #(parameter cvw_t P) (
   // A fetch from the I/O window faults, so the IFU never reads it, not even on a wrong path.
   assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed | ExecuteAccessF & SelExtIO;
   assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault;
-  // The bus is at most 64 bits wide, so a 128-bit flq/fsq may access only cacheable memory: not an I/O region,
-  // and not a Svpbmt NC or IO page
-  if (P.LLEN == 128) assign PMADataAccessFault = PMAAccessFault | Size[2] & ~Cacheable;
-  else               assign PMADataAccessFault = PMAAccessFault;
+  // An uncached access is a single bus transfer, so an access wider than the bus (fld/fsd on RV32, flq/fsq) may
+  // access only cacheable memory: not an I/O region, a TIM, or a Svpbmt NC or IO page
+  if (P.LLEN > P.AHBW) assign PMADataAccessFault = PMAAccessFault | (Size > AHBWSIZE) & ~Cacheable;
+  else                 assign PMADataAccessFault = PMAAccessFault;
   assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMADataAccessFault;
   assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMADataAccessFault;
 endmodule

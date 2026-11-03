@@ -21,8 +21,7 @@ module buscachefsm #(
   parameter BeatCountThreshold,                      // Largest beat index
   parameter AHBWLOGBWPL,                             // Log2 of BEATSPERLINE
   parameter READ_ONLY_CACHE,                         // 1 for read-only instruction cache
-  parameter BURST_EN,                                // burst mode supported
-  parameter logic WIDE_UNCACHED                      // 1 if an uncached access can be wider than the bus
+  parameter BURST_EN                                 // burst mode supported
 )(
   input  logic                   HCLK,
   input  logic                   HRESETn,
@@ -33,7 +32,6 @@ module buscachefsm #(
   input  logic [1:0]             BusRW,              // Uncached memory operation read/write control: 10: read, 01: write
   input  logic                   BusAtomic,          // Uncached atomic memory operation
   input  logic                   BusCMOZero,         // Uncached cbo.zero must write zero to full sized cacheline without going through the cache
-  input  logic [AHBWLOGBWPL-1:0] UncachedThreshold,  // Largest beat index of an uncached access: 0 unless it is wider than the bus
   output logic                   BusStall,           // Bus is busy with an in flight memory operation
   output logic                   BusCommitted,       // Bus is busy with an in flight memory operation and it is not safe to take an interrupt
 
@@ -63,7 +61,6 @@ module buscachefsm #(
 
   logic [AHBWLOGBWPL-1:0] NextBeatCount;
   logic                   FinalBeatCount;
-  logic                   UncachedFinalBeat;  // Data phase of the last beat of an uncached access
   logic [2:0]             LocalBurstType;
   logic                   BeatCntEn;
   logic                   BeatCntReset;
@@ -83,7 +80,7 @@ module buscachefsm #(
                  else if (HREADY & CacheBusRW[1])                    NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm HREADYread
                  else                                                NextState = ADR_PHASE;
       DATA_PHASE:  if (HREADY & BusAtomic & ~READ_ONLY_CACHE)        NextState = ATOMIC_READ_DATA_PHASE; // exclusion-tag: buscachefsm HREADY2
-                   else if (HREADY & ~BusAtomic & UncachedFinalBeat) NextState = MEM3;                   // exclusion-tag: buscachefsm HREADY3
+                   else if (HREADY & ~BusAtomic)                     NextState = MEM3;                   // exclusion-tag: buscachefsm HREADY3
                    else                                              NextState = DATA_PHASE;
       ATOMIC_READ_DATA_PHASE: if (HREADY)                            NextState = ATOMIC_PHASE;           // exclusion-tag: buscachefsm AtomicReadData
                   else                                               NextState = ATOMIC_READ_DATA_PHASE; // exclusion-tag: buscachefsm AtomicElse
@@ -111,12 +108,8 @@ module buscachefsm #(
   assign NextBeatCount = BeatCount + 1'b1;
 
   assign FinalBeatCount = BeatCountDelayed == BeatCountThreshold[AHBWLOGBWPL-1:0];
-  // An uncached access wider than the bus is a series of single bus-width transfers that stays in DATA_PHASE,
-  // committed, until the last one: each beat's data phase overlaps the next beat's address phase
-  assign UncachedFinalBeat = ~WIDE_UNCACHED | (BeatCountDelayed == UncachedThreshold);
   assign BeatCntEn = (((NextState == CACHE_WRITEBACK | NextState == CACHE_FETCH) & HREADY & ~Flush) |
-                     (NextState == ADR_PHASE & |CacheBusRW & HREADY) |
-                     (NextState == DATA_PHASE & HREADY & ~UncachedFinalBeat)) & ~Flush;
+                     (NextState == ADR_PHASE & |CacheBusRW & HREADY)) & ~Flush;
   assign BeatCntReset = NextState == ADR_PHASE;
 
   assign CaptureEn = (CurrState == DATA_PHASE & BusRW[1] & ~Flush) | (CurrState == CACHE_FETCH & HREADY);
@@ -136,7 +129,6 @@ module buscachefsm #(
   // AHB bus interface
   assign HTRANS = (CurrState == ADR_PHASE & HREADY & ((|BusRW) | (|CacheBusRW) | BusCMOZero) & ~Flush) |
                   (CurrState == ATOMIC_READ_DATA_PHASE) |
-                  (CurrState == DATA_PHASE & ~UncachedFinalBeat & ~Flush) |
                   (CacheAccess & FinalBeatCount & |CacheBusRW & HREADY & ~Flush) ? AHB_NONSEQ : // if we have a pipelined request
                   (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE;
 

@@ -534,10 +534,9 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 #set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY2"]
 #coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line -item c 1 -feccondrow 1
 
-# DATA_PHASE ~BusAtomic_0 (BusAtomic_1, row 2 of (~BusAtomic & HREADY) once rv64gc's constant UncachedFinalBeat
-# folds away): priority-masked by the HREADY & BusAtomic branch above it.
+# DATA_PHASE ~BusAtomic_0 (BusAtomic_1, row 4): priority-masked by the HREADY & BusAtomic branch above it.
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY3"]
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow $line 2
+coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow $line 4
 
 # CACHE_WRITEBACK -> CACHE_FETCH: HREADY_0, and FinalBeatCount_0 (CacheBusRW[1] is only raised with CacheBusAck).
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY4"]
