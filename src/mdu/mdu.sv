@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module mdu import cvw::*;  #(parameter cvw_t P) (
+module mdu import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              StallM, StallW,
   input  logic              FlushE, FlushM, FlushW,

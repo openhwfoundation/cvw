@@ -33,13 +33,13 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
 );
 
   // register map
-  localparam PWM_CFG        = 8'h00;
-  localparam PWM_COUNT      = 8'h08;
-  localparam PWM_S          = 8'h10;
-  localparam PWM_CMP0       = 8'h20;
-  localparam PWM_CMP1       = 8'h24;
-  localparam PWM_CMP2       = 8'h28;
-  localparam PWM_CMP3       = 8'h2C;
+  localparam PWM_CFG   = 8'h00;
+  localparam PWM_COUNT = 8'h08;
+  localparam PWM_S     = 8'h10;
+  localparam PWM_CMP0  = 8'h20;
+  localparam PWM_CMP1  = 8'h24;
+  localparam PWM_CMP2  = 8'h28;
+  localparam PWM_CMP3  = 8'h2C;
 
   // PWM control registers
   logic [16:0]             PWMConfig; // scale, sticky, zerocmp, deglitch, enalways, enoneshot, center, gang (pending bits live in PWMCompareIP)
@@ -110,8 +110,7 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
 
   // Deglitch Circuit logic
   assign PWMHoldIn = (~PWMCycleEnd & PWMDeglitch) | PWMSticky;
-  flop #(1) pwmholdreg(PCLK,
-                       PWMHoldIn, PWMHoldOut);
+  flop #(1) pwmholdreg(PCLK, PWMHoldIn, PWMHoldOut);
 
   // Bus logic
   assign Entry = {PADDR[7:2], 2'b00};  // 32-bit word-aligned accesses
