@@ -352,6 +352,22 @@ foreach dec {dtimdec iromdec ddr4dec sdcdec} {
   coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/adrdecs/$dec -fecexprrow $line 1 2 4-8
 }
 
+# rv64gc has no EXT_IO window (EXT_IO_SUPPORTED = 0), so SelExtIO is tied low.  In extiodec Supported_0 (row 3)
+# is hit (EXT_IO_BASE = 0; in the IMMU by the ACT fetch access-fault tests at address 0) and every other row needs
+# Supported = 1.  SelExtMem = SelRegions[3] & ~SelExtIO: SelRegions[3] is tied low too (no external memory), so
+# only SelRegions[3]_0 (row 1) is reachable.  In PMAAccessFault the window term ExecuteAccessF & SelExtIO is
+# always 0: ExecuteAccessF_0/1 (rows 11, 12) need SelExtIO = 1, and SelExtIO_1 (row 14) cannot happen.
+# ExecuteAccessF is tied high in the IMMU and low in the DMMU, so SelExtIO_0 (row 13) is reachable only in the IMMU.
+set line [GetLineNum ${SRC}/mmu/adrdec.sv "exclusion-tag: adrdecSel"]
+coverage exclude -scope /core/ifu/immu/immu/pmachecker/extiodec -fecexprrow $line 1 2 4-8
+coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker/extiodec -fecexprrow $line 1 2 4-8
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign SelExtMem"]
+coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2-4
+coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 2-4
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "assign PMAAccessFault "]
+coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 11 12 14
+coverage exclude -scope /core/lsu/dmmu/dmmu/pmachecker -fecexprrow $line 11-14
+
 # No DTIM or IROM
 coverage exclude -scope /core/ifu/bus/icache/UnCachedDataMux -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
 coverage exclude -scope /core/lsu/bus/dcache/UnCachedDataMux -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
