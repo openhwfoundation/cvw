@@ -1,33 +1,23 @@
 ///////////////////////////////////////////
 // ahbapbbridge.sv
 //
-// Written: David_Harris@hmc.edu & Nic Lucio 7 June 2022
+// Written:  David Harris David_Harris@hmc.edu, Lucio 7 June 2022
+// Modified:
 //
-// Purpose: AHB to APB bridge
+// Purpose: AHB to APB bridge.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ahbapbbridge import cvw::*;  #(parameter cvw_t P,
-                                      parameter PERIPHS = 2) (
+module ahbapbbridge import cvw::*; #(parameter cvw_t P,
+                                     parameter PERIPHS = 2) (
   input  logic                 HCLK, HRESETn,
   input  logic [PERIPHS-1:0]   HSEL,
   input  logic [P.PA_BITS-1:0] HADDR,
@@ -91,14 +81,14 @@ module ahbapbbridge import cvw::*;  #(parameter cvw_t P,
     // default: no peripheral selected: read 0, indicate ready during access phase so bus doesn't hang
     HRDATA = '0;
     PREADYOUT = 1'b1;
-    for (i=0; i<PERIPHS; i++)  begin
+    for (i = 0; i < PERIPHS; i++) begin
       if (PSEL[i]) begin // highest numbered peripheral has priority, but multiple PSEL should never be asserted
-          HRDATA = PRDATA[i];
-          PREADYOUT = PREADY[i];
+        HRDATA = PRDATA[i];
+        PREADYOUT = PREADY[i];
       end
     end
   end
-assign HREADYOUT = PREADYOUT & ~initTransSelD; // don't raise HREADYOUT before access phase
+  assign HREADYOUT = PREADYOUT & ~initTransSelD; // don't raise HREADYOUT before access phase
 
   // resp logic
   assign HRESP = 1'b0; // bridge never indicates errors

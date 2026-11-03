@@ -1,8 +1,6 @@
 
 // Populate parameter structure with values specific to the current configuration
 
-`include "BranchPredictorType.vh"
-
 localparam cvw_t P = '{
   XLEN :                 XLEN,
   IEEE754 :              IEEE754,
@@ -59,6 +57,7 @@ localparam cvw_t P = '{
   ICACHE_SUPPORTED :     ICACHE_SUPPORTED,
   ITLB_ENTRIES :         ITLB_ENTRIES,
   DTLB_ENTRIES :         DTLB_ENTRIES,
+  TLB_EXACT_FENCE_INVAL : TLB_EXACT_FENCE_INVAL,
   DCACHE_NUMWAYS :       DCACHE_NUMWAYS,
   DCACHE_WAYSIZEINBYTES :        DCACHE_WAYSIZEINBYTES,
   DCACHE_LINELENINBITS :        DCACHE_LINELENINBITS,
@@ -92,6 +91,9 @@ localparam cvw_t P = '{
   EXT_MEM_SUPPORTED :        EXT_MEM_SUPPORTED,
   EXT_MEM_BASE :        EXT_MEM_BASE,
   EXT_MEM_RANGE :        EXT_MEM_RANGE,
+  EXT_IO_SUPPORTED :        EXT_IO_SUPPORTED,
+  EXT_IO_BASE :        EXT_IO_BASE,
+  EXT_IO_RANGE :        EXT_IO_RANGE,
   CLINT_SUPPORTED :        CLINT_SUPPORTED,
   CLINT_BASE :        CLINT_BASE,
   CLINT_RANGE :        CLINT_RANGE,

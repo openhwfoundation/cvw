@@ -40,7 +40,6 @@ jobs:
           - name: ubuntu-20.04
             image: ubuntu:20.04
             imageFamily: debian
-            regressionFail: true
             os: ubuntu-latest
           - name: ubuntu-22.04
             image: ubuntu:22.04
@@ -72,7 +71,6 @@ jobs:
           - name: rocky-8
             image: rockylinux/rockylinux:8
             imageFamily: redhat
-            regressionFail: true
             os: ubuntu-latest
           - name: rocky-9
             image: rockylinux/rockylinux:9
@@ -85,7 +83,6 @@ jobs:
           - name: almalinux-8
             image: almalinux:8
             imageFamily: redhat
-            regressionFail: true
             os: ubuntu-latest
           - name: almalinux-9
             image: almalinux:9
@@ -103,6 +100,11 @@ jobs:
           - name: opensuse-16.0
             image: opensuse/leap:16.0
             imageFamily: suse
+            os: ubuntu-latest
+          # Fedora installations
+          - name: fedora-44
+            image: fedora:44
+            imageFamily: redhat
             os: ubuntu-latest
           # User level installation
           - name: user-install
@@ -203,14 +205,12 @@ jobs:
         run: |
               source setup.sh
               make periph zsbl deriv coverage --jobs $(nproc --ignore 1)
-      # Run standard regression, skipping distros that are known to be broken with Verilator
+      # Run standard regression (disabled for space reasons)
       # - name: Regression
-      #   if: ${{ matrix.regressionFail != true }}
       #   run: |
       #         source setup.sh
       #         regression-wally
-      - name: Lint + wsim Test Only (for distros with broken Verilator sim)
-        # if: ${{ matrix.regressionFail == true }}
+      - name: Lint + wsim Test Only
         run: |
               source setup.sh
               mkdir -p $WALLY/sim/verilator/logs/
