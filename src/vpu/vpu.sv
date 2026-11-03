@@ -54,7 +54,10 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input logic [P.VPU_LSU_BLEN-1:0]  VReadDataM ,                                // Read data (from LSU)
   output logic                      IllegalVPUInstrD,                           // Is the instruction an illegal fpu instruction (to IFU)
   // Writeback stage
-  output logic [P.XLEN-1:0]         VIEUFPResultFinalW                          // Int or FP result for X or F regs.
+  output logic [P.XLEN-1:0]         VIEUFPResultFinalW,                         // Int or FP result for X or F regs
+  // CSR state
+  input logic [1:0]                 STATUS_VS,                                  // vector (VS) field in status register
+  input logic [P.XLEN-1:0]          VTYPE_REGW                                  // vtype
 );
 
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
@@ -62,7 +65,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic       VMD;                            // 0 = mask enabled; 1 mask disabled
   logic [5:0] Funct6D;
   logic [2:0] Funct3D;
-  logic       RegWriteD;
+  logic       VWriteIntD;                     // writes integer register
+  logic       VWriteFPD;                      // writes floating-point register *** wire to FPU
   logic       VRegWriteD;
   logic [1:0] VALUSrcAD;
   logic       VALUSrcBD;
@@ -107,8 +111,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
-                               .InstrD, .VectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                               .VMD, .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
+                               .InstrD, .VectorD, .STATUS_VS, .VTYPE_REGW, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
+                               .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
                                .VALUResultSrcD, .IllegalVPUInstrD, .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
                                .VPUFrontEndBusyD);
@@ -124,7 +128,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VIEUVdFinalW[i]));
