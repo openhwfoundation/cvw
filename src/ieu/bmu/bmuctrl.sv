@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module bmuctrl import cvw::*;  #(parameter cvw_t P) (
+module bmuctrl import cvw::*; #(parameter cvw_t P) (
   input  logic        clk, reset,
   // Decode stage control signals
   input  logic [31:0] InstrD,                  // Instruction in Decode stage
@@ -62,7 +62,7 @@ module bmuctrl import cvw::*;  #(parameter cvw_t P) (
   // Main Instruction Decoder
   always_comb begin
     // BALUSelect_BSelect_ZBBSelect_BRegWrite_BALUSrcB_BW64_BUW64_BALUOp_BSubArithD_RotateD_MaskD_PreShiftD_IllegalBitmanipInstrD
-    BMUControlsD = `BMUCTRLW'b000_00_000_0_0_0_0_0_0_0_0_1;  // default: Illegal bmu instruction;
+    BMUControlsD = `BMUCTRLW'b000_0000_0000_0_0_0_0_0_0_0_0_0_1;  // default: Illegal bmu instruction;
     if (P.ZBA_SUPPORTED) begin
       casez({OpD, Funct7D, Funct3D})
         17'b0110011_0010000_010: BMUControlsD = `BMUCTRLW'b000_0001_0000_1_0_0_0_1_0_0_0_1_0;  // sh1add

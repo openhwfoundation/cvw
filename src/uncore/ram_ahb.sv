@@ -32,9 +32,8 @@ module ram_ahb import cvw::*; #(parameter cvw_t P,
 
   localparam                   DEPTH = (RANGE+1)/64'(P.XLEN/8);  // RANGE is a mask (size-1), DEPTH is in XLEN-bit words
   localparam                   ADDR_WIDTH = $clog2(DEPTH);
-  localparam                   OFFSET = $clog2(P.XLEN/8);
+  localparam OFFSET     = $clog2(P.XLEN/8);
 
-  logic [P.XLEN/8-1:0]         ByteMask;
   logic [P.PA_BITS-1:0]        HADDRD, RamAddr;
   logic                        initTrans;
   logic                        memwrite, memwriteD, memread;
@@ -47,8 +46,8 @@ module ram_ahb import cvw::*; #(parameter cvw_t P,
   assign memwrite  = initTrans & HWRITE;
   assign memread   = initTrans & ~HWRITE;
 
-  flopenr #(1) memwritereg(HCLK, ~HRESETn, HREADY, memwrite, memwriteD);
-  flopenr #(P.PA_BITS)   haddrreg(HCLK, ~HRESETn, HREADY, HADDR, HADDRD);
+  flopenr #(1)        memwritereg(HCLK, ~HRESETn, HREADY, memwrite, memwriteD);
+  flopenr #(P.PA_BITS) haddrreg(HCLK, ~HRESETn, HREADY, HADDR, HADDRD);
 
   // Stall on a read after a write because the RAM can't take both addresses on the same cycle
   assign nextHREADYRam = (~(memwriteD & memread)) & ~DelayReady;

@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmamult import cvw::*;  #(parameter cvw_t P) (
+module fmamult import cvw::*; #(parameter cvw_t P) (
   input  logic [P.NF:0]     Xm, Ym, // x and y significand
   output logic [2*P.NF+1:0] Pm      // product's significand
 );

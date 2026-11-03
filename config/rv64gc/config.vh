@@ -14,8 +14,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-`include "BranchPredictorType.vh"
-
 // RV32 or RV64: XLEN = 32 or 64
 localparam XLEN = 32'd64;
 
@@ -163,6 +161,9 @@ localparam logic UNCORE_RAM_PRELOAD = 1'b0;
 localparam logic EXT_MEM_SUPPORTED = 0;
 localparam logic [63:0] EXT_MEM_BASE     = 64'h80000000;
 localparam logic [63:0] EXT_MEM_RANGE    = 64'h07FFFFFF;
+localparam logic EXT_IO_SUPPORTED = 0;
+localparam logic [63:0] EXT_IO_BASE      = 64'h00000000;
+localparam logic [63:0] EXT_IO_RANGE     = 64'h00000000;
 localparam logic CLINT_SUPPORTED = 1;
 localparam logic [63:0] CLINT_BASE       = 64'h02000000;
 localparam logic [63:0] CLINT_RANGE      = 64'h0000FFFF;
@@ -214,7 +215,7 @@ localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 1;
-localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
+localparam cvw::bpred_type_t BPRED_TYPE = cvw::BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;

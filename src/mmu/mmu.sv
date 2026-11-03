@@ -43,10 +43,10 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   output logic                 Idempotent,         // PMA indicates memory address is idempotent
   output logic                 SelTIM,             // Select a tightly integrated memory
   // Faults
-  output logic                 InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // access fault sources
-  output logic                 InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // page fault sources
-  output logic                 UpdateDA,                                                  // TLB hit needs to set the dirty or access bit
-  output logic                 LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // misaligned fault sources
+  output logic                     InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // access fault sources
+  output logic                     InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // page fault sources
+  output logic                     UpdateDA,                                                  // TLB hit needs to set the dirty or access bit
+  output logic                     LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // misaligned fault sources
   // PMA checker signals
   input  logic [3:0]           CMOpM,                                                     // Cache management instructions
   input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
