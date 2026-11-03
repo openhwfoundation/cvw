@@ -379,7 +379,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       file = $fopen(filename, "r");
       if (file == 0) begin
-        $display("Debugger: cannot open %s; skipping DMI replay.", filename);
+        $display("Debugger: cannot open %s; ending simulation.", filename);
         testvectors = {};
         expected_outputs = {};
         $finish;
