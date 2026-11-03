@@ -10,6 +10,7 @@
 # example: wsim rv64gc addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 # example: wsim rv32gc a.elf b.elf c.elf -s verilator
 # example: wsim rv64gc buildroot
+# example: wsim rv64gc addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov -s verilator
 # example: wsim fdqh_ieee_rv64gc add -t testbench_fp        # run TestFloat
 #
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
@@ -38,6 +39,9 @@ DESIGN_DIRS = ("src", "testbench", "config", "addins/verilog-ethernet")
 # The riscv-arch-test covergroups are compiled into the design only with --fcov
 ACT_DIR = "addins/riscv-arch-test"
 FCOV_DIRS = (f"{ACT_DIR}/coverpoints", f"{ACT_DIR}/framework/src/act/fcov", f"{ACT_DIR}/tests/env")
+# Where each simulator writes the per-run functional coverage databases (sim/<simulator>/<dir>), which
+# sim/Makefile merges and reports; the reports go in sim/<simulator>/fcov
+FCOV_DB_DIRS = {"questa": "fcov_ucdb", "verilator": "fcov_dat", "vcs": "fcov_ucdb"}
 
 
 def parseArgs():
@@ -72,11 +76,19 @@ def validateArgs(args):
     if args.gui and args.sim != "questa":
         print("GUI only supported by Questa")
         sys.exit(1)
-    elif (args.ccov or args.fcov) and args.sim != "questa":
-        print("Coverage only supported by Questa")
+    elif args.ccov and args.sim not in ["questa", "vcs"]:
+        print("Code coverage only supported by Questa and VCS")
+        sys.exit(1)
+    elif args.fcov and not fcovWork(args.config).is_dir():
+        print(f"Error: no ACT work directory {fcovWork(args.config)}; build its tests before collecting functional coverage")
         sys.exit(1)
     elif any([args.lockstep, args.lockstepverbose]) and args.sim not in ["questa", "vcs"]:
         print("Lockstep only supported by Questa and VCS")
+        sys.exit(1)
+    elif args.fcov and (args.lockstep or args.lockstepverbose):
+        # The covergroups read fields of riscv-arch-test's RVVI trace interface, while ImperasDV needs the
+        # RVVI API tasks of its own, and only one of the two interfaces can be compiled in
+        print("Functional coverage cannot run in lockstep: it needs riscv-arch-test's RVVI trace interface, not ImperasDV's")
         sys.exit(1)
     elif args.tb == "testbench_fp" and args.sim != "questa":
         print("Error: testbench_fp presently only supported by Questa, not VCS or Verilator, because of a touchy testbench")
@@ -161,6 +173,9 @@ def prepSim(args, elfs):
     if args.fcov:
         flagsList.append("--fcov")
         defineList.append("+define+FCOV")
+        groups = fcovGroups(args.config, elfs)
+        print(f"Functional coverage: {len(groups)} covergroups")
+        defineList += [f"+define+{group.upper()}_COVERAGE" for group in groups]
     if args.gui:
         flagsList.append("--gui")
     if args.lockstep or args.lockstepverbose:
@@ -195,7 +210,7 @@ def lockstepSetup(args):
 
 
 def createDirs(sim: str):
-    for d in ["logs", "wkdir", "cov", "ucdb", "fcov", "fcov_ucdb"]:
+    for d in ["logs", "wkdir", "cov", "ucdb", "fcov", FCOV_DB_DIRS[sim]]:
         (WALLY / "sim" / sim / d).mkdir(parents=True, exist_ok=True)
 
 
@@ -238,22 +253,45 @@ def isDesignUpToDate(target, extra_dirs=()):
     return True
 
 
-def fcovGroups(config):
-    """The covergroups wally-compile.do compiles in for --fcov: every directory of built ACT tests
-    for the configuration that has a matching covergroup file."""
-    elfs = WALLY / ACT_DIR / "work" / f"cvw-{config}" / "elfs"
-    names = {d.name for d in elfs.rglob("*") if d.is_dir()} if elfs.is_dir() else set()
+def fcovWork(config):
+    """The ACT work directory holding the configuration's built tests.  ACT names the configuration
+    cvw-<config>, matching config/<config>/act."""
+    return WALLY / ACT_DIR / "work" / f"cvw-{config}"
+
+
+def fcovGroups(config, elfs):
+    """The covergroups --fcov compiles in, each enabled by a +define+<GROUP>_COVERAGE.  ACT names a coverage
+    group after the directory of its tests and collects each group from its own tests only, so take the
+    groups of the directories the ELFs being run come from.  That matches ACT's results (a group is not
+    credited with bins that another suite's tests happen to hit, and the hint groups do not take
+    instructions away from the base groups), and a build with a few covergroups compiles and runs much
+    faster than one with all of them.  Without ELFs (buildroot), take every directory of built tests."""
+    if elfs:
+        names = {Path(e).parent.name for e in elfs}
+    else:
+        built = fcovWork(config) / "elfs"
+        names = {d.name for d in built.rglob("*") if d.is_dir()} if built.is_dir() else set()
     return sorted(n for n in names if any((WALLY / ACT_DIR / "coverpoints" / k / f"{n}_coverage.svh").exists()
                                           for k in ("unpriv", "priv")))
 
 
 def fcovConfigDigest(config):
     """Digest of the configuration headers ACT generates with its tests (rvtest_config.svh and
-    friends), which the --fcov compile includes.  Contents rather than times, so that a rebuild
-    that writes them unchanged does not force a recompile."""
-    work = WALLY / ACT_DIR / "work" / f"cvw-{config}"
-    files = sorted(f for ext in ("*.svh", "*.h") for f in work.glob(ext)) if work.is_dir() else []
+    friends, in its env directory), which the --fcov compile includes.  Contents rather than times,
+    so that a rebuild that writes them unchanged does not force a recompile."""
+    env = fcovWork(config) / "env"
+    files = sorted(f for ext in ("*.svh", "*.h") for f in env.glob(ext)) if env.is_dir() else []
     return hashlib.md5(b"".join(f.read_bytes() for f in files)).hexdigest()
+
+
+def fcovKey(args):
+    """Build-hash component for --fcov: the ACT configuration headers the compile includes."""
+    return fcovConfigDigest(args.config) if args.fcov else ""
+
+
+def fcovDirs(args):
+    """Extra source directories that decide whether a --fcov build is out of date."""
+    return FCOV_DIRS if args.fcov else ()
 
 
 def targetMtime(target):
@@ -312,10 +350,9 @@ def runQuesta(args, flags, env):
     env = {"MTI_VCO_MODE": "64", **env}
     sim_dir = WALLY / "sim" / "questa"
 
-    # Compute build hash from all compile-time parameters (flags, params, defines), and for --fcov
-    # the covergroups compiled in, which follow the set of built ACT test directories
-    fcovKey = (fcovConfigDigest(args.config), *fcovGroups(args.config)) if args.fcov else ()
-    bhash = buildHash(flags, args.params, args.define, *fcovKey)
+    # Compute build hash from all compile-time parameters (flags, params, defines, which name the
+    # covergroups compiled in), and for --fcov the ACT configuration headers
+    bhash = buildHash(flags, args.params, args.define, fcovKey(args))
     wkdir = f"wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
 
     # Build compile-time flag arguments; the -do script is Tcl, which groups each quoted value
@@ -330,7 +367,7 @@ def runQuesta(args, flags, env):
     wkdir_path = WALLY / "sim" / "questa" / wkdir
     target = wkdir_path / "testbenchopt"
     target_mtime = targetMtime(target)
-    needs_compile = target_mtime is None or not isDesignUpToDate(target, FCOV_DIRS if args.fcov else ())
+    needs_compile = target_mtime is None or not isDesignUpToDate(target, fcovDirs(args))
     with compileLock("questa", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(target)
         if needs_compile and current_mtime == target_mtime:
@@ -353,7 +390,7 @@ def runQuesta(args, flags, env):
 def runVerilator(args):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
-    bhash = buildHash(args.params, args.define)
+    bhash = buildHash(args.params, args.define, fcovKey(args))
     workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = workdir / f"V{args.tb}"
 
@@ -365,9 +402,10 @@ def runVerilator(args):
         f"PARAM_ARGS={args.params}",
         f"DEFINE_ARGS={args.define}",
         f"BUILD_HASH={bhash}",
+        f"FCOV={int(args.fcov)}",
     ]
     target_mtime = targetMtime(binary)
-    needs_compile = target_mtime is None or not isDesignUpToDate(binary)
+    needs_compile = target_mtime is None or not isDesignUpToDate(binary, fcovDirs(args))
     with compileLock("verilator", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(binary)
         if needs_compile and current_mtime == target_mtime:
@@ -383,13 +421,15 @@ def runVerilator(args):
     (sim_dir / "logs").mkdir(parents=True, exist_ok=True)
     runtime_args = [f"+TEST={args.testsuite}"] if args.tb == "testbench" else []
     runtime_args += shlex.split(args.args)
+    if args.fcov:
+        runtime_args.append(f"+verilator+coverage+file+{sim_dir}/fcov_dat/{args.config}_{args.testsuite}.dat")
     return run([str(binary), *runtime_args], sim_dir, success=successPattern(args))
 
 
 def runVCS(args, flags, env):
     print(f"Running VCS on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "vcs"
-    bhash = buildHash(flags, args.params, args.define)
+    bhash = buildHash(flags, args.params, args.define, fcovKey(args))
     wkdir = f"{WALLY}/sim/vcs/wkdir/{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = Path(wkdir) / "sim_out"
 
@@ -402,7 +442,10 @@ def runVCS(args, flags, env):
 
     # Phase 1: Compile (only once per config/flags/params/defines combo)
     target_mtime = targetMtime(binary)
-    needs_compile = target_mtime is None or not isDesignUpToDate(binary)
+    # run_vcs holds the compile options and coverage.hier the code coverage scope, so they are sources too
+    scripts = [WALLY / "sim" / "vcs" / f for f in ("run_vcs", "coverage.hier")]
+    needs_compile = (target_mtime is None or not isDesignUpToDate(binary, fcovDirs(args))
+                     or any(f.stat().st_mtime > target_mtime for f in scripts))
     with compileLock("vcs", f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"):
         current_mtime = targetMtime(binary)
         if needs_compile and current_mtime == target_mtime:

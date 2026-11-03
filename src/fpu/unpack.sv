@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module unpack import cvw::*;  #(parameter cvw_t P) (
+module unpack import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FLEN-1:0]       X, Y, Z,              // inputs from register file
   input  logic [P.FMTBITS-1:0]    Fmt,                  // format signal 00 - single 01 - double 11 - quad 10 - half
   input  logic                    XEn, YEn, ZEn,        // input enables

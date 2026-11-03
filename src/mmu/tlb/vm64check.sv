@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vm64check import cvw::*;  #(parameter cvw_t P) (
+module vm64check import cvw::*; #(parameter cvw_t P) (
   input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,
   input  logic [P.XLEN-1:0]         VAdr,
   output logic                      SV39Mode,

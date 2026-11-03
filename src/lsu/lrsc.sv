@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module lrsc import cvw::*;  #(parameter cvw_t P) (
+module lrsc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   input  logic                 StallW,
