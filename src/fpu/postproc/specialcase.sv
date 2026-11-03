@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module specialcase import cvw::*;  #(parameter cvw_t P) (
+module specialcase import cvw::*; #(parameter cvw_t P) (
   input  logic                 Xs,                // X sign
   input  logic [P.NF:0]        Xm, Ym, Zm,        // input significands
   input  logic                 XNaN, YNaN, ZNaN,  // are the inputs NaN
@@ -77,158 +77,158 @@ module specialcase import cvw::*;  #(parameter cvw_t P) (
   // UfRes is +/-0, or the smallest subnormal if rounding away from zero (Plus1 with Frm[1] = 1 for RDN/RUP)
   if (P.FPSIZES == 1) begin
       // NaN res selection depending on standard
-      if (P.IEEE754) begin
-          assign XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
-          assign YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
-          assign ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
-          assign InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-      end else begin
-          assign InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-      end
+    if (P.IEEE754) begin
+      assign XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
+      assign YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
+      assign ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
+      assign InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+    end else begin
+      assign InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+    end
 
-      assign OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
-      assign UfRes   = {Rs, {P.FLEN-2{1'b0}}, Plus1 & Frm[1] & ~(DivOp & YInf)};
-      assign NormRes = {Rs, Re, Rf};
+    assign OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
+    assign UfRes   = {Rs, {P.FLEN-2{1'b0}}, Plus1 & Frm[1] & ~(DivOp & YInf)};
+    assign NormRes = {Rs, Re, Rf};
 
   end else if (P.FPSIZES == 2) begin
-      if (P.IEEE754) begin
-          assign XNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF1]};
-          assign YNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF1]};
-          assign ZNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF1]};
-          assign InvalidRes = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
-      end else begin
-          assign InvalidRes = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
-      end
+    if (P.IEEE754) begin
+      assign XNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF1]};
+      assign YNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF1]};
+      assign ZNaNRes    = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF1]};
+      assign InvalidRes = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
+    end else begin
+      assign InvalidRes = OutFmt ? {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}} : {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
+    end
 
-      always_comb
-          if (OutFmt)
-              if (OfResMax)   OfRes = {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}};
-              else            OfRes = {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
-          else
-              if (OfResMax)   OfRes = {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1-1{1'b1}}, 1'b0, {P.NF1{1'b1}}};
-              else            OfRes = {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1{1'b1}}, (P.NF1)'(0)};
-      assign UfRes = OutFmt ? {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)} : {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-      assign NormRes = OutFmt ? {Rs, Re, Rf} : {{P.FLEN-P.LEN1{1'b1}}, Rs, Re[P.NE1-1:0], Rf[P.NF-1:P.NF-P.NF1]};
+    always_comb
+      if (OutFmt)
+        if (OfResMax)   OfRes = {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}};
+        else            OfRes = {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
+      else
+        if (OfResMax)   OfRes = {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1-1{1'b1}}, 1'b0, {P.NF1{1'b1}}};
+        else            OfRes = {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1{1'b1}}, (P.NF1)'(0)};
+    assign UfRes = OutFmt ? {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)} : {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+    assign NormRes = OutFmt ? {Rs, Re, Rf} : {{P.FLEN-P.LEN1{1'b1}}, Rs, Re[P.NE1-1:0], Rf[P.NF-1:P.NF-P.NF1]};
 
   end else if (P.FPSIZES == 3) begin
-      always_comb
-          case (OutFmt)
-              P.FMT: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
-                      YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
-                      ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
-                      InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-                  end else begin
-                      InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-                  end
+    always_comb
+      case (OutFmt)
+        P.FMT: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
+            YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
+            ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
+            InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+          end else begin
+            InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+          end
 
-                  OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
-                  UfRes   = {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {Rs, Re, Rf};
-              end
-              P.FMT1: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF1]};
-                      YNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF1]};
-                      ZNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF1]};
-                      InvalidRes = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
-                  end else begin
-                      InvalidRes = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
-                  end
-                  OfRes          = OfResMax ? {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1-1{1'b1}}, 1'b0, {P.NF1{1'b1}}} : {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1{1'b1}}, (P.NF1)'(0)};
-                  UfRes          = {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes        = {{P.FLEN-P.LEN1{1'b1}}, Rs, Re[P.NE1-1:0], Rf[P.NF-1:P.NF-P.NF1]};
-              end
-              P.FMT2: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF2]};
-                      YNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF2]};
-                      ZNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF2]};
-                      InvalidRes = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, (P.NF2-1)'(0)};
-                  end else begin
-                      InvalidRes = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, (P.NF2-1)'(0)};
-                  end
+          OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
+          UfRes   = {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {Rs, Re, Rf};
+        end
+        P.FMT1: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF1]};
+            YNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF1]};
+            ZNaNRes    = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF1]};
+            InvalidRes = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
+          end else begin
+            InvalidRes = {{P.FLEN-P.LEN1{1'b1}}, 1'b0, {P.NE1{1'b1}}, 1'b1, (P.NF1-1)'(0)};
+          end
+          OfRes          = OfResMax ? {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1-1{1'b1}}, 1'b0, {P.NF1{1'b1}}} : {{P.FLEN-P.LEN1{1'b1}}, Rs, {P.NE1{1'b1}}, (P.NF1)'(0)};
+          UfRes          = {{P.FLEN-P.LEN1{1'b1}}, Rs, (P.LEN1-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes        = {{P.FLEN-P.LEN1{1'b1}}, Rs, Re[P.NE1-1:0], Rf[P.NF-1:P.NF-P.NF1]};
+        end
+        P.FMT2: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.NF2]};
+            YNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.NF2]};
+            ZNaNRes    = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.NF2]};
+            InvalidRes = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, (P.NF2-1)'(0)};
+          end else begin
+            InvalidRes = {{P.FLEN-P.LEN2{1'b1}}, 1'b0, {P.NE2{1'b1}}, 1'b1, (P.NF2-1)'(0)};
+          end
 
-                  OfRes   = OfResMax ? {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2-1{1'b1}}, 1'b0, {P.NF2{1'b1}}} : {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2{1'b1}}, (P.NF2)'(0)};
-                  UfRes   = {{P.FLEN-P.LEN2{1'b1}}, Rs, (P.LEN2-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {{P.FLEN-P.LEN2{1'b1}}, Rs, Re[P.NE2-1:0], Rf[P.NF-1:P.NF-P.NF2]};
-              end
-              default: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = (P.FLEN)'(0);
-                      YNaNRes    = (P.FLEN)'(0);
-                      ZNaNRes    = (P.FLEN)'(0);
-                      InvalidRes = (P.FLEN)'(0);
-                  end else begin
-                      InvalidRes = (P.FLEN)'(0);
-                  end
-                  OfRes          = (P.FLEN)'(0);
-                  UfRes          = (P.FLEN)'(0);
-                  NormRes        = (P.FLEN)'(0);
-              end
-          endcase
+          OfRes   = OfResMax ? {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2-1{1'b1}}, 1'b0, {P.NF2{1'b1}}} : {{P.FLEN-P.LEN2{1'b1}}, Rs, {P.NE2{1'b1}}, (P.NF2)'(0)};
+          UfRes   = {{P.FLEN-P.LEN2{1'b1}}, Rs, (P.LEN2-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {{P.FLEN-P.LEN2{1'b1}}, Rs, Re[P.NE2-1:0], Rf[P.NF-1:P.NF-P.NF2]};
+        end
+        default: begin
+          if (P.IEEE754) begin
+            XNaNRes    = (P.FLEN)'(0);
+            YNaNRes    = (P.FLEN)'(0);
+            ZNaNRes    = (P.FLEN)'(0);
+            InvalidRes = (P.FLEN)'(0);
+          end else begin
+            InvalidRes = (P.FLEN)'(0);
+          end
+          OfRes          = (P.FLEN)'(0);
+          UfRes          = (P.FLEN)'(0);
+          NormRes        = (P.FLEN)'(0);
+        end
+      endcase
 
   end else if (P.FPSIZES == 4) begin
-      always_comb
-          case (OutFmt)
-              2'h3: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
-                      YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
-                      ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
-                      InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-                  end else begin
-                      InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
-                  end
+    always_comb
+      case (OutFmt)
+        P.Q_FMT: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Xm[P.NF-2:0]};
+            YNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Ym[P.NF-2:0]};
+            ZNaNRes    = {1'b0, {P.NE{1'b1}}, 1'b1, Zm[P.NF-2:0]};
+            InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+          end else begin
+            InvalidRes = {1'b0, {P.NE{1'b1}}, 1'b1, {P.NF-1{1'b0}}};
+          end
 
-                  OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
-                  UfRes   = {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {Rs, Re, Rf};
-              end
-              2'h1: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.D_NF]};
-                      YNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.D_NF]};
-                      ZNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.D_NF]};
-                      InvalidRes = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, (P.D_NF-1)'(0)};
-                  end else begin
-                      InvalidRes = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, (P.D_NF-1)'(0)};
-                  end
-                  OfRes   = OfResMax ? {{P.FLEN-P.D_LEN{1'b1}}, Rs, {P.D_NE-1{1'b1}}, 1'b0, {P.D_NF{1'b1}}} : {{P.FLEN-P.D_LEN{1'b1}}, Rs, {P.D_NE{1'b1}}, (P.D_NF)'(0)};
-                  UfRes   = {{P.FLEN-P.D_LEN{1'b1}}, Rs, (P.D_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {{P.FLEN-P.D_LEN{1'b1}}, Rs, Re[P.D_NE-1:0], Rf[P.NF-1:P.NF-P.D_NF]};
-              end
-              2'h0: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.S_NF]};
-                      YNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.S_NF]};
-                      ZNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.S_NF]};
-                      InvalidRes = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, (P.S_NF-1)'(0)};
-                  end else begin
-                      InvalidRes = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, (P.S_NF-1)'(0)};
-                  end
+          OfRes   = OfResMax ? {Rs, {P.NE-1{1'b1}}, 1'b0, {P.NF{1'b1}}} : {Rs, {P.NE{1'b1}}, {P.NF{1'b0}}};
+          UfRes   = {Rs, (P.FLEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {Rs, Re, Rf};
+        end
+        P.D_FMT: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.D_NF]};
+            YNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.D_NF]};
+            ZNaNRes    = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.D_NF]};
+            InvalidRes = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, (P.D_NF-1)'(0)};
+          end else begin
+            InvalidRes = {{P.FLEN-P.D_LEN{1'b1}}, 1'b0, {P.D_NE{1'b1}}, 1'b1, (P.D_NF-1)'(0)};
+          end
+          OfRes   = OfResMax ? {{P.FLEN-P.D_LEN{1'b1}}, Rs, {P.D_NE-1{1'b1}}, 1'b0, {P.D_NF{1'b1}}} : {{P.FLEN-P.D_LEN{1'b1}}, Rs, {P.D_NE{1'b1}}, (P.D_NF)'(0)};
+          UfRes   = {{P.FLEN-P.D_LEN{1'b1}}, Rs, (P.D_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {{P.FLEN-P.D_LEN{1'b1}}, Rs, Re[P.D_NE-1:0], Rf[P.NF-1:P.NF-P.D_NF]};
+        end
+        P.S_FMT: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.S_NF]};
+            YNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.S_NF]};
+            ZNaNRes    = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.S_NF]};
+            InvalidRes = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, (P.S_NF-1)'(0)};
+          end else begin
+            InvalidRes = {{P.FLEN-P.S_LEN{1'b1}}, 1'b0, {P.S_NE{1'b1}}, 1'b1, (P.S_NF-1)'(0)};
+          end
 
-                  OfRes   = OfResMax ? {{P.FLEN-P.S_LEN{1'b1}}, Rs, {P.S_NE-1{1'b1}}, 1'b0, {P.S_NF{1'b1}}} : {{P.FLEN-P.S_LEN{1'b1}}, Rs, {P.S_NE{1'b1}}, (P.S_NF)'(0)};
-                  UfRes   = {{P.FLEN-P.S_LEN{1'b1}}, Rs, (P.S_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {{P.FLEN-P.S_LEN{1'b1}}, Rs, Re[P.S_NE-1:0], Rf[P.NF-1:P.NF-P.S_NF]};
-              end
-              2'h2: begin
-                  if (P.IEEE754) begin
-                      XNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.H_NF]};
-                      YNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.H_NF]};
-                      ZNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.H_NF]};
-                      InvalidRes = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, (P.H_NF-1)'(0)};
-                  end else begin
-                      InvalidRes = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, (P.H_NF-1)'(0)};
-                  end
+          OfRes   = OfResMax ? {{P.FLEN-P.S_LEN{1'b1}}, Rs, {P.S_NE-1{1'b1}}, 1'b0, {P.S_NF{1'b1}}} : {{P.FLEN-P.S_LEN{1'b1}}, Rs, {P.S_NE{1'b1}}, (P.S_NF)'(0)};
+          UfRes   = {{P.FLEN-P.S_LEN{1'b1}}, Rs, (P.S_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {{P.FLEN-P.S_LEN{1'b1}}, Rs, Re[P.S_NE-1:0], Rf[P.NF-1:P.NF-P.S_NF]};
+        end
+        P.H_FMT: begin
+          if (P.IEEE754) begin
+            XNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Xm[P.NF-2:P.NF-P.H_NF]};
+            YNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Ym[P.NF-2:P.NF-P.H_NF]};
+            ZNaNRes    = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, Zm[P.NF-2:P.NF-P.H_NF]};
+            InvalidRes = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, (P.H_NF-1)'(0)};
+          end else begin
+            InvalidRes = {{P.FLEN-P.H_LEN{1'b1}}, 1'b0, {P.H_NE{1'b1}}, 1'b1, (P.H_NF-1)'(0)};
+          end
 
-                  OfRes   = OfResMax ? {{P.FLEN-P.H_LEN{1'b1}}, Rs, {P.H_NE-1{1'b1}}, 1'b0, {P.H_NF{1'b1}}} : {{P.FLEN-P.H_LEN{1'b1}}, Rs, {P.H_NE{1'b1}}, (P.H_NF)'(0)};
+          OfRes   = OfResMax ? {{P.FLEN-P.H_LEN{1'b1}}, Rs, {P.H_NE-1{1'b1}}, 1'b0, {P.H_NF{1'b1}}} : {{P.FLEN-P.H_LEN{1'b1}}, Rs, {P.H_NE{1'b1}}, (P.H_NF)'(0)};
                   // zero is exact if dividing by infinity so don't add 1
-                  UfRes   = {{P.FLEN-P.H_LEN{1'b1}}, Rs, (P.H_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
-                  NormRes = {{P.FLEN-P.H_LEN{1'b1}}, Rs, Re[P.H_NE-1:0], Rf[P.NF-1:P.NF-P.H_NF]};
-              end
-          endcase
+          UfRes   = {{P.FLEN-P.H_LEN{1'b1}}, Rs, (P.H_LEN-2)'(0), Plus1 & Frm[1] & ~(DivOp & YInf)};
+          NormRes = {{P.FLEN-P.H_LEN{1'b1}}, Rs, Re[P.H_NE-1:0], Rf[P.NF-1:P.NF-P.H_NF]};
+        end
+      endcase
   end
 
   // determine if you should kill the res - Cvt

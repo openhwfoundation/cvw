@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ieu import cvw::*;  #(parameter cvw_t P) (
+module ieu import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   // Decode stage signals
   input  logic [31:0]       InstrD,                           // Instruction
