@@ -38,7 +38,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0] InstrD,                   // lmul sequenced micro-op instruction in Decode stage
   // CSR state
   input  logic [1:0]        STATUS_VS,
-  input  logic [P.XLEN-1:0] VTYPE_REGW,
+  input  logic [P.XLEN-1:0] VTYPED,             // vtype, forwarded from an older in-flight vset
   // Decode stage outputs
   output logic [4:0]  Vs1D, Vs2D,               // Vector Source 1 and 2
   output logic [4:0]  VdD,                      // Vector Destination read (overwrite)
@@ -54,7 +54,11 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
-  output logic        IllegalVPUInstrD
+  output logic        IllegalVPUInstrD,
+  output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
+  output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
+  output logic        VsetivliD,                // vsetivli: AVL is the uimm5 in the rs1 field
+  output logic [10:0] VTYPEImmD                 // zero-extended vtype immediate for vsetvli / vsetivli
 );
 
 
@@ -100,7 +104,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   // vtype element width
   logic [2:0] SewD;                      // log2(SEW)
-  assign SewD = 3'd3 + VTYPE_REGW[5:3];
+  assign SewD = 3'd3 + VTYPED[5:3];
 
   // Vls width field to element width
   always_comb begin
@@ -159,13 +163,13 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
       endcase
   end
 
-  // vset decoding: legal encodings only until vset is supported
-  logic VsetvliD, VsetivliD, VsetvlD;
-  logic VsetD;                                 // vsetvli, vsetivli, or vsetvl
+  // vset decoding
+  logic VsetvliD;
 
   assign VsetvliD  = VSETD & (InstrD[31] == 1'b0);             // vsetvli:  InstrD[31]    == 0       → vtype imm = InstrD[30:20], AVL = rs1   InstrD[19:15]
   assign VsetivliD = VSETD & (InstrD[31:30] == 2'b11);         // vsetivli: InstrD[31:30] == 11      → vtype imm = InstrD[29:20], AVL = uimm5 InstrD[19:15]
   assign VsetvlD   = VSETD & (InstrD[31:25] == 7'b1000000);    // vsetvl:   InstrD[31:25] == 1000000 → vtype rs2 = InstrD[24:20], AVL = rs1   InstrD[19:15]
+  assign VTYPEImmD = VsetivliD ? {1'b0, InstrD[29:20]} : InstrD[30:20];
 
   // execution unit class
   localparam logic [2:0] VEUTYPE_INT = 3'b001, VEUTYPE_FP = 3'b010, VEUTYPE_MEM = 3'b100;
@@ -504,7 +508,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   always_comb
     if (STATUS_VS == 2'b00)                    // vector instr are illegal when VS is off
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
-    else if (VTYPE_REGW[P.XLEN-1] & ~VSETD)    // vtype.vill, only vset may execute
+    else if (VTYPED[P.XLEN-1] & ~VSETD)        // vtype.vill, only vset may execute
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
     else begin
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;     // default illegal instr

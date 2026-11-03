@@ -37,7 +37,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   input logic                         VectorD,                    // This instruction is a vector
   // CSR state
   input logic [1:0]                   STATUS_VS,                  // vector (VS) field in status register
-  input logic [P.XLEN-1:0]            VTYPE_REGW,                 // vtype
+  input logic [P.XLEN-1:0]            VTYPED,                     // vtype, forwarded from an older vset still in flight
 
   // Decode stage outputs
   output logic [4:0]                  Vs1FinalD, Vs2FinalD,       // Vector Source 1 and 2
@@ -52,6 +52,11 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VALUSrcBD,
   output logic                        VALUResultSrcD,
   output logic                        IllegalVPUInstrD,
+  // vset controls, sent to vconfig
+  output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
+  output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
+  output logic                        VsetivliD,                  // vsetivli: AVL is the uimm5 in the rs1 field
+  output logic [10:0]                 VTYPEImmD,                  // zero-extended vtype immediate for vsetvli / vsetivli
   // hand shaking controls
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
@@ -79,11 +84,12 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
 
   vdecoder #(P) vdecoder(.clk, .reset, .VectorStallD, .VectorFlushD,
-                         .InstrD, .STATUS_VS, .VTYPE_REGW, .Vs1D, .Vs2D, .VdD, .VMD,
+                         .InstrD, .STATUS_VS, .VTYPED, .Vs1D, .Vs2D, .VdD, .VMD,
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
-                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD);
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD,
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
                                .VectorD, .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,

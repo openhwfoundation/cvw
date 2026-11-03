@@ -114,14 +114,14 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          STATUS_MXR, STATUS_SUM, STATUS_MPRV;
   logic [1:0]                    STATUS_MPP, STATUS_FS, STATUS_VS;
   // Vector CSR states
-  // TODO: VPU does not drive these CSR updates yet, tied to 0 for now
+  // TODO: VPU drives only the vset updates (vl, vtype, vstart); vector register dirty and vxsat are tied to 0 for now
   logic [P.XLEN-1:0]             VTYPE_REGW, VL_REGW;
   logic [$clog2(P.VLEN)-1:0]     VSTART_REGW;
   logic [1:0]                    VXRM_REGW;
   logic                          VRegWriteM, WriteVLVTYPEM, NewVILLM, SetVXSATM, ClearVSTARTM;
   logic [P.XLEN-1:0]             NewVLM;
   logic [7:0]                    NewVTYPEM;
-  assign {VRegWriteM, WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, SetVXSATM, ClearVSTARTM} = '0;
+  assign {VRegWriteM, SetVXSATM} = '0;
   logic [1:0]                    PrivilegeModeW;
   logic [P.XLEN-1:0]             PTE;
   logic [2:0]                    PageType;
@@ -192,6 +192,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.VPU_LSU_BLEN-1:0]     VReadDataM;
   logic                          VPUFrontEndBusyD;
   logic                          VPUBackEndBusyE;
+  logic                          VWriteIntE;
+  logic [P.XLEN-1:0]             VIntResM;
 
   // instruction fetch unit: PC, branch prediction, instruction cache
   ifu #(P) ifu(.clk, .reset,
@@ -221,7 +223,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
      // Decode Stage interface
      .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUVPUInstrD, .IllegalBaseInstrD, .VectorD,
      // Execute Stage interface
-     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .IntDivE, .W64E,
+     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .VWriteIntE, .IEUAdrE, .IntDivE, .W64E,
      .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
      // Memory stage interface
      .SquashSCW,  // from LSU
@@ -231,7 +233,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
      .WriteDataM, // Write data to LSU
      .Funct3M,    // size and signedness to LSU
      .SrcAM,      // to privilege and fpu
-     .RdE, .RdM, .FIntResM, .FlushDCacheM,
+     .RdE, .RdM, .FIntResM, .VIntResM, .FlushDCacheM,
      .BranchD, .BranchE, .JumpD, .JumpE,
      // Writeback stage
      .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]),
@@ -390,13 +392,15 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
 
   if (P.ZVE32X_SUPPORTED) begin : vpu
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
-                 .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .VPUFrontEndBusyD, .VPUBackEndBusyE,
-                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE,
+                 .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .StallE, .FlushE, .FlushM,
+                 .VPUFrontEndBusyD, .VPUBackEndBusyE,
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VIntResM,
                  .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW,
-                 .STATUS_VS, .VTYPE_REGW);
+                 .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin
-    assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD} = '0;
+    assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD, VWriteIntE, VIntResM,
+            WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM} = '0;
   end
 
 endmodule
