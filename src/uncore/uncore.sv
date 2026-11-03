@@ -19,7 +19,6 @@
 module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
   input  logic [P.PA_BITS-1:0] HADDR,
   input  logic [P.AHBW-1:0]    HWDATA,
   input  logic [P.XLEN/8-1:0]  HWSTRB,
@@ -135,7 +134,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
 
-  if (P.UART_SUPPORTED == 1) begin : uartgen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
+  if (P.UART_SUPPORTED == 1) begin : uartgen
     uart_apb #(P) uart(
       .PCLK, .PRESETn, .PSEL(PSEL[3]), .PADDR(PADDR[2:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[3]), .PREADY(PREADY[3]),
