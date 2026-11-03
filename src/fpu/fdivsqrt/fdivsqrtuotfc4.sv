@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtuotfc4 import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtuotfc4 import cvw::*; #(parameter cvw_t P) (
   input  logic [3:0]      udigit,
   input  logic [P.DIVb:0] U, UM,          // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer
   input  logic [P.DIVb:0] C,              // Q1.DIVb

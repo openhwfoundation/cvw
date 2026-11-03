@@ -22,8 +22,8 @@ module priorityaomux #(parameter ROWS = 8, COLS = 64) (
   output logic [COLS-1:0]     Y,
   output logic [ROWS-1:0]     SelPriority);
 
-  logic [COLS-1:0]           AMasked [ROWS-1:0];
-  genvar                     index;
+  logic [COLS-1:0] AMasked [ROWS-1:0];
+  genvar           index;
 
   priorityonehot #(ROWS) priorityonehot(Sel, SelPriority);
   for (index = 0; index < ROWS; index = index + 1) begin

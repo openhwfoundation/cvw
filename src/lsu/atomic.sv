@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module atomic import cvw::*;  #(parameter cvw_t P, parameter bit ZABHA_SUPPORTED = 0) (
+module atomic import cvw::*; #(parameter cvw_t P, parameter bit ZABHA_SUPPORTED = 0) (
   input  logic                 clk,
   input  logic                 reset,
   input  logic                 StallW,

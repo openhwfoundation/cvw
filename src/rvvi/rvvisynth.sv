@@ -19,23 +19,23 @@
 module rvvisynth import cvw::*; #(parameter cvw_t P,
                                   parameter integer MAX_CSRS = 5,
                                   parameter integer TOTAL_CSRS = 36) (
-  input logic                                     clk, reset,
-  input logic                                     StallE, StallM, StallW, FlushE, FlushM, FlushW,
+  input  logic                                          clk, reset,
+  input  logic                                          StallE, StallM, StallW, FlushE, FlushM, FlushW,
   // required
-  input logic [P.XLEN-1:0]                        PCM,
-  input logic                                     InstrValidM,
-  input logic [31:0]                              InstrRawD,
-  input logic [63:0]                              Mcycle, Minstret,
-  input logic                                     TrapM,
-  input logic [1:0]                               PrivilegeModeW,
+  input  logic [P.XLEN-1:0]                             PCM,
+  input  logic                                          InstrValidM,
+  input  logic [31:0]                                   InstrRawD,
+  input  logic [63:0]                                   Mcycle, Minstret,
+  input  logic                                          TrapM,
+  input  logic [1:0]                                    PrivilegeModeW,
   // registers gpr and fpr
-  input logic                                     GPRWen, FPRWen,
-  input logic [4:0]                               GPRAddr, FPRAddr,
-  input logic [P.XLEN-1:0]                        GPRValue, FPRValue,
-  input var logic [P.XLEN-1:0]                    CSRArray [TOTAL_CSRS-1:0],
-  output logic                                    valid,
-  output logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvvi
-  );
+  input  logic                                          GPRWen, FPRWen,
+  input  logic [4:0]                                    GPRAddr, FPRAddr,
+  input  logic [P.XLEN-1:0]                             GPRValue, FPRValue,
+  input  var logic [P.XLEN-1:0]                         CSRArray [TOTAL_CSRS-1:0],
+  output logic                                          valid,
+  output logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi
+);
 
   // pipeline controls
 
@@ -70,7 +70,7 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
   flopenrc #(32)     InstrRawWReg (clk, reset, FlushW, ~StallW, InstrRawM, InstrRawW);
   flopenrc #(1)      TrapWReg (clk, reset, 1'b0, ~StallW, TrapM, TrapW);
 
-  assign valid  = InstrValidW & ~StallW;
+  assign valid = InstrValidW & ~StallW;
   assign Required = {4'b0, CSRCount, 3'b0, FPRWen, GPRWen, PrivilegeModeW, TrapW, Minstret, Mcycle, InstrRawW, PCW};
   assign Registers = {FPRWen, GPRWen} == 2'b11 ? {FPRValue, 3'b0, FPRAddr, GPRValue, 3'b0, GPRAddr} :
                      {FPRWen, GPRWen} == 2'b01 ? {XLENZeros, 8'b0, GPRValue, 3'b0, GPRAddr} :

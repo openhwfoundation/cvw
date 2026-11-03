@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module flags import cvw::*;  #(parameter cvw_t P) (
+module flags import cvw::*; #(parameter cvw_t P) (
   input  logic                 Xs,                     // X sign
   input  logic [P.FMTBITS-1:0] OutFmt,                 // output format
   input  logic                 InfIn,                  // is an Inf input being used
@@ -82,33 +82,32 @@ module flags import cvw::*;  #(parameter cvw_t P) (
   //          - the most significant in 65 or 33 is still a one in the number and
   //            one of the later bits is one
   //      i.e. ignoring the sign bit, ShiftGtIntSz = (FullRe >= 65) for 64-bit integers or (FullRe >= 33) for 32-bit integers
+  assign ShiftGtIntSz = (|FullRe[P.NE:7] | (FullRe[6] & ~Int64)) | ((|FullRe[4:0] | (FullRe[5] & Int64)) & ((FullRe[5] & ~Int64) | FullRe[6] & Int64));
+
+  // ResExpGteMax: the result exponent is greater than or equal to the maximum exponent of the output format
   if (P.FPSIZES == 1) begin
-      assign ResExpGteMax = &FullRe[P.NE-1:0] | FullRe[P.NE];
-      assign ShiftGtIntSz = (|FullRe[P.NE:7] | (FullRe[6] & ~Int64)) | ((|FullRe[4:0] | (FullRe[5] & Int64)) & ((FullRe[5] & ~Int64) | FullRe[6] & Int64));
+    assign ResExpGteMax = &FullRe[P.NE-1:0] | FullRe[P.NE];
 
   end else if (P.FPSIZES == 2) begin
-      assign ResExpGteMax = OutFmt ? &FullRe[P.NE-1:0] | FullRe[P.NE] : &FullRe[P.NE1-1:0] | (|FullRe[P.NE:P.NE1]);
+    assign ResExpGteMax = OutFmt ? &FullRe[P.NE-1:0] | FullRe[P.NE] : &FullRe[P.NE1-1:0] | (|FullRe[P.NE:P.NE1]);
 
-      assign ShiftGtIntSz = (|FullRe[P.NE:7] | (FullRe[6] & ~Int64)) | ((|FullRe[4:0] | (FullRe[5] & Int64)) & ((FullRe[5] & ~Int64) | FullRe[6] & Int64));
   end else if (P.FPSIZES == 3) begin
-      always_comb
-          case (OutFmt)
-              P.FMT: ResExpGteMax   = &FullRe[P.NE-1:0]  | FullRe[P.NE];
-              P.FMT1: ResExpGteMax  = &FullRe[P.NE1-1:0] | (|FullRe[P.NE:P.NE1]);
-              P.FMT2: ResExpGteMax  = &FullRe[P.NE2-1:0] | (|FullRe[P.NE:P.NE2]);
-              default: ResExpGteMax = 1'bx;
-          endcase
-      assign ShiftGtIntSz = (|FullRe[P.NE:7] | (FullRe[6] & ~Int64)) | ((|FullRe[4:0] | (FullRe[5] & Int64)) & ((FullRe[5] & ~Int64) | FullRe[6] & Int64));
+    always_comb
+      case (OutFmt)
+        P.FMT: ResExpGteMax   = &FullRe[P.NE-1:0]  | FullRe[P.NE];
+        P.FMT1: ResExpGteMax  = &FullRe[P.NE1-1:0] | (|FullRe[P.NE:P.NE1]);
+        P.FMT2: ResExpGteMax  = &FullRe[P.NE2-1:0] | (|FullRe[P.NE:P.NE2]);
+        default: ResExpGteMax = 1'bx;
+      endcase
 
   end else if (P.FPSIZES == 4) begin
-      always_comb
-          case (OutFmt)
-              P.Q_FMT: ResExpGteMax = &FullRe[P.Q_NE-1:0] | FullRe[P.Q_NE];
-              P.D_FMT: ResExpGteMax = &FullRe[P.D_NE-1:0] | (|FullRe[P.Q_NE:P.D_NE]);
-              P.S_FMT: ResExpGteMax = &FullRe[P.S_NE-1:0] | (|FullRe[P.Q_NE:P.S_NE]);
-              P.H_FMT: ResExpGteMax = &FullRe[P.H_NE-1:0] | (|FullRe[P.Q_NE:P.H_NE]);
-          endcase
-      assign ShiftGtIntSz = (|FullRe[P.Q_NE:7] | (FullRe[6] & ~Int64)) | ((|FullRe[4:0] | (FullRe[5] & Int64)) & ((FullRe[5] & ~Int64) | FullRe[6] & Int64));
+    always_comb
+      case (OutFmt)
+        P.Q_FMT: ResExpGteMax = &FullRe[P.Q_NE-1:0] | FullRe[P.Q_NE];
+        P.D_FMT: ResExpGteMax = &FullRe[P.D_NE-1:0] | (|FullRe[P.Q_NE:P.D_NE]);
+        P.S_FMT: ResExpGteMax = &FullRe[P.S_NE-1:0] | (|FullRe[P.Q_NE:P.S_NE]);
+        P.H_FMT: ResExpGteMax = &FullRe[P.H_NE-1:0] | (|FullRe[P.Q_NE:P.H_NE]);
+      endcase
   end
 
   // calculate overflow flag:
