@@ -552,7 +552,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign VdNoOverlapD = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS) |
                         (VOpClassD == VOPCLASS_MASK) | (VOpClassD == VOPCLASS_SLIDE) & ~Funct6D[0];   // slideups
 
-  vreserved #(P) vreserved(.SewD, .VlmulD(VTYPE_REGW[2:0]), .VdD, .Vs2D, .Vs1D, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+  vreserved #(P) vreserved(.SewD, .VlmulD(VTYPED[2:0]), .VdD, .Vs2D, .Vs1D, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
     .VdEnD, .Vs2EnD, .Vs1EnD, .VReductionD, .VScalarMoveD, .VWholeRegD, .NfD(VLoadStoreD ? NfD : Vs1D[2:0]),
     .VLSModeD, .VMD, .VRegWriteD, .VdNoOverlapD, .IllegalVOperandD);
 

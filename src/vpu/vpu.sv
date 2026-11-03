@@ -86,6 +86,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
   logic [10:0] VTYPEImmD;                     // vtype immediate
   logic [P.XLEN-1:0] VTYPED;                  // vtype seen by Decode, forwarded from an older vset
+  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
   logic [P.VLEN-1:0] VResultFinalW;
@@ -195,7 +196,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   // vset runs in the scalar pipeline; vconfig computes vl and vtype in Execute and forwards vtype to Decode
   vconfig #(P) vconfig(.clk, .reset, .StallE, .FlushE, .StallM, .FlushM,
-                       .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .Rs1D(InstrD[19:15]), .RdD(InstrD[11:7]), .VTYPED,
+                       .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .Rs1D(InstrD[19:15]), .RdD(InstrD[11:7]), .VTYPED, .VLD,
                        .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VTYPE_REGW, .VL_REGW,
                        .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM);
 

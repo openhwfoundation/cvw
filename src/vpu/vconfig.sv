@@ -28,6 +28,7 @@ module vconfig import cvw::*;  #(parameter cvw_t P) (
   input  logic [10:0]       VTYPEImmD,          // zero-extended vtype immediate for vsetvli/vsetivli
   input  logic [4:0]        Rs1D, RdD,          // rs1 and rd fields, which select the AVL
   output logic [P.XLEN-1:0] VTYPED,             // vtype seen by Decode, forwarded from an older vset
+  output logic [P.XLEN-1:0] VLD,                // vl seen by Decode, forwarded from an older vset
   // Execute stage
   input  logic [P.XLEN-1:0] ForwardedSrcAE,     // rs1: AVL for vsetvli/vsetvl
   input  logic [P.XLEN-1:0] ForwardedSrcBE,     // rs2: full vtype for vsetvl
@@ -118,5 +119,6 @@ module vconfig import cvw::*;  #(parameter cvw_t P) (
   // vtype forwarding to Decode: the youngest older vset wins (Execute, then Memory, then the committed CSR)
   mux3 #(P.XLEN) vtypefwdmux(VTYPE_REGW, {NewVILLM, {(P.XLEN-9){1'b0}}, NewVTYPEM}, {NewVILLE, {(P.XLEN-9){1'b0}}, NewVTYPEE},
                              {VsetE, WriteVLVTYPEM}, VTYPED);
+  mux3 #(P.XLEN) vlfwdmux(VL_REGW, NewVLM, NewVLE, {VsetE, WriteVLVTYPEM}, VLD);
 
 endmodule
