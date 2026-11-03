@@ -18,7 +18,7 @@
 
 module ahbinterface #(
   parameter XLEN,
-  parameter logic LSU = 1'b0                                   // 1: LSU bus width is `XLEN, 0: IFU bus width is 32 bits
+  parameter logic LSU = 1'b0 // 1: LSU bus width is XLEN, 0: IFU bus width is 32 bits
 )(
   input  logic                          HCLK, HRESETn,
   // bus interface
@@ -41,7 +41,7 @@ module ahbinterface #(
   output logic [XLEN-1:0]               FetchBuffer   // Register to hold HRDATA after arriving from the bus
 );
 
-  logic                                 CaptureEn;
+  logic CaptureEn;
 
   // The IFU decodes its fetch buffer for spill detection even on a fetch that faulted before reaching the
   // bus.  A configuration that fetches everything from the IROM never fills the buffer, so reset it there

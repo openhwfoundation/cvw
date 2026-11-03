@@ -33,7 +33,7 @@ module ebufsmarb (
   output logic       LSUDisable,
   output logic       LSUSelect);
 
-  typedef enum       logic [1:0] {IDLE, ARBITRATE} statetype;
+  typedef enum logic [1:0] {IDLE, ARBITRATE} statetype;
   statetype          CurrState, NextState;
 
   logic              both;                       // Both the LSU and IFU request at the same time

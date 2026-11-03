@@ -16,8 +16,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcamline import cvw::*;  #(parameter cvw_t P,
-                                    parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
+module tlbcamline import cvw::*; #(parameter cvw_t P,
+                                   parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
   input  logic                   clk, reset,
   input  logic [P.VPN_BITS-1:0]  VPN,          // The requested page number to compare against the key
   input  logic [P.ASID_BITS-1:0] SATP_ASID,
@@ -36,13 +36,8 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   output logic                   Match
 );
 
-  // PageTypeRead is a key for a peta, tera, giga, mega, or kilopage.
+  // PageTypeRead is a key for a peta, tera, giga, mega, or kilopage (KILOPAGE..PETAPAGE in the cvw package).
   // PageType == 3'b000 --> kilopage
-  // PageType == 3'b001 --> megapage
-  // PageType == 3'b010 --> gigapage
-  // PageType == 3'b011 --> terapage
-  // PageType == 3'b100 --> petapage
-  // This entry has KEY_BITS for the key plus one valid bit.
   logic                Valid;
   logic [KEY_BITS-1:0] Key;
   logic [2:0]          PageType;
@@ -65,25 +60,25 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   // In Svnapot, if N bit is set and bottom 4 bits of PPN = 1000, then these bits don't need to match
   assign Match0Upper = (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]);
   assign MatchNAPOT = P.SVNAPOT_SUPPORTED & PTE_NAPOT & Match0Upper;
-  assign Match0 = (Query0 == Key0) | (PageType > 3'd0) | MatchNAPOT; // always match for megapage or larger
+  assign Match0 = (Query0 == Key0) | (PageType > KILOPAGE) | MatchNAPOT; // always match for megapage or larger
 
   // segment 1
   assign Key1   = Key[2*SEGMENT_BITS-1:SEGMENT_BITS];
   assign Query1 = VPN[2*SEGMENT_BITS-1:SEGMENT_BITS];
-  assign Match1 = (Query1 == Key1) | (PageType > 3'd1); // always match for gigapage or larger
+  assign Match1 = (Query1 == Key1) | (PageType > MEGAPAGE); // always match for gigapage or larger
 
   if (P.SV39_SUPPORTED) begin : segment2
     logic [SEGMENT_BITS-1:0] Key2, Query2;
     assign Key2   = Key[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
     assign Query2 = VPN[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
-    assign Match2 = (Query2 == Key2) | (PageType > 3'd2);  // always match for terapage or larger
+    assign Match2 = (Query2 == Key2) | (PageType > GIGAPAGE); // always match for terapage or larger
   end else assign Match2 = 1'b1;
 
   if (P.SV48_SUPPORTED) begin : segment3
     logic [SEGMENT_BITS-1:0] Key3, Query3;
     assign Key3   = Key[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
     assign Query3 = VPN[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
-    assign Match3 = (Query3 == Key3) | (PageType > 3'd3) | SV39Mode; // always match in SV39 mode or for petapage
+    assign Match3 = (Query3 == Key3) | (PageType > TERAPAGE) | SV39Mode; // always match in SV39 mode or for petapage
   end else assign Match3 = 1'b1;
 
   if (P.SV57_SUPPORTED) begin : segment4
@@ -99,9 +94,9 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   // either page, and a global PTE overlaps lines of every ASID.  A TLB write invalidates every other overlapping
   // line, so no address ever matches two entries (lookups OR the matching entries together).
   logic Overlap;
-  assign Overlap = (Match0 | (PageTypeWriteVal > 3'd0) | (WritePTE_NAPOT & Match0Upper)) &
-                   (Match1 | (PageTypeWriteVal > 3'd1)) & (Match2 | (PageTypeWriteVal > 3'd2)) &
-                   (Match3 | (PageTypeWriteVal > 3'd3)) & Match4 & (MatchASID | WritePTE_G) & Valid;
+  assign Overlap = (Match0 | (PageTypeWriteVal > KILOPAGE) | (WritePTE_NAPOT & Match0Upper)) &
+                   (Match1 | (PageTypeWriteVal > MEGAPAGE)) & (Match2 | (PageTypeWriteVal > GIGAPAGE)) &
+                   (Match3 | (PageTypeWriteVal > TERAPAGE)) & Match4 & (MatchASID | WritePTE_G) & Valid;
 
   // On a write, update the type of the page referred to by this line.
   flopenr #(3) pagetypeflop(clk, reset, WriteEnable, PageTypeWriteVal, PageType);

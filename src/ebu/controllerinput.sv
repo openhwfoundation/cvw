@@ -53,7 +53,7 @@ module controllerinput #(
     flopenr #(1+3+3+2+PA_BITS) SaveReg(HCLK, ~HRESETn, Save,
       {HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
       {HWRITESave, HSIZESave, HBURSTSave, HTRANSSave, HADDRSave});
-    mux2 #(1+3+3+2+PA_BITS) RestorMux({HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
+    mux2 #(1+3+3+2+PA_BITS) RestoreMux({HWRITEIn, HSIZEIn, HBURSTIn, HTRANSIn, HADDRIn},
       {HWRITESave, HSIZESave, HBURSTSave, HTRANSSave, HADDRSave},
       Restore,
       {HWRITEOut, HSIZEOut, HBURSTOut, HTRANSOut, HADDROut});

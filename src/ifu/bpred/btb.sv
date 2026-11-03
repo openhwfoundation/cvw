@@ -16,8 +16,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module btb import cvw::*;  #(parameter cvw_t P,
-                             parameter Depth = 10) (
+module btb import cvw::*; #(parameter cvw_t P,
+                            parameter Depth = 10) (
   input  logic              clk,
   input  logic              reset,
   input  logic              StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW,
@@ -91,8 +91,8 @@ module btb import cvw::*;  #(parameter cvw_t P,
     assign BPBTAF = BPBTALowF;
     assign BPBTAE = BPBTALowE;
   end
-  // IClass = {Call, Return, Jump, Branch}: target is checked for branches and non-return jumps (the RAS predicts returns)
-  assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[0] | IClassE[1] & ~IClassE[2]);
+  // Target is checked for branches and non-return jumps (the RAS predicts returns)
+  assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[ICLASS_BRANCH] | IClassE[ICLASS_JUMP] & ~IClassE[ICLASS_RETURN]);
 
   flopenrc #(1) BPBTAWrongMReg(clk, reset, FlushM, ~StallM, BPBTAWrongE, BPBTAWrongM);
   assign BTBWrongM = BPBTAWrongM | IClassWrongM;

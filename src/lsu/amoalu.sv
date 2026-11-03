@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module amoalu import cvw::*;  #(parameter cvw_t P) (
+module amoalu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] ReadDataM,    // LSU's ReadData
   input  logic [P.XLEN-1:0] IHWriteDataM, // LSU's WriteData
   input  logic [6:0]        LSUFunct7M,   // ALU Operation

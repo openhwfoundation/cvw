@@ -37,8 +37,8 @@
  */
 
 // The TLB has TLB_ENTRIES entries
-module tlb import cvw::*;  #(parameter cvw_t P,
-                             parameter TLB_ENTRIES = 8, ITLB = 0) (
+module tlb import cvw::*; #(parameter cvw_t P,
+                            parameter TLB_ENTRIES = 8, ITLB = 0) (
   input  logic                     clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
@@ -84,7 +84,7 @@ module tlb import cvw::*;  #(parameter cvw_t P,
 
   if (P.XLEN == 32) begin
     assign MegapageMisaligned = |(PPN[9:0]); // must have zero PPN0
-    assign Misaligned = (HitPageType == 3'b001) & MegapageMisaligned;
+    assign Misaligned = (HitPageType == MEGAPAGE) & MegapageMisaligned;
   end else begin // 64-bit
     logic GigapageMisaligned, TerapageMisaligned, PetapageMisaligned;
     assign PetapageMisaligned = |(PPN[35:0]) & P.SV57_SUPPORTED;  // must have zero PPN3, PPN2, PPN1, PPN0
@@ -92,14 +92,14 @@ module tlb import cvw::*;  #(parameter cvw_t P,
     assign GigapageMisaligned = |(PPN[17:0]);                     // must have zero PPN1 and PPN0
     assign MegapageMisaligned = |(PPN[8:0]);                      // must have zero PPN0
     assign Misaligned =
-              ((HitPageType == 3'b100) & PetapageMisaligned) |
-              ((HitPageType == 3'b011) & TerapageMisaligned) |
-              ((HitPageType == 3'b010) & GigapageMisaligned) |
-              ((HitPageType == 3'b001) & MegapageMisaligned);
+              ((HitPageType == PETAPAGE) & PetapageMisaligned) |
+              ((HitPageType == TERAPAGE) & TerapageMisaligned) |
+              ((HitPageType == GIGAPAGE) & GigapageMisaligned) |
+              ((HitPageType == MEGAPAGE) & MegapageMisaligned);
   end
 
   assign VPN = VAdr[P.VPN_BITS+11:12];
-  assign NAPOT4 = (PPN[3:0] == 4'b1000) & (HitPageType == 3'b000); // 64 KiB contiguous region with pte.napot_bits = 4; N=1 is reserved on superpages
+  assign NAPOT4 = (PPN[3:0] == 4'b1000) & (HitPageType == KILOPAGE); // 64 KiB contiguous region with pte.napot_bits = 4; N=1 is reserved on superpages
 
   tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
