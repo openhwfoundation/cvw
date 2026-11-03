@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmtparams import cvw::*;  #(parameter cvw_t P) (
+module fmtparams import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FMTBITS-1:0] Fmt,   // format
   output logic [P.NE-2:0]      Bias,  // exponent bias
   output logic [P.LOGFLEN-1:0] Nf     // number of fraction bits
@@ -37,10 +37,10 @@ module fmtparams import cvw::*;  #(parameter cvw_t P) (
   end else if (P.FPSIZES == 4) begin
     always_comb
       case (Fmt)
-        2'h3: Bias = (P.NE-1)'(P.Q_BIAS);
-        2'h1: Bias = (P.NE-1)'(P.D_BIAS);
-        2'h0: Bias = (P.NE-1)'(P.S_BIAS);
-        2'h2: Bias = (P.NE-1)'(P.H_BIAS);
+        P.Q_FMT: Bias = (P.NE-1)'(P.Q_BIAS);
+        P.D_FMT: Bias = (P.NE-1)'(P.D_BIAS);
+        P.S_FMT: Bias = (P.NE-1)'(P.S_BIAS);
+        P.H_FMT: Bias = (P.NE-1)'(P.H_BIAS);
       endcase
   end
 

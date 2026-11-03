@@ -15,17 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module rom1p1rline #(parameter ADDR_WIDTH = 8, DATA_WIDTH = 32, WORDS = 4, PRELOAD_ENABLED = 0)
-  (input  logic                          clk,
-   input  logic                          ce,
-   input  logic [ADDR_WIDTH-1:0]         addr,  // line address
-   output logic [WORDS*DATA_WIDTH-1:0]   dout
+module rom1p1rline #(parameter ADDR_WIDTH = 8, DATA_WIDTH = 32, WORDS = 4, PRELOAD_ENABLED = 0) (
+  input  logic                        clk,
+  input  logic                        ce,
+  input  logic [ADDR_WIDTH-1:0]       addr,  // line address
+  output logic [WORDS*DATA_WIDTH-1:0] dout
 );
 
   localparam WORDBITS = $clog2(WORDS);  // 0 for a line of one word
 
   // Core Memory
-  bit [DATA_WIDTH-1:0]    ROM [(2**(ADDR_WIDTH+WORDBITS))-1:0];
+  bit [DATA_WIDTH-1:0] ROM [(2**(ADDR_WIDTH+WORDBITS))-1:0];
 
   `ifdef VERILATOR
     import "DPI-C" function string getenvval(input string env_name);

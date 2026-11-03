@@ -19,7 +19,7 @@
 ///////////////////////////////
 // Unified OTFC, Radix 2 //
 ///////////////////////////////
-module fdivsqrtuotfc2 import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtuotfc2 import cvw::*; #(parameter cvw_t P) (
   input  logic              up, un,
   input  logic [P.DIVb+1:0] C,                // Q2.DIVb
   input  logic [P.DIVb:0]   U, UM,            // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer
