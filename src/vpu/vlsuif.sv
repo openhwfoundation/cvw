@@ -38,6 +38,9 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   output logic [4:0]                  VdW,                            // destination vector register (to vregfile)
   output logic                        ValidW,                         // writeback control: load data valid (to vregfile)
 
+  input logic                         ValidD,                         // valid signal from the controller that there is a new operation
+  output logic                        ReadyD,                         // ready signal from VLSUIF to controller that it can accept a new operation
+
   input logic [1:0]                   VMemRWD,                        // vector memory read/write: [1] = read, [0] = write
 
   // datapath from vregfile
@@ -58,10 +61,11 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   logic [4:0]        VdE, VdM;
   logic [P.VLEN-1:0] Vs3E;
 
-  assign VSizeM = 3'b110;
+  assign VSizeM = 3'b110; // TODO: This is a placeholder value, need to accomodate multiple element sizes
+  assign ReadyD = 1'b1; // TODO: This is a placeholder value, need to implement a ready signal for the LSU interface
 
   // memory read/write control and destination register travel with the instruction to writeback
-  flopr #(2) vmemrwE(clk, reset, VMemRWD, VMemRWE);
+  flopr #(2) vmemrwE(clk, reset, VMemRWD & ValidD, VMemRWE);
   flopr #(2) vmemrwM(clk, reset, VMemRWE, VMemRWM);
   flopr #(2) vmemrwW(clk, reset, VMemRWM, VMemRWW);
 
