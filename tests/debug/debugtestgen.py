@@ -139,8 +139,11 @@ def main(args):
 
     openocd_proc = start_openocd(args.tcl, args.isa, args.test, port)
     openocd_proc.wait()
-    spikeinst.kill()
-    spikeinst.wait()
+    try:
+        spikeinst.wait(timeout=1)  # Some tests end after OpenOCD finishes. Have to wait for them.
+    except subprocess.TimeoutExpired:
+        spikeinst.kill()
+        spikeinst.wait()
 
     print(os.path.splitext(args.test))
 
