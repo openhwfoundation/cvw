@@ -17,11 +17,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module hazard (
-  input  logic  BPWrongE, CSRWriteFenceM, RetM, TrapM,
-  input  logic  StructuralStallD,
-  input  logic  LSUStallM, IFUStallF,
-  input  logic  FPUStallD, ExternalStall,
-  input  logic  DivBusyE, FDivBusyE,
+  input  logic BPWrongE, CSRWriteFenceM, RetM, TrapM,
+  input  logic StructuralStallD,
+  input  logic LSUStallM, IFUStallF,
+  input  logic FPUStallD, ExternalStall,
+  input  logic DivBusyE, FDivBusyE,
   input  logic  WaitM,                 // wfi in M is waiting for an interrupt
   // Stall & flush outputs
   output logic StallF, StallD, StallE, StallM, StallW,

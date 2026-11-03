@@ -52,19 +52,17 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]           PWMGPIO
 );
 
-  logic [P.XLEN-1:0]           HREADRam, HREADSDC;
+  logic [P.XLEN-1:0]           HREADRam;
 
   logic [12:0]                 HSELRegions;
   logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART, HSELSDC, HSELSPI, HSELPWM;
   logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
-  logic                        HRESPRam, HRESPSDC;
-  logic                        HREADYRam, HRESPSDCD;
+  logic                        HRESPRam, HREADYRam;
   logic [P.XLEN-1:0]           HREADBootRom;
-  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
+  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom;
   logic                        HSELNoneD;
   logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
-  logic                        SDCIntM;
 
   logic                        PCLK, PRESETn, PWRITE, PENABLE;
   logic [6:0]                  PSEL;

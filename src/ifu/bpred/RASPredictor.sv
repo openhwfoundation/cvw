@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module RASPredictor import cvw::*;  #(parameter cvw_t P) (
+module RASPredictor import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              reset,
   input  logic              StallD, StallE, StallM, FlushD, FlushE, FlushM,

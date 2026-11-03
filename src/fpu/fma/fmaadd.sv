@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaadd import cvw::*;  #(parameter cvw_t P) (
+module fmaadd import cvw::*; #(parameter cvw_t P) (
   input  logic [3*P.NF+5:0]    Am,         // aligned addend's mantissa for addition in U(NF+5.2NF+1)
   input  logic [P.NE-1:0]      Ze,         // exponent of Z
   input  logic                 Ps,         // the product's sign

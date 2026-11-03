@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module pmachecker import cvw::*;  #(parameter cvw_t P) (
+module pmachecker import cvw::*; #(parameter cvw_t P) (
   input  logic [P.PA_BITS-1:0] PhysicalAddress,
   input  logic                 PAOutOfRange,   // Untranslated address has nonzero bits above PA_BITS
   input  logic [1:0]           Size,

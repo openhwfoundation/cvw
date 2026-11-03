@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fctrl import cvw::*;  #(parameter cvw_t P) (
+module fctrl import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   // input control signals
@@ -54,7 +54,7 @@ module fctrl import cvw::*;  #(parameter cvw_t P) (
   // other control signals
   output logic                 IllegalFPUInstrD,                   // Is the instruction an illegal fpu instruction
   output logic                 FDivStartE, IDivStartE              // Start division or square root
-  );
+);
 
   `define FCTRLW 14
 
@@ -80,12 +80,12 @@ module fctrl import cvw::*;  #(parameter cvw_t P) (
   assign Fmt = Funct7D[1:0];
   assign Fmt2 = Rs2D[1:0]; // source format for fcvt fp->fp
 
-  assign SupportedFmt =  (Fmt == 2'b00  | (Fmt == 2'b01 & P.D_SUPPORTED) |
-                         (Fmt == 2'b10 & P.ZFH_SUPPORTED)  | (Fmt == 2'b11 & P.Q_SUPPORTED));
-  assign SupportedFmt2 = (Fmt2 == 2'b00 | (Fmt2 == 2'b01 & P.D_SUPPORTED) |
-                         (Fmt2 == 2'b10 & P.ZFH_SUPPORTED) | (Fmt2 == 2'b11 & P.Q_SUPPORTED));
+  assign SupportedFmt =  (Fmt == P.S_FMT  | (Fmt == P.D_FMT & P.D_SUPPORTED) |
+                         (Fmt == P.H_FMT & P.ZFH_SUPPORTED)  | (Fmt == P.Q_FMT & P.Q_SUPPORTED));
+  assign SupportedFmt2 = (Fmt2 == P.S_FMT | (Fmt2 == P.D_FMT & P.D_SUPPORTED) |
+                         (Fmt2 == P.H_FMT & P.ZFH_SUPPORTED) | (Fmt2 == P.Q_FMT & P.Q_SUPPORTED));
   // rounding modes 5 and 6 are reserved.  Rounding mode 7 is dynamic, and is reserved if FRM is 5, 6, or 7
-  assign SupportedRM =  ~(Funct3D == 3'b101 | Funct3D == 3'b110 | (Funct3D == 3'b111 & (FRM_REGW == 3'b101 | FRM_REGW == 3'b110 | FRM_REGW == 3'b111))) |
+  assign SupportedRM =  ~(Funct3D == 3'b101 | Funct3D == 3'b110 | (Funct3D == RM_DYN & (FRM_REGW == 3'b101 | FRM_REGW == 3'b110 | FRM_REGW == RM_DYN))) |
                          (OpD == 7'b1010011 & Funct3D == 3'b101 & Funct7D[6:2] == 5'b10100 & P.ZFA_SUPPORTED); // Zfa fltq has a funny rounding mode
 
   // decode the instruction
@@ -256,7 +256,7 @@ module fctrl import cvw::*;  #(parameter cvw_t P) (
   //    011 - round up - round towards positive infinity
   //    100 - round to nearest, ties to max magnitude - round to nearest, ties away from zero
   //    111 - dynamic - choose FRM_REGW as rounding mode
-  assign FrmD = (Funct3D == 3'b111) ? FRM_REGW : Funct3D;
+  assign FrmD = (Funct3D == RM_DYN) ? FRM_REGW : Funct3D;
 
   // Precision
   //    00 - single
@@ -285,18 +285,18 @@ module fctrl import cvw::*;  #(parameter cvw_t P) (
   //    X - all except int->fp, store, load, mv int->fp
   assign XEnD = ~(((FResSelD == 2'b10) & ~FWriteIntD) |                                                         // load/store
                   ((FResSelD == 2'b00) & FRegWriteD & (OpCtrlD == 3'b011)) |                                    // mv int to float
-                  ((FResSelD == 2'b01) & (PostProcSelD == 2'b00) & OpCtrlD[2]));                                // cvt int to float
+                  ((FResSelD == 2'b01) & (PostProcSelD == POSTPROC_CVT) & OpCtrlD[2]));                          // cvt int to float
 
   //    Y - all except cvt, mv, load, class, sqrt
   assign YEnD = ~(((FResSelD == 2'b10) & (FWriteIntD | FRegWriteD)) |                                           // load or class
                   ((FResSelD == 2'b00) & FRegWriteD & (OpCtrlD == 3'b011)) |                                    // mv int to float as above
-                  ((FResSelD == 2'b11) & (PostProcSelD == 2'b00)) |                                             // mv float to int
-                  ((FResSelD == 2'b01) & ((PostProcSelD == 2'b00) | ((PostProcSelD == 2'b01) & OpCtrlD[0]))));  // cvt both or sqrt
+                  ((FResSelD == 2'b11) & (PostProcSelD == POSTPROC_CVT)) |                                       // mv float to int
+                  ((FResSelD == 2'b01) & ((PostProcSelD == POSTPROC_CVT) | ((PostProcSelD == POSTPROC_DIV) & OpCtrlD[0]))));  // cvt both or sqrt
 
   //    Z - unpacked for fma (OpCtrl 0xx) and add/sub (11x), where Z takes Y's value; not fmul (100).
   //    rs3 is only read by fma, so ZEnD, which drives the hazard unit, excludes add/sub, whose InstrD[31:27] is funct5, not rs3.
-  assign ZUnpackEnD = (PostProcSelD == 2'b10) & (~OpCtrlD[2] | OpCtrlD[1]);                                     // fma, add, sub
-  assign ZEnD       = (PostProcSelD == 2'b10) & ~OpCtrlD[2];                                                    // fma only
+  assign ZUnpackEnD = (PostProcSelD == POSTPROC_FMA) & (~OpCtrlD[2] | OpCtrlD[1]);                               // fma, add, sub
+  assign ZEnD       = (PostProcSelD == POSTPROC_FMA) & ~OpCtrlD[2];                                              // fma only
 
   //  Final Res Sel:
   //        fp      int

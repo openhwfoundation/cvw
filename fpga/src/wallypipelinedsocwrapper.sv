@@ -1,4 +1,3 @@
-///////////////////////////////////////////
 // wallypipelinedsocwrapper.sv
 //
 // Written: Rose Thompson rose@rosethompson.net 16 June 2023
