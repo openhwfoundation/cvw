@@ -181,7 +181,7 @@ module debug import cvw::*; #(parameter cvw_t P) (
   assign InitRequest = ((DMIOP == RD) | (DMIOP == WR)) & DMIVALID;
   assign ReadRequest = DMIOP == RD & DMIVALID;
   assign WriteRequest = DMIOP == WR & DMIVALID & DMActive;
-  assign ResetDM = reset | ~DMActive;
+  assign ResetDM = reset | ~DMActive | (DMControlWrite & ~DMIDATA[0]);
 
   always_ff @(posedge clk) begin
     if (reset | DMIRSPVALID) begin
@@ -217,12 +217,13 @@ module debug import cvw::*; #(parameter cvw_t P) (
         end
 
         DMSTATUS: begin
-          DMIRSPDATA <= {DMStatus[31:25], NDMResetPending, DMStatus[23:20],
+          DMIRSPDATA <= {7'b0, NDMResetPending, 1'b0, 1'b0, 2'b0,
                          DebugHaveReset, DebugHaveReset,
                          AllResumeAck, AnyResumeAck,
-                         DMStatus[15:12],
+                         4'b0,
                          AllRunning, AnyRunning, AllHalted, AnyHalted,
-                         DMStatus[7:0]};
+                         1'b1, 1'b0, 1'b1, 1'b0, 4'd3
+          };
         end
 
         ABSTRACTCS: DMIRSPDATA <= AbstractCS;
@@ -235,16 +236,22 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // Writes to registers
   // ----------------------------------------------------------------
 
-  // DMControl
+  // DMActive get it's own block.
   always_ff @(posedge clk) begin
     if (reset) begin
-      DMControl <= '0;
+      DMControl[0] <= 1'b0;
     end else if (DMControlWrite) begin
       DMControl[0] <= DMIDATA[0];
-      if (DMActive) begin
+    end
+  end
+
+  // DMControl
+  always_ff @(posedge clk) begin
+    if (reset | ~DMActive | (DMControlWrite & ~DMIDATA[0])) begin
+      DMControl[31:1] <= '0;
+    end else if (DMControlWrite) begin
         DMControl[31] <= DMIDATA[31];
         DMControl[1] <= DMIDATA[1];
-      end
     end
   end
 
@@ -273,11 +280,6 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // [5]     hasresethaltreq    — Halt-on-reset request is implemented
   // [4]     confstrptrvalid    — Configuration string pointer is valid
   // [3:0]   version            — Debug Module version (0=none, 1=0.11, 2=0.13, 3=1.0)
-  always_ff @(posedge clk) begin
-    if (ResetDM) begin
-      DMStatus <= {14'b0, 2'b11, 8'b0, 1'b1, 1'b0, 1'b1, 1'b0, 4'b11};
-    end
-  end
 
   // Data Registers, used as arguments for writing to registers and
   // for storing results read from registers. ReadRegister contains
