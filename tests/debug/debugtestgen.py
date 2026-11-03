@@ -113,7 +113,7 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
     openocd_args = [
         "openocd",
         "-c", f"set PORT {port}",
-        "-c", "gdb port disabled; telnet port disabled; tcl port disabled"
+        "-c", "gdb port disabled; telnet port disabled; tcl port disabled",
         "-f", "openocd.cfg",
         "-c", f"set ISA32 {1 if isa == '32' else 0}",
         "-c", f"set BUILD_DIR {build_dir}",
