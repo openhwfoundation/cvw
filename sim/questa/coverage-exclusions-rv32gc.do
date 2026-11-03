@@ -416,10 +416,20 @@ ExcludeRows $DMMU/pmachecker e {PMAAccessFault_* +ExecuteAccessF_*}
 ExcludeRows $DMMU/pmp/pmpchecker e {MatchingX_* EnforcePMP_* ExecuteAccessF_1}
 
 # PMA regions 1-3 (DTIM, IROM, external memory) are not supported (DTIM/IROM/EXT_MEM_SUPPORTED = 0), so
-# SelRegions[1], [2] and [3] are always 0 in both MMUs.
+# SelRegions[1], [2] and [3] are always 0 in both MMUs.  There is no EXT_IO window (EXT_IO_SUPPORTED = 0), so
+# SelExtIO is always 0, and so is SelExtMem = SelRegions[3] & ~SelExtIO.
 foreach mmu [list $IMMU $DMMU] {
-  ExcludeTermRows $mmu/pmachecker e {{SelRegions\[1\]_1} {SelRegions\[2\]_1} {SelRegions\[3\]_1}}
+  ExcludeTermRows $mmu/pmachecker e {{SelRegions\[1\]_1} {SelRegions\[2\]_1} {SelRegions\[3\]_1} SelExtMem_1 SelExtIO_1}
+  # SelExtIO_0 in SelExtMem needs SelRegions[3] = 1
+  ExcludeRows $mmu/pmachecker e {SelExtIO_0} [TagLine ${SRC}/mmu/pmachecker.sv sel-ext-mem]
+  # extiodec: Sel = Match & Supported & AccessValid & SizeValid with Supported = 0, so only Supported_0 can be reached
+  ExcludeRows $mmu/pmachecker/extiodec e {Match_* Supported_1 AccessValid_* SizeValid_*}
 }
+# In PMAAccessFault the window term ExecuteAccessF & SelExtIO is always 0: ExecuteAccessF_1 needs SelExtIO = 1 (the
+# IMMU's ExecuteAccessF_0 row is excluded above with its tied ExecuteAccessF), and in the DMMU, whose ExecuteAccessF
+# is tied to 0, ExecuteAccessF_0 needs SelExtIO = 1 and SelExtIO_0 needs ExecuteAccessF = 1.
+ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
+ExcludeRows $DMMU/pmachecker e {ExecuteAccessF_0 SelExtIO_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
 
 # Region decoders: Sel = Match & Supported & AccessValid & SizeValid.  Supported is a configuration constant: 0 for
 # the DTIM, IROM, external memory and SD card controller, 1 for the rest.  Instruction side: AccessValid is AccessRW

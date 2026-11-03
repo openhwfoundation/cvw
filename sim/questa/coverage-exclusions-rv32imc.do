@@ -348,18 +348,30 @@ foreach dec {dtimdec clintdec gpiodec plicdec spidec pwmdec} {
 ExcludeRows $IMMU/pmachecker/adrdecs/iromdec e {AccessValid_0 SizeValid_0}
 ExcludeRows $IMMU/pmachecker/adrdecs/sdcdec e {Supported_0}
 ExcludeRows $IMMU/pmachecker/adrdecs/uartdec e {Match_0 Match_1 Supported_0 Supported_1 AccessValid_0 AccessValid_1 SizeValid_0 SizeValid_1}
-# The external memory, boot ROM and uncore RAM regions are absent (SelRegions[3], [4], [5] = 0).  The DTIM
+# The external memory, boot ROM and uncore RAM regions are absent (SelRegions[3], [4], [5] = 0), and there is no
+# EXT_IO window (EXT_IO_SUPPORTED = 0, SelExtIO = 0), so SelExtMem = SelRegions[3] & ~SelExtIO is 0 too.  The DTIM
 # and IROM share one address range, so a load or store that selects the IROM always selects the DTIM too
 # (DMMU SelRegions[2] alone never happens), and the IMMU never selects the read/write-only DTIM
 # (IMMU SelRegions[1] = 0).
 foreach mmu [list $IMMU $DMMU] {
-    ExcludeRows $mmu/pmachecker e [list {SelRegions\[3\]_1} {SelRegions\[4\]_1} {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-cacheable]
+    ExcludeRows $mmu/pmachecker e [list SelExtMem_1 {SelRegions\[4\]_1} {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-cacheable]
 }
-ExcludeRows $IMMU/pmachecker e [list {SelRegions\[1\]_1} {SelRegions\[3\]_1} {SelRegions\[4\]_1} {SelRegions\[5\]_1}]
-ExcludeRows $IMMU/pmachecker e [list {SelRegions\[1\]_1} {SelRegions\[3\]_1} {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-atomic]
+ExcludeRows $IMMU/pmachecker e [list {SelRegions\[1\]_1} SelExtMem_1 {SelRegions\[4\]_1} {SelRegions\[5\]_1}]
+ExcludeRows $IMMU/pmachecker e [list {SelRegions\[1\]_1} SelExtMem_1 {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-atomic]
 ExcludeRows $IMMU/pmachecker e [list {SelRegions\[1\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-tim]
-ExcludeRows $DMMU/pmachecker e [list {SelRegions\[2\]_1} {SelRegions\[3\]_1} {SelRegions\[4\]_1} {SelRegions\[5\]_1}]
-ExcludeRows $DMMU/pmachecker e [list {SelRegions\[3\]_1} {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-atomic]
+ExcludeRows $DMMU/pmachecker e [list {SelRegions\[2\]_1} SelExtMem_1 {SelRegions\[4\]_1} {SelRegions\[5\]_1}]
+ExcludeRows $DMMU/pmachecker e [list SelExtMem_1 {SelRegions\[5\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-atomic]
+foreach mmu [list $IMMU $DMMU] {
+    # SelExtMem: SelRegions[3] is 0, so only SelRegions[3]_0 can be reached (the SelExtIO rows need SelRegions[3] = 1)
+    ExcludeRows $mmu/pmachecker e [list {SelRegions\[3\]_1} SelExtIO_0 SelExtIO_1] [TagLine ${SRC}/mmu/pmachecker.sv sel-ext-mem]
+    # extiodec: Sel = Match & Supported & AccessValid & SizeValid with Supported = 0, so only Supported_0 can be reached
+    ExcludeRows $mmu/pmachecker/extiodec e {Match_0 Match_1 Supported_1 AccessValid_0 AccessValid_1 SizeValid_0 SizeValid_1}
+}
+# In PMAAccessFault the window term ExecuteAccessF & SelExtIO is always 0 (SelExtIO = 0).  The IMMU ties ExecuteAccessF
+# to 1 (ExecuteAccessF_0 cannot happen, ExecuteAccessF_1 needs SelExtIO = 1); the DMMU ties it to 0 (ExecuteAccessF_1
+# cannot happen, ExecuteAccessF_0 needs SelExtIO = 1, SelExtIO_0 needs ExecuteAccessF = 1).
+ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_0 ExecuteAccessF_1 SelExtIO_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
+ExcludeRows $DMMU/pmachecker e {ExecuteAccessF_0 ExecuteAccessF_1 SelExtIO_0 SelExtIO_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
 ExcludeRows $DMMU/pmachecker e [list {SelRegions\[2\]_1}] [TagLine ${SRC}/mmu/pmachecker.sv unused-tim]
 
 ######################################################################################################
