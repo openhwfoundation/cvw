@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbmixer import cvw::*;  #(parameter cvw_t P) (
+module tlbmixer import cvw::*; #(parameter cvw_t P) (
   input  logic [P.VPN_BITS-1:0] VPN,
   input  logic [P.PPN_BITS-1:0] PPN,
   input  logic [2:0]            HitPageType,

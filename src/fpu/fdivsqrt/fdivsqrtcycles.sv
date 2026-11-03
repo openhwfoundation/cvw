@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtcycles import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtcycles import cvw::*; #(parameter cvw_t P) (
   input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
   input  logic                 IntDivE,
   input  logic [P.DIVBLEN-1:0] IntResultBitsE,

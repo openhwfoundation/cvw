@@ -39,12 +39,12 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   // register map
   localparam UART_DLL_RBR = 3'b000;
   localparam UART_DLM_IER = 3'b001;
-  localparam UART_IIR = 3'b010;
-  localparam UART_LCR = 3'b011;
-  localparam UART_MCR = 3'b100;
-  localparam UART_LSR = 3'b101;
-  localparam UART_MSR = 3'b110;
-  localparam UART_SCR = 3'b111;
+  localparam UART_IIR     = 3'b010;
+  localparam UART_LCR     = 3'b011;
+  localparam UART_MCR     = 3'b100;
+  localparam UART_LSR     = 3'b101;
+  localparam UART_MSR     = 3'b110;
+  localparam UART_SCR     = 3'b111;
 
   // transmit and receive states
   typedef enum logic [1:0] {UART_IDLE, UART_ACTIVE, UART_DONE, UART_BREAK} statetype;
@@ -161,11 +161,11 @@ module uartPC16550D #(parameter UART_PRESCALE) (
           UART_DLM_IER: if (DLAB) DLM <= Din; else IER <= Din[3:0];
           // Write only FIFO Control Register; 4:5 reserved and 2:1 self-clearing.  The other bits are
           // programmed only when FCR[0] is written 1 (8.5).
-          UART_IIR: if (Din[0]) FCR <= {Din[7:6], 2'b0, Din[3], 2'b0, 1'b1};
-                    else        FCR[0] <= 1'b0;
-          UART_LCR: LCR <= Din;
-          UART_MCR: MCR <= Din[4:0];
-          UART_SCR: SCR <= Din;
+          UART_IIR:     if (Din[0]) FCR <= {Din[7:6], 2'b0, Din[3], 2'b0, 1'b1};
+                        else        FCR[0] <= 1'b0;
+          UART_LCR:     LCR <= Din;
+          UART_MCR:     MCR <= Din[4:0];
+          UART_SCR:     SCR <= Din;
         endcase
         /* verilator lint_on CASEINCOMPLETE */
       end
@@ -199,12 +199,12 @@ module uartPC16550D #(parameter UART_PRESCALE) (
       case (A)
         UART_DLL_RBR: if (DLAB) Dout = DLL; else Dout = RBR[7:0];
         UART_DLM_IER: if (DLAB) Dout = DLM; else Dout = {4'b0, IER[3:0]};
-        UART_IIR: Dout = {{2{fifoenabled}}, 2'b00, intrID[2:0], ~intrpending}; // Read only Interrupt Ident Register
-        UART_LCR: Dout = LCR;
-        UART_MCR: Dout = {3'b000, MCR};
-        UART_LSR: Dout = {LSR[7] & fifoenabled, LSR[6:1], rxdataready}; // LSR7 is always zero in 16450 mode
-        UART_MSR: Dout = {~DCDbsync, ~RIbsync, ~DSRbsync, ~CTSbsync, MSR[3:0]};
-        UART_SCR: Dout = SCR;
+        UART_IIR:     Dout = {{2{fifoenabled}}, 2'b00, intrID[2:0], ~intrpending}; // Read only Interrupt Ident Register
+        UART_LCR:     Dout = LCR;
+        UART_MCR:     Dout = {3'b000, MCR};
+        UART_LSR:     Dout = {LSR[7] & fifoenabled, LSR[6:1], rxdataready}; // LSR7 is always zero in 16450 mode
+        UART_MSR:     Dout = {~DCDbsync, ~RIbsync, ~DSRbsync, ~CTSbsync, MSR[3:0]};
+        UART_SCR:     Dout = SCR;
       endcase
     else Dout = 8'b0;
 
@@ -222,7 +222,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
     if (~PRESETn) begin
       baudcount <= 1;
       baudpulse <= 1'b0;
-    end else if (~MEMWb & DLAB & (A == 3'b0 | A == 3'b1)) begin // writing DLL or DLM restarts the baud counter
+    end else if (~MEMWb & DLAB & (A == UART_DLL_RBR | A == UART_DLM_IER)) begin // writing DLL or DLM restarts the baud counter
       baudcount <= 1;
     end else begin
       // the baudpulse is too long by 2 clock cycles.
@@ -548,7 +548,7 @@ module uartPC16550D #(parameter UART_PRESCALE) (
   // Side effect of reading IIR is lowering THRE_IP if most significant intr.  Writing THR raises it again
   // once THR is empty, and so does enabling it in IER (as real 16550s do, which Linux's 8250 driver checks
   // for, UART_BUG_THRE) or changing FCR[0] (8.11: the first transmitter interrupt is then immediate).
-  assign setSquashTHRE_IP = ~MEMRb & (A == 3'b010) & (intrID == 3'h1); // there's a 1-cycle delay on set squash so that THRE_IP doesn't change during the process of reading IIR (otherwise combinational loop)
+  assign setSquashTHRE_IP = ~MEMRb & (A == UART_IIR) & (intrID == 3'h1); // there's a 1-cycle delay on set squash so that THRE_IP doesn't change during the process of reading IIR (otherwise combinational loop)
   assign resetSquashTHRE_IP = thrwrite | (~MEMWb & (A == UART_DLM_IER) & ~DLAB & Din[1]) | fifomodechange;
   assign squashTHRE_IP = prevSquashTHRE_IP & ~resetSquashTHRE_IP;
   flopr #(1) squashTHRE_IPreg(PCLK, ~PRESETn, squashTHRE_IP | setSquashTHRE_IP, prevSquashTHRE_IP);

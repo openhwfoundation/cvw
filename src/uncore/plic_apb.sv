@@ -22,10 +22,6 @@
 // does not include source 0, which does not connect to anything according to spec
 // up to 63 sources supported; in the future, allow up to 1023 sources
 
-// number of contexts
-// hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
-`define C 2
-
 module plic_apb import cvw::*; #(parameter cvw_t P) (
   input  logic                PCLK, PRESETn,
   input  logic                PSEL,
@@ -41,6 +37,10 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   output logic                MExtInt, SExtInt
 );
 
+  // number of contexts
+  // hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
+  localparam C = 2;
+
   // register map
   localparam PLIC_INTPRIORITY0   = 24'h000000;
   localparam PLIC_INTPENDING0    = 24'h001000;
@@ -54,34 +54,34 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   localparam PLIC_THRESHOLD1     = 24'h201000;
   localparam PLIC_CLAIMCOMPLETE1 = 24'h201004;
 
-  logic                       memwrite, memread;
-  logic [23:0]                entry;
-  logic [31:0]                Din, Dout;
+  logic                                 memwrite, memread;
+  logic [23:0]                          entry;
+  logic [31:0]                          Din, Dout;
 
   // context-independent signals
-  logic [P.PLIC_NUM_SRC:1]               requests;
-  logic [P.PLIC_NUM_SRC:1][2:0]          intPriority;
-  logic [P.PLIC_NUM_SRC:1]               intInProgress, intPending, nextIntPending;
+  logic [P.PLIC_NUM_SRC:1]              requests;
+  logic [P.PLIC_NUM_SRC:1][2:0]         intPriority;
+  logic [P.PLIC_NUM_SRC:1]              intInProgress, intPending, nextIntPending;
 
   // context-dependent signals
-  logic [`C-1:0][2:0]                    intThreshold;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       intEn;
-  logic [`C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
-  logic [`C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
-  logic [`C-1:0][7:1]                    priorities_with_irqs;
-  logic [`C-1:0][7:1]                    max_priority_with_irqs;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
-  logic [`C-1:0][7:1]                    threshMask;
-  logic [P.PLIC_NUM_SRC-1:0]             One;
+  logic [C-1:0][2:0]                    intThreshold;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       intEn;
+  logic [C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
+  logic [C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
+  logic [C-1:0][7:1]                    priorities_with_irqs;
+  logic [C-1:0][7:1]                    max_priority_with_irqs;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
+  logic [C-1:0][7:1]                    threshMask;
+  logic [P.PLIC_NUM_SRC-1:0]            One;
 
   // hacks to handle gracefully PLIC_NUM_SRC being smaller than 32
   // Otherwise Questa and other simulators produce part-select out of bounds even
   // though sources >=32 are never used
 
-  localparam PLIC_SRC_TOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
-  localparam PLIC_SRC_BOT = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
+  localparam PLIC_SRC_TOP    = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
+  localparam PLIC_SRC_BOT    = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
   localparam PLIC_SRC_DINTOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC - 32 : 0;
-  localparam PLIC_SRC_EXT = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
+  localparam PLIC_SRC_EXT    = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
 
   // =======
   // APB I/O
@@ -177,7 +177,7 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
 
   // context-dependent signals
   genvar ctx;
-  for (ctx = 0; ctx < `C; ctx++) begin
+  for (ctx = 0; ctx < C; ctx++) begin
     // request matrix
     //   priority level (rows) X source ID (columns)
     //

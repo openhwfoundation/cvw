@@ -69,7 +69,7 @@ module ahbcacheinterface import cvw::*; #(
   logic [P.AHBW-1:0]      PreHWDATA;                                  // AHB Address phase write data
   logic [P.PA_BITS-1:0]   PAdrZero;
 
-  genvar                      index;
+  genvar                  index;
 
   // fetch buffer is made of BEATSPERLINE flip-flops
   for (index = 0; index < BEATSPERLINE; index++) begin : fetchbufferbeat
@@ -86,10 +86,10 @@ module ahbcacheinterface import cvw::*; #(
   mux2 #(3) sizemux(.d0(Size), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
 
   // When AHBW is less than LLEN need extra muxes to select the subword from cache's read data.
-  logic [P.AHBW-1:0]          CacheReadDataWordAHB;
+  logic [P.AHBW-1:0] CacheReadDataWordAHB;
   if (LLENPOVERAHBW > 1) begin
-    logic [P.AHBW-1:0]          AHBWordSets [(LLENPOVERAHBW)-1:0];
-    genvar                     index;
+    logic [P.AHBW-1:0] AHBWordSets [(LLENPOVERAHBW)-1:0];
+    genvar             index;
     for (index = 0; index < LLENPOVERAHBW; index++) begin : readdatalinesetsmux
       assign AHBWordSets[index] = CacheReadDataWordM[(index*P.AHBW)+P.AHBW-1: (index*P.AHBW)];
     end
@@ -103,7 +103,7 @@ module ahbcacheinterface import cvw::*; #(
   if (READ_ONLY_CACHE) begin
     assign HWSTRB = '0;
   end else begin // compute byte mask for AHB transaction based on size and address.  AHBW may be different than LLEN
-    logic [P.AHBW/8-1:0]          BusByteMaskM;                           // Byte enables within a word. For cache request all 1s
+    logic [P.AHBW/8-1:0] BusByteMaskM; // Byte enables within a word. For cache request all 1s
 
     swbytemask #(P.AHBW) busswbytemask(.Size(HSIZE), .Adr(HADDR[$clog2(P.AHBW/8)-1:0]), .ByteMask(BusByteMaskM), .ByteMaskExtended());
     flopen #(P.AHBW/8) HWSTRBReg(HCLK, HREADY, BusByteMaskM[P.AHBW/8-1:0], HWSTRB);
