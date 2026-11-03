@@ -119,7 +119,7 @@ module testbench;
   string  elfPathLine;
   integer elfListFD;
   int     NumTests;
-  logic DCacheFlushDone, DCacheFlushStart;
+  logic EndTest;                 // pulses for one cycle when a test finishes
   logic Validate;
   logic SelectTest;
   logic TestComplete;
@@ -219,9 +219,7 @@ module testbench;
                            STATE_LOAD_MEMORIES,
                            STATE_RESET_TEST,
                            STATE_RUN_TEST,
-                           STATE_COPY_RAM,
-                           STATE_CHECK_TEST,
-                           STATE_CHECK_TEST_WAIT,
+                           STATE_END_TEST,
                            STATE_VALIDATE,
                            STATE_INCR_TEST} statetype;
   statetype CurrState, NextState;
@@ -230,7 +228,6 @@ module testbench;
   logic        LoadMem;
   logic        ResetCntEn;
   logic        ResetCntRst;
-  logic        CopyRAM;
 
   string  elffilename, memfilename, bootmemfilename, uartoutfilename;
   logic [P.XLEN-1:0] tohost_addr, begin_signature_addr; // for the test being run; 0 if it lacks the symbol
@@ -259,13 +256,9 @@ module testbench;
       STATE_LOAD_MEMORIES:                        NextState = STATE_RESET_TEST;
       STATE_RESET_TEST:      if(ResetCount < ResetThreshold) NextState = STATE_RESET_TEST;
                              else                 NextState = STATE_RUN_TEST;
-      STATE_RUN_TEST:        if(TestComplete)     NextState = STATE_COPY_RAM;
+      STATE_RUN_TEST:        if(TestComplete)     NextState = STATE_END_TEST;
                              else                 NextState = STATE_RUN_TEST;
-      STATE_COPY_RAM:                             NextState = STATE_CHECK_TEST;
-      STATE_CHECK_TEST:      if (DCacheFlushDone) NextState = STATE_VALIDATE;
-                             else                 NextState = STATE_CHECK_TEST_WAIT;
-      STATE_CHECK_TEST_WAIT: if(DCacheFlushDone)  NextState = STATE_VALIDATE;
-                             else                 NextState = STATE_CHECK_TEST_WAIT;
+      STATE_END_TEST:                             NextState = STATE_VALIDATE;
       STATE_VALIDATE:                             NextState = STATE_INIT_TEST;
       STATE_INCR_TEST:                            NextState = STATE_INIT_TEST;
       default:                                    NextState = STATE_TESTBENCH_RESET;
@@ -282,8 +275,7 @@ module testbench;
   assign ResetCntEn = CurrState == STATE_RESET_TEST;
   assign Validate = CurrState == STATE_VALIDATE;
   assign SelectTest = CurrState == STATE_INIT_TEST;
-  assign CopyRAM = TestComplete & CurrState == STATE_RUN_TEST;
-  assign DCacheFlushStart = CurrState == STATE_COPY_RAM;
+  assign EndTest = CurrState == STATE_END_TEST;
 
   // fsm reset counter
   counter #(3) RstCounter(clk, ResetCntRst, ResetCntEn, ResetCount);
@@ -291,7 +283,6 @@ module testbench;
   ////////////////////////////////////////////////////////////////////////////////
   // Find the test vector files and populate the PC to function label converter
   ////////////////////////////////////////////////////////////////////////////////
-  logic [P.XLEN-1:0] testadr;
 
   logic EcallFaultM;
   if (P.ZICSR_SUPPORTED)
@@ -351,20 +342,14 @@ module testbench;
       if (uartoutfile)
         $fclose(uartoutfile);
       if (TEST == "embench") begin
-        // Writes contents of begin_signature to .sim.output file
-        // this contains instret and cycles for start and end of test run, used by embench
-        // python speed script to calculate embench speed score.
-        // also, begin_signature contains the results of the self checking mechanism,
-        // which will be read by the python script for error checking
+        // Writes the words the benchmark stored to begin_signature to the .sim.output file:
+        // the cycles and instret at its start and stop triggers, which embench's python speed
+        // script uses to calculate the speed score, and the result of its own check.
         $display("Embench Benchmark: %s is done.", elffilename);
         outputfile = {stripElfSuffix(elffilename), ".sim.output"};
         outputFilePointer = $fopen(outputfile, "w");
-        i = 0;
-        testadr = ($unsigned(begin_signature_addr))/(P.XLEN/8);
-        while ($unsigned(i) < $unsigned(5'd5)) begin
-          $fdisplayh(outputFilePointer, DCacheFlushFSM.ShadowRAM[testadr+i]);
-          i = i + 1;
-        end
+        for (i = 0; i < SIG_WORDS; i++)
+          $fdisplayh(outputFilePointer, Signature[i]);
         $fclose(outputFilePointer);
         $display("Embench Benchmark: created output file: %s", outputfile);
       end else if (TEST == "buildroot" | TEST == "fpga" | TEST == "coremark") begin
@@ -402,11 +387,6 @@ module testbench;
   // load memories with program image
   ////////////////////////////////////////////////////////////////////////////////
 
-  integer ShadowIndex;
-  integer LogXLEN;
-  integer StartIndex;
-  integer EndIndex;
-  integer BaseIndex;
   integer memFile, uncoreMemFile;
   integer readResult;
   if (P.SDC_SUPPORTED) begin
@@ -483,34 +463,12 @@ module testbench;
         end
         if (TEST == "embench") $display("Read memfile %s", memfilename);
       end
-      if (CopyRAM) begin
-        // copy the signature region (read back by the embench flow) into the shadow RAM
-        LogXLEN = (1 + P.XLEN/32); // 2 for rv32 and 3 for rv64
-        StartIndex = begin_signature_addr >> LogXLEN;
-        EndIndex = StartIndex + 15;
-        BaseIndex = P.UNCORE_RAM_BASE >> LogXLEN;
-        if (begin_signature_addr != 0)
-          for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
-            testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.uncoregen.uncore.ram.ram.memory.ram.RAM[ShadowIndex - BaseIndex];
-          end
-      end
     end
   end
   if (P.DTIM_SUPPORTED) begin
     always @(posedge clk) begin
       if (LoadMem) begin
         $readmemh(memfilename, dut.core.lsu.dtim.dtim.ram.ram.RAM);
-      end
-      if (CopyRAM) begin
-        // copy the signature region (read back by the embench flow) into the shadow RAM
-        LogXLEN = (1 + P.XLEN/32); // 2 for rv32 and 3 for rv64
-        StartIndex = begin_signature_addr >> LogXLEN;
-        EndIndex = StartIndex + 15;
-        BaseIndex = P.UNCORE_RAM_BASE >> LogXLEN;
-        if (begin_signature_addr != 0)
-          for(ShadowIndex = StartIndex; ShadowIndex <= EndIndex; ShadowIndex++) begin
-            testbench.DCacheFlushFSM.ShadowRAM[ShadowIndex] = dut.core.lsu.dtim.dtim.ram.ram.RAM[ShadowIndex - BaseIndex];
-          end
       end
     end
   end
@@ -635,7 +593,7 @@ module testbench;
   riscvassertions       #(P) riscvassertions();     // check assertions for a legal architectural configuration
   riscvassertions_wally #(P) riscvassertions_wally();  // check assertions for a legal microarchitectural configuration
   loggers #(P, PrintHPMCounters, I_CACHE_ADDR_LOGGER, D_CACHE_ADDR_LOGGER, BPRED_LOGGER)
-    loggers (clk, reset, DCacheFlushStart, DCacheFlushDone, memfilename, sim_log_prefix, TEST);
+    loggers (clk, reset, EndTest, memfilename, sim_log_prefix, TEST);
 
   // track the current function or global label
   if (DEBUG > 0 | ((PrintHPMCounters | BPRED_LOGGER) & P.ZICNTR_SUPPORTED)) begin : functionName
@@ -698,7 +656,18 @@ module testbench;
     end
   end
 
-  DCacheFlushFSM #(P) DCacheFlushFSM(.clk, .start(DCacheFlushStart), .done(DCacheFlushDone));
+  // Capture the words a test stores to begin_signature (embench's timing and result) as they are stored,
+  // like the tohost value, so the result does not depend on the stores reaching memory
+  localparam SIG_WORDS = 5;
+  logic [P.XLEN-1:0] Signature[SIG_WORDS-1:0];
+  logic [P.XLEN-1:0] SigOffset;
+  assign SigOffset = dut.core.lsu.IEUAdrM - begin_signature_addr;
+  always @(posedge clk)
+    if (SelectTest) Signature <= '{default: '0};
+    else if (begin_signature_addr != 0 & SigOffset < SIG_WORDS*P.XLEN/8 & dut.core.InstrValidM & ~dut.core.StallM) begin
+      if (InstrMName == "SD") Signature[SigOffset/(P.XLEN/8)] <= dut.core.WriteDataM;
+      else if (InstrMName == "SW") Signature[SigOffset/(P.XLEN/8)][32*SigOffset[2]*(P.XLEN/64) +: 32] <= dut.core.WriteDataM[31:0];
+    end
 
   // The privileged unit, and with it minstret, only exists when ZICSR is supported
   if (P.ZICSR_SUPPORTED) begin : instrlimit
