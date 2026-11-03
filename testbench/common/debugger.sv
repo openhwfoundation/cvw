@@ -44,7 +44,8 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
   input  logic clk, reset,
   output logic tck, tms, tdi,
   input  logic tdo,
-  input string filename
+  input string filename,
+  output int unsigned DebuggerErrors
 );
   localparam int tcktime = 52;
 
@@ -597,6 +598,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
       logic exception;
       // Reset errors back to zero
       error_locations = {};
+      DebuggerErrors = 0;
       this.getEndVector();
       foreach (testvectors[i]) begin
         if (i == endIndex - 1) begin
@@ -664,6 +666,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     endfunction
 
     function void reportErrors();
+      DebuggerErrors = error_locations.size();
       if (error_locations.size() > 0) begin
         $display("errors: %d", error_locations.size());
         $display("Number of errors: %d. The following testvector indices had errors.", error_locations.size());

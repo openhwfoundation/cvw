@@ -127,6 +127,7 @@ module testbench;
   integer ProgramAddrLabelArray [string];
 
   int test, i, errors, totalerrors;
+  int unsigned DebuggerErrors;
 
   string outputfile;
   integer outputFilePointer;
@@ -540,6 +541,7 @@ module testbench;
           if (selfcheck_record_addr != 0) CheckSelfCheck(tests[test], selfcheck_record_addr, errors);
           else CheckSignature(pathname, tests[test], riscofTest, begin_signature_addr, errors);
           if(errors > 0) totalerrors = totalerrors + 1;
+          if (P.DEBUG_SUPPORTED && debugTest && DebuggerErrors != 0) totalerrors = totalerrors + 1;
         end
       end
       test = test + 1;
@@ -727,7 +729,7 @@ module testbench;
   end
 
   if (P.DEBUG_SUPPORTED) begin
-    debugger #(P) debugger(.clk, .reset, .tck, .tms, .tdi, .tdo, .filename(debugger_filename));
+    debugger #(P) debugger(.clk, .reset, .tck, .tms, .tdi, .tdo, .filename(debugger_filename), .DebuggerErrors);
   end else begin
     assign tck = 1;
     assign tdi = 0;
