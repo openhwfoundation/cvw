@@ -31,12 +31,11 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
 
   logic [1:0]             BPDirE;
   logic [1:0]             BPDirM;
-  logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+  logic [1:0]             NewBPDirM, NewBPDirW;
 
-  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW, LHRNextF;
+  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW;
   logic [k-1:0]           LHRNextW;
   logic                   PCSrcM;
-  logic [2**m-1:0][k-1:0] LHRArray;
   logic [m-1:0]           IndexLHRNextF, IndexLHRM;
   logic [XLEN-1:0]        PCW;
 
@@ -85,7 +84,6 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
 
   assign IndexLHRD = {PCE[m+1] ^ PCE[1], PCE[m:2]};
   assign LHRNextE = BranchD ? {BPDirD[1], LHRE[k-1:1]} : LHRE;
-  // RT: TODO active research: replace with a small CAM, quantify benefit
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**m), .WIDTH(k)) SHB(.clk(clk),
     .ce1(~StallF), .ce2(~StallE & ~FlushE),
     .ra1(IndexLHRNextF),
@@ -94,7 +92,6 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
     .wd2(LHRNextE),
     .we2(BranchD),
     .bwe2('1));
-  // RT: TODO active research: replace with small CAM, quantify benefit
   logic [2**m-1:0]        FlushedBits;
   always_ff @(posedge clk) begin // speculative history flushed bit array
     SpeculativeFlushedF <= FlushedBits[IndexLHRNextF];
