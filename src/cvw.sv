@@ -59,21 +59,6 @@ package cvw;
   localparam ICLASS_RETURN = 2;
   localparam ICLASS_CALL   = 3;
 
-  // Bit positions in the one-hot PMA region select from adrdecs
-  localparam REGION_NONE       = 0;
-  localparam REGION_DTIM       = 1;
-  localparam REGION_IROM       = 2;
-  localparam REGION_EXT_MEM    = 3;
-  localparam REGION_BOOTROM    = 4;
-  localparam REGION_UNCORE_RAM = 5;
-  localparam REGION_CLINT      = 6;
-  localparam REGION_GPIO       = 7;
-  localparam REGION_UART       = 8;
-  localparam REGION_PLIC       = 9;
-  localparam REGION_SDC        = 10;
-  localparam REGION_SPI        = 11;
-  localparam REGION_PWM        = 12;
-
   // FPU postprocessor operation select PostProcSel
   localparam logic [1:0] POSTPROC_CVT = 2'b00; // conversion
   localparam logic [1:0] POSTPROC_DIV = 2'b01; // divide or square root

@@ -165,7 +165,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
                      .IEUAdrSpillE, .IEUAdrSpillM, .IEUAdrxTvalM, .SelSpillE, .DCacheReadDataWordSpillM, .SpillStallM);
     assign IEUAdrExtM = {2'b00, IEUAdrSpillM};
     assign IEUAdrExtE = {2'b00, IEUAdrSpillE};
-  end else begin : no_zicclsm_align
+  end else begin : zicclsm_align
     assign IEUAdrExtM = {2'b00, IEUAdrM};
     assign IEUAdrExtE = {2'b00, IEUAdrE};
     assign SelSpillE = 1'b0;
