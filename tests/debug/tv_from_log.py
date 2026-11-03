@@ -15,7 +15,8 @@
 #   TV_CHECK <addr> <mask> [<data>]
 #       Compare the bits in <mask> of the last response carrying data
 #       from DM register <addr>. With <data>, expect those bits of
-#       <data> (the spec value) instead of what Spike returned.
+#       <data> (the spec value) instead of what Spike returned, and a
+#       successful op even if Spike's response was "F" (failed).
 #   TV_DONTCARE_BEGIN / TV_DONTCARE_END
 #       Don't compare the responses of scans in between (for polling
 #       loops whose length depends on timing).
@@ -60,8 +61,12 @@ def main(logname, tvname):
             elif name == "TV_CHECK":
                 addr = f"{int(args[0], 0):02x}"
                 mask = int(args[1], 0) & 0xFFFFFFFF
+                # With a spec value, a failed ("F") response also matches:
+                # Spike fails reads of DM registers it doesn't implement,
+                # where the spec says they read 0 (successfully).
+                ok = "+F" if len(args) > 2 else "+"
                 for v in reversed(vectors):
-                    if v["raddr"] == addr and v["rop"] == "+":
+                    if v["raddr"] == addr and v["rop"] in ok:
                         break
                 else:
                     sys.exit(f"{logname}: TV_CHECK {addr} has no earlier response from @{addr}")
@@ -71,9 +76,10 @@ def main(logname, tvname):
                 if len(args) > 2:
                     spike = int(v["rdata"], 16)
                     want = (spike & ~mask) | (int(args[2], 0) & mask)
-                    if want != spike:
-                        v["note"] = f"# spec value @{addr}: Spike returned {spike:08x}"
+                    if want != spike or v["rop"] != "+":
+                        v["note"] = f"# spec value @{addr}: Spike returned {v['rop']} {spike:08x}"
                         v["rdata"] = f"{want:08x}"
+                        v["rop"] = "+"
             else:
                 sys.exit(f"{logname}: unknown directive {name}")
 
