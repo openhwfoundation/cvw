@@ -207,7 +207,7 @@ for {set i 0} {$i < 4} {incr i} {
   ExcludeRows $way e {SetDirty_1 SelectedWay_*}
   ExcludeRows $way e {SetDirtyWay_1}
   ExcludeRows $way e {ClearValidWay_1 FlushStage_*}
-  ExcludeRows $way e {SelecteDirty_* HitDirtyWay_1}
+  ExcludeRows $way e {SelectedDirty_* HitDirtyWay_1}
   coverage exclude -scope $way -linerange [TagLine ${SRC}/cache/cacheway.sv "icache ClearValidBits"] -item bs 1
 }
 
