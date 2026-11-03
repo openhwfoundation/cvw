@@ -249,6 +249,8 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     // For running testvectors instead of the encapsulated tests.
     logic [40:0] testvectors[$];
     logic [40:0] expected_outputs[$];
+    logic [40:0] cmpmask[$];   // response bits compared ("x " = none, mask= data bits)
+    bit          strict;       // "#pragma strict": no knownExceptions
 
     // Error tracking
     int          error_locations[$];
@@ -392,11 +394,24 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       testvectors = {};
       expected_outputs = {};
+      cmpmask = {};
+      strict = 0;
       while (!$feof(file)) begin
         if ($fgets(line, file) != 0) begin
+          if (line.substr(0, 13) == "#pragma strict") begin
+            strict = 1;
+            continue;
+          end
           // Allow comments and whitespace
           if (line[0] == "#" | line[0] == " " | line[0] == "\n") begin
             continue;
+          end
+          // "x " marks a vector whose response is not compared
+          if (line[0] == "x" & line[1] == " ") begin
+            cmpmask.push_back('0);
+            line = line.substr(2, line.len() - 1);
+          end else begin
+            cmpmask.push_back('1);
           end
 
           // Split needs to be a function with side effects apparently
@@ -417,6 +432,10 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
             32'(items[5].atohex()),
             op_decode(items[4], 1)}
           );
+
+          // Optional "mask=<hex>": compare only these data bits
+          if (items.size() > 7 && items[7].substr(0, 4) == "mask=")
+            cmpmask[cmpmask.size()-1][33:2] = 32'(items[7].substr(5, 12).atohex());
         end
       end
 
@@ -641,14 +660,14 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
         // $display("\033[1mtestvector\033[0m[%0d]: \033[1m addr:\033[0m %2h, data: %8h, op: %2b", i, this.testvectors[i][40:34], this.testvectors[i][33:2], this.testvectors[i][1:0]);
 
         if (state == DATA0_READ | state == DATA1_READ | state == DMREG_READ | state == ABSTRACT_READ) begin
-          exception = this.knownExceptions(this.expected_outputs[i], this.dmireg.result);
+          exception = ~strict & this.knownExceptions(this.expected_outputs[i], this.dmireg.result);
         end
 
         // Update State after using the previous state to determine exception value
         this.changeState(testvectors[i]);
 
         // Assert that the output should equal what Spike outputs.
-        assert(this.dmireg.result == expected_outputs[i] | exception | i == 0) begin
+        assert(((this.dmireg.result ^ expected_outputs[i]) & cmpmask[i]) == '0 | exception | i == 0) begin
           string green   = "\033[1;32m"; // Green text
           string normal  = "\033[0m";    // Reset to default
           exception = 0;
