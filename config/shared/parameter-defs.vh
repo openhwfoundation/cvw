@@ -1,8 +1,6 @@
 
 // Populate parameter structure with values specific to the current configuration
 
-`include "BranchPredictorType.vh"
-
 localparam cvw_t P = '{
   XLEN :                 XLEN,
   IEEE754 :              IEEE754,
