@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
+module fmashiftcalc import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FMTBITS-1:0]          Fmt,                 // precision 1 = double 0 = single
   input  logic [P.NE+1:0]               FmaSe,               // sum's exponent
   input  logic [P.FMALEN-1:0]           FmaSm,               // the positive sum
@@ -60,10 +60,10 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   end else if (P.FPSIZES == 4) begin
     always_comb begin
       case (Fmt)
-        2'h3: BiasCorr = '0;
-        2'h1: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
-        2'h0: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
-        2'h2: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
+        P.Q_FMT: BiasCorr = '0;
+        P.D_FMT: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
+        P.S_FMT: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
+        P.H_FMT: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
       endcase
     end
     assign NormSumExp = PreNormSumExp + BiasCorr;
@@ -110,10 +110,10 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
     assign Sum3GEFL = $signed(PreNormSumExp) >= $signed((P.NE+2)'(-P.H_NF-1+P.BIAS-P.H_BIAS)) | ~|PreNormSumExp;
     always_comb begin
       case (Fmt)
-        2'h3: FmaPreResultSubnorm = Sum0LEZ & Sum0GEFL;
-        2'h1: FmaPreResultSubnorm = Sum1LEZ & Sum1GEFL;
-        2'h0: FmaPreResultSubnorm = Sum2LEZ & Sum2GEFL;
-        2'h2: FmaPreResultSubnorm = Sum3LEZ & Sum3GEFL;
+        P.Q_FMT: FmaPreResultSubnorm = Sum0LEZ & Sum0GEFL;
+        P.D_FMT: FmaPreResultSubnorm = Sum1LEZ & Sum1GEFL;
+        P.S_FMT: FmaPreResultSubnorm = Sum2LEZ & Sum2GEFL;
+        P.H_FMT: FmaPreResultSubnorm = Sum3LEZ & Sum3GEFL;
       endcase
     end
   end

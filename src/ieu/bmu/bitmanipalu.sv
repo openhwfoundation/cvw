@@ -88,10 +88,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   if (P.ZBB_SUPPORTED) begin : zbb
     zbb #(P.XLEN) ZBB(.A(ABMU), .RevA, .B(BBMU), .W64, .LT, .LTU, .BUnsigned(Funct3[0]), .ZBBSelect(ZBBSelect[2:0]), .ZBBResult);
   end else if (P.ZBKB_SUPPORTED) begin : zbkbonly // only needs rev8 portion
-    genvar i;
-    for (i=0; i<P.XLEN; i+=8) begin : byteloop
-      assign ZBBResult[P.XLEN-i-1:P.XLEN-i-8] = ABMU[i+7:i]; // Rev8
-    end
+    byteop #(P.XLEN) rev8(.A(ABMU), .ByteSelect(1'b0), .ByteResult(ZBBResult)); // ByteSelect = 0 selects rev8
   end else assign ZBBResult = '0;
 
   // ZBKB Unit
@@ -106,8 +103,8 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
 
   // ZKND and ZKNE AES decryption and encryption
   if (P.ZKND_SUPPORTED | P.ZKNE_SUPPORTED) begin : zknde
-    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
-    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU),                   .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]),  .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
   end else assign ZKNDEResult = '0;
 
   // ZKNH Unit

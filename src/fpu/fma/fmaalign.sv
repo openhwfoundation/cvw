@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaalign import cvw::*;  #(parameter cvw_t P) (
+module fmaalign import cvw::*; #(parameter cvw_t P) (
   input  logic [P.NE-1:0]      Xe, Ye, Ze,          // biased exponents in B(NE.0) format
   input  logic [P.NF:0]        Zm,                  // significand in U(1.NF) format
   input  logic                 XZero, YZero, ZZero, // is the input zero
@@ -54,8 +54,8 @@ module fmaalign import cvw::*;  #(parameter cvw_t P) (
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     if (KillProd) begin
-        ZmShifted = {(P.NF+3)'(0), Zm, (2*P.NF+2)'(0)};
-        ASticky   = ~(XZero | YZero);
+      ZmShifted = {(P.NF+3)'(0), Zm, (2*P.NF+2)'(0)};
+      ASticky   = ~(XZero | YZero);
 
     // If the addend is too small to affect the addition
     //      - The addend has to shift two past the end of the product to be considered too small
@@ -64,15 +64,15 @@ module fmaalign import cvw::*;  #(parameter cvw_t P) (
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     end else if (KillZ) begin
-        ZmShifted = '0;
-        ASticky   = ~ZZero;
+      ZmShifted = '0;
+      ASticky   = ~ZZero;
 
     // If the Addend is shifted right
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     end else begin
-        ZmShifted = ZmPreshifted >> ACnt;
-        ASticky   = |(ZmShifted[P.NF-1:0]);
+      ZmShifted = ZmPreshifted >> ACnt;
+      ASticky   = |(ZmShifted[P.NF-1:0]);
     end
   end
 
