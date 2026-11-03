@@ -27,6 +27,7 @@
   assign rvvi.csr[0][0][addr] = valid ? val : prev_csr_``name;
 
 module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
+  /* verilator lint_off WIDTHEXPAND */ // CSRs narrower than 64 bits zero-extend into the RVVI CSR array
 
   localparam NUM_REGS = P.E_SUPPORTED ? 16 : 32;
   localparam NUM_CSRS = 4096;
@@ -36,7 +37,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic                  clk;
   logic                  InstrValidD, InstrValidE;
   logic                  StallF, StallD;
-  logic                  STATUS_SXL, STATUS_UXL;
+  logic [1:0]            STATUS_SXL, STATUS_UXL;
   logic [P.XLEN-1:0]     PCNextF, PCF, PCD, PCE, PCM, PCW;
   logic [31:0]           InstrRawD, InstrRawE, InstrRawM, InstrRawW;
   logic                  InstrValidM, InstrValidW;
@@ -227,9 +228,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rf_we3 = testbench.dut.core.ieu.dp.regf.we3;
 
   always_comb begin
-    rf_wb <= 0;
+    rf_wb = 0;
     if(rf_we3)
-      rf_wb[rf_a3] <= 1'b1;
+      rf_wb[rf_a3] = 1'b1;
   end
 
   // Floating-point register file
@@ -246,9 +247,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   end
 
   always_comb begin
-    frf_wb <= 0;
+    frf_wb = 0;
     if(frf_we4)
-      frf_wb[frf_a4] <= 1'b1;
+      frf_wb[frf_a4] = 1'b1;
   end
 
   // CSR writes
@@ -319,8 +320,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign WriteAccessM   = testbench.dut.core.lsu.MemRWM[0];
     assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
     assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
-    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal;
-    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal;
+    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal[1:0]; // RVVI page types are 2 bits
+    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal[1:0];
     assign DTLBWalk       = testbench.dut.core.lsu.hptw.hptw.DTLBWalk;
     // The entry each TLB hit on, for an access that did not have to walk.  TLBHit alone is not
     // qualified by translation being on, so pair it with Translate the way tlbcontrol does.
@@ -543,4 +544,5 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       // end
     end
   end
+  /* verilator lint_on WIDTHEXPAND */
 endmodule

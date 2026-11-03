@@ -19,7 +19,6 @@
 module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
   input  logic [P.PA_BITS-1:0] HADDR,
   input  logic [P.AHBW-1:0]    HWDATA,
   input  logic [P.XLEN/8-1:0]  HWSTRB,
@@ -53,19 +52,17 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]           PWMGPIO
 );
 
-  logic [P.XLEN-1:0]           HREADRam, HREADSDC;
+  logic [P.XLEN-1:0]           HREADRam;
 
   logic [12:0]                 HSELRegions;
   logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART, HSELSDC, HSELSPI, HSELPWM;
   logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
-  logic                        HRESPRam, HRESPSDC;
-  logic                        HREADYRam, HRESPSDCD;
+  logic                        HRESPRam, HREADYRam;
   logic [P.XLEN-1:0]           HREADBootRom;
-  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
+  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom;
   logic                        HSELNoneD;
   logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
-  logic                        SDCIntM;
 
   logic                        PCLK, PRESETn, PWRITE, PENABLE;
   logic [6:0]                  PSEL;
@@ -135,7 +132,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
 
-  if (P.UART_SUPPORTED == 1) begin : uartgen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
+  if (P.UART_SUPPORTED == 1) begin : uartgen
     uart_apb #(P) uart(
       .PCLK, .PRESETn, .PSEL(PSEL[3]), .PADDR(PADDR[2:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[3]), .PREADY(PREADY[3]),

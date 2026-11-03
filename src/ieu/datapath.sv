@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module datapath import cvw::*;  #(parameter cvw_t P) (
+module datapath import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   // Decode stage signals
   input  logic [2:0]        ImmSrcD,                 // Selects type of immediate extension

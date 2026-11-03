@@ -33,6 +33,5 @@ module aes64ks1i(
   // Share sbox with encryption in zknde64.  This module just sends value to shared sbox and gets result back
   // send out value as SboxKIn, get back substituted result as Sbox0Out
 
-  assign result[31:0]  = Sbox0Out ^ rcon;
-  assign result[63:32] = Sbox0Out ^ rcon;
+  assign result = {2{Sbox0Out ^ rcon}};                  // Both words of the result are the same
 endmodule
