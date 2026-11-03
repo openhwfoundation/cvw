@@ -60,6 +60,8 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic              StallM, FlushM,          // Stall, flush Memory stage
   input  logic              FWriteIntM, FCvtIntW,    // FPU writes integer register file, FPU converts float to int
   input  logic [P.XLEN-1:0] FIntResM,                // FPU integer result
+  input  logic              VWriteIntM,              // VPU writes integer register file
+  input  logic [P.XLEN-1:0] VIntResM,                // VPU integer result
   output logic [P.XLEN-1:0] SrcAM,                   // ALU's Source A in Memory stage to privilege unit for CSR writes
   output logic [P.XLEN-1:0] WriteDataM,              // Write data in Memory stage
   // Writeback stage signals
@@ -87,6 +89,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] ALUResultE, AltResultE, IEUResultE; // ALU result, Alternative result (ImmExtE or PC+4), result of execution stage
   // Memory stage signals
   logic [P.XLEN-1:0] IEUResultM;                     // Result from execution stage
+  logic [P.XLEN-1:0] IEUVResultM;                    // Result from either IEU or VPU writing an integer register
   logic [P.XLEN-1:0] IFResultM;                      // Result from either IEU or single-cycle FPU op writing an integer register
   // Writeback stage signals
   logic [P.XLEN-1:0] SCResultW;                      // Store Conditional result
@@ -121,9 +124,16 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // Writeback stage pipeline register and logic
   flopenrc #(P.XLEN) IFResultWReg(clk, reset, FlushW, ~StallW, IFResultM, IFResultW);
 
+  // vector inputs: VIntResM comes from vset
+  if (P.ZVE32X_SUPPORTED) begin : vmux
+    mux2  #(P.XLEN)  vresultmuxM(IEUResultM, VIntResM, VWriteIntM, IEUVResultM);
+  end else begin : vmux
+    assign IEUVResultM = IEUResultM;
+  end
+
   // floating point inputs: FIntResM comes from fclass, fcmp, fmv; FCvtIntResW comes from fcvt
   if (P.F_SUPPORTED) begin : fpmux
-    mux2  #(P.XLEN)  resultmuxM(IEUResultM, FIntResM, FWriteIntM, IFResultM);
+    mux2  #(P.XLEN)  resultmuxM(IEUVResultM, FIntResM, FWriteIntM, IFResultM);
     mux2  #(P.XLEN)  cvtresultmuxW(IFResultW, FCvtIntResW, FCvtIntW, IFCvtResultW);
     if (P.IDIV_ON_FPU & P.F_SUPPORTED) begin
       mux2  #(P.XLEN)  divresultmuxW(MDUResultW, FIntDivResultW, IntDivW, MulDivResultW);
@@ -131,7 +141,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
       assign MulDivResultW = MDUResultW;
     end
   end else begin : fpmux
-    assign IFResultM = IEUResultM;
+    assign IFResultM = IEUVResultM;
     assign IFCvtResultW = IFResultW;
     assign MulDivResultW = MDUResultW;
   end
