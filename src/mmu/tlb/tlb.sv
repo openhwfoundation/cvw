@@ -1,33 +1,19 @@
 ///////////////////////////////////////////
 // tlb.sv
 //
-// Written: jtorrey@hmc.edu 16 February 2021
-// Modified: kmacsaigoren@hmc.edu 1 June 2021
-//            Implemented SV48 on top of SV39. This included adding the SvMode signal,
-//            and using it to decide the translate signal and get the virtual page number
+// Written:  Jessica Torrey jtorrey@hmc.edu 16 February 2021
+// Modified: Thomas Fleming, David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu, Rose Thompson, Ayesha Anwaar, Muhammad Zain
 //
-// Purpose: Translation lookaside buffer
-//          Cache of virtural-to-physical address translations
+// Purpose: Translation lookaside buffer.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -50,17 +36,17 @@
  *                         RSW(2) -- for OS
  */
 
-// The TLB will have 2**ENTRY_BITS total entries
-module tlb import cvw::*;  #(parameter cvw_t P,
-                             parameter TLB_ENTRIES = 8, ITLB = 0) (
-  input logic                      clk, reset,
+// The TLB has TLB_ENTRIES entries
+module tlb import cvw::*; #(parameter cvw_t P,
+                            parameter TLB_ENTRIES = 8, ITLB = 0) (
+  input  logic                     clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
-  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
+  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processor, accounting for mstatus.MPRV
   input  logic                     ReadAccess,
   input  logic                     WriteAccess,
   input  logic [3:0]               CMOpM,
@@ -82,6 +68,7 @@ module tlb import cvw::*;  #(parameter cvw_t P,
 );
 
   logic [TLB_ENTRIES-1:0]         Matches, WriteEnables, PTE_Gs, PTE_NAPOTs; // used as the one-hot encoding of WriteIndex
+  logic                           WritePTE_NAPOT;
   // Sections of the virtual and physical addresses
   logic [P.VPN_BITS-1:0]          VPN;
   logic [P.PPN_BITS-1:0]          PPN;
@@ -95,26 +82,26 @@ module tlb import cvw::*;  #(parameter cvw_t P,
   logic                           Misaligned;
   logic                           MegapageMisaligned;
   logic                           PTE_N;         // NAPOT page table entry
-  logic                           NAPOT4;        // pte.ppn[3:0] = 1000, indicating 64 KiB continuous NAPOT region
+  logic                           NAPOT4;        // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
 
-  if(P.XLEN == 32) begin
+  if (P.XLEN == 32) begin
     assign MegapageMisaligned = |(PPN[9:0]); // must have zero PPN0
-    assign Misaligned = (HitPageType == 3'b001) & MegapageMisaligned;
+    assign Misaligned = (HitPageType == MEGAPAGE) & MegapageMisaligned;
   end else begin // 64-bit
-    logic  GigapageMisaligned, TerapageMisaligned, PetapageMisaligned;
+    logic GigapageMisaligned, TerapageMisaligned, PetapageMisaligned;
     assign PetapageMisaligned = |(PPN[35:0]) & P.SV57_SUPPORTED;  // must have zero PPN3, PPN2, PPN1, PPN0
     assign TerapageMisaligned = |(PPN[26:0]) & P.SV48_SUPPORTED;  // must have zero PPN2, PPN1, PPN0
     assign GigapageMisaligned = |(PPN[17:0]);                     // must have zero PPN1 and PPN0
     assign MegapageMisaligned = |(PPN[8:0]);                      // must have zero PPN0
     assign Misaligned =
-              ((HitPageType == 3'b100) & PetapageMisaligned) |
-              ((HitPageType == 3'b011) & TerapageMisaligned) |
-              ((HitPageType == 3'b010) & GigapageMisaligned) |
-              ((HitPageType == 3'b001) & MegapageMisaligned);
+              ((HitPageType == PETAPAGE) & PetapageMisaligned) |
+              ((HitPageType == TERAPAGE) & TerapageMisaligned) |
+              ((HitPageType == GIGAPAGE) & GigapageMisaligned) |
+              ((HitPageType == MEGAPAGE) & MegapageMisaligned);
   end
 
   assign VPN = VAdr[P.VPN_BITS+11:12];
-  assign NAPOT4 = (PPN[3:0] == 4'b1000); // 64 KiB contiguous region with pte.napot_bits = 4
+  assign NAPOT4 = (PPN[3:0] == 4'b1000) & (HitPageType == KILOPAGE); // 64 KiB contiguous region with pte.napot_bits = 4; N=1 is reserved on superpages
 
   tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
@@ -122,10 +109,11 @@ module tlb import cvw::*;  #(parameter cvw_t P,
     .TLBMiss, .TLBHit, .TLBPageFault,
     .UpdateDA, .SV39Mode, .SV48Mode, .Translate, .PTE_N, .PBMemoryType);
 
+  assign WritePTE_NAPOT = P.SVNAPOT_SUPPORTED & PTE[P.XLEN-1] & (PTE[13:10] == 4'b1000);
   tlblru #(TLB_ENTRIES) lru(.clk, .reset, .TLBWrite, .Matches, .TLBHit, .WriteEnables);
   tlbcam #(P, TLB_ENTRIES, P.VPN_BITS + P.ASID_BITS, P.VPN_SEGMENT_BITS)
     tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .TLBFlushAll, .TLBFlushVA, .TLBFlushASID, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
-           .SATP_ASID, .Matches, .HitPageType, .CAMHit);
+           .SATP_ASID, .TLBWrite, .WritePTE_G(PTE[5]), .WritePTE_NAPOT, .Matches, .HitPageType, .CAMHit);
   tlbram #(P, TLB_ENTRIES) tlbram(.clk, .reset, .PTE, .Matches, .WriteEnables, .PPN, .PTEAccessBits, .PTE_Gs, .PTE_NAPOTs);
 
   // Replace segments of the virtual page number with segments of the physical

@@ -1,6 +1,3 @@
-[submodule "addins/riscv-dv"]
-  path = addins/riscv-dv
-  url = https://github.com/google/riscv-dv
 [submodule "addins/embench-iot"]
   path = addins/embench-iot
   url = https://github.com/embench/embench-iot

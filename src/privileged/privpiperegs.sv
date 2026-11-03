@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // privpiperegs.sv
 //
-// Written: David_Harris@hmc.edu 12 May 2022
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 12 May 2022
+// Modified: Rose Thompson
 //
-// Purpose: Pipeline registers for early exceptions
+// Purpose: Pipeline registers for early exceptions.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module privpiperegs (
@@ -32,13 +21,13 @@ module privpiperegs (
   input  logic         StallD, StallE, StallM,
   input  logic         FlushD, FlushE, FlushM,
   input  logic         InstrPageFaultF, InstrAccessFaultF,  // instruction faults
-  input  logic         HPTWInstrAccessFaultF,               // hptw fault during instruction page fetch
-  input  logic         HPTWInstrPageFaultF,                 // hptw fault during instruction page fetch
+  input  logic         HPTWInstrAccessFaultF,               // hptw access fault during instruction page fetch
+  input  logic         HPTWInstrPageFaultF,                 // hptw page fault during instruction page fetch
   input  logic         IllegalIEUFPUInstrD,                 // illegal IEU instruction decoded
   output logic         InstrPageFaultM, InstrAccessFaultM,  // delayed instruction faults
   output logic         IllegalIEUFPUInstrM,                 // delayed illegal IEU instruction
-  output logic         HPTWInstrAccessFaultM,               // hptw fault during instruction page fetch
-  output logic         HPTWInstrPageFaultM                  // hptw fault during instruction page fetch
+  output logic         HPTWInstrAccessFaultM,               // hptw access fault during instruction page fetch
+  output logic         HPTWInstrPageFaultM                  // hptw page fault during instruction page fetch
 );
 
   // Delayed fault signals
