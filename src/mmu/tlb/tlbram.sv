@@ -17,8 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-module tlbram import cvw::*;  #(parameter cvw_t P,
-                                parameter TLB_ENTRIES = 8) (
+module tlbram import cvw::*; #(parameter cvw_t P,
+                               parameter TLB_ENTRIES = 8) (
   input  logic                      clk, reset,
   input  logic [P.XLEN-1:0]         PTE,
   input  logic [TLB_ENTRIES-1:0]    Matches, WriteEnables,

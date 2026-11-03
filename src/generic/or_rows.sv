@@ -19,7 +19,7 @@
 module or_rows #(parameter ROWS = 8, COLS = 2) (
   input  var logic [COLS-1:0] a[ROWS-1:0],
   output     logic [COLS-1:0] y
-  );
+);
 
   genvar row;
 

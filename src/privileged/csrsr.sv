@@ -35,10 +35,10 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
   output logic              BigEndianM
 );
 
-  logic STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
+  logic       STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
   logic [1:0] STATUS_SXL, STATUS_UXL, STATUS_XS, STATUS_FS_INT, STATUS_MPP_NEXT;
-  logic STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
-  logic nextMBE, nextSBE;
+  logic       STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
+  logic       nextMBE, nextSBE;
 
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6

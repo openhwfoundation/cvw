@@ -28,8 +28,6 @@ module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
 );
 
   logic [k-1:0]            IndexNextF, IndexM;
-  logic [1:0]              PredictionMemory;
-  logic                    DoForwarding, DoForwardingF;
   logic [1:0]              BPDirD, BPDirE;
   logic [1:0]              NewBPDirE, NewBPDirM;
 

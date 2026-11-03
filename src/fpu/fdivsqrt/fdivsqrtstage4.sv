@@ -16,14 +16,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtstage4 import cvw::*; #(parameter cvw_t P) (
   input  logic [P.DIVb+3:0] D, DBar, D2, DBar2, // Q4.DIVb
   input  logic [P.DIVb:0]   U, UM,              // U1.DIVb
   input  logic [P.DIVb+3:0] WS, WC,             // Q4.DIVb
   input  logic [P.DIVb+1:0] C,                  // Q2.DIVb
   input  logic              SqrtE,
   output logic [P.DIVb+1:0] CNext,              // Q2.DIVb
-  output logic              un,
   output logic [P.DIVb:0]   UNext, UMNext,      // U1.DIVb
   output logic [P.DIVb+3:0] WSNext, WCNext      // Q4.DIVb
 );
@@ -47,7 +46,6 @@ module fdivsqrtstage4 import cvw::*;  #(parameter cvw_t P) (
   assign WCmsbs = WC[P.DIVb+3:P.DIVb-4];    // Q4.4 most significant bits of residual
   assign WSmsbs = WS[P.DIVb+3:P.DIVb-4];    // Q4.4 most significant bits of residual
   fdivsqrtuslc4cmp uslc4(.Dmsbs, .Smsbs, .WSmsbs, .WCmsbs, .SqrtE, .j0, .j1, .udigit);
-  assign un = 1'b0; // unused for radix 4
 
   // F generation logic
   fdivsqrtfgen4 #(P) fgen4(.udigit, .C({2'b11, CNext}), .U({3'b000, U}), .UM({3'b000, UM}), .F);

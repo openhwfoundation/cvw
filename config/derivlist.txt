@@ -319,22 +319,22 @@ deriv bpred_GSHARE_16_16_10_1_rv32gc rv32gc
 BPRED_SIZE          32'd16
 
 deriv bpred_TWOBIT_6_16_10_1_rv32gc bpred_GSHARE_6_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_TWOBIT_8_16_10_1_rv32gc bpred_GSHARE_8_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_TWOBIT_10_16_10_1_rv32gc bpred_GSHARE_10_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_TWOBIT_12_16_10_1_rv32gc bpred_GSHARE_12_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_TWOBIT_14_16_10_1_rv32gc bpred_GSHARE_14_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_TWOBIT_16_16_10_1_rv32gc bpred_GSHARE_16_16_10_1_rv32gc
-BPRED_TYPE          `BP_TWOBIT
+BPRED_TYPE          cvw::BP_TWOBIT
 
 deriv bpred_GSHARE_10_2_10_1_rv32gc rv32gc
 RAS_SIZE         32'd2
