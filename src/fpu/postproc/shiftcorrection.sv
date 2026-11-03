@@ -36,7 +36,7 @@ module shiftcorrection import cvw::*; #(parameter cvw_t P) (
 
   logic                            ResSubnorm;             // is the result Subnormal
   logic                            LZAPlus1;               // add one or two to the sum's exponent due to LZA correction
-  logic                            RightShiftQm;           // should the divsqrt result be shifted one to the right
+  logic                            RightShiftQm;           // divsqrt result takes the one-bit right-shifted window of Shifted (no normalizing left shift)
   logic                            RightShift;             // shift right by 1
 
   // FMA LZA correction
@@ -46,7 +46,9 @@ module shiftcorrection import cvw::*; #(parameter cvw_t P) (
   assign LZAPlus1 = Shifted[P.NORMSHIFTSZ-1];
 
   // correct the shifting of the divsqrt caused by producing a result in (0.5, 2) range
-  // condition: if the msb is 1 or the exponent was one, but the shifted quotient was < 1 (Subnorm)
+  // The default window {Shifted[NORMSHIFTSZ-3:0], 00} normalizes a quotient in (0.5, 1) by shifting it one bit left.
+  // Take the window one bit to the right instead if the quotient is in [1, 2) (msb is 1)
+  // or if the exponent is one, so the quotient < 1 is subnormal and must not be shifted left
   assign RightShiftQm = (LZAPlus1 | (DivUe == 1 & ~LZAPlus1));
 
   // Determine the shift for either FMA or divsqrt

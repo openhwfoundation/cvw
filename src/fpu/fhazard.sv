@@ -33,19 +33,31 @@ module fhazard(
   assign MatchDE = ((Adr1D == RdE) & XEnD) | ((Adr2D == RdE) & YEnD) | ((Adr3D == RdE) & ZEnD);
   assign FPUStallD = MatchDE & FRegWriteE;
 
-  // Forwarding select for a source register in the Execute stage
-  //   10: PreFpResM from the Memory stage, only if the result is already available there (FResSel = 00)
-  //   01: FResultW from the Writeback stage
-  //   00: register file (FRD1E, FRD2E, FRD3E)
-  function automatic logic [1:0] ForwardSel(input logic [4:0] AdrE);
-    if ((AdrE == RdM) & FRegWriteM)      ForwardSel = (FResSelM == 2'b00) ? 2'b10 : 2'b00;
-    else if ((AdrE == RdW) & FRegWriteW) ForwardSel = 2'b01;
-    else                                 ForwardSel = 2'b00;
-  endfunction
-      // forward from the memory stage only if the result is already available there
   always_comb begin
-    ForwardXE = ForwardSel(Adr1E);
-    ForwardYE = ForwardSel(Adr2E);
-    ForwardZE = ForwardSel(Adr3E);
+    // set defaults
+    ForwardXE = 2'b00; // choose FRD1E
+    ForwardYE = 2'b00; // choose FRD2E
+    ForwardZE = 2'b00; // choose FRD3E
+
+    // if the needed value is in the memory stage - input 1
+    if ((Adr1E == RdM) & FRegWriteM) begin
+      // forward from the memory stage only if the result is already available there (FResSel = 00, PreFpResM)
+      if (FResSelM == 2'b00) ForwardXE = 2'b10; // choose PreFpResM
+      // if the needed value is in the writeback stage
+    end else if ((Adr1E == RdW) & FRegWriteW) ForwardXE = 2'b01; // choose FResultW
+
+    // if the needed value is in the memory stage - input 2
+    if ((Adr2E == RdM) & FRegWriteM) begin
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardYE = 2'b10; // choose PreFpResM
+      // if the needed value is in the writeback stage
+    end else if ((Adr2E == RdW) & FRegWriteW) ForwardYE = 2'b01; // choose FResultW
+
+    // if the needed value is in the memory stage - input 3
+    if ((Adr3E == RdM) & FRegWriteM) begin
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardZE = 2'b10; // choose PreFpResM
+      // if the needed value is in the writeback stage
+    end else if ((Adr3E == RdW) & FRegWriteW) ForwardZE = 2'b01; // choose FResultW
   end
 endmodule

@@ -86,7 +86,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [6:0] Funct7D;                         // Funct7 field in Decode stage
   logic [4:0] RdD;                             // Destination register in Decode stage
 
-  localparam CTRLW = 24;                        // Width of ControlsD, the main decoder control word
+  `define CTRLW 24
   // ResultSrc encodings, in resultmuxW input order in datapath: 000 IEU/FPU, 001 memory, 010 CSR, 011 MDU, 100 SC
   localparam logic [2:0] RESULTSRC_MDU = 3'b011;
   localparam logic [2:0] RESULTSRC_SC  = 3'b100;
@@ -115,7 +115,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic        CSRWriteD, CSRWriteE;           // CSR write
   logic        PrivilegedD, PrivilegedE;       // Privileged instruction
   logic        InvalidateICacheE, FlushDCacheE; // Invalidate I$, flush D$
-  logic [CTRLW-1:0] ControlsD;                 // Main Instruction Decoder control signals
+  logic [`CTRLW-1:0] ControlsD;                // Main Instruction Decoder control signals
   logic        SubArithD;                      // TRUE for R-type subtracts and sra, slt, sltu or BMU bclr, andn, orn, xnor, min/max
   logic        subD, sraD, sltD, sltuD;        // Indicates if is one of these instructions
   logic        BranchTakenE;                   // Branch is taken
@@ -236,57 +236,57 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Main Instruction Decoder
   /* verilator lint_off CASEINCOMPLETE */
   always_comb begin
-    ControlsD = 24'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_1; // default: Illegal instruction
+    ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_1; // default: Illegal instruction
     case(OpD)
     // RegWrite_ImmSrc_ALUSrc(A_B)_MemRW_ResultSrc_Branch_ALUOp_Jump_ALUResultSrc_BaseW64_CSRRead_Privileged_Fence_MDU_Atomic_CMO_Illegal
       7'b0000011: if (LFunctD)
-                      ControlsD = 24'b1_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_0; // loads
+                      ControlsD = `CTRLW'b1_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_0; // loads
       7'b0000111: if (FLSFunctD)
-                      ControlsD = 24'b0_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_1; // flw - only legal if FP supported
+                      ControlsD = `CTRLW'b0_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_1; // flw - only legal if FP supported
       7'b0001111: if (FenceFunctD) begin
                     if (P.ZIFENCEI_SUPPORTED)
-                      ControlsD = 24'b0_000_00_00_000_0_0_0_0_0_0_0_1_0_00_0_0; // fence
+                      ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_1_0_00_0_0; // fence
                     else
-                      ControlsD = 24'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // fence treated as nop
+                      ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // fence treated as nop
                   end else if (CMOFunctD) begin
-                      ControlsD = 24'b0_101_01_00_000_0_0_0_0_0_0_0_0_0_00_1_0; // CMO Instruction
+                      ControlsD = `CTRLW'b0_101_01_00_000_0_0_0_0_0_0_0_0_0_00_1_0; // CMO Instruction
                   end
       7'b0010011: if (IFunctD)
-                      ControlsD = 24'b1_000_01_00_000_0_1_0_0_0_0_0_0_0_00_0_0; // I-type ALU
-      7'b0010111:     ControlsD = 24'b1_100_11_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // auipc
+                      ControlsD = `CTRLW'b1_000_01_00_000_0_1_0_0_0_0_0_0_0_00_0_0; // I-type ALU
+      7'b0010111:     ControlsD = `CTRLW'b1_100_11_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // auipc
       7'b0011011: if (IFunctD & IWValidFunct3D & P.XLEN == 64)
-                      ControlsD = 24'b1_000_01_00_000_0_1_0_0_1_0_0_0_0_00_0_0; // IW-type ALU for RV64i
+                      ControlsD = `CTRLW'b1_000_01_00_000_0_1_0_0_1_0_0_0_0_00_0_0; // IW-type ALU for RV64i
       7'b0100011: if (SFunctD)
-                      ControlsD = 24'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_0; // stores
+                      ControlsD = `CTRLW'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_0; // stores
       7'b0100111: if (FLSFunctD)
-                      ControlsD = 24'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_1; // fsw - only legal if FP supported
+                      ControlsD = `CTRLW'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_1; // fsw - only legal if FP supported
       7'b0101111: if (AFunctD) begin
                     if (P.ZALRSC_SUPPORTED & InstrD[31:27] == 5'b00010 & Rs2D == 5'b0)
-                      ControlsD = 24'b1_000_00_10_001_0_0_0_0_0_0_0_0_0_01_0_0; // lr
+                      ControlsD = `CTRLW'b1_000_00_10_001_0_0_0_0_0_0_0_0_0_01_0_0; // lr
                     else if (P.ZALRSC_SUPPORTED & InstrD[31:27] == 5'b00011)
-                      ControlsD = 24'b1_101_01_01_100_0_0_0_0_0_0_0_0_0_01_0_0; // sc
+                      ControlsD = `CTRLW'b1_101_01_01_100_0_0_0_0_0_0_0_0_0_01_0_0; // sc
                     else if (P.ZAAMO_SUPPORTED & AMOFunctD)
-                      ControlsD = 24'b1_101_01_11_001_0_0_0_0_0_0_0_0_0_10_0_0; // amo
+                      ControlsD = `CTRLW'b1_101_01_11_001_0_0_0_0_0_0_0_0_0_10_0_0; // amo
                   end
       7'b0110011: if (RFunctD)
-                      ControlsD = 24'b1_000_00_00_000_0_1_0_0_0_0_0_0_0_00_0_0; // R-type
+                      ControlsD = `CTRLW'b1_000_00_00_000_0_1_0_0_0_0_0_0_0_00_0_0; // R-type
                   else if (MFunctD)
-                      ControlsD = 24'b1_000_00_00_011_0_0_0_0_0_0_0_0_1_00_0_0; // Multiply/Divide
-      7'b0110111:     ControlsD = 24'b1_100_01_00_000_0_0_0_1_0_0_0_0_0_00_0_0; // lui
+                      ControlsD = `CTRLW'b1_000_00_00_011_0_0_0_0_0_0_0_0_1_00_0_0; // Multiply/Divide
+      7'b0110111:     ControlsD = `CTRLW'b1_100_01_00_000_0_0_0_1_0_0_0_0_0_00_0_0; // lui
       7'b0111011: if (RWFunctD)
-                      ControlsD = 24'b1_000_00_00_000_0_1_0_0_1_0_0_0_0_00_0_0; // R-type W instructions for RV64i
+                      ControlsD = `CTRLW'b1_000_00_00_000_0_1_0_0_1_0_0_0_0_00_0_0; // R-type W instructions for RV64i
                   else if (MWFunctD)
-                      ControlsD = 24'b1_000_00_00_011_0_0_0_0_1_0_0_0_1_00_0_0; // W-type Multiply/Divide
+                      ControlsD = `CTRLW'b1_000_00_00_011_0_0_0_0_1_0_0_0_1_00_0_0; // W-type Multiply/Divide
       7'b1100011: if (BFunctD)
-                      ControlsD = 24'b0_010_11_00_000_1_0_0_0_0_0_0_0_0_00_0_0; // branches
+                      ControlsD = `CTRLW'b0_010_11_00_000_1_0_0_0_0_0_0_0_0_00_0_0; // branches
       7'b1100111: if (JRFunctD)
-                      ControlsD = 24'b1_000_01_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jalr
-      7'b1101111:     ControlsD = 24'b1_011_11_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jal
+                      ControlsD = `CTRLW'b1_000_01_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jalr
+      7'b1101111:     ControlsD = `CTRLW'b1_011_11_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jal
       7'b1110011: if (P.ZICSR_SUPPORTED) begin
                     if (PFunctD)
-                      ControlsD = 24'b0_000_00_00_000_0_0_0_0_0_0_1_0_0_00_0_0; // privileged; decoded further in privdec modules
+                      ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_1_0_0_00_0_0; // privileged; decoded further in privdec modules
                     else if (CSRFunctD)
-                      ControlsD = 24'b1_000_00_00_010_0_0_0_0_0_1_0_0_0_00_0_0; // csrs
+                      ControlsD = `CTRLW'b1_000_00_00_010_0_0_0_0_0_1_0_0_0_00_0_0; // csrs
                   end
     endcase
   end
@@ -295,7 +295,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Unswizzle control bits
   // Squash control signals if coming from an illegal compressed instruction
   // On RV32E, can't write to upper 16 registers.  Checking reads to upper 16 is more costly so disregard them.
-  assign IllegalERegAdrD = P.E_SUPPORTED & P.ZICSR_SUPPORTED & ControlsD[CTRLW-1] & InstrD[11];
+  assign IllegalERegAdrD = P.E_SUPPORTED & P.ZICSR_SUPPORTED & ControlsD[`CTRLW-1] & InstrD[11];
   assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, MemRWD,
           ResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
           PrivilegedD, FenceXD, MDUD, AtomicD, CMOD, unused} = IllegalIEUFPUInstrD ? '0 : ControlsD;
