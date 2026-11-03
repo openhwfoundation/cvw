@@ -33,7 +33,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0]       InstrD,                          // Instruction
   input  logic [1:0]        STATUS_FS,                       // is FPU enabled?
   input  logic [3:0]        ENVCFG_CBE,                      // Cache block operation enables
-  input  logic              IllegalIEUFPUInstrD,             // Illegal instruction
+  input  logic              IllegalIEUFPUVPUInstrD,             // Illegal instruction
   output logic              IllegalBaseInstrD,               // Illegal I-type instruction, or illegal RV32 access to upper 16 registers
   output logic              VectorD,                         // Instruction is a Vector, transfer control to VPU
   // Execute stage signals
@@ -109,7 +109,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
 
   controller #(P) c(
     .clk, .reset, .StallD, .FlushD, .InstrD, .STATUS_FS, .ENVCFG_CBE, .ImmSrcD,
-    .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .IllegalIEUFPUVPUInstrD, .IllegalBaseInstrD,
     .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D,  .Rs2E, .VectorD,
     .StallE, .FlushE, .FlagsE, .FWriteIntE,
     .PCSrcE, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE,
