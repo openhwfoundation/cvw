@@ -39,7 +39,7 @@ PARAM_TO_EXTENSION = {
     "M_SUPPORTED": "M", "ZMMUL_SUPPORTED": "Zmmul",
     "F_SUPPORTED": "F", "D_SUPPORTED": "D", "Q_SUPPORTED": "Q", "ZFH_SUPPORTED": "Zfh", "ZFA_SUPPORTED": "Zfa",
     "ZAAMO_SUPPORTED": "Zaamo", "ZALRSC_SUPPORTED": "Zalrsc", "ZABHA_SUPPORTED": "Zabha", "ZACAS_SUPPORTED": "Zacas",
-    "ZAWRS_SUPPORTED": "Zawrs",
+    "ZAWRS_SUPPORTED": "Zawrs", "ZAMA16B_SUPPORTED": "Zama16b",
     "ZCA_SUPPORTED": "Zca", "ZCB_SUPPORTED": "Zcb", "ZCF_SUPPORTED": "Zcf", "ZCD_SUPPORTED": "Zcd",
     "ZBA_SUPPORTED": "Zba", "ZBB_SUPPORTED": "Zbb", "ZBC_SUPPORTED": "Zbc", "ZBS_SUPPORTED": "Zbs",
     "ZBKB_SUPPORTED": "Zbkb", "ZBKC_SUPPORTED": "Zbkc", "ZBKX_SUPPORTED": "Zbkx",
@@ -48,6 +48,7 @@ PARAM_TO_EXTENSION = {
     "ZICOND_SUPPORTED": "Zicond", "ZIMOP_SUPPORTED": "Zimop", "ZCMOP_SUPPORTED": "Zcmop", "ZICCLSM_SUPPORTED": "Zicclsm",
     "ZICBOM_SUPPORTED": "Zicbom", "ZICBOZ_SUPPORTED": "Zicboz", "ZICBOP_SUPPORTED": "Zicbop",
     "S_SUPPORTED": "S", "U_SUPPORTED": "U", "SSTC_SUPPORTED": "Sstc",
+    "SMSTATEEN_SUPPORTED": "Smstateen", "SSSTATEEN_SUPPORTED": "Ssstateen",
     "SV32_SUPPORTED": "Sv32", "SV39_SUPPORTED": "Sv39", "SV48_SUPPORTED": "Sv48", "SV57_SUPPORTED": "Sv57",
     "SVPBMT_SUPPORTED": "Svpbmt", "SVNAPOT_SUPPORTED": "Svnapot", "SVINVAL_SUPPORTED": "Svinval", "SVADU_SUPPORTED": "Svadu",
 }
@@ -92,7 +93,15 @@ def readSailExtensions(sailJson):
     """Return {extension: supported} from the "extensions" section of a sail.json.
     The file carries // comment lines, which json cannot parse, so strip them first."""
     data = json.loads(re.sub(r"^\s*//.*$", "", sailJson.read_text(), flags=re.M))
-    return {name: bool(entry.get("supported")) for name, entry in data.get("extensions", {}).items() if isinstance(entry, dict)}
+    supported = {}
+    for name, entry in data.get("extensions", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        if "supported" in entry:
+            supported[name] = bool(entry["supported"])
+        else:  # a group such as "Stateen": {"Smstateen": {...}, "Ssstateen": {...}}
+            supported.update({sub: bool(e.get("supported")) for sub, e in entry.items() if isinstance(e, dict) and "supported" in e})
+    return supported
 
 
 def checkSail(cfg, actDir):

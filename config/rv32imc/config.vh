@@ -12,20 +12,7 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-`include "BranchPredictorType.vh"
 
 // RV32 or RV64: XLEN = 32 or 64
 localparam XLEN = 32'd32;
@@ -41,6 +28,7 @@ localparam logic E_SUPPORTED = 0;
 localparam logic ZIFENCEI_SUPPORTED = 0; // Instruction-Fetch fence
 localparam logic ZICSR_SUPPORTED    = 1; // CSR Instructions
 localparam logic ZICCLSM_SUPPORTED  = 0; // Misaligned loads/stores
+localparam logic ZAMA16B_SUPPORTED  = 0; // Misaligned loads/stores/AMOs within a 16 byte granule are atomic
 localparam logic ZICOND_SUPPORTED   = 0; // Integer conditional operations
 localparam logic ZCMT_SUPPORTED = 0; // Table jump; jvt CSR
 localparam logic ZFINX_SUPPORTED = 0; // Floating point in x registers; fcsr CSR
@@ -58,6 +46,7 @@ localparam logic ZAAMO_SUPPORTED  = 0;
 localparam logic ZALRSC_SUPPORTED = 0;
 localparam logic ZABHA_SUPPORTED  = 0; // Byte and halfword AMOs
 localparam logic ZACAS_SUPPORTED  = 0; // Compare-and-swap AMOs
+localparam logic ZAWRS_SUPPORTED  = 0; // Wait on reservation set
 
 // Bit manipulation extensions
 // B extension is Zba + Zbb + Zbs
@@ -108,7 +97,7 @@ localparam logic SSQOSID_SUPPORTED = 0; // Quality of Service identifiers (srmcf
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 1;
 localparam logic ZIHPM_SUPPORTED  = 1;
-localparam COUNTERS = 12'd32;
+localparam COUNTERS = 12'd7; // mcycle, time, minstret, and mhpmcounter3-6
 
 // Cache-management operation extensions
 localparam logic ZICBOM_SUPPORTED = 0;
@@ -136,6 +125,9 @@ localparam logic BIGENDIAN_SUPPORTED = 0;
 // TLB configuration.  Entries should be a power of 2
 localparam ITLB_ENTRIES = 32'd0;
 localparam DTLB_ENTRIES = 32'd0;
+// 1: sfence.vma and sinval.vma invalidate only the TLB entries that rs1 and rs2 name.
+// 0: they also invalidate entries for other addresses and ASIDs, which is legal and saves hardware.
+localparam logic TLB_EXACT_FENCE_INVAL = 0;
 
 // Cache configuration.  Sizes should be a power of two
 // typical configuration 4 ways, 4096 bytes per way, 256 bit or more lines
@@ -160,7 +152,9 @@ localparam PMP_G = 32'b0; // grain of 4 bytes is supported for uncached RV32
 localparam logic [63:0] RESET_VECTOR = 64'h80000000;
 
 // WFI Timeout Wait
-localparam WFI_TIMEOUT_BIT = 32'd16;
+localparam WFI_TIMEOUT_BIT = 32'd14;
+localparam WRSNTO_TIMEOUT_BIT = 32'd13; // Zawrs wrs.nto wait
+localparam WRSSTO_TIMEOUT_BIT = 32'd12; // Zawrs wrs.sto wait
 
 // Peripheral Physical Addresses
 // Peripheral memory space extends from BASE to BASE+RANGE
@@ -182,6 +176,9 @@ localparam logic UNCORE_RAM_PRELOAD = 1'b0;
 localparam logic EXT_MEM_SUPPORTED = 0;
 localparam logic [63:0] EXT_MEM_BASE     = 64'h80000000;
 localparam logic [63:0] EXT_MEM_RANGE    = 64'h07FFFFFF;
+localparam logic EXT_IO_SUPPORTED = 0;
+localparam logic [63:0] EXT_IO_BASE      = 64'h00000000;
+localparam logic [63:0] EXT_IO_RANGE     = 64'h00000000;
 localparam logic CLINT_SUPPORTED = 1;
 localparam logic [63:0] CLINT_BASE       = 64'h02000000;
 localparam logic [63:0] CLINT_RANGE      = 64'h0000FFFF;
@@ -233,12 +230,15 @@ localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 0;
-localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
+localparam cvw::bpred_type_t BPRED_TYPE = cvw::BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
 localparam RAS_SIZE = 32'd16;
 localparam INSTR_CLASS_PRED = 0;
+
+// FMA normalization: 1 = leading zero anticipator in parallel with the adder, 0 = leading zero counter on the sum
+localparam logic FMA_LZA = 1;
 
 // FPU division architecture
 localparam RADIX = 32'd4;

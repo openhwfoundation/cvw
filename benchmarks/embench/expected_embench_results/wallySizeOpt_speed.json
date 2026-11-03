@@ -1,6 +1,6 @@
 {  "speed results" :
   { "detailed speed results" :
-    { "aha-mont64" : 0.82,
+    { "aha-mont64" : 0.81,
       "crc32" : 1.05,
       "cubic" : 0.43,
       "edn" : 0.96,
@@ -21,7 +21,7 @@
       "statemate" : 2.22,
       "tarfind" : 2.36,
       "ud" : 0.92,
-      "wikisort" : 1.78
+      "wikisort" : 1.79
     },
     "speed geometric mean" : 1.09,
     "speed geometric standard deviation" : 1.49

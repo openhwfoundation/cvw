@@ -18,6 +18,10 @@
 # mcause and scause only have 4 lsbs of code and 1 msb of interrupt flag
 --override cpu/ecode_mask=0x8000000F  # for RV32
 
+# Only mhpmcounter3-6 are implemented: counteren bits 0-6 are writable, and mcountinhibit bits 1 and 7-31 are zero
+--override cpu/counteren_mask=0x7F
+--override cpu/noinhibit_mask=0xFFFFFF82
+
 # No PMP
 --override cpu/PMP_registers=0
 --override cpu/PMP_undefined=T

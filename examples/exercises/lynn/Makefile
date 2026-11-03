@@ -15,8 +15,8 @@ INC_DIR       		?= $(CURDIR)/sample_processor/incdir/  # Optional directory for 
 PROCESSOR_TOP 		?= riscvsingle # top-level module name
 PROCESSOR_CONFIG 	?= $(CURDIR)/sample_processor/config
 
-#--trace-all
-SAIL_TRACE_FLAGS 	?= --trace-all
+# --trace enables every Sail trace except TLB, PTW and gdbserver (--trace-all was removed in Sail 0.15)
+SAIL_TRACE_FLAGS 	?= --trace
 
 # ----    Synthesis Configuration ---- #
 SYNTH_TECH 			?= sky130 #tsmc28 #tsmc28psyn

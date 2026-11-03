@@ -13,21 +13,9 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "config.vh"
-`include "BranchPredictorType.vh"
 
 `ifdef USE_IMPERAS_DV
     `include "idv/idv.svh"
@@ -141,7 +129,7 @@ module testbench;
   logic [63:0] TohostWord;       // the 64-bit tohost value being stored
   logic [31:0] TohostValue;      // value stored to tohost: 1 = pass, (code << 1) | 1 = fail, 0 = never written
   logic PrevPCZero;
-  logic RVVIStall;
+  logic ExternalStall;
 
   integer elfFD;
   byte header[0:4];
@@ -530,7 +518,7 @@ module testbench;
   if (P.UNCORE_RAM_SUPPORTED)
     always @(posedge clk)
       if (ResetMem)  // program memory is sometimes reset (e.g. for CoreMark, which needs zeroed memory)
-        for (adrindex=0; adrindex<(P.UNCORE_RAM_RANGE>>1+(P.XLEN/32)); adrindex = adrindex+1)
+        for (adrindex=0; adrindex<((P.UNCORE_RAM_RANGE+1)>>(1+P.XLEN/32)); adrindex = adrindex+1)
           dut.uncoregen.uncore.ram.ram.memory.ram.RAM[adrindex] = '0;
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -569,7 +557,7 @@ module testbench;
 
   end
 
-  wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
+  wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall,
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
@@ -589,11 +577,9 @@ module testbench;
     logic                                             mii_tx_en, mii_tx_er;
 
     rvvitbwrapper #(P, MAX_CSRS, RVVI_INIT_TIME_OUT, RVVI_PACKET_DELAY)
-    rvvitbwrapper(.clk, .reset, .RVVIStall, .mii_tx_clk(clk), .mii_txd, .mii_tx_en, .mii_tx_er,
+    rvvitbwrapper(.clk, .reset, .RVVIStall(ExternalStall), .mii_tx_clk(clk), .mii_txd, .mii_tx_en, .mii_tx_er,
                   .mii_rx_clk(clk), .mii_rxd('0), .mii_rx_dv('0), .mii_rx_er('0));
-  end else begin
-    assign RVVIStall = '0;
-  end
+  end // otherwise ExternalStall comes from stallinjector below
 
 
   /*
@@ -613,6 +599,20 @@ module testbench;
   logic [31:0] NextInstrE, InstrM;
   mux2    #(32)     FlushInstrMMux(dut.core.ifu.InstrE, dut.core.ifu.nop, dut.core.ifu.FlushM, NextInstrE);
   flopenr #(32)     InstrMReg(clk, reset, ~dut.core.ifu.StallM, NextInstrE, InstrM);
+
+  // Optional ExternalStall injector for directed tests of stall/flush interactions.  Inactive unless the
+  // program retires the custom-use HINT slti x0, x0, imm with imm = {length[5:0], delay[5:0]}: delay cycles
+  // later, ExternalStall is held for length cycles.
+  if (!RVVI_SYNTH_SUPPORTED) begin : stallinjector
+    logic [5:0] StallDelay, StallLength;
+    always_ff @(posedge clk)
+      if (reset) {StallLength, StallDelay} <= '0;
+      else if (dut.core.InstrValidM & ~dut.core.StallW & ~dut.core.FlushW & InstrM[19:0] == 20'h02013)
+                                 {StallLength, StallDelay} <= InstrM[31:20];
+      else if (StallDelay != 0)  StallDelay <= StallDelay - 1;
+      else if (StallLength != 0) StallLength <= StallLength - 1;
+    assign ExternalStall = (StallDelay == 0) & (StallLength != 0);
+  end
 
   // Track names of instructions
   string InstrFName, InstrDName, InstrEName, InstrMName, InstrWName;
@@ -718,7 +718,7 @@ module testbench;
 `endif
 
 // Functional coverage.  riscv_arch_test comes from riscv-arch-test and samples the generated
-// covergroups off the RVVI trace; wally-compile.do supplies it and its include paths with --fcov.
+// covergroups off the RVVI trace; each simulator's compile script supplies it and its include paths with --fcov.
 `ifdef FCOV
   riscv_arch_test riscv_arch_test(rvvi);
 `endif
@@ -934,9 +934,6 @@ module testbench;
     if (labFD != 0) $fclose(labFD);
   endtask
 
-`ifdef PMP_COVERAGE
-test_pmp_coverage #(P) pmp_inst(clk);
-`endif
   /* verilator lint_on WIDTHTRUNC */
   /* verilator lint_on WIDTHEXPAND */
 

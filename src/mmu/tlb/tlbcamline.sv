@@ -1,59 +1,45 @@
 ///////////////////////////////////////////
 // tlbcamline.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 6 April 2021
-// Modified: kmacsaigoren@hmc.edu 1 June 2021
-//            Implemented SV48 on top of SV39. This included adding SvMode input signal and the wally constants
-//            Mostly this was done to make the PageNumberMixer work.
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 6 April 2021
+// Modified: David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu, Ayesha Anwaar, Muhammad Zain
 //
-// Purpose: CAM line for the translation lookaside buffer (TLB)
-//          Determines whether a virtual page number matches the stored key.
+// Purpose: One TLB CAM entry.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcamline import cvw::*;  #(parameter cvw_t P,
-                                    parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
-  input  logic                  clk, reset,
-  input  logic [P.VPN_BITS-1:0]  VPN, // The requested page number to compare against the key
-  input  logic [P.ASID_BITS-1:0] SATP_ASID,
-  input  logic                  SV39Mode,
-  input  logic                  SV48Mode,
-  input  logic                  WriteEnable,  // Write a new entry to this line
-  input  logic                  PTE_G,
-  input  logic                  PTE_NAPOT,  // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
-  input  logic [2:0]            PageTypeWriteVal,
-  input  logic                  TLBFlush,     // Flush this line (set valid to 0)
-  input  logic                  TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
-  output logic [2:0]            PageTypeRead,
-  output logic                  Match
+module tlbcamline import cvw::*; #(parameter cvw_t P,
+                                   parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
+  input  logic                   clk, reset,
+  input  logic [P.VPN_BITS-1:0]  VPN,          // The requested page number to compare against the key
+  input  logic [P.ASID_BITS-1:0] SATP_ASID,    // ASID stored with a new entry
+  input  logic [P.ASID_BITS-1:0] CompareASID,  // ASID to match: SATP_ASID, or the sfence.vma rs2 ASID during a flush
+  input  logic                   SV39Mode,
+  input  logic                   SV48Mode,
+  input  logic                   WriteEnable,  // Write a new entry to this line
+  input  logic                   PTE_G,
+  input  logic                   PTE_NAPOT,    // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
+  input  logic [2:0]             PageTypeWriteVal,
+  input  logic                   TLBFlush,     // Flush this line (set valid to 0)
+  input  logic                   TLBFlushAll,  // sfence.vma rs2 = x0: flush every ASID and global (G=1) entries too
+  input  logic                   TLBFlushVA,   // sfence.vma rs1 != x0: flush only an entry whose page holds VPN
+  input  logic                   TLBWrite,     // a PTE is being written into the TLB
+  input  logic                   WritePTE_G,   // G bit of the PTE being written
+  input  logic                   WritePTE_NAPOT, // the PTE being written is a NAPOT entry
+  output logic [2:0]             PageTypeRead,
+  output logic                   Match
 );
 
-  // PageTypeRead is a key for a tera, giga, mega, or kilopage.
+  // PageTypeRead is a key for a peta, tera, giga, mega, or kilopage (KILOPAGE..PETAPAGE in the cvw package).
   // PageType == 3'b000 --> kilopage
-  // PageType == 3'b001 --> megapage
-  // PageType == 3'b010 --> gigapage
-  // PageType == 3'b011 --> terapage
-  // PageType == 3'b100 --> petapage
-  // This entry has KEY_BITS for the key plus one valid bit.
   logic                Valid;
   logic [KEY_BITS-1:0] Key;
   logic [2:0]          PageType;
@@ -61,10 +47,11 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   // Split up key and query into sections for each page table level.
   logic [P.ASID_BITS-1:0] Key_ASID;
   logic [SEGMENT_BITS-1:0] Key0, Key1, Query0, Query1;
-  logic MatchASID, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
+  logic MatchASID, SameASID, MatchVPN, Match0Upper, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
 
   assign Key_ASID = Key[KEY_BITS-1:KEY_BITS-P.ASID_BITS];
-  assign MatchASID = (SATP_ASID == Key_ASID) | PTE_G;
+  assign SameASID = (CompareASID == Key_ASID);
+  assign MatchASID = SameASID | PTE_G;
 
   // Calculate a match against a segment of the key based on the input vpn and the page type.
   // For example, a petapage in SV57 only cares about VPN[4], so VPN[0], VPN[1], VPN[2], and VPN[3]
@@ -74,26 +61,27 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
   assign Key0   = Key[SEGMENT_BITS-1:0];
   assign Query0 = VPN[SEGMENT_BITS-1:0];
   // In Svnapot, if N bit is set and bottom 4 bits of PPN = 1000, then these bits don't need to match
-  assign MatchNAPOT = P.SVNAPOT_SUPPORTED & PTE_NAPOT & (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]);
-  assign Match0 = (Query0 == Key0) | (PageType > 3'd0) | MatchNAPOT; // always match for megapage or larger
+  assign Match0Upper = (Query0[SEGMENT_BITS-1:4] == Key0[SEGMENT_BITS-1:4]);
+  assign MatchNAPOT = P.SVNAPOT_SUPPORTED & PTE_NAPOT & Match0Upper;
+  assign Match0 = (Query0 == Key0) | (PageType > KILOPAGE) | MatchNAPOT; // always match for megapage or larger
 
   // segment 1
   assign Key1   = Key[2*SEGMENT_BITS-1:SEGMENT_BITS];
   assign Query1 = VPN[2*SEGMENT_BITS-1:SEGMENT_BITS];
-  assign Match1 = (Query1 == Key1) | (PageType > 3'd1); // always match for gigapage or larger
+  assign Match1 = (Query1 == Key1) | (PageType > MEGAPAGE); // always match for gigapage or larger
 
   if (P.SV39_SUPPORTED) begin : segment2
     logic [SEGMENT_BITS-1:0] Key2, Query2;
     assign Key2   = Key[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
     assign Query2 = VPN[3*SEGMENT_BITS-1:2*SEGMENT_BITS];
-    assign Match2 = (Query2 == Key2) | (PageType > 3'd2);  // always match for terapage or larger
+    assign Match2 = (Query2 == Key2) | (PageType > GIGAPAGE); // always match for terapage or larger
   end else assign Match2 = 1'b1;
 
   if (P.SV48_SUPPORTED) begin : segment3
     logic [SEGMENT_BITS-1:0] Key3, Query3;
     assign Key3   = Key[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
     assign Query3 = VPN[4*SEGMENT_BITS-1:3*SEGMENT_BITS];
-    assign Match3 = (Query3 == Key3) | (PageType > 3'd3) | SV39Mode; // always match in SV39 mode or for petapage
+    assign Match3 = (Query3 == Key3) | (PageType > TERAPAGE) | SV39Mode; // always match in SV39 mode or for petapage
   end else assign Match3 = 1'b1;
 
   if (P.SV57_SUPPORTED) begin : segment4
@@ -103,17 +91,30 @@ module tlbcamline import cvw::*;  #(parameter cvw_t P,
     assign Match4 = (Query4 == Key4) | SV39Mode | SV48Mode; // always match in SV39/SV48 mode
   end else assign Match4 = 1'b1;
 
-  assign Match = Match0 & Match1 & Match2 & Match3 & Match4 & MatchASID & Valid;
+  assign MatchVPN = Match0 & Match1 & Match2 & Match3 & Match4;
+  assign Match = MatchVPN & MatchASID & Valid;
+
+  // Overlap: this line and the PTE being written cover a common address.  It ignores the VPN segments covered by
+  // either page, and a global PTE overlaps lines of every ASID.  A TLB write invalidates every other overlapping
+  // line, so no address ever matches two entries (lookups OR the matching entries together).
+  logic Overlap;
+  assign Overlap = (Match0 | (PageTypeWriteVal > KILOPAGE) | (WritePTE_NAPOT & Match0Upper)) &
+                   (Match1 | (PageTypeWriteVal > MEGAPAGE)) & (Match2 | (PageTypeWriteVal > GIGAPAGE)) &
+                   (Match3 | (PageTypeWriteVal > TERAPAGE)) & Match4 & (MatchASID | WritePTE_G) & Valid;
 
   // On a write, update the type of the page referred to by this line.
   flopenr #(3) pagetypeflop(clk, reset, WriteEnable, PageTypeWriteVal, PageType);
   assign PageTypeRead = PageType & {3{Match}};
 
   // On a write, set the valid bit high and update the stored key.
-  // On a flush, zero the valid bit and leave the key unchanged, unless the entry is global (G=1)
-  // and the flush is ASID-specific (TLBFlushAll=0): global mappings survive an ASID-scoped sfence.vma.
+  // On a flush, zero the valid bit and leave the key unchanged.  Global mappings survive an sfence.vma with
+  // rs2 != x0 (TLBFlushAll = 0).  With exact invalidation, an sfence.vma with rs1 != x0 flushes only an entry
+  // whose page holds the address (TLBFlushVA), and one with rs2 != x0 only an entry of that ASID.
   logic ShouldFlush;
-  assign ShouldFlush = TLBFlush & (~PTE_G | TLBFlushAll);
-  flopenr #(1) validbitflop(clk, reset, WriteEnable | ShouldFlush, ~ShouldFlush, Valid);
+  if (P.TLB_EXACT_FENCE_INVAL) assign ShouldFlush = TLBFlush & (~TLBFlushVA | MatchVPN) & (TLBFlushAll | ~PTE_G & SameASID);
+  else                         assign ShouldFlush = TLBFlush & (TLBFlushAll | ~PTE_G);
+  logic Invalidate;
+  assign Invalidate = ShouldFlush | (TLBWrite & Overlap & ~WriteEnable);
+  flopenr #(1) validbitflop(clk, reset, WriteEnable | Invalidate, ~Invalidate, Valid);
   flopenr #(KEY_BITS) keyflop(clk, reset, WriteEnable, {SATP_ASID, VPN}, Key);
 endmodule

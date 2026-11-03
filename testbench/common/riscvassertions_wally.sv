@@ -9,17 +9,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module riscvassertions_wally import cvw::*; #(parameter cvw_t P);
@@ -56,6 +45,15 @@ module riscvassertions_wally import cvw::*; #(parameter cvw_t P);
     assert ((P.ZICBOZ_SUPPORTED == 0) | (P.DTIM_SUPPORTED == 0)) else $fatal(1, "ZICBOZ incompatible with DTIM");
     assert ((P.LLEN == P.XLEN) | (P.DCACHE_SUPPORTED & P.DTIM_SUPPORTED == 0)) else $fatal(1, "LLEN > XLEN (D on RV32 or Q on RV64) requires data cache");
     assert ((P.ZICCLSM_SUPPORTED == 0) | (P.DCACHE_SUPPORTED == 1)) else $fatal(1, "ZICCLSM requires DCACHE_SUPPORTED");
+    assert ((P.ZAMA16B_SUPPORTED == 0) | (P.DCACHE_LINELENINBITS >= 128)) else $fatal(1, "ZAMA16B requires a cache line of at least 128 bits so a 16 byte granule never spans two lines");
+    // The EXT_IO window is implemented by the PMA checker, which exists only with Zicsr.  It must be a naturally aligned
+    // power-of-two block inside EXT_MEM covering whole lines of every enabled cache; otherwise a line fill or write-back
+    // of neighboring memory would read or overwrite I/O registers.
+    assert (!P.EXT_IO_SUPPORTED | P.ZICSR_SUPPORTED) else $fatal(1, "EXT_IO_SUPPORTED requires ZICSR_SUPPORTED: the EXT_IO window is implemented by the PMA checker");
+    assert (!P.EXT_IO_SUPPORTED | P.EXT_MEM_SUPPORTED) else $fatal(1, "EXT_IO_SUPPORTED requires EXT_MEM_SUPPORTED");
+    assert (!P.EXT_IO_SUPPORTED | ((P.EXT_IO_RANGE & (P.EXT_IO_RANGE + 64'd1)) == 0 & (P.EXT_IO_BASE & P.EXT_IO_RANGE) == 0)) else $fatal(1, "EXT_IO window must be a power-of-two size aligned to its size (EXT_IO_RANGE all ones in its low bits, EXT_IO_BASE a multiple of EXT_IO_RANGE+1)");
+    assert (!P.EXT_IO_SUPPORTED | (P.EXT_IO_BASE >= P.EXT_MEM_BASE & P.EXT_IO_BASE + P.EXT_IO_RANGE <= P.EXT_MEM_BASE + P.EXT_MEM_RANGE)) else $fatal(1, "EXT_IO window must lie inside EXT_MEM");
+    assert (!P.EXT_IO_SUPPORTED | ((P.EXT_IO_RANGE + 64'd1 >= 64'(P.DCACHE_LINELENINBITS/8) | !P.DCACHE_SUPPORTED) & (P.EXT_IO_RANGE + 64'd1 >= 64'(P.ICACHE_LINELENINBITS/8) | !P.ICACHE_SUPPORTED))) else $fatal(1, "EXT_IO window must be at least one cache line long");
   end
 
 endmodule
