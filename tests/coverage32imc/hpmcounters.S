@@ -3,13 +3,19 @@
 //
 // Written: david_harris@hmc.edu 27 October 2026
 //
-// Purpose: rv32imc hardware performance counter coverage (trl5 group D).  RV32 port of
-//          tests/coverage64gc/hpmcounters.S restricted to the events rv32imc can produce (it has no
-//          branch predictor, caches, fence.i, sfence.vma or FPU).  Runs a workload three times:
-//          1. every event selector zero: no counter may change;
-//          2. every selector nonzero and every counter inhibited: no counter may change;
-//          3. every selector nonzero, nothing inhibited: each counter with a live event counts, and the
-//             counters whose events cannot occur on rv32imc stay zero.
+// Purpose: rv32imc hardware performance counter coverage (trl5 group D).  rv32imc has COUNTERS = 7:
+//          mcycle, time, minstret and mhpmcounter3-6, which count branches (event 3), jumps that are not
+//          returns (4), returns (5) and branch mispredictions (6; without a branch predictor, every taken
+//          branch or jump).  The test
+//          1. runs a workload with every event selector zero: no counter may change;
+//          2. runs it with every selector nonzero and every counter inhibited: no counter may change, and
+//             mcycle and minstret hold the values written to them;
+//          3. runs it with every selector nonzero and nothing inhibited: each of counters 3-6 counts;
+//          4. checks the absent counters 7-31: mhpmevent7-31, mhpmcounter7-31 and mhpmcounter7-31h are
+//             read-only zero (writes are ignored), hpmcounter7-31 and hpmcounter7-31h read zero in M mode,
+//             and every hpmcounter/hpmcounterh write is an illegal instruction (they are read-only);
+//          5. checks that mcountinhibit and mcounteren keep only the bits of implemented counters, and that
+//             U mode may read hpmcounter3 but not hpmcounter7 (its mcounteren bit is read-only zero).
 //          The 64-bit counters are written and read as low/high halves (mhpmcounterN/mhpmcounterNh).
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
@@ -27,13 +33,12 @@
 #define MTIMECMP   0x02004000
 #define MCAUSE_MTI 0x80000007
 
-#define HPM_ALL     3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
-// events rv32imc produces: branch, jump, return, branch/jump taken (BPWrong, BPDirWrong, BTAWrong all
-// equal PCSrcM without a predictor), class mismatch, load stall, store stall, CSR write, interrupt,
-// exception, divider busy
-#define HPM_LIVE    3,4,5,6,7,8,10,11,12,19,22,23,24
-// events tied low on rv32imc: RAS (9), D$ (13-15), I$ (16-18), fence.i (20), sfence.vma (21), 25-31
-#define HPM_DEAD    9,13,14,15,16,17,18,20,21,25,26,27,28,29,30,31
+// implemented hardware performance counters (COUNTERS = 7) and the absent ones, which read zero
+#define HPM_IMPL    3,4,5,6
+#define HPM_ABSENT  7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
+#define ALL_32      0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
+#define MCOUNTINHIBIT_IMPL 0x7D     // CY, IR, HPM3-6; TM (bit 1) is read-only zero
+#define MCOUNTEREN_IMPL    0x7F     // CY, TM, IR, HPM3-6
 
 .macro SC_CHECK_GTU actual, bound, index
     bltu \bound, \actual, 9f
@@ -50,9 +55,9 @@
 9:
 .endm
 
-.macro SET_ALL_EVENTS val
+.macro SET_EVENTS val
     li t0, \val
-    .irp n, HPM_ALL
+    .irp n, HPM_IMPL
     csrw mhpmevent\n, t0
     .endr
 .endm
@@ -60,25 +65,29 @@
 #define COUNTER_LO(tag, n) (((tag) << 24) | 0x5A00 | (n))
 #define COUNTER_HI(tag, n) (((tag) << 8) | (n))
 
-.macro WRITE_COUNTERS tag
-    .irp n, HPM_ALL
+// Write mhpmcounterN and mhpmcounterNh for each N in the list
+.macro WRITE_COUNTERS tag, list:vararg
+    .irp n, \list
     li t0, COUNTER_LO(\tag, \n)
-    csrw mhpmcounter\n, t0
+    csrw (0xB00 + \n), t0
     li t0, COUNTER_HI(\tag, \n)
     csrw (0xB80 + \n), t0
     .endr
 .endm
 
-.macro CHECK_COUNTERS tag, base
-    .irp n, HPM_ALL
+// Check each counter through all four names: mhpmcounterN, hpmcounterN, mhpmcounterNh, hpmcounterNh
+.macro CHECK_COUNTERS tag, base, list:vararg
+    .irp n, \list
     li a1, COUNTER_LO(\tag, \n)
-    csrr a0, mhpmcounter\n
+    csrr a0, (0xB00 + \n)
     SC_CHECK_EQ a0, a1, \base + \n
-    csrr a0, hpmcounter\n
+    csrr a0, (0xC00 + \n)
     SC_CHECK_EQ a0, a1, \base + 32 + \n
     li a1, COUNTER_HI(\tag, \n)
     csrr a0, (0xB80 + \n)
     SC_CHECK_EQ a0, a1, \base + 64 + \n
+    csrr a0, (0xC80 + \n)
+    SC_CHECK_EQ a0, a1, \base + 96 + \n
     .endr
 .endm
 
@@ -90,43 +99,100 @@ main:
 
     // 1. Every event selector zero, nothing inhibited: no counter may change.
     csrw mcountinhibit, zero
-    SET_ALL_EVENTS 0
-    WRITE_COUNTERS 1
+    SET_EVENTS 0
+    WRITE_COUNTERS 1, HPM_IMPL
     jal ra, workload
-    CHECK_COUNTERS 1, 100
+    CHECK_COUNTERS 1, 1000, HPM_IMPL
 
-    // 2. Every selector nonzero, every counter inhibited: no counter may change.
-    SET_ALL_EVENTS 1
+    // 2. Every selector nonzero, every counter inhibited: no counter may change, mcycle and minstret included.
+    SET_EVENTS 1
     li t0, -1
     csrw mcountinhibit, t0
-    WRITE_COUNTERS 2
-    CHECK_COUNTERS 2, 200
+    WRITE_COUNTERS 2, 0, 2, HPM_IMPL
+    CHECK_COUNTERS 2, 2000, 0, 2, HPM_IMPL
     jal ra, workload
-    CHECK_COUNTERS 2, 300
+    CHECK_COUNTERS 2, 3000, 0, 2, HPM_IMPL
 
-    // 3. Every selector nonzero, nothing inhibited: every live event counts, the dead ones do not.
-    .irp n, HPM_ALL
-    csrw mhpmcounter\n, zero
+    // 3. Every selector nonzero, nothing inhibited: every counter counts its event.
+    .irp n, HPM_IMPL
+    csrw (0xB00 + \n), zero
     csrw (0xB80 + \n), zero
     .endr
     csrw mcountinhibit, zero
     jal ra, workload
     li t0, -1
     csrw mcountinhibit, t0      // freeze the counters while they are checked
-    .irp n, HPM_LIVE
-    csrr a0, mhpmcounter\n
-    SC_CHECK_GTU a0, zero, 400 + \n
-    .endr
-    .irp n, HPM_DEAD
-    csrr a0, mhpmcounter\n
-    SC_CHECK_EQ a0, zero, 450 + \n
+    .irp n, HPM_IMPL
+    csrr a0, (0xB00 + \n)
+    SC_CHECK_GTU a0, zero, 4000 + \n
     .endr
 
     // Each of the three workload passes takes exactly one interrupt and two exceptions.
     li a1, 3
-    SC_CHECK_EQ s3, a1, 500
+    SC_CHECK_EQ s3, a1, 4100
     li a1, 6
-    SC_CHECK_EQ s4, a1, 501
+    SC_CHECK_EQ s4, a1, 4101
+
+    // 4. Absent counters 7-31.  Their event selectors and machine counters are read-only zero: a write is
+    // legal and ignored.  In M mode their user counters read zero.
+    li s4, 0
+    li a1, 0
+    .irp n, HPM_ABSENT
+    li t0, -1
+    csrw (0x323 + \n - 3), t0  // mhpmevent\n
+    csrr a0, (0x323 + \n - 3)
+    SC_CHECK_EQ a0, a1, 5000 + \n
+    li t0, COUNTER_LO(4, \n)
+    csrw (0xB00 + \n), t0      // mhpmcounter\n
+    li t0, COUNTER_HI(4, \n)
+    csrw (0xB80 + \n), t0      // mhpmcounter\nh
+    csrr a0, (0xB00 + \n)
+    SC_CHECK_EQ a0, a1, 5032 + \n
+    csrr a0, (0xC00 + \n)
+    SC_CHECK_EQ a0, a1, 5064 + \n
+    csrr a0, (0xB80 + \n)
+    SC_CHECK_EQ a0, a1, 5096 + \n
+    csrr a0, (0xC80 + \n)
+    SC_CHECK_EQ a0, a1, 5128 + \n
+    .endr
+    SC_CHECK_EQ s4, a1, 5200    // none of these accesses traps
+
+    // Every user counter (cycle, time, instret, hpmcounter3-31 and their high halves) is read-only, so a
+    // write is an illegal instruction, whether or not the counter exists.
+    .irp n, ALL_32
+    csrw (0xC00 + \n), zero
+    csrw (0xC80 + \n), zero
+    .endr
+    li a1, 64
+    SC_CHECK_EQ s4, a1, 5201
+
+    // 5. mcountinhibit and mcounteren keep only the bits of implemented counters.
+    li t0, -1
+    csrw mcountinhibit, t0
+    csrr a0, mcountinhibit
+    li a1, MCOUNTINHIBIT_IMPL
+    SC_CHECK_EQ a0, a1, 6000
+    csrw mcounteren, t0
+    csrr a0, mcounteren
+    li a1, MCOUNTEREN_IMPL
+    SC_CHECK_EQ a0, a1, 6001
+
+    // In U mode, with every mcounteren bit set, hpmcounter3 is readable but hpmcounter7 is not.
+    li s4, 0
+    li s5, 0x1234
+    li s6, 0x1234
+    li a0, 0
+    ecall                       // switch to U mode
+    csrr s5, hpmcounter3        // legal: overwrites s5 with the frozen count (nonzero from part 3)
+    csrr s6, hpmcounter7        // illegal: mcounteren[7] is read-only zero, so s6 keeps 0x1234
+    li a0, 3
+    ecall                       // back to M mode
+    li t2, 3                    // two ecalls and the illegal hpmcounter7 read
+    SC_CHECK_EQ s4, t2, 6002
+    li a1, 0x1234
+    SC_CHECK_EQ s6, a1, 6003
+    csrr a1, mhpmcounter3
+    SC_CHECK_EQ s5, a1, 6004
 
     SC_PASS
     j done

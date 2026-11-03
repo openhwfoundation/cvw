@@ -218,7 +218,6 @@ coverage exclude -scope /core/lsu/readdataselmux -linerange [TagLine ${SRC}/gene
 ExcludeRows /core/lsu e {SelHPTW_1 FlushDCacheM_1}
 # sfence.vma is illegal (sfencevmaM = 0), so its HPM event (21) never fires.
 ExcludeRows $CNT e {sfencevmaM_1 InstrValidNotFlushedM_0 InstrValidNotFlushedM_1}
-ExcludeGenRows $CNT cntr\[21\] e [list {MCOUNTINHIBIT_REGW\[21\]_0} {MCOUNTINHIBIT_REGW\[21\]_1} {CounterEvent\[21\]_1} {(MHPMEVENT_REGW\[21\] != 0)_*}]
 
 ######################################################################################################
 # NOPMP: no PMP entries (PMP_ENTRIES = 0)
@@ -264,13 +263,10 @@ ExcludeRows $ARB c [list {(HBURST\[2:1\] == 0)_0}]
 # HPM events that cannot fire on rv32imc
 ######################################################################################################
 
-# Events tied to 0: 9 (return address stack wrong: BPRED_SUPPORTED = 0, RASPredPCWrongM = 0), 13-18 (D$ and
-# I$ events: no caches) and 20 (fence.i: NOFENCEI); 21 is under NOVM.  Events 25-31 have no source
-# (CounterEvent[31:25] = 0 in every configuration).  Every row of these counters' increment needs the event.
+# COUNTERS = 7: only mhpmcounter3-6 exist, so events 7-31 count nothing; their CounterEvent assignments remain.
+# Event 9 (return address stack wrong) is RASPredPCWrongM & InstrValidNotFlushedM with RASPredPCWrongM tied to 0
+# (BPRED_SUPPORTED = 0).  (Event 20, fence.i, is under NOFENCEI and event 21, sfence.vma, under NOVM.)
 ExcludeRows $CNT e {RASPredPCWrongM_1 InstrValidNotFlushedM_0 InstrValidNotFlushedM_1}
-foreach i {9 13 14 15 16 17 18 20 25 26 27 28 29 30 31} {
-    ExcludeGenRows $CNT cntr\[$i\] e [list "MCOUNTINHIBIT_REGW\\\[$i\\\]_0" "MCOUNTINHIBIT_REGW\\\[$i\\\]_1" "CounterEvent\\\[$i\\\]_1" "(MHPMEVENT_REGW\\\[$i\\\] != 0)_*"]
-}
 # MCYCLE's event (CounterEvent[0]) is tied to 1 and counter 1 (time) has no event (CounterEvent[1] = 0), in
 # every configuration.
 ExcludeGenRows $CNT cntr\[0\] e [list {CounterEvent\[0\]_0}]
@@ -281,19 +277,6 @@ ExcludeGenRows $CNT cntr\[1\] e [list CSRMWriteM_1 "(CSRAdrM == (2816 + 1))_1"]
 ExcludeGenRows $CNT cntr\[1\] e [list CSRMWriteM_1 "(CSRAdrM == (2944 + 1))_1"]
 coverage exclude -scope $CNT/cntr\[1\] -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounter] -item b 1
 coverage exclude -scope $CNT/cntr\[1\] -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounterh] -item b 1
-
-# COUNTERS = 32: all 29 event selectors and all 32 counters exist, so the "absent selector/counter reads zero"
-# ranges are empty: MHPMEVENTBASE + COUNTERS - 3 is past the last selector, and base + COUNTERS <= adr <
-# base + 32 is empty for mhpmcounter, hpmcounter, mhpmcounterh and hpmcounterh.
-ExcludeRows $CNT c [list "(CSRAdrM < ((803 + 32) - 3))_0"]
-ExcludeRows $CNT c [list "(CSRAdrM >= (2816 + 32))_1" "(CSRAdrM < (2816 + 32))_1"]
-ExcludeRows $CNT c [list CSRWriteM_0 CSRWriteM_1 "(CSRAdrM >= (3072 + 32))_1" "(CSRAdrM < (3072 + 32))_1"]
-ExcludeRows $CNT c [list "(CSRAdrM >= (2944 + 32))_1" "(CSRAdrM < (2944 + 32))_1"]
-ExcludeRows $CNT c [list CSRWriteM_0 CSRWriteM_1 "(CSRAdrM >= (3200 + 32))_1" "(CSRAdrM < (3200 + 32))_1"]
-foreach tag {unused-event-zero unused-mhpmcounter-range unused-mhpmcounter-zero unused-hpmcounter-range unused-hpmcounter-zero
-             unused-mhpmcounterh-range unused-mhpmcounterh-zero unused-hpmcounterh-range unused-hpmcounterh-zero} {
-    coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/csrc.sv $tag] -code bs
-}
 
 ######################################################################################################
 # MMU tie-offs and region decoders
