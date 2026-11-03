@@ -48,6 +48,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.ZABHA_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZABHA requires ZAAMO");
     assert ((P.ZAMA16B_SUPPORTED == 0) | (P.ZICCLSM_SUPPORTED == 1)) else $fatal(1, "ZAMA16B requires ZICCLSM to handle the misaligned access in hardware");
     assert ((P.SMSTATEEN_SUPPORTED == 0) | ((P.ZICSR_SUPPORTED == 1) & (P.U_SUPPORTED == 1))) else $fatal(1, "SMSTATEEN requires ZICSR and U");
+    assert ((P.ZKR_SUPPORTED == 0) | ((P.ZICSR_SUPPORTED == 1) & (P.U_SUPPORTED == 1))) else $fatal(1, "ZKR requires ZICSR and U");
     assert ((P.SSSTATEEN_SUPPORTED == 0) | ((P.SMSTATEEN_SUPPORTED == 1) & (P.S_SUPPORTED == 1))) else $fatal(1, "SSSTATEEN requires SMSTATEEN and S");
     assert ((P.ZACAS_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZACAS requires ZAAMO");
     assert ((P.ZAWRS_SUPPORTED == 0) | (P.ZALRSC_SUPPORTED == 1)) else $fatal(1, "ZAWRS requires ZALRSC");

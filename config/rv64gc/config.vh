@@ -63,6 +63,7 @@ localparam logic ZBKX_SUPPORTED = 1;
 localparam logic ZKND_SUPPORTED = 1;
 localparam logic ZKNE_SUPPORTED = 1;
 localparam logic ZKNH_SUPPORTED = 1;
+localparam logic ZKR_SUPPORTED = 1;
 
 // Compressed extensions
 // C extension is Zca + Zcf (if RV32 and F supported) + Zcd (if D supported)
