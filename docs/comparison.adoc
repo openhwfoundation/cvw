@@ -15,166 +15,94 @@ The data in these tables were collected with the help of AI (Claude Code): runs 
 readiness levels, and documentation ratings were researched from the cited sources, but errors are possible.
 Corrections are appreciated, as an issue or a pull request.
 
-== Origin and Interfaces
+== Overview
 
-[cols="3,3,2,2,3",options="header"]
+[cols="3,2,2,3,3,3,3,2",options="header"]
 |===
-| Core | Supplier | Language | Privilege Modes | Peripherals
-5+h| Application cores
-| link:../config/rv64gc/config.vh[cvw rv64gc] | OpenHW Foundation | SystemVerilog | M, S, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[In the `wallypipelinedsoc` uncore; the other cores leave interrupt controllers and timers to the SoC.]
-| link:../config/rv32gc/config.vh[cvw rv32gc] | OpenHW Foundation | SystemVerilog | M, S, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[]
-| https://github.com/ucb-bar/chipyard/tree/0acc1e1de2d3284bcd4d876956932a013ffe1949[Rocket] | CHIPS Alliance, UC Berkeley | Chisel | M, S, U, H | None
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv64a6_imafdc_sv39_hpdcache] | OpenHW Foundation | SystemVerilog | M, S, U | None
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a6_imac_sv32] | OpenHW Foundation | SystemVerilog | M, S, U | None
-| https://gitlab.com/shaktiproject/cores/c-class/-/tree/6feeb421f02f5f76dacba3c44caa61cfba60b56f[Shakti C-class] | IIT Madras | Bluespec SystemVerilog | M, S, U | None
-| https://github.com/bsc-loca/core_tile/tree/2528e7df6507fa06d372f001e55cfd46efae4a4b[Sargantana] | Barcelona Supercomputing Center | SystemVerilog | M, S, U, H | None
-| https://github.com/riscv-boom/riscv-boom/tree/5223e44cfeb26f41380057a2eb4d651197475f69[BOOM] | UC Berkeley | Chisel | M, S, U | None
-| https://github.com/SpinalHDL/NaxRiscv/tree/9f452d50560d02fb391bc8039f5453c54e0911af[NaxRiscv] | SpinalHDL (Charles Papon) | SpinalHDL | M, S, U | None
-| https://github.com/T-head-Semi/openc910/tree/b91c90914c19f114d35c8f6b73408eb241ed847c[OpenC910] | T-Head (Alibaba) | Verilog | M, S, U | CLINT, PLIC, debug (in the cluster)
-| https://github.com/OpenXiangShan/XiangShan/tree/e7bab53e66dfb3c4a1d11cf9519b0396f8576cae[XiangShan Kunminghu] | BOSC and ICT, Chinese Academy of Sciences | Chisel | M, S, U, H | None
-5+h| Embedded cores with caches or tightly coupled memories
-| link:../config/rv32imcb/config.vh[cvw rv32imcb] | OpenHW Foundation | SystemVerilog | M, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[]
-| https://github.com/stnolting/neorv32/tree/b1f307244928161a3fca1a010af11d5a736b5339[NEORV32] | Stephan Nolting | VHDL | M, U | CLINT
-| https://github.com/lowRISC/ibex/tree/e9f55342edbd27e9e17a0e41b1c95a81abb5eac8[Ibex (OpenTitan)] | lowRISC | SystemVerilog | M, U | None
-| https://github.com/chipsalliance/Cores-VeeR-EL2/tree/925f3a34bdadc8f28b12a70cfb73e043b0f5ef3d[VeeR EL2] | CHIPS Alliance (from Western Digital) | SystemVerilog | M, U | PIC, 2 timers, debug module, DMA
-| https://github.com/T-head-Semi/opene906/tree/c5b878958e73e0b8f324a8132943f184a7831c07[OpenE906] | T-Head (Alibaba) | Verilog | M, U | CLIC, CLINT, debug
-| https://github.com/litex-hub/pythondata-cpu-vexriscv/tree/642ecfed1c84460555d6d803d660cc60cfc1ecb6[VexRiscv] | SpinalHDL (Charles Papon) | SpinalHDL | M | None
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a65x] | OpenHW Foundation | SystemVerilog | M | Nonefootnote:a65cvxif[Includes the CV-X-IF example coprocessor, which decodes some custom and floating-point opcodes.]
-| https://github.com/chipsalliance/Cores-VeeR-EH1/tree/d04b1c7ae675a63dc4307cacfd10547ec937b928[VeeR EH1] | CHIPS Alliance (from Western Digital) | SystemVerilog | M | PIC, 2 timers, debug module, DMA
-| https://github.com/chipsalliance/Cores-VeeR-EH2/tree/a7203d02d4774c9b8aa08b4827ec300d2c80a388[VeeR EH2] | CHIPS Alliance (from Western Digital) | SystemVerilog | M | PIC, 2 timers, debug module, DMA
-5+h| Microcontroller cores
-| link:../config/rv32imc/config.vh[cvw rv32imc] | OpenHW Foundation | SystemVerilog | M, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[]
-| https://github.com/MikeOpenHWGroup/cve2/tree/094e9742648f3f527c6f47d047e625600653a9aa[CV32E20] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/T-head-Semi/opene902/tree/991836411b405ac6a0a8d7668f2f5de6fa2a5b8c[OpenE902] | T-Head (Alibaba) | Verilog | M, U | CLIC
-| https://gitlab.com/shaktiproject/cores/e-class/-/tree/e8a0dfd2d1c4907c74fb58432e379016871fdd3a[Shakti E-class] | IIT Madras | Bluespec SystemVerilog | M, U | None
-| https://github.com/Wren6991/Hazard3/tree/ba0c83c657a21f2e9946cf02cbc6c8d3d9a7dab6[Hazard3] | Luke Wren (Raspberry Pi) | Verilog | M, U | None
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMC] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMCF] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMC] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMCB] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/openhwgroup/cv32e40x/tree/d952cd63bc1b4eb58cd893c28ef8283c781e345e[CV32E40X] | OpenHW Foundation | SystemVerilog | M | None
-5+h| Minimal cores
-| link:../config/rv32e/config.vh[cvw rv32e] | OpenHW Foundation | SystemVerilog | M | None
-| link:../config/rv32i/config.vh[cvw rv32i] | OpenHW Foundation | SystemVerilog | M | None
-| https://github.com/YosysHQ/picorv32/tree/ef203c2b0a3fb793280f5114941416c425c5b461[PicoRV32] | YosysHQ (Claire Wolf) | Verilog | M | None
-| https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | Olof Kindgren | Verilog | M | None
+| Core | Supplier | Language | Features | Pipeline | Memory | Branch Predictor | External Bus
+8+h| Application cores: linux-capable cores with caches and virtual memory.
+| link:../config/rv64gc/config.vh[cvw rv64gc] | OpenHW Foundation | SystemVerilog | RVA22S64 | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 1K gshare, 1K BTB, 16 RAS | AHB
+| link:../config/rv32gc/config.vh[cvw rv32gc] | OpenHW Foundation | SystemVerilog | Like rv64gc | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 1K gshare, 1K BTB, 16 RAS | AHB
+| https://github.com/ucb-bar/chipyard/tree/0acc1e1de2d3284bcd4d876956932a013ffe1949[Rocket] | CHIPS Alliance, UC Berkeley | Chisel | Linux-capable core with the Saturn vector unit (VLEN 128)footnote:rocket[Chipyard 1.14.0 `MINV128D64RocketConfig`, Saturn's minimal reference configuration, with the hypervisor extension and Sv48 added; rocket-chip 55bcad0, Saturn 8ef05c9, and the four patches in riscv-arch-test#2652. One Rocket core with Saturn: VLEN 128, DLEN 64, ELEN 64, Zvfh and Zvbb. Vector loads and stores go through Rocket's L1 D$, and vector FMAs use Rocket's scalar FMA (FP latencies 3). One unified sequencer holds the integer, multiply (4 stages), permute, divide, and FP units, with no issue queues.] | 5-stage, single issue, in-order | 32 KB I$, 32 KB D$ (blocking) | 512-entry BHT, 28-entry BTB, 6-entry RAS | TileLink
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv64a6_imafdc_sv39_hpdcache] | OpenHW Foundation | SystemVerilog | Linux-capable application core | 6-stage, single issue, in-order issue, out-of-order completion | 16 KB I$, 32 KB 8-way HPDcache D$ (write-through) | 128-entry BHT, 32-entry BTB, 2-entry RAS | AXI4
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a6_imac_sv32] | OpenHW Foundation | SystemVerilog | 32-bit Linux-capable application core | 6-stage, single issue, in-order issue, out-of-order completion | 16 KB I$, 32 KB D$ (write-through) | 128-entry BHT, 32-entry BTB, 2-entry RAS | AXI4
+| https://gitlab.com/shaktiproject/cores/c-class/-/tree/6feeb421f02f5f76dacba3c44caa61cfba60b56f[Shakti C-class] | IIT Madras | Bluespec SystemVerilog | Linux-capable Bluespec application core | 6-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 512-entry gshare, 32-entry BTB, 8-entry RAS | AXI4
+| https://github.com/bsc-loca/core_tile/tree/2528e7df6507fa06d372f001e55cfd46efae4a4b[Sargantana] | Barcelona Supercomputing Center | SystemVerilog | Linux-capable core with register renaming | 7-stage, single issue, in-order with register renaming | 16 KB I$, 32 KB D$ (write-through) | 128-entry bimodal, 128-entry BTB, 16-entry RAS | Custom cache refill interfaces
+| https://github.com/riscv-boom/riscv-boom/tree/5223e44cfeb26f41380057a2eb4d651197475f69[BOOM] | UC Berkeley | Chisel | Linux-capable 2-wide out-of-order core | 7-stage, 2-wide out-of-order | 16 KB I$, 16 KB D$ | TAGE-L, BTB, 32-entry RAS | TileLink
+| https://github.com/SpinalHDL/NaxRiscv/tree/9f452d50560d02fb391bc8039f5453c54e0911af[NaxRiscv] | SpinalHDL (Charles Papon) | SpinalHDL | Linux-capable 2-wide out-of-order core | 10-stage, 2-wide out-of-orderfootnote:naxdepth[Counted from the registered stage boundaries in the RTL of the Gen64 build with RVC, fetch to integer writeback: 3 fetch, align, decode, rename, dispatch, issue, register read and execute, and writeback. Not documented by NaxRiscv.] | 16 KB I$, 16 KB D$ | 4 KB gshare, 512-entry BTB, 16-entry RAS | Native cache and peripheral buses
+| https://github.com/T-head-Semi/openc910/tree/b91c90914c19f114d35c8f6b73408eb241ed847c[OpenC910] | T-Head (Alibaba) | Verilog | 3-wide out-of-order Linux-capable core | 12-stage, 3-wide out-of-order | 64 KB I$, 64 KB D$, 1 MB L2 | 64 Kbit bi-mode BHT, 1024-entry BTB, 12-entry RAS | AXI4
+| https://github.com/OpenXiangShan/XiangShan/tree/e7bab53e66dfb3c4a1d11cf9519b0396f8576cae[XiangShan Kunminghu] | BOSC and ICT, Chinese Academy of Sciences | Chisel | RVA23 6-wide out-of-order core | 13-stage, 6-wide out-of-order | 64 KB I$, 64 KB D$, 1 MB L2 | TAGE-SC, 2048-entry FTB, ITTAGE, RAS | CHI
+8+h| Embedded cores with caches or tightly coupled memories: higher-performance embedded cores.
+| link:../config/rv32imcb/config.vh[cvw rv32imcb] | OpenHW Foundation | SystemVerilog | Microcontroller with bit manipulation | 5-stage, single issue, in-order | IROM, DTIM | Static (backward taken) | AHB
+| https://github.com/stnolting/neorv32/tree/b1f307244928161a3fca1a010af11d5a736b5339[NEORV32] | Stephan Nolting | VHDL | Multicycle VHDL microcontroller core | 2-stage, single issue, in-order, multicycle | 4 KB I$ | None | Wishbone-style XBUS
+| https://github.com/lowRISC/ibex/tree/e9f55342edbd27e9e17a0e41b1c95a81abb5eac8[Ibex (OpenTitan)] | lowRISC | SystemVerilog | Security-hardened OpenTitan core | 3-stage, single issue, in-order | 4 KB I$ (ECC, scrambled)footnote:ibexic[The cache resets disabled (`cpuctrlsts.icache_enable` = 0), and the riscv-arch-test boot code leaves it off.] | None | Ibex memory interface (OBI-like) with ECC
+| https://github.com/chipsalliance/Cores-VeeR-EL2/tree/925f3a34bdadc8f28b12a70cfb73e043b0f5ef3d[VeeR EL2] | CHIPS Alliance (from Western Digital) | SystemVerilog | Scalar embedded core | 4-stage, single issue, in-order | 16 KB I$, 64 KB ICCM, 64 KB DCCMfootnote:el2ccm[The EL2 ICCM and DCCM arrays are instantiated in the testbench, outside `el2_veer_wrapper`.] | 512-entry gshare BHT, 512-entry BTB, 8-entry RAS | AXI4
+| https://github.com/T-head-Semi/opene906/tree/c5b878958e73e0b8f324a8132943f184a7831c07[OpenE906] | T-Head (Alibaba) | Verilog | 32-bit microcontroller core with FPU | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 8 Kbit BHT, 16-entry BTB, 4-entry RAS | AHB-Lite (instruction, data, and system ports)
+| https://github.com/litex-hub/pythondata-cpu-vexriscv/tree/642ecfed1c84460555d6d803d660cc60cfc1ecb6[VexRiscv] | SpinalHDL (Charles Papon) | SpinalHDL | 5-stage LiteX core | 5-stage, single issue, in-order | 4 KB I$, 4 KB D$ (write-through) | Static (backward taken) | Wishbone
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a65x] | OpenHW Foundation | SystemVerilog | Dual-issue embedded core | 6-stage, dual issue, in-order issue, out-of-order completion | 2 KB I$, 2 KB D$ (write-through) | 32-entry BHT, 2-entry RAS | AXI4
+| https://github.com/chipsalliance/Cores-VeeR-EH1/tree/d04b1c7ae675a63dc4307cacfd10547ec937b928[VeeR EH1] | CHIPS Alliance (from Western Digital) | SystemVerilog | Dual-issue superscalar embedded core | 9-stage, dual issue, in-order | 16 KB I$, 64 KB DCCM, 512 KB ICCMfootnote:iccm[The EH1 build used with riscv-arch-test enables a 512 KB ICCM by default; the tests run from external memory.] | 128-entry gshare BHT, 32-entry BTB, 4-entry RAS | AXI4
+| https://github.com/chipsalliance/Cores-VeeR-EH2/tree/a7203d02d4774c9b8aa08b4827ec300d2c80a388[VeeR EH2] | CHIPS Alliance (from Western Digital) | SystemVerilog | Dual-issue superscalar embedded corefootnote:eh2thr[EH2 supports two hardware threads; the riscv-arch-test build has one.] | 9-stage, dual issue, in-order | 32 KB I$, 64 KB ICCM, 256 KB DCCM | 512-entry gshare BHT, 512-entry BTB, 4-entry RAS | AXI4
+8+h| Microcontroller cores: small pipelined cores without caches.
+| link:../config/rv32imc/config.vh[cvw rv32imc] | OpenHW Foundation | SystemVerilog | Microcontroller | 5-stage, single issue, in-order | IROM, DTIM | Static (backward taken) | AHB
+| https://github.com/MikeOpenHWGroup/cve2/tree/094e9742648f3f527c6f47d047e625600653a9aa[CV32E20] | OpenHW Foundation | SystemVerilog | 2-stage microcontroller core | 2-stage, single issue, in-order | None | None | OBI
+| https://github.com/T-head-Semi/opene902/tree/991836411b405ac6a0a8d7668f2f5de6fa2a5b8c[OpenE902] | T-Head (Alibaba) | Verilog | 2-stage RV32E microcontroller core | 2-stage, single issue, in-order | None | None | AHB-Lite (instruction and system ports)
+| https://gitlab.com/shaktiproject/cores/e-class/-/tree/e8a0dfd2d1c4907c74fb58432e379016871fdd3a[Shakti E-class] | IIT Madras | Bluespec SystemVerilog | 3-stage Bluespec embedded core | 3-stage, single issue, in-order | None | None | AXI4-Lite (instruction and data ports)
+| https://github.com/Wren6991/Hazard3/tree/ba0c83c657a21f2e9946cf02cbc6c8d3d9a7dab6[Hazard3] | Luke Wren (Raspberry Pi) | Verilog | RP2350 microcontroller core | 3-stage, single issue, in-order | None | 1-entry BTB | AHB5 (instruction and data ports)
+| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMC] | OpenHW Foundation | SystemVerilog | 4-stage microcontroller core | 4-stage, single issue, in-order | None | None | OBI
+| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMCF] | OpenHW Foundation | SystemVerilog | 4-stage microcontroller core with FPU | 4-stage, single issue, in-order | None | None | OBI
+| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMC] | OpenHW Foundation | SystemVerilog | Security-hardened microcontroller core, default parameters (no PMP or PMA regions)footnote:actnorun[riscv-arch-test has a configuration for cv32e40s but does not run it, so no core commit is pinned; this entry describes openhwfoundation/cv32e40s 9d9cae7.] | 4-stage, single issue, in-order | None | None | OBI with integrity
+| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMCB] | OpenHW Foundation | SystemVerilog | Security-hardened microcontroller core, maximal parameters: Zba, Zbb, Zbc, and Zbs, 16 PMP regions, and 1 PMA regionfootnote:actnorun[] | 4-stage, single issue, in-order | None | None | OBI with integrity
+| https://github.com/openhwgroup/cv32e40x/tree/d952cd63bc1b4eb58cd893c28ef8283c781e345e[CV32E40X] | OpenHW Foundation | SystemVerilog | Microcontroller core with extension interface | 4-stage, single issue, in-order | None | None | OBI
+8+h| Minimal cores: the smallest cores, for control tasks.
+| link:../config/rv32e/config.vh[cvw rv32e] | OpenHW Foundation | SystemVerilog | Tiny Embedded | 5-stage, single issue, in-order | Bus | None | AHB
+| link:../config/rv32i/config.vh[cvw rv32i] | OpenHW Foundation | SystemVerilog | RVI20U32 | 5-stage, single issue, in-order | IROM, DTIM | None | None
+| https://github.com/YosysHQ/picorv32/tree/ef203c2b0a3fb793280f5114941416c425c5b461[PicoRV32] | YosysHQ (Claire Wolf) | Verilog | Size-optimized multicycle core | Not pipelined (about 4 cycles per instruction) | None | None | AXI4-Lite
+| https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | Olof Kindgren | Verilog | Bit-serial minimal core | Bit-serial, not pipelined (32 or more cycles per instruction) | None | None | Reduced Wishbone
 |===
 
 == Extensions
 
-[cols="1,4",options="header"]
+[cols="3,2,3,6",options="header"]
 |===
-| Core | Extensions
-2+h| Application cores
-| link:../config/rv64gc/config.vh[cvw rv64gc] | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv39, Sv48, Sv57, Svadu, Svinval, Svnapot, Svpbmt, Sstc
-| link:../config/rv32gc/config.vh[cvw rv32gc] | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv32, Svadu, Svinval, Sstc
-| https://github.com/ucb-bar/chipyard/tree/0acc1e1de2d3284bcd4d876956932a013ffe1949[Rocket] | IMAFDCBV, Za64rs, Za128rs, Zfh, Zfhmin, Zicsr, Zifencei, Zihpm, Zvfh, Zvfhmin, Zvbb, Zvkb, Sv39, Sv48, Svbare, Svade, Sstvecd, Ssu64xl, Sscounterenw, Shcounterenw, Shvstvecd, Shvsatpa, Shgatpa, Shtvala
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv64a6_imafdc_sv39_hpdcache] | IMAFDCB, Zcb, Zicbom, Zicond, Zicsr, Zifencei, Zbc, Zkn, Ziccif, Zicntr, Zihpm, Ssccptr, Sv39, Svbare, Svade, Sstvala, Sstvecd, Sscounterenw, Ssu64xl
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a6_imac_sv32] | IMACB, Zbc, Zbkc, Zbkb, Zbkx, Zkn, Zknd, Zkne, Zknh, Zicntr, Zihpm, Zicsr, Zifencei, Sv32, Svbare
-| https://gitlab.com/shaktiproject/cores/c-class/-/tree/6feeb421f02f5f76dacba3c44caa61cfba60b56f[Shakti C-class] | IMAFDC, Zicsr, Zifencei, Zicntr, Zihpm, Zihintntl, Zihintpause, Sv39, Svbare, Sstvecd, Sstvecv, Ssu64xl
-| https://github.com/bsc-loca/core_tile/tree/2528e7df6507fa06d372f001e55cfd46efae4a4b[Sargantana] | IMAFDB, Zfhmin, Zfa, Zicond, Zicsr, Zifencei, Zicntr, Zihpm, Zicbom, Zicbop, Zicboz, Zic64b, Ziccamoa, Ziccif, Ziccrse, Smstateen, Ssstateen, Sv39, Svbare, Svade, Ssccptr, Sscounterenw, Sstvala, Sstvecd, Sscofpmf, Shcounterenw, Shgatpa, Shtvala, Shvsatpa, Shvstvala, Shvstvecd
-| https://github.com/riscv-boom/riscv-boom/tree/5223e44cfeb26f41380057a2eb4d651197475f69[BOOM] | IMAFDC, Za64rs, Za128rs, Zicsr, Zifencei, Zicntr, Zihpm, Sv39, Svbare, Svade, Sstvecd, Sstvecv, Ssu64xl, Sscounterenwfootnote:boomnob[BOOM v3 does not implement the bit-manipulation extensions.]
-| https://github.com/SpinalHDL/NaxRiscv/tree/9f452d50560d02fb391bc8039f5453c54e0911af[NaxRiscv] | IMAFDC, Zicsr, Zicntr, Zihpm, Zifencei, Ssu64xl, Sstvecd, Sv39, Svbare
-| https://github.com/T-head-Semi/openc910/tree/b91c90914c19f114d35c8f6b73408eb241ed847c[OpenC910] | IMAFDC, Zicsr, Zifencei, Zicntr, Zihpm, Sv39, Svbare
-| https://github.com/OpenXiangShan/XiangShan/tree/e7bab53e66dfb3c4a1d11cf9519b0396f8576cae[XiangShan Kunminghu] | RVA23S64 profile (108 extensions in its riscv-arch-test configuration)footnote:xsext[Every RVA23S64 extension plus H; the riscv-arch-test configuration lists them.]
-2+h| Embedded cores with caches or tightly coupled memories
-| link:../config/rv32imcb/config.vh[cvw rv32imcb] | IMCB, Zbc, Zicsr, Zicntr, Zihpm
-| https://github.com/stnolting/neorv32/tree/b1f307244928161a3fca1a010af11d5a736b5339[NEORV32] | IMACB, Zbc, Zbkc, Zcb, Zicond, Zicsr, Zifencei, Zicntr, Zihpm, Zihintpause, Zihintntl, Zkt, Smcntrpmf
-| https://github.com/lowRISC/ibex/tree/e9f55342edbd27e9e17a0e41b1c95a81abb5eac8[Ibex (OpenTitan)] | IMCB, Zcb, Zicsr, Zifencei, Zbc, Zbkc, Zbkb, Zbkx, Zicntr, Zihpmfootnote:ibexun[Also implements Zcmp, Smepmp, and debug, which the riscv-arch-test configuration does not claim.]
-| https://github.com/chipsalliance/Cores-VeeR-EL2/tree/925f3a34bdadc8f28b12a70cfb73e043b0f5ef3d[VeeR EL2] | IMCB, Zicsr, Zbc, Zbkc, Zihpm, Zifencei
-| https://github.com/T-head-Semi/opene906/tree/c5b878958e73e0b8f324a8132943f184a7831c07[OpenE906] | IMAFC, Zicsr, Zifencei, Zicntr, Zihpm, Zicclsm
-| https://github.com/litex-hub/pythondata-cpu-vexriscv/tree/642ecfed1c84460555d6d803d660cc60cfc1ecb6[VexRiscv] | IMAC, Zicsr, Zicntr, Zifencei
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a65x] | IMCB, Zbc, Zbkc, Zcb, Zicsr, Zifencei
-| https://github.com/chipsalliance/Cores-VeeR-EH1/tree/d04b1c7ae675a63dc4307cacfd10547ec937b928[VeeR EH1] | IMC, Zicsr, Zifencei
-| https://github.com/chipsalliance/Cores-VeeR-EH2/tree/a7203d02d4774c9b8aa08b4827ec300d2c80a388[VeeR EH2] | IMACB, Zbc, Zbkb, Zbkc, Zbkx, Zicsr, Zifencei
-2+h| Microcontroller cores
-| link:../config/rv32imc/config.vh[cvw rv32imc] | IMC, Zicsr, Zicntr, Zihpm
-| https://github.com/MikeOpenHWGroup/cve2/tree/094e9742648f3f527c6f47d047e625600653a9aa[CV32E20] | IMC, Zicsr, Zifencei
-| https://github.com/T-head-Semi/opene902/tree/991836411b405ac6a0a8d7668f2f5de6fa2a5b8c[OpenE902] | EMC, Zicsr, Zifencei
-| https://gitlab.com/shaktiproject/cores/e-class/-/tree/e8a0dfd2d1c4907c74fb58432e379016871fdd3a[Shakti E-class] | IMAC, Zicsr, Zifencei, Zicntr, Zihpm, Zihintntl, Zihintpausefootnote:eclasstpl[Benchmarked and synthesized with the repository's ASIC template (see its synthesis note); riscv-arch-test builds it with AXI4 and a simulation multiplier.]
-| https://github.com/Wren6991/Hazard3/tree/ba0c83c657a21f2e9946cf02cbc6c8d3d9a7dab6[Hazard3] | IMACB, Zcb, Zbc, Zbkc, Zbkb, Zbkx, Zicsr, Zifencei, Zicntr, Zihintntl, Zihintpause
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMC] | IMC, Zicsr, Zifencei, Zicntr
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMCF] | IMFC, Zicsr, Zifencei, Zicntr
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMC] | IMC, Zcb, Zcmp, Zcmt, Zicsr, Zifencei, Zktfootnote:e40sun[Also implements U-mode, Smepmp, Smstateen, and the Xsecure hardening features, which the riscv-arch-test configuration does not claim.]
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMCB] | IMCB, Zcb, Zcmp, Zcmt, Zicsr, Zifencei, Zkt, Zbc, Zbkcfootnote:e40sun[]
-| https://github.com/openhwgroup/cv32e40x/tree/d952cd63bc1b4eb58cd893c28ef8283c781e345e[CV32E40X] | IMC, Zcb, Zcmp, Zcmt, Zkt, Zicsr, Zifencei, Zicntr
-2+h| Minimal cores
-| link:../config/rv32e/config.vh[cvw rv32e] | E
-| link:../config/rv32i/config.vh[cvw rv32i] | I
-| https://github.com/YosysHQ/picorv32/tree/ef203c2b0a3fb793280f5114941416c425c5b461[PicoRV32] | IMCfootnote:nomul[Synthesized and benchmarked without M, which riscv-arch-test's configuration includes: a multiplier would be most of the core's area.]
-| https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | IMC, Zicsr, Zifenceifootnote:nomul[]
-|===
-
-== Microarchitecture
-
-=== Application cores
-
-Linux-capable cores with caches and virtual memory.
-
-[cols="2,3,3,3,3,2",options="header"]
-|===
-| Core | Features | Pipeline | Memory | Branch Predictor | External Bus
-| link:../config/rv64gc/config.vh[cvw rv64gc] | RVA22S64 | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 1K gshare, 1K BTB, 16 RAS | AHB
-| link:../config/rv32gc/config.vh[cvw rv32gc] | Like rv64gc | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 1K gshare, 1K BTB, 16 RAS | AHB
-| https://github.com/ucb-bar/chipyard/tree/0acc1e1de2d3284bcd4d876956932a013ffe1949[Rocket] | Linux-capable core with the Saturn vector unit (VLEN 128)footnote:rocket[Chipyard 1.14.0 `MINV128D64RocketConfig`, Saturn's minimal reference configuration, with the hypervisor extension and Sv48 added; rocket-chip 55bcad0, Saturn 8ef05c9, and the four patches in riscv-arch-test#2652. One Rocket core with Saturn: VLEN 128, DLEN 64, ELEN 64, Zvfh and Zvbb. Vector loads and stores go through Rocket's L1 D$, and vector FMAs use Rocket's scalar FMA (FP latencies 3). One unified sequencer holds the integer, multiply (4 stages), permute, divide, and FP units, with no issue queues.] | 5-stage, single issue, in-order | 32 KB I$, 32 KB D$ (blocking) | 512-entry BHT, 28-entry BTB, 6-entry RAS | TileLink
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv64a6_imafdc_sv39_hpdcache] | Linux-capable application core | 6-stage, single issue, in-order issue, out-of-order completion | 16 KB I$, 32 KB 8-way HPDcache D$ (write-through) | 128-entry BHT, 32-entry BTB, 2-entry RAS | AXI4
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a6_imac_sv32] | 32-bit Linux-capable application core | 6-stage, single issue, in-order issue, out-of-order completion | 16 KB I$, 32 KB D$ (write-through) | 128-entry BHT, 32-entry BTB, 2-entry RAS | AXI4
-| https://gitlab.com/shaktiproject/cores/c-class/-/tree/6feeb421f02f5f76dacba3c44caa61cfba60b56f[Shakti C-class] | Linux-capable Bluespec application core | 6-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 512-entry gshare, 32-entry BTB, 8-entry RAS | AXI4
-| https://github.com/bsc-loca/core_tile/tree/2528e7df6507fa06d372f001e55cfd46efae4a4b[Sargantana] | Linux-capable core with register renaming | 7-stage, single issue, in-order with register renaming | 16 KB I$, 32 KB D$ (write-through) | 128-entry bimodal, 128-entry BTB, 16-entry RAS | Custom cache refill interfaces
-| https://github.com/riscv-boom/riscv-boom/tree/5223e44cfeb26f41380057a2eb4d651197475f69[BOOM] | Linux-capable 2-wide out-of-order core | 7-stage, 2-wide out-of-order | 16 KB I$, 16 KB D$ | TAGE-L, BTB, 32-entry RAS | TileLink
-| https://github.com/SpinalHDL/NaxRiscv/tree/9f452d50560d02fb391bc8039f5453c54e0911af[NaxRiscv] | Linux-capable 2-wide out-of-order core | 10-stage, 2-wide out-of-orderfootnote:naxdepth[Counted from the registered stage boundaries in the RTL of the Gen64 build with RVC, fetch to integer writeback: 3 fetch, align, decode, rename, dispatch, issue, register read and execute, and writeback. Not documented by NaxRiscv.] | 16 KB I$, 16 KB D$ | 4 KB gshare, 512-entry BTB, 16-entry RAS | Native cache and peripheral buses
-| https://github.com/T-head-Semi/openc910/tree/b91c90914c19f114d35c8f6b73408eb241ed847c[OpenC910] | 3-wide out-of-order Linux-capable core | 12-stage, 3-wide out-of-order | 64 KB I$, 64 KB D$, 1 MB L2 | 64 Kbit bi-mode BHT, 1024-entry BTB, 12-entry RAS | AXI4
-| https://github.com/OpenXiangShan/XiangShan/tree/e7bab53e66dfb3c4a1d11cf9519b0396f8576cae[XiangShan Kunminghu] | RVA23 6-wide out-of-order core | 13-stage, 6-wide out-of-order | 64 KB I$, 64 KB D$, 1 MB L2 | TAGE-SC, 2048-entry FTB, ITTAGE, RAS | CHI
-|===
-
-=== Embedded cores with caches or tightly coupled memories
-
-Higher-performance embedded cores.
-
-[cols="2,3,3,3,3,2",options="header"]
-|===
-| Core | Features | Pipeline | Memory | Branch Predictor | External Bus
-| link:../config/rv32imcb/config.vh[cvw rv32imcb] | Microcontroller with bit manipulation | 5-stage, single issue, in-order | IROM, DTIM | Static (backward taken) | AHB
-| https://github.com/stnolting/neorv32/tree/b1f307244928161a3fca1a010af11d5a736b5339[NEORV32] | Multicycle VHDL microcontroller core | 2-stage, single issue, in-order, multicycle | 4 KB I$ | None | Wishbone-style XBUS
-| https://github.com/lowRISC/ibex/tree/e9f55342edbd27e9e17a0e41b1c95a81abb5eac8[Ibex (OpenTitan)] | Security-hardened OpenTitan core | 3-stage, single issue, in-order | 4 KB I$ (ECC, scrambled)footnote:ibexic[The cache resets disabled (`cpuctrlsts.icache_enable` = 0), and the riscv-arch-test boot code leaves it off.] | None | Ibex memory interface (OBI-like) with ECC
-| https://github.com/chipsalliance/Cores-VeeR-EL2/tree/925f3a34bdadc8f28b12a70cfb73e043b0f5ef3d[VeeR EL2] | Scalar embedded core | 4-stage, single issue, in-order | 16 KB I$, 64 KB ICCM, 64 KB DCCMfootnote:el2ccm[The EL2 ICCM and DCCM arrays are instantiated in the testbench, outside `el2_veer_wrapper`.] | 512-entry gshare BHT, 512-entry BTB, 8-entry RAS | AXI4
-| https://github.com/T-head-Semi/opene906/tree/c5b878958e73e0b8f324a8132943f184a7831c07[OpenE906] | 32-bit microcontroller core with FPU | 5-stage, single issue, in-order | 16 KB I$, 16 KB D$ | 8 Kbit BHT, 16-entry BTB, 4-entry RAS | AHB-Lite (instruction, data, and system ports)
-| https://github.com/litex-hub/pythondata-cpu-vexriscv/tree/642ecfed1c84460555d6d803d660cc60cfc1ecb6[VexRiscv] | 5-stage LiteX core | 5-stage, single issue, in-order | 4 KB I$, 4 KB D$ (write-through) | Static (backward taken) | Wishbone
-| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a65x] | Dual-issue embedded core | 6-stage, dual issue, in-order issue, out-of-order completion | 2 KB I$, 2 KB D$ (write-through) | 32-entry BHT, 2-entry RAS | AXI4
-| https://github.com/chipsalliance/Cores-VeeR-EH1/tree/d04b1c7ae675a63dc4307cacfd10547ec937b928[VeeR EH1] | Dual-issue superscalar embedded core | 9-stage, dual issue, in-order | 16 KB I$, 64 KB DCCM, 512 KB ICCMfootnote:iccm[The EH1 build used with riscv-arch-test enables a 512 KB ICCM by default; the tests run from external memory.] | 128-entry gshare BHT, 32-entry BTB, 4-entry RAS | AXI4
-| https://github.com/chipsalliance/Cores-VeeR-EH2/tree/a7203d02d4774c9b8aa08b4827ec300d2c80a388[VeeR EH2] | Dual-issue superscalar embedded corefootnote:eh2thr[EH2 supports two hardware threads; the riscv-arch-test build has one.] | 9-stage, dual issue, in-order | 32 KB I$, 64 KB ICCM, 256 KB DCCM | 512-entry gshare BHT, 512-entry BTB, 4-entry RAS | AXI4
-|===
-
-=== Microcontroller cores
-
-Small pipelined cores without caches.
-
-[cols="2,3,3,3,3,2",options="header"]
-|===
-| Core | Features | Pipeline | Memory | Branch Predictor | External Bus
-| link:../config/rv32imc/config.vh[cvw rv32imc] | Microcontroller | 5-stage, single issue, in-order | IROM, DTIM | Static (backward taken) | AHB
-| https://github.com/MikeOpenHWGroup/cve2/tree/094e9742648f3f527c6f47d047e625600653a9aa[CV32E20] | 2-stage microcontroller core | 2-stage, single issue, in-order | None | None | OBI
-| https://github.com/T-head-Semi/opene902/tree/991836411b405ac6a0a8d7668f2f5de6fa2a5b8c[OpenE902] | 2-stage RV32E microcontroller core | 2-stage, single issue, in-order | None | None | AHB-Lite (instruction and system ports)
-| https://gitlab.com/shaktiproject/cores/e-class/-/tree/e8a0dfd2d1c4907c74fb58432e379016871fdd3a[Shakti E-class] | 3-stage Bluespec embedded core | 3-stage, single issue, in-order | None | None | AXI4-Lite (instruction and data ports)
-| https://github.com/Wren6991/Hazard3/tree/ba0c83c657a21f2e9946cf02cbc6c8d3d9a7dab6[Hazard3] | RP2350 microcontroller core | 3-stage, single issue, in-order | None | 1-entry BTB | AHB5 (instruction and data ports)
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMC] | 4-stage microcontroller core | 4-stage, single issue, in-order | None | None | OBI
-| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMCF] | 4-stage microcontroller core with FPU | 4-stage, single issue, in-order | None | None | OBI
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMC] | Security-hardened microcontroller core, default parameters (no PMP or PMA regions)footnote:actnorun[riscv-arch-test has a configuration for cv32e40s but does not run it, so no core commit is pinned; this entry describes openhwfoundation/cv32e40s 9d9cae7.] | 4-stage, single issue, in-order | None | None | OBI with integrity
-| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMCB] | Security-hardened microcontroller core, maximal parameters: Zba, Zbb, Zbc, and Zbs, 16 PMP regions, and 1 PMA regionfootnote:actnorun[] | 4-stage, single issue, in-order | None | None | OBI with integrity
-| https://github.com/openhwgroup/cv32e40x/tree/d952cd63bc1b4eb58cd893c28ef8283c781e345e[CV32E40X] | Microcontroller core with extension interface | 4-stage, single issue, in-order | None | None | OBI
-|===
-
-=== Minimal cores
-
-The smallest cores, for control tasks.
-
-[cols="2,3,3,3,3,2",options="header"]
-|===
-| Core | Features | Pipeline | Memory | Branch Predictor | External Bus
-| link:../config/rv32e/config.vh[cvw rv32e] | Tiny Embedded | 5-stage, single issue, in-order | Bus | None | AHB
-| link:../config/rv32i/config.vh[cvw rv32i] | RVI20U32 | 5-stage, single issue, in-order | IROM, DTIM | None | None
-| https://github.com/YosysHQ/picorv32/tree/ef203c2b0a3fb793280f5114941416c425c5b461[PicoRV32] | Size-optimized multicycle core | Not pipelined (about 4 cycles per instruction) | None | None | AXI4-Lite
-| https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | Bit-serial minimal core | Bit-serial, not pipelined (32 or more cycles per instruction) | None | None | Reduced Wishbone
+| Core | Privilege Modes | Peripherals | Extensions
+4+h| Application cores
+| link:../config/rv64gc/config.vh[cvw rv64gc] | M, S, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[In the `wallypipelinedsoc` uncore; the other cores leave interrupt controllers and timers to the SoC.] | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv39, Sv48, Sv57, Svadu, Svinval, Svnapot, Svpbmt, Sstc
+| link:../config/rv32gc/config.vh[cvw rv32gc] | M, S, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv32, Svadu, Svinval, Sstc
+| https://github.com/ucb-bar/chipyard/tree/0acc1e1de2d3284bcd4d876956932a013ffe1949[Rocket] | M, S, U, H | None | IMAFDCBV, Za64rs, Za128rs, Zfh, Zfhmin, Zicsr, Zifencei, Zihpm, Zvfh, Zvfhmin, Zvbb, Zvkb, Sv39, Sv48, Svbare, Svade, Sstvecd, Ssu64xl, Sscounterenw, Shcounterenw, Shvstvecd, Shvsatpa, Shgatpa, Shtvala
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv64a6_imafdc_sv39_hpdcache] | M, S, U | None | IMAFDCB, Zcb, Zicbom, Zicond, Zicsr, Zifencei, Zbc, Zkn, Ziccif, Zicntr, Zihpm, Ssccptr, Sv39, Svbare, Svade, Sstvala, Sstvecd, Sscounterenw, Ssu64xl
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a6_imac_sv32] | M, S, U | None | IMACB, Zbc, Zbkc, Zbkb, Zbkx, Zkn, Zknd, Zkne, Zknh, Zicntr, Zihpm, Zicsr, Zifencei, Sv32, Svbare
+| https://gitlab.com/shaktiproject/cores/c-class/-/tree/6feeb421f02f5f76dacba3c44caa61cfba60b56f[Shakti C-class] | M, S, U | None | IMAFDC, Zicsr, Zifencei, Zicntr, Zihpm, Zihintntl, Zihintpause, Sv39, Svbare, Sstvecd, Sstvecv, Ssu64xl
+| https://github.com/bsc-loca/core_tile/tree/2528e7df6507fa06d372f001e55cfd46efae4a4b[Sargantana] | M, S, U, H | None | IMAFDB, Zfhmin, Zfa, Zicond, Zicsr, Zifencei, Zicntr, Zihpm, Zicbom, Zicbop, Zicboz, Zic64b, Ziccamoa, Ziccif, Ziccrse, Smstateen, Ssstateen, Sv39, Svbare, Svade, Ssccptr, Sscounterenw, Sstvala, Sstvecd, Sscofpmf, Shcounterenw, Shgatpa, Shtvala, Shvsatpa, Shvstvala, Shvstvecd
+| https://github.com/riscv-boom/riscv-boom/tree/5223e44cfeb26f41380057a2eb4d651197475f69[BOOM] | M, S, U | None | IMAFDC, Za64rs, Za128rs, Zicsr, Zifencei, Zicntr, Zihpm, Sv39, Svbare, Svade, Sstvecd, Sstvecv, Ssu64xl, Sscounterenwfootnote:boomnob[BOOM v3 does not implement the bit-manipulation extensions.]
+| https://github.com/SpinalHDL/NaxRiscv/tree/9f452d50560d02fb391bc8039f5453c54e0911af[NaxRiscv] | M, S, U | None | IMAFDC, Zicsr, Zicntr, Zihpm, Zifencei, Ssu64xl, Sstvecd, Sv39, Svbare
+| https://github.com/T-head-Semi/openc910/tree/b91c90914c19f114d35c8f6b73408eb241ed847c[OpenC910] | M, S, U | CLINT, PLIC, debug (in the cluster) | IMAFDC, Zicsr, Zifencei, Zicntr, Zihpm, Sv39, Svbare
+| https://github.com/OpenXiangShan/XiangShan/tree/e7bab53e66dfb3c4a1d11cf9519b0396f8576cae[XiangShan Kunminghu] | M, S, U, H | None | RVA23S64 profile (108 extensions in its riscv-arch-test configuration)footnote:xsext[Every RVA23S64 extension plus H; the riscv-arch-test configuration lists them.]
+4+h| Embedded cores with caches or tightly coupled memories
+| link:../config/rv32imcb/config.vh[cvw rv32imcb] | M, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | IMCB, Zbc, Zicsr, Zicntr, Zihpm
+| https://github.com/stnolting/neorv32/tree/b1f307244928161a3fca1a010af11d5a736b5339[NEORV32] | M, U | CLINT | IMACB, Zbc, Zbkc, Zcb, Zicond, Zicsr, Zifencei, Zicntr, Zihpm, Zihintpause, Zihintntl, Zkt, Smcntrpmf
+| https://github.com/lowRISC/ibex/tree/e9f55342edbd27e9e17a0e41b1c95a81abb5eac8[Ibex (OpenTitan)] | M, U | None | IMCB, Zcb, Zicsr, Zifencei, Zbc, Zbkc, Zbkb, Zbkx, Zicntr, Zihpmfootnote:ibexun[Also implements Zcmp, Smepmp, and debug, which the riscv-arch-test configuration does not claim.]
+| https://github.com/chipsalliance/Cores-VeeR-EL2/tree/925f3a34bdadc8f28b12a70cfb73e043b0f5ef3d[VeeR EL2] | M, U | PIC, 2 timers, debug module, DMA | IMCB, Zicsr, Zbc, Zbkc, Zihpm, Zifencei
+| https://github.com/T-head-Semi/opene906/tree/c5b878958e73e0b8f324a8132943f184a7831c07[OpenE906] | M, U | CLIC, CLINT, debug | IMAFC, Zicsr, Zifencei, Zicntr, Zihpm, Zicclsm
+| https://github.com/litex-hub/pythondata-cpu-vexriscv/tree/642ecfed1c84460555d6d803d660cc60cfc1ecb6[VexRiscv] | M | None | IMAC, Zicsr, Zicntr, Zifencei
+| https://github.com/openhwfoundation/cva6/tree/81245a47fad8fe1a5d562d953ef2662e099def76[CVA6 cv32a65x] | M | Nonefootnote:a65cvxif[Includes the CV-X-IF example coprocessor, which decodes some custom and floating-point opcodes.] | IMCB, Zbc, Zbkc, Zcb, Zicsr, Zifencei
+| https://github.com/chipsalliance/Cores-VeeR-EH1/tree/d04b1c7ae675a63dc4307cacfd10547ec937b928[VeeR EH1] | M | PIC, 2 timers, debug module, DMA | IMC, Zicsr, Zifencei
+| https://github.com/chipsalliance/Cores-VeeR-EH2/tree/a7203d02d4774c9b8aa08b4827ec300d2c80a388[VeeR EH2] | M | PIC, 2 timers, debug module, DMA | IMACB, Zbc, Zbkb, Zbkc, Zbkx, Zicsr, Zifencei
+4+h| Microcontroller cores
+| link:../config/rv32imc/config.vh[cvw rv32imc] | M, U | CLINT, PLIC, UART, GPIO, SPI, PWMfootnote:cvwperiph[] | IMC, Zicsr, Zicntr, Zihpm
+| https://github.com/MikeOpenHWGroup/cve2/tree/094e9742648f3f527c6f47d047e625600653a9aa[CV32E20] | M | None | IMC, Zicsr, Zifencei
+| https://github.com/T-head-Semi/opene902/tree/991836411b405ac6a0a8d7668f2f5de6fa2a5b8c[OpenE902] | M, U | CLIC | EMC, Zicsr, Zifencei
+| https://gitlab.com/shaktiproject/cores/e-class/-/tree/e8a0dfd2d1c4907c74fb58432e379016871fdd3a[Shakti E-class] | M, U | None | IMAC, Zicsr, Zifencei, Zicntr, Zihpm, Zihintntl, Zihintpausefootnote:eclasstpl[Benchmarked and synthesized with the repository's ASIC template (see its synthesis note); riscv-arch-test builds it with AXI4 and a simulation multiplier.]
+| https://github.com/Wren6991/Hazard3/tree/ba0c83c657a21f2e9946cf02cbc6c8d3d9a7dab6[Hazard3] | M, U | None | IMACB, Zcb, Zbc, Zbkc, Zbkb, Zbkx, Zicsr, Zifencei, Zicntr, Zihintntl, Zihintpause
+| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMC] | M | None | IMC, Zicsr, Zifencei, Zicntr
+| https://github.com/openhwgroup/cv32e40p/tree/360d272898d81806be3377193870dbf83a3ea79f[CV32E40P RV32IMCF] | M | None | IMFC, Zicsr, Zifencei, Zicntr
+| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMC] | M | None | IMC, Zcb, Zcmp, Zcmt, Zicsr, Zifencei, Zktfootnote:e40sun[Also implements U-mode, Smepmp, Smstateen, and the Xsecure hardening features, which the riscv-arch-test configuration does not claim.]
+| https://github.com/openhwfoundation/cv32e40s/tree/9d9cae78b01a11458953133d1173c61933a2ba86[CV32E40S RV32IMCB] | M | None | IMCB, Zcb, Zcmp, Zcmt, Zicsr, Zifencei, Zkt, Zbc, Zbkcfootnote:e40sun[]
+| https://github.com/openhwgroup/cv32e40x/tree/d952cd63bc1b4eb58cd893c28ef8283c781e345e[CV32E40X] | M | None | IMC, Zcb, Zcmp, Zcmt, Zkt, Zicsr, Zifencei, Zicntr
+4+h| Minimal cores
+| link:../config/rv32e/config.vh[cvw rv32e] | M | None | E
+| link:../config/rv32i/config.vh[cvw rv32i] | M | None | I
+| https://github.com/YosysHQ/picorv32/tree/ef203c2b0a3fb793280f5114941416c425c5b461[PicoRV32] | M | None | IMCfootnote:nomul[Synthesized and benchmarked without M, which riscv-arch-test's configuration includes: a multiplier would be most of the core's area.]
+| https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | M | None | IMC, Zicsr, Zifenceifootnote:nomul[]
 |===
 
 == Performance
