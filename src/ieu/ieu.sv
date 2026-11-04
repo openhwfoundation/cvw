@@ -33,7 +33,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0]       InstrD,                          // Instruction
   input  logic [1:0]        STATUS_FS,                       // is FPU enabled?
   input  logic [3:0]        ENVCFG_CBE,                      // Cache block operation enables
-  input  logic              IllegalIEUFPUInstrD,             // Illegal instruction
+  input  logic              IllegalIEUFPUVPUInstrD,          // Illegal instruction
   output logic              IllegalBaseInstrD,               // Illegal I-type instruction, or illegal RV32 access to upper 16 registers
   output logic              VectorD,                         // Instruction is a Vector, transfer control to VPU
   // Execute stage signals
@@ -41,6 +41,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] PCLinkE,                         // PC + 4
   output logic              PCSrcE,                          // Select next PC (between PC+4 and IEUAdrE)
   input  logic              FWriteIntE, FCvtIntE,            // FPU writes to integer register file, FPU converts float to int
+  input  logic              VWriteIntE,                      // VPU writes to integer register file
   output logic [P.XLEN-1:0] IEUAdrE,                         // Memory address
   output logic              IntDivE, W64E,                   // Integer divide, RV64 W-type instruction
   output logic [2:0]        Funct3E,                         // Funct3 instruction field
@@ -60,6 +61,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] SrcAM,                           // ALU SrcA to Privileged unit and FPU
   output logic [4:0]        RdM,                             // Destination register
   input  logic [P.XLEN-1:0] FIntResM,                        // Integer result from FPU (fmv, fclass, fcmp)
+  input  logic [P.XLEN-1:0] VIntResM,                        // Integer result from VPU (vset, vmv.x.s, vfirst, etc.)
   output logic              InvalidateICacheM, FlushDCacheM, // Invalidate I$, flush D$
   output logic              InstrValidD, InstrValidE, InstrValidM, // Instruction is valid
   output logic              BranchD, BranchE,
@@ -89,6 +91,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   logic       ALUResultSrcE;                                 // Selects ALU result to pass on to Memory stage
   logic [2:0] ALUSelectE;                                    // ALU select mux signal
   logic       FWriteIntM;                                    // FPU writing to integer register file
+  logic       VWriteIntM;                                    // VPU writing to integer register file
   logic       IntDivW;                                       // Integer divide instruction
   logic [3:0] BSelectE;                                      // Indicates if ZBA_ZBB_ZBC_ZBS instruction in one-hot encoding
   logic [3:0] ZBBSelectE;                                    // ZBB Result Select Signal in Execute Stage
@@ -109,15 +112,15 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
 
   controller #(P) c(
     .clk, .reset, .StallD, .FlushD, .InstrD, .STATUS_FS, .ENVCFG_CBE, .ImmSrcD,
-    .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .IllegalIEUFPUVPUInstrD, .IllegalBaseInstrD,
     .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D,  .Rs2E, .VectorD,
-    .StallE, .FlushE, .FlagsE, .FWriteIntE,
+    .StallE, .FlushE, .FlagsE, .FWriteIntE, .VWriteIntE,
     .PCSrcE, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE,
     .Funct3E, .Funct7E, .IntDivE, .W64E, .UW64E, .SubArithE, .BranchD, .BranchE, .JumpD, .JumpE,
     .BranchSignedE, .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE, .CZeroE, .MDUActiveE,
     .FCvtIntE, .ForwardAE, .ForwardBE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
     .StallM, .FlushM, .MemRWE, .MemRWM, .CSRReadM, .CSRWriteM, .PrivilegedM, .AtomicM, .Funct3M,
-    .FlushDCacheM, .InstrValidM, .InstrValidE, .InstrValidD, .FWriteIntM,
+    .FlushDCacheM, .InstrValidM, .InstrValidE, .InstrValidD, .FWriteIntM, .VWriteIntM,
     .StallW, .FlushW, .RegWriteW, .IntDivW, .ResultSrcW, .CSRWriteFenceM, .InvalidateICacheM,
     .RdW, .RdE, .RdM);
 
@@ -125,7 +128,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     .clk, .reset, .ImmSrcD, .InstrD, .Rs1D, .Rs2D, .Rs2E, .StallE, .FlushE, .ForwardAE, .ForwardBE, .W64E, .UW64E, .SubArithE,
     .Funct3E, .Funct7E, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE, .JumpE, .BranchSignedE,
     .PCE, .PCLinkE, .FlagsE, .IEUAdrE, .ForwardedSrcAE, .ForwardedSrcBE, .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE, .CZeroE,
-    .StallM, .FlushM, .FWriteIntM, .FIntResM, .SrcAM, .WriteDataM, .FCvtIntW,
+    .StallM, .FlushM, .FWriteIntM, .FIntResM, .VWriteIntM, .VIntResM, .SrcAM, .WriteDataM, .FCvtIntW,
     .StallW, .FlushW, .RegWriteW, .IntDivW, .SquashSCW, .ResultSrcW, .ReadDataW, .FCvtIntResW,
     .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW);
 endmodule

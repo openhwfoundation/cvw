@@ -33,7 +33,7 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   input  logic         StallW, FlushW,
   input  logic [31:7 ] InstrM,                              // privileged instruction function field
   input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
-  input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
+  input  logic         IllegalIEUFPUVPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
   input  logic [1:0]   PrivilegeModeW,                      // current privilege level
   input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // status bits
@@ -116,6 +116,6 @@ module privdec import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////
 
   assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM|mretM|ecallM|ebreakM|wfiM|sfencevmaM);
-  assign IllegalInstrFaultM = IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM |
+  assign IllegalInstrFaultM = IllegalIEUFPUVPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM |
                               WFITimeoutM;
 endmodule

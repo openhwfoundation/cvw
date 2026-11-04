@@ -27,6 +27,11 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert (P.D_SUPPORTED | !P.Q_SUPPORTED) else $fatal(1, "Can't support quad fp (Q) without supporting double (D)");
     assert (P.F_SUPPORTED | !P.ZFH_SUPPORTED) else $fatal(1, "Can't support half-precision fp (ZFH) without supporting float (F)");
 
+    assert ((P.ZVE32X_SUPPORTED & P.F_SUPPORTED) | !P.ZVE32F_SUPPORTED) else $fatal(1, "ZVE32F requires ZVE32X and F");
+    assert (P.ZVE32X_SUPPORTED | !P.ZVE64X_SUPPORTED) else $fatal(1, "ZVE64X requires ZVE32X");
+    assert ((P.ZVE32F_SUPPORTED & P.ZVE64X_SUPPORTED) | !P.ZVE64F_SUPPORTED) else $fatal(1, "ZVE64F requires ZVE32F and ZVE64X");
+    assert ((P.ZVE64F_SUPPORTED & P.D_SUPPORTED) | !P.ZVE64D_SUPPORTED) else $fatal(1, "ZVE64D requires ZVE64F and D");
+
     assert (P.I_SUPPORTED ^ P.E_SUPPORTED) else $fatal(1, "Exactly one of I and E must be supported");
 
     assert (P.S_SUPPORTED | P.VIRTMEM_SUPPORTED == 0) else $fatal(1, "Virtual memory requires S mode support");

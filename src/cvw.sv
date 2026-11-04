@@ -235,6 +235,9 @@ typedef struct packed {
   logic ZVE64X_SUPPORTED;
   logic ZVE64F_SUPPORTED;
   logic ZVE64D_SUPPORTED;
+  logic VF_SUPPORTED;
+  logic ZVFHMIN_SUPPORTED;
+  logic ZVFH_SUPPORTED;
   logic I_SUPPORTED;
   logic M_SUPPORTED;
   logic Q_SUPPORTED;
@@ -312,19 +315,22 @@ typedef struct packed {
   // Vector extensions
   int VLEN;
   int ELEN;
-  int VPU_MAX_EU;
+  int VPU_EU;
   int VPU_INT_EU;
   int VPU_INT_LANES;
-  int VPU_INT_MUL;
-  int VPU_INT_MUL_LANES;
-  int VPU_FP_EU;
-  int VPU_FP_LANES;
+  int VPU_INT_NO_MUL;
+  int VPU_INT_NO_MUL_LANES;
   int VPU_LSU_EU;
   int VPU_LSU_LANES;
+  int VPU_FP_EU;
+  int VPU_FP_LANES;
   int VPU_LSU_BLEN;
   int VPU_INT_BLEN;
-  int VPU_INT_MUL_BLEN;
+  int VPU_INT_NO_MUL_BLEN;
   int VPU_FP_BLEN;
+  int VPU_INT_MAX_BEATS;
+  int VPU_QUEUESIZE;
+  int VPU_QUEUEDEPTH;
 
 } cvw_t;
 
