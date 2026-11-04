@@ -54,10 +54,10 @@ module ebufsmarb (
   flopenl #(.TYPE(statetype)) busreg(HCLK, ~HRESETn, 1'b1, NextState, IDLE, CurrState);
   always_comb
     case (CurrState)
-      IDLE:      if (both)                                      NextState = ARBITRATE;
+      IDLE:      if (both)                                      NextState = ARBITRATE; // exclusion-tag: arb-idle
                  else                                           NextState = IDLE;
-      ARBITRATE: if (HREADY & FinalBeatD & ~both)               NextState = IDLE;
-                 else                                           NextState = ARBITRATE;
+      ARBITRATE: if (HREADY & FinalBeatD & ~both)               NextState = IDLE; // exclusion-tag: arb-arbitrate-exit
+                 else                                           NextState = ARBITRATE; // exclusion-tag: arb-arbitrate-hold
       default:                                                  NextState = IDLE;
     endcase
 
@@ -67,7 +67,7 @@ module ebufsmarb (
   assign IFUSave = CurrState == IDLE & both;
   assign IFURestore = CurrState == ARBITRATE;
   assign IFUDisable = IFURestore;
-  assign IFUSelect = (NextState == ARBITRATE) ? 1'b0 : IFUReq;
+  assign IFUSelect = (NextState == ARBITRATE) ? 1'b0 : IFUReq; // exclusion-tag: arb-ifuselect
   // Controller 1 (LSU)
   // When both the IFU and LSU request at the same time, the FSM will go into the arbitrate state.
   // Once the LSU request is done the fsm returns to IDLE.  To prevent the LSU from regaining
@@ -76,7 +76,7 @@ module ebufsmarb (
   // and the LSU memory request will still be active.
   flopr #(1) ifureqreg(HCLK, ~HRESETn, IFUReq, IFUReqDelay);
   assign LSUDisable = (CurrState != ARBITRATE) & IFUReqDelay;
-  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq;
+  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq; // exclusion-tag: arb-lsuselect
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // Burst mode logic
@@ -93,7 +93,7 @@ module ebufsmarb (
   counter #(4) BeatCounter(HCLK, ~HRESETn | BeatCntReset | FinalBeat, BeatCntEn, BeatCount);
 
   // Used to store data from data phase of AHB.
-  flopenr #(1) FinalBeatReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, FinalBeat, FinalBeatD);
+  flopenr #(1) FinalBeatReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, FinalBeat, FinalBeatD); // exclusion-tag: arb-finalbeat-reset
 
   // unlike the bus fsm in lsu/ifu, we need to derive the number of beats from HBURST, Threshold = num beats - 1.
   //  HBURST[2:1] Beats  threshold
