@@ -97,7 +97,6 @@ localparam VPU_INT_EU = 32'd1;
 localparam VPU_INT_LANES = 32'd1;
 localparam VPU_INT_NO_MUL = 32'd1;
 localparam VPU_INT_NO_MUL_LANES = 32'd1;
-localparam VPU_LSU_EU = 32'd1;
 localparam VPU_LSU_LANES = 32'd2;
 localparam VPU_FP_EU = 32'd1;
 localparam VPU_FP_LANES = 32'd1;
