@@ -5,7 +5,7 @@
 # Usage: run_rule_tests.sh [-s questa|verilator] [-x 64|32|both] PATTERN...
 #   PATTERN is a test-name glob such as 'WALLY-debug-dm-*'.
 # For each matching rv64/rv32 source, generates the vectors serially
-# with Spike + OpenOCD (parallel generation truncates vectors), builds
+# with Spike + OpenOCD (WALLY-debug-catch-replay is timing-sensitive under load), builds
 # the memfile, runs wsim on the ELF and its vectors, and prints one
 # line per test: PASS, FAIL (signature/DMI counts), GENFAIL or HANG.
 # Logs go to build*/rulelogs/<test>.sim.log.
@@ -43,6 +43,7 @@ for x in $XLENS; do
       log=$build/rulelogs/$t.sim.log
       if grep -q "SUCCESS! All tests ran" $log; then echo "PASS rv$x $t"
       elif r=$(grep -m1 -o "FAIL: .*" $log); then echo "FAIL rv$x $t ($r)"
+      elif n=$(grep -m1 -o "Number of errors: *[0-9]*" $log); then echo "FAIL rv$x $t (${n##* } signature errors)"
       elif grep -q "Watch Dog" $log; then echo "HANG rv$x $t"
       else echo "ERROR rv$x $t (see $log)"
       fi
