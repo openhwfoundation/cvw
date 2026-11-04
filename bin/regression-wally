@@ -311,10 +311,14 @@ lockstepwaivers = [
 
     # ImperasDV traps a wfi below M mode with mstatus.TW=1 at once, while Wally waits a bounded time
     # (WFI_TIMEOUT_BIT) before the illegal-instruction trap; both are legal (Privileged Spec
-    # mstatus_tw_always_illegal vs mstatus_tw_op).  These tests depend on the wait, so lockstep mismatches.
+    # mstatus_tw_always_illegal vs mstatus_tw_op).
     "wfiTW.elf",
     "wfitimeoutint.elf",
     "wfitimeoutnext.elf",
+
+    # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
+    # garbage PTE from the level-0 table this test places in the CLINT and page faults
+    "hptwamoioptes.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
