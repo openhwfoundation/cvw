@@ -307,7 +307,7 @@ lockstepwaivers = [
 
     # ImperasDV traps a wfi below M mode with mstatus.TW=1 at once, while Wally waits a bounded time
     # (WFI_TIMEOUT_BIT) before the illegal-instruction trap; both are legal (Privileged Spec
-    # mstatus_tw_always_illegal vs mstatus_tw_op).  These tests depend on the wait, so lockstep mismatches.
+    # mstatus_tw_always_illegal vs mstatus_tw_op).
     "wfiTW.elf",
     "wfitimeoutint.elf",
     "wfitimeoutnext.elf",
