@@ -263,7 +263,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign WriteHENVCFGM    = ValidHWriteM & (CSRAdrM == HENVCFG);
   assign WriteHENVCFGHM   = (P.XLEN == 32) & (ValidHWriteM & (CSRAdrM == HENVCFGH));
   assign WriteHTVALM      = ValidHWriteM & (CSRAdrM == HTVAL);
-  assign WriteVSTVALM     = TrapToVSM | ValidVSWriteM & (CSRAdrM == VSTVAL);
+  assign WriteVSTVALM     = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSTVAL));
   assign WriteVSIPM       = ValidVSWriteM & (CSRAdrM == VSIP) & HIDELEG_REGW[2];
   assign WriteHVIPM       = ValidHWriteM & (CSRAdrM == HVIP);
   assign WriteHIPM        = ValidHWriteM & (CSRAdrM == HIP);
@@ -273,7 +273,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign WriteVSTVECM     = ValidVSWriteM & (CSRAdrM == VSTVEC);
   assign WriteVSSCRATCHM  = ValidVSWriteM & (CSRAdrM == VSSCRATCH);
   assign WriteVSEPCM      = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSEPC));
-  assign WriteVSCAUSEM    = TrapToVSM | ValidVSWriteM & (CSRAdrM == VSCAUSE);
+  assign WriteVSCAUSEM    = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSCAUSE));
 
   // For unsupported MODE writes, choose satp-like behavior (ignore write).
   // This is spec-compliant for V=0 and required for satp writes when V=1.
