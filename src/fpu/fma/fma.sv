@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fma import cvw::*;  #(parameter cvw_t P) (
+module fma import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                         Xs, Ys, Zs,             // input's signs
   input  logic [P.NE-1:0]              Xe, Ye, Ze,             // input's biased exponents in B(NE.0) format
   input  logic [P.NF:0]                Xm, Ym, Zm,             // input's significands in U(0.NF) format

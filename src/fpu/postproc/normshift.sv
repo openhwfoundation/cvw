@@ -71,7 +71,7 @@
     //      | Nf 0's |           Qm           | << calculated shift amount
     //        .
 
-module normshift import cvw::*;  #(parameter cvw_t P) (
+module normshift import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.LOGNORMSHIFTSZ-1:0]  ShiftAmt,   // shift amount
   input  logic [P.NORMSHIFTSZ-1:0]     ShiftIn,    // number to be shifted
   output logic [P.NORMSHIFTSZ-1:0]     Shifted     // shifted result

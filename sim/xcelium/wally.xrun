@@ -1,5 +1,5 @@
-xrun -setenv CADENCE_ENABLE_AVSREQ_44905_PHASE_1=1 -incdir ../config/rv64gc -incdir ../config/shared -incdir ../testbench -compile ../src/cvw.sv ../testbench/testbench-xcelium.sv ../testbench/common/*.sv ../src/*/*.sv ../src/*/*/*.sv
+xrun -setenv CADENCE_ENABLE_AVSREQ_44905_PHASE_1=1 -incdir ../config/rv64gc -incdir ../config/shared -incdir ../testbench -compile ../src/cvw.sv ../src/fpu_pkg.sv ../testbench/testbench-xcelium.sv ../testbench/common/*.sv ../src/*/*.sv ../src/*/*/*.sv
 xrun -elaborate -top testbench ../testbench/testbench-xcelium.sv -incdir ../config/rv64gc -incdir ../config/shared -incdir ../testbench
 
 
-xrun -setenv CADENCE_ENABLE_AVSREQ_44905_PHASE_1=1 -incdir ../config/rv64gc -incdir ../config/shared -incdir ../testbench ../src/cvw.sv ../testbench/testbench-xcelium.sv ../testbench/common/*.sv ../src/*/*.sv ../src/*/*/*.sv -top testbench -defparam testbench.TEST=arch64i
+xrun -setenv CADENCE_ENABLE_AVSREQ_44905_PHASE_1=1 -incdir ../config/rv64gc -incdir ../config/shared -incdir ../testbench ../src/cvw.sv ../src/fpu_pkg.sv ../testbench/testbench-xcelium.sv ../testbench/common/*.sv ../src/*/*.sv ../src/*/*/*.sv -top testbench -defparam testbench.TEST=arch64i
