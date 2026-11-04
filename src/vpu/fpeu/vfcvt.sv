@@ -24,17 +24,17 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
-  input logic [P.FLEN-1:0] X,
+module vfcvt import fpu_pkg::*; #(parameter fpu_t FP) (
+  input logic [FP.FLEN-1:0] X,
   input logic [2:0] Frm,
   input logic [2:0] OpCtrl,
   input logic ToInt,
   input logic [2:0] Vsew,
   input logic [1:0] WideNarrow, // equivalent to R1[4:3], 00 Nonwidening, 01 Wide, 10 Narrow, 11 Reserved
   input logic FPUActive,
-  output logic [P.FLEN-1:0] VfcvtRes,
+  output logic [FP.FLEN-1:0] VfcvtRes,
   output logic [4:0] VfcvtFlg,
-  output logic [P.ELEN-1:0] VfcvtIntRes
+  output logic [FP.XLEN-1:0] VfcvtIntRes // FP.XLEN is ELEN in the vector FP struct
 );
 
   // OpCtrl[0]: Signed
@@ -42,10 +42,10 @@ module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP)
   // OpCtrl[2]: IntToFp
 
   logic Xs;
-  logic [P.NE-1:0] Xe;
-  logic [P.NF:0] Xm;
+  logic [FP.NE-1:0] Xe;
+  logic [FP.NF:0] Xm;
   logic XNaN, XSNaN, XZero, XInf;
-  logic [P.FMTBITS-1:0] XinFmt, XoutFmt;
+  logic [FP.FMTBITS-1:0] XinFmt, XoutFmt;
 
   logic FtoF;
   assign FtoF = ~ToInt & ~OpCtrl[2];
@@ -53,19 +53,19 @@ module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP)
   always_comb
     case ({WideNarrow, Vsew})
       // non-widening
-      5'b00_001: begin XinFmt = P.H_FMT; XoutFmt = P.H_FMT; end
-      5'b00_010: begin XinFmt = P.S_FMT; XoutFmt = P.S_FMT; end
-      5'b00_011: begin XinFmt = P.D_FMT; XoutFmt = P.D_FMT; end
+      5'b00_001: begin XinFmt = FP.H_FMT; XoutFmt = FP.H_FMT; end
+      5'b00_010: begin XinFmt = FP.S_FMT; XoutFmt = FP.S_FMT; end
+      5'b00_011: begin XinFmt = FP.D_FMT; XoutFmt = FP.D_FMT; end
 
       // widening
-      5'b01_001: begin XinFmt = P.H_FMT; XoutFmt = P.S_FMT; end
-      5'b01_010: begin XinFmt = P.S_FMT; XoutFmt = P.D_FMT; end
-      5'b01_011: begin XinFmt = P.D_FMT; XoutFmt = P.Q_FMT; end
+      5'b01_001: begin XinFmt = FP.H_FMT; XoutFmt = FP.S_FMT; end
+      5'b01_010: begin XinFmt = FP.S_FMT; XoutFmt = FP.D_FMT; end
+      5'b01_011: begin XinFmt = FP.D_FMT; XoutFmt = FP.Q_FMT; end
 
       // narrowing
-      5'b10_001: begin XinFmt = P.S_FMT; XoutFmt = P.H_FMT; end
-      5'b10_010: begin XinFmt = P.D_FMT; XoutFmt = P.S_FMT; end
-      5'b10_011: begin XinFmt = P.Q_FMT; XoutFmt = P.D_FMT; end
+      5'b10_001: begin XinFmt = FP.S_FMT; XoutFmt = FP.H_FMT; end
+      5'b10_010: begin XinFmt = FP.D_FMT; XoutFmt = FP.S_FMT; end
+      5'b10_011: begin XinFmt = FP.Q_FMT; XoutFmt = FP.D_FMT; end
 
       default: begin XinFmt = 'x; XoutFmt = 'x; end
     endcase
@@ -83,20 +83,20 @@ module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP)
     .ExpMax(), .Subnorm(), .PostBox()
   );
 
-  logic [P.NE:0] Ce;
-  logic [P.LOGCVTLEN-1:0] CvtShiftAmt;
+  logic [FP.NE:0] Ce;
+  logic [FP.LOGCVTLEN-1:0] CvtShiftAmt;
   logic CvtResSubnormUf, Cs, IntZero;
-  logic [P.CVTLEN-1:0] CvtLzcIn;
+  logic [FP.CVTLEN-1:0] CvtLzcIn;
 
   // fpu converter
-  fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(X[P.ELEN-1:0]), .OpCtrl(VfcvtOpCtrl),
+  fcvt #(FP) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(X[FP.XLEN-1:0]), .OpCtrl(VfcvtOpCtrl),
   .ToInt(ToInt), .XZero(XZero), .Fmt(XoutFmt), .Ce(Ce), .ShiftAmt(CvtShiftAmt),
   .ResSubnormUf(CvtResSubnormUf), .Cs(Cs), .IntZero(IntZero), .LzcIn(CvtLzcIn));
 
   // postprocessor
   postprocess #(FP) postproc (
     .Xs(Xs), .Ys(1'b0),
-    .Xm(Xm), .Ym({(P.NF+1){1'b0}}), .Zm({(P.NF+1){1'b0}}),
+    .Xm(Xm), .Ym({(FP.NF+1){1'b0}}), .Zm({(FP.NF+1){1'b0}}),
     .Frm(Frm),
     .Fmt(XoutFmt),
     .OpCtrl(VfcvtOpCtrl),
@@ -108,13 +108,13 @@ module vfcvt import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP)
 
     // FMA signals
     .FmaAs(1'b0), .FmaPs(1'b0), .FmaSs(1'b0),
-    .FmaSe({(P.NE+2){1'b0}}), .FmaSm({(P.FMALEN){1'b0}}),
-    .FmaASticky(1'b0), .FmaSCnt({($clog2(P.FMALEN+1)){1'b0}}),
+    .FmaSe({(FP.NE+2){1'b0}}), .FmaSm({(FP.FMALEN){1'b0}}),
+    .FmaASticky(1'b0), .FmaSCnt({($clog2(FP.FMALEN+1)){1'b0}}),
 
     // Divide signals
     .DivSticky(1'b0),
-    .DivUe({(P.NE+2){1'b0}}),
-    .DivUm({(P.DIVb+1){1'b0}}),
+    .DivUe({(FP.NE+2){1'b0}}),
+    .DivUm({(FP.DIVb+1){1'b0}}),
 
     // Convert signals
     .CvtCs(Cs),

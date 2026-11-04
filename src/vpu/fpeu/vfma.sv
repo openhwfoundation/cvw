@@ -24,14 +24,14 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vfma import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
-  input  logic [P.FLEN-1:0]              X, Y, Z,                    // three operands
+module vfma import fpu_pkg::*; #(parameter fpu_t FP) (
+  input  logic [FP.FLEN-1:0]              X, Y, Z,                    // three operands
   input  logic                           XWide, YWide, ZWide,        // is the operand widened (EEW = 2*SEW)
-  input  logic [P.FMTBITS-1:0]           OutFmt,                     // target format for the result (S_FMT or D_FMT)
+  input  logic [FP.FMTBITS-1:0]           OutFmt,                     // target format for the result (S_FMT or D_FMT)
   input  logic [2:0]                     OpCtrl,                     // operation control
   input  logic [2:0]                     Frm,                        // rounding mode 000 = rount to nearest, ties to even   001 = round twords zero  010 = round down  011 = round up  100 = round to nearest, ties to max magnitude
   input  logic                           FPUActive,                  // kill inputs when FPU not active
-  output logic [P.FLEN-1:0]              VfmaRes,                    // result at OutFmt precision
+  output logic [FP.FLEN-1:0]              VfmaRes,                    // result at OutFmt precision
   output logic [4:0]                     VfmaFlg                     // fp flags
 );
 
@@ -50,32 +50,32 @@ module vfma import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) 
   assign FmaAddSub = OpCtrl[2] &  OpCtrl[1];
   assign FmaMul    = OpCtrl[2] & ~OpCtrl[1];
 
-  // assuming  P.FLEN >= P.D_LEN and P.D_SUPPORT == 1, TODO: add ELEN support
-  logic [P.FLEN-1:0] BoxedOne, BoxedZero;
-  assign BoxedOne  = (OutFmt == P.D_FMT)
-                     ? {{(P.FLEN-P.D_LEN){1'b1}}, 2'b00, {(P.D_NE-1){1'b1}}, {P.D_NF{1'b0}}}
-                     : {{(P.FLEN-P.S_LEN){1'b1}}, 2'b00, {(P.S_NE-1){1'b1}}, {P.S_NF{1'b0}}};
-  assign BoxedZero = (OutFmt == P.D_FMT)
-                     ? {{(P.FLEN-P.D_LEN){1'b1}}, {P.D_LEN{1'b0}}}
-                     : {{(P.FLEN-P.S_LEN){1'b1}}, {P.S_LEN{1'b0}}};
+  // assuming  FP.FLEN >= FP.D_LEN and FP.D_SUPPORT == 1, TODO: add ELEN support
+  logic [FP.FLEN-1:0] BoxedOne, BoxedZero;
+  assign BoxedOne  = (OutFmt == FP.D_FMT)
+                     ? {{(FP.FLEN-FP.D_LEN){1'b1}}, 2'b00, {(FP.D_NE-1){1'b1}}, {FP.D_NF{1'b0}}}
+                     : {{(FP.FLEN-FP.S_LEN){1'b1}}, 2'b00, {(FP.S_NE-1){1'b1}}, {FP.S_NF{1'b0}}};
+  assign BoxedZero = (OutFmt == FP.D_FMT)
+                     ? {{(FP.FLEN-FP.D_LEN){1'b1}}, {FP.D_LEN{1'b0}}}
+                     : {{(FP.FLEN-FP.S_LEN){1'b1}}, {FP.S_LEN{1'b0}}};
 
   // Route operands to fma's X/Y/Z depending on operation and pick format
-  logic [P.FLEN-1:0]    FmaXin, FmaYin, FmaZin;
-  logic [P.FMTBITS-1:0] FmaXFmt, FmaYFmt, FmaZFmt;
+  logic [FP.FLEN-1:0]    FmaXin, FmaYin, FmaZin;
+  logic [FP.FMTBITS-1:0] FmaXFmt, FmaYFmt, FmaZFmt;
 
   assign FmaXin  = X;
   assign FmaYin  = FmaAddSub ? BoxedOne : Y;
   assign FmaZin  = FmaAddSub ? Y : (FmaMul ? BoxedZero : Z);
 
-  assign FmaXFmt = XWide ? P.D_FMT : P.S_FMT;
-  assign FmaYFmt = FmaAddSub ? OutFmt : (YWide ? P.D_FMT : P.S_FMT);
-  assign FmaZFmt = FmaAddSub ? (YWide ? P.D_FMT : P.S_FMT)
-                             : (FmaMul  ? OutFmt : (ZWide ? P.D_FMT : P.S_FMT));
+  assign FmaXFmt = XWide ? FP.D_FMT : FP.S_FMT;
+  assign FmaYFmt = FmaAddSub ? OutFmt : (YWide ? FP.D_FMT : FP.S_FMT);
+  assign FmaZFmt = FmaAddSub ? (YWide ? FP.D_FMT : FP.S_FMT)
+                             : (FmaMul  ? OutFmt : (ZWide ? FP.D_FMT : FP.S_FMT));
 
   // Unpack all three per-operand format
   logic              Xs, Ys, Zs;
-  logic [P.NE-1:0]   Xe, Ye, Ze;
-  logic [P.NF:0]     Xm, Ym, Zm;
+  logic [FP.NE-1:0]   Xe, Ye, Ze;
+  logic [FP.NF:0]     Xm, Ym, Zm;
   logic              XNaN, YNaN, ZNaN;
   logic              XSNaN, YSNaN, ZSNaN;
   logic              XZero, YZero, ZZero;
@@ -104,11 +104,11 @@ module vfma import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) 
 
   // FMA unit
   logic                          As, Ps, Ss, ASticky;
-  logic [P.NE+1:0]               Se;
-  logic [P.FMALEN-1:0]           Sm;
-  logic [$clog2(P.FMALEN+1)-1:0] SCnt;
+  logic [FP.NE+1:0]               Se;
+  logic [FP.FMALEN-1:0]           Sm;
+  logic [$clog2(FP.FMALEN+1)-1:0] SCnt;
 
-  fma #(P) fma (
+  fma #(FP) fma (
     .Xs, .Ys, .Zs,
     .Xe, .Ye, .Ze,
     .Xm, .Ym, .Zm,
@@ -138,17 +138,17 @@ module vfma import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) 
 
     // Divide signals
     .DivSticky(1'b0),
-    .DivUe({(P.NE+2){1'b0}}),
-    .DivUm({(P.DIVb+1){1'b0}}),
+    .DivUe({(FP.NE+2){1'b0}}),
+    .DivUm({(FP.DIVb+1){1'b0}}),
 
     // Convert signals
     .CvtCs(1'b0),
-    .CvtCe({(P.NE+1){1'b0}}),
+    .CvtCe({(FP.NE+1){1'b0}}),
     .CvtResSubnormUf(1'b0),
-    .CvtShiftAmt({P.LOGCVTLEN{1'b0}}),
+    .CvtShiftAmt({FP.LOGCVTLEN{1'b0}}),
     .ToInt(1'b0),
     .Zfa(1'b0),
-    .CvtLzcIn({P.CVTLEN{1'b0}}),
+    .CvtLzcIn({FP.CVTLEN{1'b0}}),
     .IntZero(1'b1),
 
     .PostProcRes(VfmaRes),

@@ -23,7 +23,7 @@ import cvw::*;
 module tb_vfrecrsqrt7;
 
   `include "parameter-defs.vh"
-  `include "fpu-parameter-defs.vh"
+  `include "vfpu-parameter-defs.vh"
 
   localparam logic [2:0] VSEW_16 = 3'b001;
   localparam logic [2:0] VSEW_32 = 3'b010;
@@ -45,7 +45,7 @@ module tb_vfrecrsqrt7;
   logic [2:0]  rm;
   logic [63:0] vd;
   logic [4:0]  fflags;
-  logic [P.FLEN-1:0] vdFlen; // DUT result, FLEN wide
+  logic [FP.FLEN-1:0] vdFlen; // DUT result, FLEN wide
 
   // ----------------------------------------------------------------------
   // vfrecrsqrt7 sits downstream of the FPU's unpackinput unit and does not
@@ -60,37 +60,37 @@ module tb_vfrecrsqrt7;
   // single) so the DUT sees real input classes and must suppress the
   // result and flags on its own.
   // ----------------------------------------------------------------------
-  logic [P.FMTBITS-1:0] fmt;
-  logic [P.FLEN-1:0]    boxedVs2;
+  logic [FP.FMTBITS-1:0] fmt;
+  logic [FP.FLEN-1:0]    boxedVs2;
 
   // SEW 16 is supported only with Zvfh, 32 with F, and 64 with D.
   function automatic logic sew_supported(input logic [2:0] sew);
     case (sew)
-      VSEW_16: sew_supported = P.ZVFH_SUPPORTED;
-      VSEW_32: sew_supported = P.F_SUPPORTED;
-      VSEW_64: sew_supported = P.D_SUPPORTED;
+      VSEW_16: sew_supported = FP.ZFH_SUPPORTED;
+      VSEW_32: sew_supported = 1'b1;
+      VSEW_64: sew_supported = FP.D_SUPPORTED;
       default: sew_supported = 1'b0;
     endcase
   endfunction
 
   // unpackinput's Fmt encoding, as fctrl drives it: with one or two formats
   // it is 1 bit meaning "the widest format", otherwise the 2-bit code.
-  function automatic logic [P.FMTBITS-1:0] unpack_fmt(input logic [1:0] code);
-    unpack_fmt = (P.FPSIZES <= 2) ? P.FMTBITS'(code == P.FMT) : P.FMTBITS'(code);
+  function automatic logic [FP.FMTBITS-1:0] unpack_fmt(input logic [1:0] code);
+    unpack_fmt = (FP.FPSIZES <= 2) ? FP.FMTBITS'(code == FP.FMT) : FP.FMTBITS'(code);
   endfunction
 
   always_comb
-    if (vsew == VSEW_64 && P.D_SUPPORTED) begin
-      fmt = unpack_fmt(P.D_FMT); boxedVs2 = P.FLEN'({{64{1'b1}}, vs2});
-    end else if (vsew == VSEW_32 || !P.ZFH_SUPPORTED) begin
-      fmt = unpack_fmt(P.S_FMT); boxedVs2 = P.FLEN'({{96{1'b1}}, vs2[31:0]});
+    if (vsew == VSEW_64 && FP.D_SUPPORTED) begin
+      fmt = unpack_fmt(FP.D_FMT); boxedVs2 = FP.FLEN'({{64{1'b1}}, vs2});
+    end else if (vsew == VSEW_32 || !FP.ZFH_SUPPORTED) begin
+      fmt = unpack_fmt(FP.S_FMT); boxedVs2 = FP.FLEN'({{96{1'b1}}, vs2[31:0]});
     end else begin
-      fmt = unpack_fmt(P.H_FMT); boxedVs2 = P.FLEN'({{112{1'b1}}, vs2[15:0]});
+      fmt = unpack_fmt(FP.H_FMT); boxedVs2 = FP.FLEN'({{112{1'b1}}, vs2[15:0]});
     end
 
   logic            sign, nan, snan, zero, inf, subnorm;
-  logic [P.NE-1:0] exp;
-  logic [P.NF:0]   man;
+  logic [FP.NE-1:0] exp;
+  logic [FP.NF:0]   man;
 
   unpackinput #(FP) unpackVs2 (
     .A         (boxedVs2),
@@ -109,7 +109,7 @@ module tb_vfrecrsqrt7;
     .PostBox   ()
   );
 
-  vfrecrsqrt7 #(P) dut (
+  vfrecrsqrt7 #(FP) dut (
     .IsSqrt    (isSqrt),
     .Xs        (sign),
     .Xe        (exp),

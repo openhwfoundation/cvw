@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaadd import cvw::*;  #(parameter cvw_t P) (
+module fmaadd import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [3*P.NF+5:0]    Am,         // aligned addend's mantissa for addition in U(NF+5.2NF+1)
   input  logic [P.NE-1:0]      Ze,         // exponent of Z
   input  logic                 Ps,         // the product sign and the alligend addeded's sign (Modified Z sign for other operations)

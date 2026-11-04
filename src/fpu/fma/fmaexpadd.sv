@@ -27,7 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaexpadd import cvw::*;  #(parameter cvw_t P) (
+module fmaexpadd import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.NE-1:0]      Xe, Ye,         // input's exponents
   input  logic                 XZero, YZero,   // are the inputs zero
   output logic [P.NE+1:0]      Pe              // product's exponent B^(1023)NE+2

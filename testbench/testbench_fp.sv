@@ -713,7 +713,7 @@ module testbench_fp;
 
   // instantiate devices under test
   if (TEST === "fma"| TEST === "mul" | TEST === "add" | TEST === "sub" | TEST === "all") begin : fma
-    fma #(P) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
+    fma #(FP) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
       .Xe(Xe), .Ye(Ye), .Ze(Ze),
       .Xm(Xm), .Ym(Ym), .Zm(Zm),
       .XZero, .YZero, .ZZero, .Ss, .Se,
@@ -733,7 +733,7 @@ module testbench_fp;
     .PostProcFlg(Flg), .PostProcRes(FpRes), .FCvtIntRes(IntRes), .Zfa(1'b0));
 
   if (TEST === "cvtfp" | TEST === "cvtint" | TEST === "all") begin : fcvt
-    fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
+    fcvt #(FP) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
       .XZero(XZero), .OpCtrl(OpCtrlVal), .IntZero,
       .Fmt(ModFmt), .Ce(CvtCalcExpE), .ShiftAmt(CvtShiftAmtE),
       .ResSubnormUf(CvtResSubnormUfE), .Cs(CvtResSgnE), .LzcIn(CvtLzcInE));

@@ -52,7 +52,8 @@ with open(fin_path) as fin:
             buf += f"module {moduleName}wrapper (\n"
             continue
         if (writeBuf):
-            buf += l
+            # ports of a module taking fpu_t P are sized by the wrapper's FP
+            buf += re.sub(r"\bP\.", "FP.", l) if re.search(r"\bfpu_t\s+P\b", moduleHeader) else l
         if l.lstrip().find (");") == 0:
             lineModuleEnd = index
             break

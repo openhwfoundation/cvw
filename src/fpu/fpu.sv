@@ -245,7 +245,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .ZEn(ZEnE), .ZInf(ZInfE), .XExpMax(XExpMaxE), .XPostBox(XPostBoxE), .Bias(BiasE), .Nf(NfE));
 
   // fused multiply add: fadd/sub, fmul, fmadd/fnmadd/fmsub/fnmsub
-  fma #(P) fma (.Xs(XsE), .Ys(YsE), .Zs(ZsE), .Xe(XeE), .Ye(YeE), .Ze(ZeE), .Xm(XmE), .Ym(YmE), .Zm(ZmE),
+  fma #(FP) fma (.Xs(XsE), .Ys(YsE), .Zs(ZsE), .Xe(XeE), .Ye(YeE), .Ze(ZeE), .Xm(XmE), .Ym(YmE), .Zm(ZmE),
     .XZero(XZeroE), .YZero(YZeroE), .ZZero(ZZeroE), .OpCtrl(OpCtrlE),
     .As(AsE), .Ps(PsE), .Ss(SsE), .Se(SeE), .Sm(SmE), .InvA(InvAE), .SCnt(SCntE), .ASticky(FmaAStickyE));
 
@@ -270,7 +270,7 @@ module fpu import cvw::*;  #(parameter cvw_t P) (
     .XInf(XInfE), .XSNaN(XSNaNE), .ClassRes(ClassResE));
 
   // convert: fcvt.*.*
-  fcvt #(P) fcvt (.Xs(XsE), .Xe(XeE), .Xm(XmE), .Int(ForwardedSrcAE), .OpCtrl(OpCtrlE),
+  fcvt #(FP) fcvt (.Xs(XsE), .Xe(XeE), .Xm(XmE), .Int(ForwardedSrcAE), .OpCtrl(OpCtrlE),
     .ToInt(FWriteIntE), .XZero(XZeroE), .Fmt(FmtE), .Ce(CeE), .ShiftAmt(CvtShiftAmtE),
     .ResSubnormUf(CvtResSubnormUfE), .Cs(CsE), .IntZero(IntZeroE), .LzcIn(CvtLzcInE));
 
