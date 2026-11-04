@@ -12,11 +12,11 @@
 // additional configurations where addressable bits are masked, for future work.
 // Since addressable bits are never masked in current version, the module itself only sends a signal to disable top bit
 // validity checks to vm64check.sv
-// Documentation: Based on ddescriptions in RISC-V Privileged Specifications
+// Documentation: Based on descriptions in RISC-V Privileged Specifications
 // Chapter on Pointer Masking https://docs.riscv.org/reference/isa/v20260120/priv/zpm.html
 // Complete Specifications V20260120 https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
@@ -32,20 +32,18 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// current todos: implement mssec register in csrm, add to csr.sv
 module pointermask import cvw::*;   #(parameter cvw_t P) (
     input logic [1:0]                MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,
     input logic [1:0]                EffectivePrivilegeModeW,
     input logic                      STATUS_MXR,
     input logic [1:0]                MemRWM,
-    input logic [3:0]                CMOpM,
-
+    input logic [3:0]                CMOpMUngated,
     output logic                     PointerMaskApplicable, PMLength
 );
 
   logic MaskApplicableInstr;
   //Determine if instruction is mask-applicable (explicit memory access)
-  assign MaskApplicableInstr = |(MemRWM) | |(CMOpM);
+  assign MaskApplicableInstr = |(MemRWM) | |(CMOpMUngated);
 
   //Determine if mask should be applied based on CSR configuration PMM bits and current privilege level
   always_comb

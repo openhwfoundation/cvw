@@ -133,7 +133,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
                           SENVCFG_REGW[33:32] : CSRWriteValM[33:32];
     assign SENVCFG_WriteValM = {
       30'b0,
-      LegalizedPMM      & {2{P.SMNPM_SUPPORTED}},
+      LegalizedPMM      & {2{P.SSNPM_SUPPORTED}},
       24'b0,
       CSRWriteValM[7]   & P.ZICBOZ_SUPPORTED,
       CSRWriteValM[6]   & P.ZICBOM_SUPPORTED,

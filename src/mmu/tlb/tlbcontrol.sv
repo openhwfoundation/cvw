@@ -19,12 +19,10 @@
 module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,
   input  logic [P.XLEN-1:0]        VAdr,
-  input  logic  [1:0]              MemRWM,
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic  [1:0]              STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
-  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, //Pointer mask config bits
   input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
   input  logic                     ReadAccess, WriteAccess,
   input  logic [3:0]               CMOpM,
@@ -33,6 +31,7 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   input  logic                     CAMHit,
   input  logic                     Misaligned,
   input  logic                     NAPOT4,             // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
+  input  logic                     PointerMaskApplicable, PMLength,
   output logic                     TLBMiss,
   output logic                     TLBHit,
   output logic                     TLBPageFault,
@@ -41,8 +40,7 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   output logic                     SV48Mode,
   output logic                     Translate,
   output logic                     PTE_N,         // NAPOT page table entry
-  output logic [1:0]               PBMemoryType,   // PBMT field of PTE during TLB hit, or 00 otherwise
-  output logic                     PointerMaskApplicable, PMLength //Pointer Mask signals that need to be passed to back to privileged unit for hardware writes to csrs
+  output logic [1:0]               PBMemoryType   // PBMT field of PTE during TLB hit, or 00 otherwise
 );
 
   // Sections of the page table entry
@@ -63,8 +61,7 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   assign TLBAccess = ReadAccess | WriteAccess | (|CMOpM);
 
   // Check that upper bits are legal (all 0s or all 1s)
-  vm64check #(P, ITLB) vm64check(.SATP_MODE, .VAdr, .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
-                                 .STATUS_MXR, .MemRWM, .CMOpM, .SV39Mode, .SV48Mode, .UpperBitsUnequal, .PointerMaskApplicable, .PMLength);
+  vm64check #(P, ITLB) vm64check(.SATP_MODE, .VAdr, .PointerMaskApplicable, .PMLength, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
 
   // unswizzle useful PTE bits
   assign PTE_N = PTEAccessBits[11];

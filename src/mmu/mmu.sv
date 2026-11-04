@@ -28,6 +28,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic                 ENVCFG_ADUE,        // HPTW A/D Update enable
   input  logic [1:0]           MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, //Pointer mask config bits from CSR
   input  logic [1:0]           MemRWM,             // Memory stage memory read/write decode for pointermask control
+  input  logic [3:0]           CMOpMUngated,       // Ungated CMOpM used to apply pointer mask
   input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processeor
   input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
   input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
@@ -75,6 +76,14 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
   assign EffectivePrivilegeModeW = IMMU ? PrivilegeModeW : (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW);
+  // only instantiate pointer masking module if pointer masking is supported
+  if (P.ZPM_SUPPORTED) begin : pm
+    pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
+                                .STATUS_MXR, .MemRWM, .CMOpMUngated, .PointerMaskApplicable, .PMLength);
+  end else begin
+    assign PointerMaskApplicable = 1'b0;
+    assign PMLength              = 1'b0;
+  end
 
   // only instantiate TLB if Virtual Memory is supported
   if (P.VIRTMEM_SUPPORTED) begin : tlb
@@ -86,11 +95,11 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .SATP_MODE(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]),
           .SATP_ASID(SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE]),
           .VAdr(VAdr[P.XLEN-1:0]), .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-          .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .MemRWM,
           .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM,
           .DisableTranslation, .PTE, .PageTypeWriteVal,
-          .TLBWrite, .TLBFlush, .TLBFlushAll, .TLBPAdr, .TLBMiss,
-          .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType, .PointerMaskApplicable, .PMLength);
+          .TLBWrite, .TLBFlush, .TLBFlushAll, .PointerMaskApplicable,
+          .PMLength, .TLBPAdr, .TLBMiss,
+          .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
   end else begin : tlb // just pass address through as physical
     assign Translate    = 1'b0;
     assign TLBMiss      = 1'b0;
@@ -98,8 +107,6 @@ module mmu import cvw::*;  #(parameter cvw_t P,
     assign PBMemoryType = 2'b00;
     assign UpdateDA     = 1'b0;
     assign TLBPAdr      = '0;
-    assign PointerMaskApplicable = 1'b0;
-    assign PMLength = 1'b0;
   end
 
   // If translation is occurring, select translated physical address from TLB
@@ -113,7 +120,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Translated addresses come from the PPN and always fit; RV32 addresses are narrower than PA_BITS.
   // If RV64, pointer masking may be applicable. In that case, PA validity checks must be turned off for masked bits
   if (P.XLEN > P.PA_BITS) begin
-    if (P.SMMPM_SUPPORTED | P.SMNPM_SUPPORTED | P.SSNPM_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? (PMLength ? 1'b0 : ~Translate & (|VAdr[56:P.PA_BITS])) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
+    if (P.ZPM_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? (PMLength ? 1'b0 : ~Translate & (|VAdr[56:P.PA_BITS])) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
     else assign PAOutOfRange = ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
   end else                    assign PAOutOfRange = 1'b0;
   ///////////////////////////////////////////

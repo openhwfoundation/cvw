@@ -127,8 +127,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   ///////////////////////////////////////////
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
-  if (P.SMMPM_SUPPORTED | P.SMNPM_SUPPORTED | P.SSNPM_SUPPORTED) begin //if pointer masking is supported, hardware writes to csrs can be subject to pointer masking
-    assign MaskedIEUAdrxTvalM = PMLength ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
+  if (P.ZPM_SUPPORTED) begin //If pointer masking is supported, hardware writes to CSRs can be subject to pointer masking
+    assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS])) ? (PMLength ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLength ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
     always_comb
       if (InterruptM)           NextFaultXtvalM = '0;
       else case (CauseM)

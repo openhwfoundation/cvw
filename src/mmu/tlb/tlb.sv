@@ -46,8 +46,6 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
-  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,
-  input  logic [1:0]               MemRWM,
   input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
   input  logic                     ReadAccess,
   input  logic                     WriteAccess,
@@ -59,13 +57,13 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic                     TLBWrite,
   input  logic                     TLBFlush,
   input  logic                     TLBFlushAll,      // Flush global (G=1) entries too
+  input  logic                     PointerMaskApplicable, PMLength,
   output logic [P.PA_BITS-1:0]     TLBPAdr,
   output logic                     TLBMiss,
   output logic                     Translate,
   output logic                     TLBPageFault,
   output logic                     UpdateDA,
-  output logic [1:0]               PBMemoryType,     // PBMT field of PTE during TLB hit, or 00 otherwise
-  output logic                     PointerMaskApplicable, PMLength // Pointer Mask signals that need to be passed to privileged unit for CSR hardware writes
+  output logic [1:0]               PBMemoryType     // PBMT field of PTE during TLB hit, or 00 otherwise
 );
 
   logic [TLB_ENTRIES-1:0]         Matches, WriteEnables, PTE_Gs, PTE_NAPOTs; // used as the one-hot encoding of WriteIndex
@@ -104,12 +102,12 @@ module tlb import cvw::*; #(parameter cvw_t P,
   assign VPN = VAdr[P.VPN_BITS+11:12];
   assign NAPOT4 = (PPN[3:0] == 4'b1000) & (HitPageType == KILOPAGE); // 64 KiB contiguous region with pte.napot_bits = 4; N=1 is reserved on superpages
 
-  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .MemRWM, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-    .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM,
+  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
     .PTEAccessBits, .CAMHit, .Misaligned, .NAPOT4,
+    .PointerMaskApplicable, .PMLength,
     .TLBMiss, .TLBHit, .TLBPageFault,
-    .UpdateDA, .SV39Mode, .SV48Mode, .Translate, .PTE_N, .PBMemoryType, .PointerMaskApplicable, .PMLength);
+    .UpdateDA, .SV39Mode, .SV48Mode, .Translate, .PTE_N, .PBMemoryType);
 
   assign WritePTE_NAPOT = P.SVNAPOT_SUPPORTED & PTE[P.XLEN-1] & (PTE[13:10] == 4'b1000);
   tlblru #(TLB_ENTRIES) lru(.clk, .reset, .TLBWrite, .Matches, .TLBHit, .WriteEnables);

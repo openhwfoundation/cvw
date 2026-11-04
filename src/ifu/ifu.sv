@@ -192,7 +192,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
 
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-         .MSECCFG_PMM(2'b0), .MENVCFG_PMM(2'b0), .SENVCFG_PMM(2'b0), .MemRWM(2'b0),
+         .MSECCFG_PMM(2'b0), .MENVCFG_PMM(2'b0), .SENVCFG_PMM(2'b0), .MemRWM(2'b0), .CMOpMUngated(4'b0),
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(2'b10),
