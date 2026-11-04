@@ -263,7 +263,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign WriteHENVCFGM    = ValidHWriteM & (CSRAdrM == HENVCFG);
   assign WriteHENVCFGHM   = (P.XLEN == 32) & (ValidHWriteM & (CSRAdrM == HENVCFGH));
   assign WriteHTVALM      = ValidHWriteM & (CSRAdrM == HTVAL);
-  assign WriteVSTVALM     = ValidVSWriteM & (CSRAdrM == VSTVAL);
+  assign WriteVSTVALM     = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSTVAL));
   assign WriteVSIPM       = ValidVSWriteM & (CSRAdrM == VSIP) & HIDELEG_REGW[2];
   assign WriteHVIPM       = ValidHWriteM & (CSRAdrM == HVIP);
   assign WriteHIPM        = ValidHWriteM & (CSRAdrM == HIP);
@@ -272,8 +272,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
                             ((PrivilegeModeW == P.M_MODE) | ~STATUS_TVM);
   assign WriteVSTVECM     = ValidVSWriteM & (CSRAdrM == VSTVEC);
   assign WriteVSSCRATCHM  = ValidVSWriteM & (CSRAdrM == VSSCRATCH);
-  assign WriteVSEPCM      = ValidVSWriteM & (CSRAdrM == VSEPC);
-  assign WriteVSCAUSEM    = ValidVSWriteM & (CSRAdrM == VSCAUSE);
+  assign WriteVSEPCM      = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSEPC));
+  assign WriteVSCAUSEM    = TrapToVSM | (ValidVSWriteM & (CSRAdrM == VSCAUSE));
 
   // For unsupported MODE writes, choose satp-like behavior (ignore write).
   // This is spec-compliant for V=0 and required for satp writes when V=1.
@@ -499,12 +499,12 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
                                            : {CSRWriteValM[P.XLEN-1:2], 2'b00};
   flopenr #(P.XLEN) VSTVECreg(clk, reset, WriteVSTVECM, VSTVECWriteValM, VSTVEC_REGW);
   flopenr #(P.XLEN) VSSCRATCHreg(clk, reset, WriteVSSCRATCHM, CSRWriteValM, VSSCRATCH_REGW);
-  flopenr #(P.XLEN) VSEPCreg(clk, reset, (TrapToVSM | WriteVSEPCM), TrapToVSM ? NextEPCM : CSRWriteValM, VSEPC_REGW);
+  flopenr #(P.XLEN) VSEPCreg(clk, reset, WriteVSEPCM, NextEPCM, VSEPC_REGW);
   // VSCAUSE is WLRL; allow CSR writes to set full VSXLEN value, but let traps override.
   assign NextVSCAUSEM = TrapToVSM ? {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}
                                 : CSRWriteValM;
-  flopenr #(P.XLEN) VSCAUSEreg(clk, reset, (TrapToVSM | WriteVSCAUSEM), NextVSCAUSEM, VSCAUSE_REGW);
-  flopenr #(P.XLEN) VSTVALreg(clk, reset, (TrapToVSM | WriteVSTVALM), TrapToVSM ? NextTvalM : CSRWriteValM, VSTVAL_REGW);
+  flopenr #(P.XLEN) VSCAUSEreg(clk, reset, WriteVSCAUSEM, NextVSCAUSEM, VSCAUSE_REGW);
+  flopenr #(P.XLEN) VSTVALreg(clk, reset, WriteVSTVALM, TrapToVSM ? NextTvalM : CSRWriteValM, VSTVAL_REGW);
   if (P.VIRTMEM_SUPPORTED)
     flopenr #(P.XLEN) VSATPreg(clk, reset, WriteVSATPM, LegalizedVSatpWriteValM, VSATP_REGW);
   else

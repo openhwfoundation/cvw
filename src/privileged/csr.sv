@@ -144,7 +144,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [63:0]             HENVCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
-  logic                    ENVCFG_STCE; // supervisor timer counter enable
   logic                    TrapGVAM;
   logic                    TrapWritesVAToTvalM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
@@ -311,7 +310,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .CSRMWriteM, .CSRSWriteM, .CSRWriteValM, .CSRAdrM,
     .MExtInt, .SExtInt, .MTimerInt, .STimerInt, .MSwInt,
     .HIP_MIP_REGW, .WriteHIEM, .WriteVSIEM, .HIDELEG_REGW, .HIE_REGW,
-    .MIDELEG_REGW, .ENVCFG_STCE, .MIP_REGW, .MIE_REGW, .MIP_REGW_writeable);
+    .MIDELEG_REGW, .MENVCFG_STCE(MENVCFG_REGW[63]), .MIP_REGW, .MIE_REGW, .MIP_REGW_writeable);
 
   csrsr #(P) csrsr(.clk, .reset, .StallW,
     .WriteMSTATUSM, .WriteMSTATUSHM, .WriteSSTATUSM,
@@ -333,8 +332,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .MENVCFG_REGW);
 
   if (P.S_SUPPORTED) begin : csrs
-    logic STCE;
-    assign STCE = P.SSTC_SUPPORTED & (PrivilegeModeW == P.M_MODE | (MCOUNTEREN_REGW[1] & ENVCFG_STCE));
+    logic STCE; // Supervisor Timer Compare Enable
+    assign STCE = P.SSTC_SUPPORTED & (PrivilegeModeW == P.M_MODE | (MCOUNTEREN_REGW[1] & MENVCFG_REGW[63]));
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
       .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
@@ -475,7 +474,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .MTIME_CLINT, .HTIMEDELTA_REGW, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
 
   csrenv #(P) csrenv(.InstrM, .PrivilegeModeW, .VirtModeW, .MENVCFG_REGW, .HENVCFG_REGW,
-    .SENVCFG_REGW, .ENVCFG_CBE, .ENVCFG_STCE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .VirtualCMOInstrM);
+    .SENVCFG_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .VirtualCMOInstrM);
 
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM | CSRHReadValM;
