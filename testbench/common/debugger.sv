@@ -81,6 +81,24 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
   assign DebuggerErrors = DebuggerErrors_int;
 
+  // Setters for the raw-JTAG state, which the Debugger class changes
+  // (Verilator can't write module variables directly from a class).
+  function void setTckTime(input int t);
+    tcktime = t;
+  endfunction
+
+  function void setRtiCycles(input int n);
+    rti_cycles = n;
+  endfunction
+
+  function void setCurIr(input logic [4:0] ir);
+    cur_ir = ir;
+  endfunction
+
+  function logic [4:0] getCurIr();
+    return cur_ir;
+  endfunction
+
   // ----------------------------------------------------------------
   //  Write instruction task.
   // ----------------------------------------------------------------
@@ -356,7 +374,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       // Set instruction DMI
       write_instr(5'b10001);
-      cur_ir = 5'h11;
+      setCurIr(5'h11);
     endtask
 
     task init_dm();
@@ -465,8 +483,8 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
       cmpmask = {};
       rawops = {};
       strict = 0;
-      tcktime = TCKTIME;
-      rti_cycles = 1;
+      setTckTime(TCKTIME);
+      setRtiCycles(1);
       while (!$feof(file)) begin
         if ($fgets(line, file) != 0) begin
           bit dontcompare;
@@ -508,7 +526,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
             continue;
           end
 
-          cmpmask.push_back(dontcompare ? '0 : '1);
+          cmpmask.push_back(dontcompare ? 41'b0 : {41{1'b1}});
 
           // These values must be converted to the right bit widths
           // for Verilator.
@@ -756,9 +774,9 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
           this.run_rawop(rawops[rp], rp);
           rp++;
         end
-        if (cur_ir != 5'h11) begin // a raw IR scan or TLR changed the IR
+        if (getCurIr() != 5'h11) begin // a raw IR scan or TLR changed the IR
           write_instr(5'h11);
-          cur_ir = 5'h11;
+          setCurIr(5'h11);
         end
 
         if (i == endIndex - 1) begin
@@ -813,16 +831,18 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     // Run one raw JTAG line and compare its TDO under the mask.
     task run_rawop(rawop_t r, int idx);
       logic [63:0] out;
+      string red    = "\033[1;31m"; // Red text
+      string normal = "\033[0m";    // Reset to default
       case (r.kind)
-        "tck": tcktime = r.width;
-        "rti": rti_cycles = r.width;
+        "tck": setTckTime(r.width);
+        "rti": setRtiCycles(r.width);
         "tlr": begin
           jtag_tlr();
-          cur_ir = 5'h01; // IDCODE
+          setCurIr(5'h01); // IDCODE
         end
         default: begin
           raw_scan(r.kind == "ir", r.width, r.tdi, out);
-          if (r.kind == "ir") cur_ir = 5'(r.tdi >> (r.width - 5)); // last 5 bits in
+          if (r.kind == "ir") setCurIr(5'(r.tdi >> (r.width - 5))); // last 5 bits in
           if (((out ^ r.expected) & r.mask) != '0 &&
               !(r.altmask != '0 && ((out ^ r.alt) & r.altmask) == '0)) begin
             $display("%sFAILED:%s raw JTAG scan %0d (before DMI vector %0d): %s",
