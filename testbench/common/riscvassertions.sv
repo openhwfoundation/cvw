@@ -44,5 +44,6 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.ZCF_SUPPORTED == 0) | ((P.F_SUPPORTED == 1) & (P.XLEN == 32))) else $fatal(1, "ZCF requires F and XLEN == 32");
     assert ((P.ZCD_SUPPORTED == 0) | (P.D_SUPPORTED == 1)) else $fatal(1, "ZCD requires D");
     assert ((P.SV57_SUPPORTED == 0) | (P.PMLEN16_SUPPORTED == 0)) else $fatal(1, "PMLEN16 cannot be supported when SV57 is supported");
+    assert ((P.XLEN == 64) | ((P.SMMPM_SUPPORTED == 0) & (P.SSNPM_SUPPORTED == 0) & (P.SMNPM_SUPPORTED == 0))) else $fatal(1, "Pointer masking requires XLEN = 64");
   end
 endmodule

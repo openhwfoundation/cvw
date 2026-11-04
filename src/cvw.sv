@@ -91,6 +91,7 @@ typedef struct packed {
   logic         ZFH_SUPPORTED;
   logic         ZFA_SUPPORTED;
   logic         SSTC_SUPPORTED;
+  logic         MSECCFG_SUPPORTED;
   logic         VIRTMEM_SUPPORTED;
   logic         SVPBMT_SUPPORTED;
   logic         SVNAPOT_SUPPORTED;

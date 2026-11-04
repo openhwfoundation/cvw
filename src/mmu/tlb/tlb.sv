@@ -46,7 +46,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
-  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processeor, accounting for mstatus.MPRV
+  input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processor, accounting for mstatus.MPRV
   input  logic                     ReadAccess,
   input  logic                     WriteAccess,
   input  logic [3:0]               CMOpM,

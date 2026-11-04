@@ -29,7 +29,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic [1:0]           MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, //Pointer mask config bits from CSR
   input  logic [1:0]           MemRWM,             // Memory stage memory read/write decode for pointermask control
   input  logic [3:0]           CMOpMUngated,       // Ungated CMOpM used to apply pointer mask
-  input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processeor
+  input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processor
   input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
   input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
   input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
@@ -100,7 +100,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .TLBWrite, .TLBFlush, .TLBFlushAll, .PointerMaskApplicable,
           .PMLength, .TLBPAdr, .TLBMiss,
           .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
-  end else begin : tlb // just pass address through as physical
+  end else begin : notlb // just pass address through as physical
     assign Translate    = 1'b0;
     assign TLBMiss      = 1'b0;
     assign TLBPageFault = 1'b0;
