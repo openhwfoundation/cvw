@@ -34,6 +34,8 @@ Then read `build/log/<test>.log`.
 
 ## Running on Wally
 
+The tests run on the `debug64` and `debug32` configurations. On a fresh checkout, generate them first with `make deriv`.
+
 ```bash
 tests/debug/run_rule_tests.sh [-s questa|verilator] [-x 64|32] 'WALLY-debug-*'
 ```
