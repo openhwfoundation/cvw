@@ -50,12 +50,13 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 # Standard regression: every configuration listed here has an ACT test-generation configuration in
 # config/<cfg>/act/ (cvw owns these; actconfig-sync keeps ACT's copies matching).  Its self-checking
 # ELFs are built into addins/riscv-arch-test/work/<name>/elfs and run one leaf directory per simulation.
-standard_configs = ["rv32i", "rv64i", "rv32imc", "rv32gc", "rv64gc"]
+standard_configs = ["rv32i", "rv64i", "rv32imc", "rv32imcb", "rv32gc", "rv64gc"]
 
 # Self-checking peripheral tests (tests/periph), run as one group per configuration.
-# rv32imc lacks supervisor mode and PMP, so it only runs the machine-mode peripheral test.
+# rv32imc and rv32imcb lack supervisor mode and PMP, so they only run the machine-mode peripheral test.
 periph_tests = {
     "rv32imc": ["rv32/WALLY-periph-m-01"],
+    "rv32imcb": ["rv32/WALLY-periph-m-01"],
     "rv32gc":  ["rv32/WALLY-periph-01", "rv32/WALLY-gpio-01", "rv32/WALLY-clint-01", "rv32/WALLY-uart-01",
                 "rv32/WALLY-plic-01", "rv32/WALLY-plic-s-01", "rv32/WALLY-spi-01", "rv32/WALLY-pwm-01",
                 "rv32/WALLY-uart-timeout-01"],
@@ -882,6 +883,7 @@ def selectTests(args, sims, coverStr):
         addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
         addActTests(derivconfigtests, defaultsim, coverStr, configs)
         for config, tests in deriv_coverage_tests.items():

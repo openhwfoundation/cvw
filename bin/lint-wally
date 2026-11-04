@@ -28,7 +28,7 @@ NC = "\033[0m"  # No Color
 def get_configs(nightly: bool, WALLY: Path) -> list[str]:
     """Get list of configurations to lint."""
     # Start with base configs
-    configs = ["rv32e", "rv64gc", "rv32gc", "rv32imc", "rv32i", "rv64i"]
+    configs = ["rv32e", "rv64gc", "rv32gc", "rv32imc", "rv32imcb", "rv32i", "rv64i"]
 
     if not nightly:
         return configs + ["fdqh_rv64gc"]
