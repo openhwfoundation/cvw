@@ -213,7 +213,7 @@ module debug import cvw::*; #(parameter cvw_t P) (
 
         DMCONTROL: begin
           DMIRSPDATA[31:2] <= '0; // Always should read haltrequest as zero
-          DMIRSPDATA[1:0] <= DMControl[1:0];
+          DMIRSPDATA[1:0] <= {DMControl[1], DMActive};
         end
 
         DMSTATUS: begin
@@ -236,14 +236,8 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // Writes to registers
   // ----------------------------------------------------------------
 
-  // DMActive get it's own block.
-  always_ff @(posedge clk) begin
-    if (reset) begin
-      DMControl[0] <= 1'b0;
-    end else if (DMControlWrite) begin
-      DMControl[0] <= DMIDATA[0];
-    end
-  end
+  // Separate DMActive register
+  flopenr #(1) dmactive_reg(clk, reset, DMControlWrite, DMIDATA[0], DMActive);
 
   // DMControl
   always_ff @(posedge clk) begin
@@ -368,7 +362,7 @@ module debug import cvw::*; #(parameter cvw_t P) (
   assign ClrResetHaltReq = DMControlWrite & DMIDATA[2] & DMActive;
 
   assign DebugNDMReset = DMControl[1];
-  assign DMActive = DMControl[0];
+  // assign DMActive = DMControl[0];
 
   // With Multi-hart, this needs to become a vector
   always_ff @(posedge clk) begin
@@ -382,16 +376,17 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // DMStatus signals
   assign NDMResetPending = DebugNDMReset;
 
+  // Sticky across dmactive, resembling Spike testvectors.
   always_ff @(posedge clk) begin
-    if (ResetDM) begin
+    if (reset) begin
       ResumePending <= 1'b0;
-      ResumeAck     <= 1'b0; // Spec reset is unspecified; 0 is fine
-    end else if (ResumeReqPulse) begin
-      ResumeAck     <= 1'b0;           // Spec: clear ack on resumereq write (even if running)
-      ResumePending <= DebugMode;      // only resume if halted; else ignore
+      ResumeAck     <= 1'b0;
+    end else if (ResumeReqPulse & DebugMode) begin
+      ResumePending <= 1'b1;
+      ResumeAck <= 1'b0;
     end else if (ResumePending & ~DebugMode) begin
-      ResumeAck     <= 1'b1;           // Spec: set ack when resume finishes
       ResumePending <= 1'b0;
+      ResumeAck <= 1'b1;
     end
   end
 
