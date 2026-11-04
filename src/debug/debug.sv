@@ -181,7 +181,7 @@ module debug import cvw::*; #(parameter cvw_t P) (
   assign InitRequest = ((DMIOP == RD) | (DMIOP == WR)) & DMIVALID;
   assign ReadRequest = DMIOP == RD & DMIVALID;
   assign WriteRequest = DMIOP == WR & DMIVALID & DMActive;
-  assign ResetDM = reset | ~DMActive;
+  assign ResetDM = reset | ~DMActive | (DMControlWrite & ~DMIDATA[0]);
 
   always_ff @(posedge clk) begin
     if (reset | DMIRSPVALID) begin
@@ -213,16 +213,17 @@ module debug import cvw::*; #(parameter cvw_t P) (
 
         DMCONTROL: begin
           DMIRSPDATA[31:2] <= '0; // Always should read haltrequest as zero
-          DMIRSPDATA[1:0] <= DMControl[1:0];
+          DMIRSPDATA[1:0] <= {DMControl[1], DMActive};
         end
 
         DMSTATUS: begin
-          DMIRSPDATA <= {DMStatus[31:25], NDMResetPending, DMStatus[23:20],
+          DMIRSPDATA <= {7'b0, NDMResetPending, 1'b0, 1'b0, 2'b0,
                          DebugHaveReset, DebugHaveReset,
                          AllResumeAck, AnyResumeAck,
-                         DMStatus[15:12],
+                         4'b0,
                          AllRunning, AnyRunning, AllHalted, AnyHalted,
-                         DMStatus[7:0]};
+                         1'b1, 1'b0, 1'b1, 1'b0, 4'd3
+          };
         end
 
         ABSTRACTCS: DMIRSPDATA <= AbstractCS;
@@ -235,16 +236,16 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // Writes to registers
   // ----------------------------------------------------------------
 
+  // Separate DMActive register
+  flopenr #(1) dmactive_reg(clk, reset, DMControlWrite, DMIDATA[0], DMActive);
+
   // DMControl
   always_ff @(posedge clk) begin
-    if (reset) begin
-      DMControl <= '0;
+    if (reset | ~DMActive | (DMControlWrite & ~DMIDATA[0])) begin
+      DMControl[31:1] <= '0;
     end else if (DMControlWrite) begin
-      DMControl[0] <= DMIDATA[0];
-      if (DMActive) begin
         DMControl[31] <= DMIDATA[31];
         DMControl[1] <= DMIDATA[1];
-      end
     end
   end
 
@@ -273,11 +274,6 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // [5]     hasresethaltreq    — Halt-on-reset request is implemented
   // [4]     confstrptrvalid    — Configuration string pointer is valid
   // [3:0]   version            — Debug Module version (0=none, 1=0.11, 2=0.13, 3=1.0)
-  always_ff @(posedge clk) begin
-    if (ResetDM) begin
-      DMStatus <= {14'b0, 2'b11, 8'b0, 1'b1, 1'b0, 1'b1, 1'b0, 4'b11};
-    end
-  end
 
   // Data Registers, used as arguments for writing to registers and
   // for storing results read from registers. ReadRegister contains
@@ -366,7 +362,7 @@ module debug import cvw::*; #(parameter cvw_t P) (
   assign ClrResetHaltReq = DMControlWrite & DMIDATA[2] & DMActive;
 
   assign DebugNDMReset = DMControl[1];
-  assign DMActive = DMControl[0];
+  // assign DMActive = DMControl[0];
 
   // With Multi-hart, this needs to become a vector
   always_ff @(posedge clk) begin
@@ -380,16 +376,17 @@ module debug import cvw::*; #(parameter cvw_t P) (
   // DMStatus signals
   assign NDMResetPending = DebugNDMReset;
 
+  // Sticky across dmactive, resembling Spike testvectors.
   always_ff @(posedge clk) begin
-    if (ResetDM) begin
+    if (reset) begin
       ResumePending <= 1'b0;
-      ResumeAck     <= 1'b0; // Spec reset is unspecified; 0 is fine
-    end else if (ResumeReqPulse) begin
-      ResumeAck     <= 1'b0;           // Spec: clear ack on resumereq write (even if running)
-      ResumePending <= DebugMode;      // only resume if halted; else ignore
+      ResumeAck     <= 1'b0;
+    end else if (ResumeReqPulse & DebugMode) begin
+      ResumePending <= 1'b1;
+      ResumeAck <= 1'b0;
     end else if (ResumePending & ~DebugMode) begin
-      ResumeAck     <= 1'b1;           // Spec: set ack when resume finishes
       ResumePending <= 1'b0;
+      ResumeAck <= 1'b1;
     end
   end
 

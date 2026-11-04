@@ -4167,7 +4167,15 @@ string wally32debug[] = '{
   "WALLY-debug-ex3",
   "WALLY-debug-ex4",
   "WALLY-debug-prv",
-  "WALLY-debug-aarsize-notsup"
+  "WALLY-debug-aarsize-notsup",
+  "WALLY-debug-pipeline-state",
+  "WALLY-debug-data1-preserve",
+  "WALLY-debug-catch-replay",
+  "WALLY-debug-halt-at-trapvector",
+  "WALLY-debug-cause-priority",
+  "WALLY-debug-ebreak-stallw",
+  "WALLY-debug-mret-sret",
+  "WALLY-debug-resume-mprv"
 };
 
 string wally32debug_jtag[] = '{
@@ -4187,7 +4195,15 @@ string wally32debug_jtag[] = '{
   "WALLY-debug-ex3",
   "WALLY-debug-ex4",
   "WALLY-debug-prv",
-  "WALLY-debug-aarsize-notsup"
+  "WALLY-debug-aarsize-notsup",
+  "WALLY-debug-pipeline-state",
+  "WALLY-debug-data1-preserve",
+  "WALLY-debug-catch-replay",
+  "WALLY-debug-halt-at-trapvector",
+  "WALLY-debug-cause-priority",
+  "WALLY-debug-ebreak-stallw",
+  "WALLY-debug-mret-sret",
+  "WALLY-debug-resume-mprv"
 };
 
 string wally64debug[] = '{
@@ -4214,7 +4230,9 @@ string wally64debug[] = '{
   "WALLY-debug-cause-priority",
   "WALLY-debug-ebreak-stallw",
   "WALLY-debug-mret-sret",
-  "WALLY-debug-resume-mprv"
+  "WALLY-debug-resume-mprv",
+  "WALLY-debug-aar-cmderr",
+  "WALLY-debug-aar-sidefx"
 };
 
 string wally64debug_jtag[] = '{
@@ -4241,5 +4259,7 @@ string wally64debug_jtag[] = '{
   "WALLY-debug-cause-priority",
   "WALLY-debug-ebreak-stallw",
   "WALLY-debug-mret-sret",
-  "WALLY-debug-resume-mprv"
+  "WALLY-debug-resume-mprv",
+  "WALLY-debug-aar-cmderr",
+  "WALLY-debug-aar-sidefx"
 };

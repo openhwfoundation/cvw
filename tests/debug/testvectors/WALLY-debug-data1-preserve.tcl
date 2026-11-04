@@ -60,17 +60,22 @@ echo "abstractcs = [riscv dmi_read 0x16]"
 echo "data0 = [riscv dmi_read 0x04] (expect 0x55667788)"
 echo "data1 = [riscv dmi_read 0x05] (expect 0xcafef00d, unchanged)"
 
-# aarsize=3 (64-bit), transfer, write x6 (t1) <- {data1, data0}
+# aarsize=3 (64-bit), transfer, write x6 (t1) or f2 <- {data1, data0}
 # Correct: t1 = 0xcafef00d55667788. If the 32-bit read clobbered
 # data1, t1 = 0x1122334455667788. Stored to the signature below.
-riscv dmi_write 0x17 0x00331006
-echo "abstractcs = [riscv dmi_read 0x16]"
-
-# aarsize=3 (64-bit), transfer, read x5 (t0)
-riscv dmi_write 0x17 0x00321005
-echo "abstractcs = [riscv dmi_read 0x16]"
-echo "data0 = [riscv dmi_read 0x04] (expect 0x55667788)"
-echo "data1 = [riscv dmi_read 0x05] (expect 0x11223344)"
+if {$ISA32} {
+    # observe via aarsize=3 write to f2
+    riscv dmi_write 0x17 0x00331022
+    echo "abstractcs = [riscv dmi_read 0x16]"
+} else {
+    riscv dmi_write 0x17 0x00331006
+    echo "abstractcs = [riscv dmi_read 0x16]"
+    # aarsize=3 (64-bit), transfer, read x5 (t0)
+    riscv dmi_write 0x17 0x00321005
+    echo "abstractcs = [riscv dmi_read 0x16]"
+    echo "data0 = [riscv dmi_read 0x04] (expect 0x55667788)"
+    echo "data1 = [riscv dmi_read 0x05] (expect 0x11223344)"
+}
 
 # Store t0/t1 to the signature again
 set_reg [list dpc $test1_addr]

@@ -69,6 +69,18 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
   //enum logic {RUN, WAIT} debugger_state;
 
+  int unsigned DebuggerErrors_int;
+
+  // -----------------------------------------------------------------
+  // DebuggerErrors function for Verilator scoping
+  // -----------------------------------------------------------------
+
+  function void setDebuggerErrors(input int unsigned errors);
+    DebuggerErrors_int = errors;
+  endfunction
+
+  assign DebuggerErrors = DebuggerErrors_int;
+
   // ----------------------------------------------------------------
   //  Write instruction task.
   // ----------------------------------------------------------------
@@ -425,34 +437,28 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     endtask
 
     // TESTVECTOR READING. Reading testvectors grabbed from openocd.log
-    function void get_testvectors(string filename);
-      // string line;
-      // string items[$];
-      // int    file = $fopen(filename, "r");
-
+    // Returns 1 if vectors were loaded and the debugger should run.
+    // Returns 0 (idle) when no testvector file was requested: ordinary
+    // ELF / fpga runs on DEBUG_SUPPORTED configs must not be disturbed.
+    // A requested file that is missing or empty is a hard failure.
+    function bit get_testvectors(string filename);
       string line;
       string items[$];
       int    file;
 
+      testvectors = {};
+      expected_outputs = {};
+
       if (filename.len() == 0 || filename == "none") begin
-        $display("Debugger: no testvector file; ending simulation.");
-        testvectors = {};
-        expected_outputs = {};
-        $finish;
+        $display("Debugger: no testvector file; debugger idle.");
+        return 0;
       end
 
       file = $fopen(filename, "r");
       if (file == 0) begin
-        $display("Debugger: cannot open %s; ending simulation.", filename);
-        testvectors = {};
-        expected_outputs = {};
-        $finish;
+        $display("FAIL: Debugger cannot open testvector file %s", filename);
+        $fatal(1, "Debugger: missing testvector file %s", filename);
       end
-
-      // if (file == 0) begin
-      //   $display("Debugger file is not a valid file descriptor: %s.", filename);
-      //   $fatal;
-      // end
 
       testvectors = {};
       expected_outputs = {};
@@ -504,7 +510,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
           cmpmask.push_back(dontcompare ? '0 : '1);
 
-          // These values must be converted to the write bit widths
+          // These values must be converted to the right bit widths
           // for Verilator.
           this.testvectors.push_back(
             {7'(items[2].substr(1, 2).atohex()),
@@ -525,6 +531,12 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
       end
 
       $fclose(file);
+
+      if (testvectors.size() == 0) begin
+        $display("FAIL: Debugger testvector file %s has no vectors", filename);
+        $fatal(1, "Debugger: empty testvector file %s", filename);
+      end
+      return 1;
 
       // foreach (this.testvectors[i]) begin
       //    $display("testvector[%0d]:\n  addr: %2h, data: %8h, op: %2b", i, this.testvectors[i][40:34], this.testvectors[i][33:2], this.testvectors[i][1:0]);
@@ -634,6 +646,19 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
             result = 1;
           end
 
+          16'h0300: begin
+            // Spike does not set mstatus.FS Dirty on abstract FPR
+            // writes; Wally does.  Debug Spec v1.0 section 3.7.1.1
+            // states "If write is set and transfer is set, then copy
+            // data from the arg0 region of data into the register
+            // specified by regno, and perform any side effects that
+            // occur when this register is written from M-mode."
+            if ((expected[33:2] & ~32'h0000_6000) == (actual[33:2] & ~32'h0000_6000))
+              result = 1;
+            else
+              result = 0;
+          end
+
           default:  begin
             result = 0;
           end
@@ -722,7 +747,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
       int   rp;        // next raw JTAG line
       // Reset errors back to zero
       error_locations = {};
-      DebuggerErrors = 0;
+      setDebuggerErrors(0);
       this.getEndVector();
       rp = 0;
       foreach (testvectors[i]) begin
@@ -827,7 +852,8 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     endfunction
 
     function void reportErrors();
-      DebuggerErrors = error_locations.size();
+      //DebuggerErrors = error_locations.size();
+      setDebuggerErrors(error_locations.size());
       if (error_locations.size() > 0) begin
         $display("errors: %d", error_locations.size());
         $display("Number of errors: %d. The following testvector indices had errors.", error_locations.size());
@@ -849,6 +875,13 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     DMI dmireg = new();
     Debugger debugger = new();
 
+    // Park JTAG pins: TCK high, TMS high (TAP stays in Test-Logic-Reset).
+    // TAP is also held in reset by system reset; these pins stay parked for
+    // the whole sim when the debugger is idle.
+    tck = 1'b1;
+    tms = 1'b1;
+    tdi = 1'b0;
+
     fork : debugger_main
       begin
         forever begin
@@ -857,9 +890,10 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
           fork
             begin : debug_sequence
-              debugger.get_testvectors(filename);
-              debugger.initialize();
-              debugger.run_testvectors();
+              if (debugger.get_testvectors(filename)) begin
+                debugger.initialize();
+                debugger.run_testvectors();
+              end
             end
           join_none
         end
