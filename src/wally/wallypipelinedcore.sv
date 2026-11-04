@@ -391,11 +391,18 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   assign VReadDataM = '0;
 
   if (P.ZVE32X_SUPPORTED) begin : vpu
+    logic [P.VLEN-1:0] VWriteDataM;
+    logic [P.VLEN-1:0] VReadDataM;
+    logic [P.XLEN-1:0] VEUAdrM, VEUAdrE;
+    logic [2:0] VSizeM;
+
+    assign VReadDataM = '0; // *** TODO: fix me replace with driver from LSU
+
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
                  .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .StallE, .FlushE, .FlushM,
                  .VPUFrontEndBusyD, .VPUBackEndBusyE,
-                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VIntResM,
-                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW,
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
+                 .VIntResM, .IllegalVPUInstrD, .VIEUFPResultFinalW,
                  .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin

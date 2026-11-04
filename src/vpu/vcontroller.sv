@@ -52,6 +52,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VALUSrcBD,
   output logic                        VALUResultSrcD,
   output logic                        IllegalVPUInstrD,
+  output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
   output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
@@ -89,7 +90,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD,
-                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
                                .VectorD, .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
