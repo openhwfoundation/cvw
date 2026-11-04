@@ -69,4 +69,4 @@ To list every such case after generating the vectors:
 grep -h "# spec value" build*/testvectors/*.tv | sort | uniq -c
 ```
 
-These differences are filed as riscv-software-src/riscv-isa-sim issues 2511-2525. The reproducer is in [davidharrishmc/spike-repros](https://github.com/davidharrishmc/spike-repros/tree/main/spike-debug-spec).
+These differences are filed as riscv-software-src/riscv-isa-sim issues 2511-2525 and 2527. The reproducer is in [davidharrishmc/spike-repros](https://github.com/davidharrishmc/spike-repros/tree/main/spike-debug-spec).
