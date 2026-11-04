@@ -543,6 +543,19 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
             result = 1;
           end
 
+          16'h0300: begin
+            // Spike does not set mstatus.FS Dirty on abstract FPR
+            // writes; Wally does.  Debug Spec v1.0 section 3.7.1.1
+            // states "If write is set and transfer is set, then copy
+            // data from the arg0 region of data into the register
+            // specified by regno, and perform any side effects that
+            // occur when this register is written from M-mode."
+            if ((expected[33:2] & ~32'h0000_6000) == (actual[33:2] & ~32'h0000_6000))
+              result = 1;
+            else
+              result = 0;
+          end
+
           default:  begin
             result = 0;
           end
