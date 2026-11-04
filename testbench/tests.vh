@@ -4230,7 +4230,9 @@ string wally64debug[] = '{
   "WALLY-debug-cause-priority",
   "WALLY-debug-ebreak-stallw",
   "WALLY-debug-mret-sret",
-  "WALLY-debug-resume-mprv"
+  "WALLY-debug-resume-mprv",
+  "WALLY-debug-aar-cmderr",
+  "WALLY-debug-aar-sidefx"
 };
 
 string wally64debug_jtag[] = '{
@@ -4257,15 +4259,7 @@ string wally64debug_jtag[] = '{
   "WALLY-debug-cause-priority",
   "WALLY-debug-ebreak-stallw",
   "WALLY-debug-mret-sret",
-  "WALLY-debug-resume-mprv"
+  "WALLY-debug-resume-mprv",
+  "WALLY-debug-aar-cmderr",
+  "WALLY-debug-aar-sidefx"
 };
-
-// string wally64debug[] = '{
-//   `DEBUGELFS,
-//   "WALLY-debug-ebreak-minstret"
-// };
-
-// string wally64debug_jtag[] = '{
-//   `DEBUGTV,
-//     "WALLY-debug-ebreak-minstret"
-// };
