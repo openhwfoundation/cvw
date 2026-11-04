@@ -20,8 +20,13 @@ rvtest_entry_point:
    or   t0, t0, t1
    csrw mstatus, t0
 
+   la t3, begin_signature
+
    li   t0, 0x0bad5c6a
    csrw mscratch, t0
+
+   sw t0, 0(t3)
+   sw t1, 8(t3)
 
 test1:
 1: j 1b                           # debugger halts here
