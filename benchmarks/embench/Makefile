@@ -5,6 +5,11 @@
 embench_dir = ../../addins/embench-iot
 ARCH=rv32imac_zicsr
 
+# Use the same speed options for timing and code-size measurements. RV32's
+# Embench random-number generator requires wrapping signed long arithmetic.
+SPEED_OPT_FLAGS = -O3 -flto -funroll-loops $(if $(filter rv32%,$(ARCH)),-fwrapv)
+EMBENCH_CC ?= riscv64-unknown-elf-gcc
+
 all: build
 run: build size sim
 
@@ -16,7 +21,7 @@ buildsize: build_speedopt_size build_sizeopt_size
 
 # uses the build_all.py python file to build the tests in addins/embench-iot/bd_speed/ optimized for speed and size
 build_speedopt_speed:
-	$(embench_dir)/build_all.py --builddir=bd_speedopt_speed --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/crt0.S -march=$(ARCH)" --cflags="-O2 -nostartfiles -march=$(ARCH) -std=gnu17"
+	$(embench_dir)/build_all.py --builddir=bd_speedopt_speed --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/crt0.S -march=$(ARCH) -flto" --cflags="$(SPEED_OPT_FLAGS) -nostartfiles -march=$(ARCH) -std=gnu17"
 	# remove files not used in embench1.0  When changing to 2.0, restore these files
 	#rm -rf $(embench_dir)/bd_speedopt_speed/src/md5sum
 	#rm -rf $(embench_dir)/bd_speedopt_speed/src/tarfind
@@ -33,7 +38,7 @@ build_sizeopt_speed:
 
 # uses the build_all.py python file to build the tests in addins/embench-iot/bd_speed/ optimized for speed and size
 build_speedopt_size:
-	$(embench_dir)/build_all.py --builddir=bd_speedopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S -march=$(ARCH)" --cflags="-O2 -msave-restore -march=$(ARCH) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
+	EMBENCH_CC="$(EMBENCH_CC)" $(embench_dir)/build_all.py --cc="$(abspath size-gcc.py)" --ld="$(EMBENCH_CC)" --builddir=bd_speedopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S -march=$(ARCH) -flto" --cflags="$(SPEED_OPT_FLAGS) -msave-restore -march=$(ARCH) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
 
 build_sizeopt_size:
 	$(embench_dir)/build_all.py --builddir=bd_sizeopt_size --arch riscv32 --chip generic --board rv32wallyverilog --ldflags="-nostdlib -nostartfiles ../../../config/riscv32/boards/rv32wallyverilog/startup/dummy.S -march=$(ARCH)" --cflags="-Os -msave-restore -march=$(ARCH) -std=gnu17" --dummy-libs="libgcc libm libc crt0"
