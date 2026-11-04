@@ -83,7 +83,7 @@ module ebufsmarb (
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
   assign BeatCntReset = NextState == IDLE;
-  assign FinalBeat = (BeatCount == Threshold) & HREADY; // The final access completes. HREADY prevents 
+  assign FinalBeat = (BeatCount == Threshold) & HREADY; // The final access completes. HREADY prevents
   // FinalBeat from pulsing and therefore reseting when the bus is not ready.
   // Counting the beats in the EBU is only necessary when both the LSU and IFU request concurrently.
   // LSU has priority. HREADY serves double duty during a burst transaction.  It indicates when the
