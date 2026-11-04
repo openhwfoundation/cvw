@@ -152,7 +152,7 @@ Benchmark scores per MHz, synthesized clock frequency, and simulation speed.
 | https://github.com/olofk/serv/tree/f200eb2ed7b69ac1c6b8eddd47654522aeee5ce8[SERV] | 0.025footnote:cmserv[SERV has no cycle counter: timed with the testbench's `servant_timer`, which counts cycles.]footnote:cmnom[] | 0.017footnote:ipcother[] | 0.014footnote:emblong[] | 4010footnote:synserv[`servile` (SERV and its bus arbiter) without the optional multiply/divide unit, and its 1,152-bit register-file RAM in flip-flops, with the parameters servant uses; servant's memory, timer, and GPIO are not included. The critical path is the register-file read. With the multiply/divide unit, as riscv-arch-test builds it, SERV runs at 2380 MHz in 0.014 mm^2^.]footnote:syndc26[] | 131 k
 |===
 
-== Cost
+== Area
 
 Synthesized area and size of each core with its L1 caches, and the size of its source.
 
