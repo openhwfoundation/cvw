@@ -58,7 +58,7 @@ module vm64check import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
                   else UpperBitsUnequal = (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 )));
           P.SV57: if (PointerMaskApplicable) UpperBitsUnequal = 1'b0;
                   else UpperBitsUnequal = (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56)));
-          default: UpperBitsUnequal = 1'b1;
+          default: UpperBitsUnequal = 1'b0;
         endcase
       end
     end else begin

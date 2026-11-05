@@ -72,6 +72,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic [1:0]                  EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
   logic                        PAOutOfRange;             // Untranslated address has nonzero bits above PA_BITS
+  logic [P.XLEN+1:0]           MaskedVAdr;               // Masked VAdr used for pointer masking
 
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
@@ -112,16 +113,27 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // If translation is occurring, select translated physical address from TLB
   // the lower 12 bits are the page offset. These are never changed from the original
   // non translated address.
-  mux2 #(P.PA_BITS-12) addressmux(VAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
-  assign PhysicalAddress[11:0] = VAdr[11:0];
+  // If pointer masking is supported with pmlen=16, portions of the physical address are masked
+  // and a full zero extension must be applied if the mask is applied. If pmlen16 is not supported,
+  // then the physical address does not have to be zero extended to check validity
+  if (P.XLEN == 64 & P.ZPM_SUPPORTED & PMLEN16_SUPPORTED) begin
+    assign MaskedVAdr = PointerMaskApplicable ? (PMLength ? {18'b0, VAdr[47:0]} : {9'b0,VAdr[56:0]}) : VAdr;
+    mux2 #(P.PA_BITS-12) addressmux(MaskedVAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
+    assign PhysicalAddress[11:0] = VAdr[11:0];
+  end else begin
+    assign MaskedVAdr = VAdr;
+    mux2 #(P.PA_BITS-12) addressmux(VAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
+    assign PhysicalAddress[11:0] = VAdr[11:0];
+  end
 
   // An untranslated address is a physical address, so bits XLEN-1:PA_BITS must be zero.  Otherwise it is outside
   // the physical address space rather than an alias of a lower address, and the PMA checker raises an access fault.
   // Translated addresses come from the PPN and always fit; RV32 addresses are narrower than PA_BITS.
-  // If RV64, pointer masking may be applicable. In that case, PA validity checks must be turned off for masked bits
+  // If RV64, pointer masking may be applicable. If PMLEN16_SUPPORTED, then MaskedVAdr has already been optionally sign extended
+  // If !PMLEN16_SUPPORTED, validity checks must be turned off if the mask is applicable.
   if (P.XLEN > P.PA_BITS) begin
-    if (P.ZPM_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? (PMLength ? 1'b0 : ~Translate & (|VAdr[56:P.PA_BITS])) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
-    else assign PAOutOfRange = ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
+    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? (PMLength ? 1'b0 : ~Translate & (|VAdr[56:P.PA_BITS])) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
+    else assign PAOutOfRange = ~Translate & (|MaskedVAdr[P.XLEN-1:P.PA_BITS]);
   end else                    assign PAOutOfRange = 1'b0;
   ///////////////////////////////////////////
   // Check physical memory accesses
