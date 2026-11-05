@@ -802,7 +802,33 @@ def parse_args():
                         help="Run only what a GitHub-hosted runner can: Verilator simulations, without the commercial "
                              "tools (Questa, VCS, ImperasDV lockstep, testfloat) or the buildroot boot, whose Linux "
                              "images are built locally")
+    parser.add_argument("--shard", type=parseShard, metavar="I/N",
+                        help="With --config, run only the I-th of N equal shares of the configuration's simulations, "
+                             "so that CI can split a large configuration across N jobs")
     return parser.parse_args()
+
+
+def parseShard(text):
+    """Parse --shard I/N into (I, N), with 1 <= I <= N."""
+    match = re.fullmatch(r"(\d+)/(\d+)", text)
+    if not match or not 1 <= int(match[1]) <= int(match[2]):
+        raise argparse.ArgumentTypeError(f"expected I/N with 1 <= I <= N, not {text!r}")
+    return int(match[1]), int(match[2])
+
+
+def shardTests(configs, shard):
+    """Return the simulations of one shard: each simulation, largest first, goes to the shard with the
+    fewest ELFs so far (the lowest-numbered one on a tie).  The split depends only on the list of
+    simulations, so the N jobs of one configuration agree on it and together run every simulation once."""
+    index, count = shard
+    loads = [0] * count
+    selected = []
+    for case in sorted(configs, key=lambda c: (-len(c.elfs), c.name)):
+        target = loads.index(min(loads))
+        loads[target] += len(case.elfs)
+        if target == index - 1:
+            selected.append(case)
+    return selected
 
 
 def process_args(args):
@@ -995,12 +1021,21 @@ def main(args):
         print(f"{bcolors.FAIL}Error: --config selects the standard tests and cannot be combined with "
               f"{', '.join(others)}{bcolors.ENDC}", file=sys.stderr)
         return 1
+    if args.shard and not args.config:
+        print(f"{bcolors.FAIL}Error: --shard splits one configuration's tests and needs --config{bcolors.ENDC}",
+              file=sys.stderr)
+        return 1
     global actConfig
     actConfig = args.config
     startTime = time.time()
     sims, coverStr, TIMEOUT_DUR = process_args(args)
     makeDirs(sims)
     configs = selectTests(args, sims, coverStr)
+    if args.shard:
+        total = len(configs)
+        configs = shardTests(configs, args.shard)
+        print(f"Shard {args.shard[0]}/{args.shard[1]}: running {len(configs)} of {total} simulations "
+              f"({sum(len(c.elfs) for c in configs)} ELFs)", flush=True)
     if coverStr and not args.dryrun:
         # Merge only coverage that belongs to the tests selected now: drop the .ucdb of any test that
         # was renamed, removed, or run by hand outside the regression.  Coverage of the other

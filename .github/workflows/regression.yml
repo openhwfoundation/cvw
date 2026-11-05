@@ -4,7 +4,8 @@
 # - the pre-commit hooks (prek), for the oldest and newest Python versions Wally supports
 # - Verilator lint of the standard configurations (lint-wally)
 # - the standard regression, one job per configuration (regression-wally --ci --config <cfg>):
-#   the configuration's riscv-arch-test and peripheral tests on Verilator
+#   the configuration's riscv-arch-test and peripheral tests on Verilator.  rv32gc and rv64gc, which
+#   take the longest, are split across several jobs (--shard I/N)
 # ci_pass is the single required status check.
 
 name: Regression
@@ -93,15 +94,28 @@ jobs:
           lint-wally
 
   regression:
-    name: Regression (${{ matrix.config }})
+    name: Regression (${{ matrix.config }}${{ matrix.shards > 1 && format(' {0}/{1}', matrix.shard, matrix.shards) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      # standard_configs in regression-wally.  The simulations of rv32gc and rv64gc are split into
+      # shards of about equal size, so that no one job sets the length of the run; every shard builds
+      # (or restores) all of its configuration's ACT tests, then runs its share of them.
       matrix:
-        config: [rv32i, rv64i, rv32imc, rv32imcb, rv32gc, rv64gc] # standard_configs in regression-wally
+        include:
+          - { config: rv32i, shard: 1, shards: 1 }
+          - { config: rv64i, shard: 1, shards: 1 }
+          - { config: rv32imc, shard: 1, shards: 1 }
+          - { config: rv32imcb, shard: 1, shards: 1 }
+          - { config: rv32gc, shard: 1, shards: 2 }
+          - { config: rv32gc, shard: 2, shards: 2 }
+          - { config: rv64gc, shard: 1, shards: 3 }
+          - { config: rv64gc, shard: 2, shards: 3 }
+          - { config: rv64gc, shard: 3, shards: 3 }
     env:
       CONFIG: ${{ matrix.config }}
+      SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
       # Build the ACT ELFs without disassembly listings or intermediate files.  The testbench needs
       # neither, and they would make the cached work directory about eight times larger.  Every make
       # act in the job must see the same settings, or it rebuilds what the other one left out.
@@ -154,21 +168,23 @@ jobs:
       - name: Build ACT tests
         run: make act ACT_CONFIGS="${WALLY}/config/${CONFIG}/act/test_config.yaml"
 
+      # The shards of a configuration build the same tests; whichever saves first stores them, and the
+      # others' saves are skipped with a warning
       - name: Save ACT tests
-        if: (github.ref == 'refs/heads/main' || github.event_name == 'pull_request') && steps.act-cache.outputs.cache-hit != 'true' # TEMPORARY: verify the cache from this PR
+        if: github.ref == 'refs/heads/main' && steps.act-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: addins/riscv-arch-test/work/cvw-${{ matrix.config }}
           key: ${{ steps.act-key.outputs.key }}
 
       - name: Regression
-        run: regression-wally --ci --config "$CONFIG"
+        run: regression-wally --ci --config "$CONFIG" --shard "$SHARD"
 
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: regression-logs-${{ matrix.config }}
+          name: regression-logs-${{ matrix.config }}-${{ matrix.shard }}
           path: sim/verilator/logs
 
   # The one check that branch protection and the merge queue require, so that they need not list
