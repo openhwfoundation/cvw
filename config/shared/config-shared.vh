@@ -14,8 +14,8 @@ localparam VPN_BITS = (SV57_SUPPORTED ? (5*VPN_SEGMENT_BITS) :
                        SV48_SUPPORTED ? (4*VPN_SEGMENT_BITS) :
                        SV39_SUPPORTED ? (3*VPN_SEGMENT_BITS) :
                                         (2*VPN_SEGMENT_BITS));
-localparam PPN_BITS    = (PMLEN16_SUPPORTED ? 32'd36 : (XLEN==32 ? 32'd22 : 32'd44));
-localparam PA_BITS     = (PMLEN16_SUPPORTED ? 32'd48 : (XLEN==32 ? 32'd34 : 32'd56));
+localparam PPN_BITS    = (XLEN==32 ? 32'd22 : 32'd44);
+localparam PA_BITS     = (XLEN==32 ? 32'd34 : 32'd56);
 localparam SVMODE_BITS = (XLEN==32 ? 32'd1  : 32'd4);
 localparam ASID_BASE   = (XLEN==32 ? 32'd22 : 32'd44);
 localparam ASID_BITS   = (XLEN==32 ? 32'd9  : 32'd16);

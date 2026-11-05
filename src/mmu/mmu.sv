@@ -116,7 +116,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // If pointer masking is supported with pmlen=16, portions of the physical address are masked
   // and a full zero extension must be applied if the mask is applied. If pmlen16 is not supported,
   // then the physical address does not have to be zero extended to check validity
-  if (P.XLEN == 64 & P.ZPM_SUPPORTED & PMLEN16_SUPPORTED) begin
+  if (P.XLEN == 64 & P.ZPM_SUPPORTED & P.PMLEN16_SUPPORTED) begin
     assign MaskedVAdr = PointerMaskApplicable ? (PMLength ? {18'b0, VAdr[47:0]} : {9'b0,VAdr[56:0]}) : VAdr;
     mux2 #(P.PA_BITS-12) addressmux(MaskedVAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
     assign PhysicalAddress[11:0] = VAdr[11:0];
