@@ -18,10 +18,18 @@ CONFIG := rv$(XLEN)gc
 #ARCH := rv$(XLEN)im_zicsr
 #ARCH := rv$(XLEN)i_zicsr
 
+# On RV64, preserving wrapping 32-bit indices prevents GCC from using efficient
+# pointer induction variables in the matrix loops. RV32 still benefits from -fwrapv.
+ifeq ($(XLEN),64)
+WRAP_FLAGS = -fno-wrapv
+else
+WRAP_FLAGS = -fwrapv
+endif
+
 PORT_CFLAGS = -g -mabi=$(ABI) -march=$(ARCH) -static -falign-functions=16 \
 	-mbranch-cost=1 -DSKIP_DEFAULT_MEMSET -mtune=sifive-3-series -O3 -finline-functions -finline-limit=400 -falign-jumps=4 \
 	-fno-delete-null-pointer-checks -fno-rename-registers --param=loop-max-datarefs-for-datadeps=0 \
-	-funroll-all-loops --param=uninlined-function-insns=8 -fno-tree-vrp -fwrapv -fipa-pta \
+	-funroll-all-loops --param=uninlined-function-insns=8 -fno-tree-vrp $(WRAP_FLAGS) -fipa-pta \
 	-nostdlib -nostartfiles -ffreestanding -mstrict-align \
 	-DTOTAL_DATA_SIZE=2000 -DMAIN_HAS_NOARGC=1 -DPERFORMANCE_RUN=1 -DITERATIONS=10 -DXLEN=$(XLEN)
 
