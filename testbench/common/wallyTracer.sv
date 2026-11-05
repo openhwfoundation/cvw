@@ -86,6 +86,37 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [P.XLEN-1:0]       IPTEHPTWF;
   logic [P.XLEN-1:0]       DPTEHPTWM;
 
+  // Debug Specification signals
+  logic [6:0]              DMIADDR;
+  logic [31:0]             DMIDATA;
+  logic [1:0]              DMIOP;
+  logic                    DMIREADY;
+  logic                    DMIVALID;
+
+  // Debug module
+  logic [31:0]             DMControl;
+  logic [31:0]             DMStatus;
+  logic [31:0]             AbstractCS;
+  logic [31:0]             Command;
+  logic [31:0]             Data0;
+  logic [31:0]             Data1;
+
+  // Sdext CSRs
+  logic [31:0]             DCSR;
+  logic [P.XLEN-1:0]       DPC;
+
+  // Sdext control signals
+  logic                    NextHalt;
+  logic                    DebugHaltReq;
+  logic                    DebugMode;
+
+  // Debug Wally Tracer stuff
+  logic [31:0]             DCSRExpanded;
+  logic [31:0]             DCSRWriteMask;
+
+  // Abstract Access Register Command Reference Model stuff
+  longint                  csr;
+
   assign clk = testbench.dut.clk;
   //  assign InstrValidF = testbench.dut.core.ieu.InstrValidF;  // not needed yet
   assign InstrValidD    = testbench.dut.core.ieu.c.InstrValidD;
@@ -383,7 +414,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   flopenr #(1)  ExecuteAccessEReg (clk, reset, ~StallE, ExecuteAccessD, ExecuteAccessE); //Instruction Fetch Access
   flopenr #(1)  ExecuteAccessMReg (clk, reset, ~StallM, ExecuteAccessE, ExecuteAccessM); //Instruction Fetch Access
   flopenr #(1)  ExecuteAccessWReg (clk, reset, ~StallW, ExecuteAccessM, ExecuteAccessW); //Instruction Fetch Access
-
   // Initially connecting the writeback stage signals, but may need to use M stage
   // and gate on ~FlushW.
 
@@ -409,6 +439,160 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
                                ~FlushM ? PCE :
                                ~FlushE ? PCD :
                                ~FlushD ? PCF : PCNextF;
+
+  if (P.DEBUG_SUPPORTED) begin
+    `CONNECT_CSR(DCSR,     12'h7b0, DCSRExpanded);
+    `CONNECT_CSR(DPC,      12'h7b1, testbench.dut.core.priv.priv.csr.debug.csrd.DPC_REGW);
+  end
+
+  if (P.DEBUG_SUPPORTED) begin
+    always @(DebugHaltReq) begin
+      void'(rvvi.net_push("haltreq", DebugHaltReq));
+    end
+  end
+
+  // Debug mode
+  if (P.DEBUG_SUPPORTED) begin
+    // Debug Module Interface (DMI)
+    assign DMIADDR  = testbench.dut.debug.debug.DMIADDR;
+    assign DMIDATA  = testbench.dut.debug.debug.DMIDATA;
+    assign DMIOP    = testbench.dut.debug.debug.DMIOP;
+    assign DMIREADY = testbench.dut.debug.debug.DMIREADY;
+    assign DMIVALID = testbench.dut.debug.debug.DMIVALID;
+    assign DMControl = testbench.dut.debug.debug.DMControl;
+    assign DMStatus = testbench.dut.debug.debug.DMStatus;
+
+    // Debug Module Registers
+    assign Command  = testbench.dut.debug.debug.Command;
+    assign AbstractCS = testbench.dut.debug.debug.AbstractCS;
+    assign Data0 = testbench.dut.debug.debug.Data0;
+    assign Data1 = testbench.dut.debug.debug.Data1;
+
+    // Sdext Registers
+    assign DCSR = testbench.dut.core.priv.priv.csr.debug.csrd.DCSR_REGW;
+    assign DPC = testbench.dut.core.priv.priv.csr.debug.csrd.DPC_REGW;
+
+    // Creating the full 32 bit value
+    assign DCSRExpanded = {4'b0100, 1'b0, 3'b000, 4'd0, 1'b0, 1'b0, 1'b0, 1'b0,
+    DCSR[10], 1'b0, DCSR[9], DCSR[8], DCSR[7], DCSR[6], 1'b0,
+    DCSR[5:3], 1'b0, 1'b1, 1'b0, DCSR[2], DCSR[1:0]};
+
+    // Debug control signals
+    assign DebugMode = testbench.dut.core.priv.priv.csr.debug.csrd.DebugMode;
+    assign NextHalt = testbench.dut.core.priv.priv.csr.debug.csrd.NextHalt;
+    assign DebugHaltReq = testbench.dut.debug.debug.DebugHaltReq;
+  end else begin
+    assign DMIADDR = '0;
+    assign DMIDATA = '0;
+    assign DMIOP = '0;
+    assign DMIREADY = 0;
+    assign DMIVALID = 0;
+    assign DMControl = '0;
+    assign DMStatus = '0;
+    assign Command = '0;
+    assign AbstractCS = '0;
+    assign Data0 = '0;
+    assign Data1 = '0;
+    assign DCSR = '0;
+    assign DPC = '0;
+    assign DPCExpanded = '0;
+    assign DebugMode = 1'b0;
+    assign NextHalt = 1'b0;
+    assign DebugHaltReq = 1'b0;
+  end
+
+  // Debug stuff
+  assign rvvi.dm.clk = clk;
+  assign rvvi.dm.rd = (DMIOP == 2'b01) & DMIVALID;
+  assign rvvi.dm.wr = (DMIOP == 2'b10) & DMIVALID;
+  assign rvvi.dm.address = {{25{1'b0}}, DMIADDR};
+  assign rvvi.dm.data = DMIDATA;
+
+  // If instructions actually retire in Debug Mode
+  assign rvvi.debug_mode[0][0] = valid & DebugMode;
+
+  // Variable used to acquire reference model CSR values
+  longint                  csr;
+  if (P.DEBUG_SUPPORTED) begin
+    always @(DebugMode) begin
+      csr = rvviRefCsrGet(0, int'('h7B0));
+      $display("REF DCSR : %0h", csr);
+      csr = rvviRefCsrGet(0, int'('h7B1));
+      $display("REF DPC  : %0h", csr);
+    end
+  end
+
+  assign DCSRWriteMask = 32'b0000_0000_0000_0000_1011_1110_0000_0100; // 32'h0000be04
+
+  // Handling Abstract Access Register Commands for CSRs
+  always @(posedge DMIVALID) begin
+    if (rvvi.dm.wr) begin
+      // Abstract Access Register Commands
+      if (rvvi.dm.address == 'h17) begin
+        if (rvvi.dm.data[31:25] == '0) begin // cmdtype == 0
+          case (rvvi.dm.data[15:0]) inside
+            ['h0000:'h0fff]: begin
+              if (rvvi.dm.data[15:0] == 16'h07B0) begin
+                if (rvvi.dm.data[16] & rvvi.dm.data[17]) begin
+                  shortint csrId;
+                  csr = rvviRefCsrGet(0, int'('h7B0));
+                  $display("REF DCSR: %0h", csr);
+                  $display("DUT DCSR: %0h", DCSRExpanded);
+                  csrId = 16'(rvvi.dm.data[15:0]);
+
+                  // Update the reference model
+                  rvviRefCsrSet(0, 32'(csrId), 32'(rvvi.dm.store[7'h04]) & DCSRWriteMask | DCSRExpanded & ~DCSRWriteMask);
+                  $display("Writing to DCSR: %0h, %0h, %0h", csrId, rvvi.dm.data[15:0], rvvi.dm.store[7'h04]);
+                end
+              end else begin
+                if (rvvi.dm.data[16] & rvvi.dm.data[17]) begin
+                  shortint csrId;
+                  csrId = 16'(rvvi.dm.data[15:0] & 16'h0fff);
+                  if (rvvi.dm.data[22:20] == 3'd2) begin
+                    rvviDutCsrSet(0, 32'(csrId), 64'({32'd0, rvvi.dm.store[7'h04]}));
+                    rvviRefCsrSet(0, 32'(csrId), 64'({32'd0, rvvi.dm.store[7'h04]}));
+                  end else if (rvvi.dm.data[22:20] == 3'd3) begin
+                    rvviDutCsrSet(0, 32'(csrId), 64'({rvvi.dm.store[7'h05], rvvi.dm.store[7'h04]}));
+                    rvviRefCsrSet(0, 32'(csrId), 64'({rvvi.dm.store[7'h05], rvvi.dm.store[7'h04]}));
+                  end
+                  $display("Writing CSR: %0h, %16h", csrId, rvvi.dm.store[7'h04]);
+                end
+              end
+            end
+
+            // Floating Point register writing
+            ['h1020:'h103f]: begin
+              if (rvvi.dm.data[16] & rvvi.dm.data[17]) begin
+                  shortint fprId;
+                  fprId = 16'(rvvi.dm.data[15:0] & 16'h0fff);
+                  if (rvvi.dm.data[22:20] == 3'd2) begin
+                    rvviDutFprSet(0, 32'(fprId), 64'({32'd0, rvvi.dm.store[7'h04]}));
+                    rvviRefFprSet(0, 32'(fprId), 64'({32'd0, rvvi.dm.store[7'h04]}));
+                  end else if (rvvi.dm.data[22:20] == 3'd3) begin
+                    rvviDutFprSet(0, 32'(fprId), 64'({rvvi.dm.store[7'h05], rvvi.dm.store[7'h04]}));
+                    rvviRefFprSet(0, 32'(fprId), 64'({rvvi.dm.store[7'h05], rvvi.dm.store[7'h04]}));
+                  end
+                  $display("Writing FPR: %0h, %16h", fprId, rvvi.dm.store[7'h04]);
+                end
+            end
+
+            default: ;
+          endcase
+        end
+      end // Abstract Access Register Commands
+
+      // Detect halt and resume requests and print them to the command line.
+      if (rvvi.dm.address == 'h10) begin
+        if (rvvi.dm.data[31]) begin
+          $display("HALT REQUEST");
+        end
+
+        if (rvvi.dm.data[30]) begin
+          $display("RESUME REQUEST");
+        end
+      end
+    end
+  end
 
   for(genvar index = 0; index < NUM_REGS; index += 1) begin
     assign rvvi.x_wdata[0][0][index] = rf[index];

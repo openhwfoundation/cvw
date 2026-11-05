@@ -64,8 +64,14 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   output logic                SDCCmd,           // SDC CMD         from   SPI DO
   output logic [3:0]          SDCCS,            // SDC Card Detect from   SPI CS
   output logic                SDCCLK,           // SDC Clock       from   SPI Clock
-  output logic [3:0]          PWMGPIO           // PWM GPIO output
+  output logic [3:0]          PWMGPIO,          // PWM GPIO output
+  input  logic                tck, tms, tdi,
+  output logic                tdo
 );
+  // Reset signals
+  //logic                       ExtResetSync;
+  logic                       reset_ext_sync;
+  logic                       PlatformReset;
 
   // Uncore signals
   logic [P.AHBW-1:0]          HRDATA;           // from AHB mux in uncore
@@ -74,14 +80,55 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   logic [63:0]                MTIME_CLINT;      // from CLINT to CSRs
   logic                       MExtInt,SExtInt;  // from PLIC
 
+  // Debug signals
+  logic [6:0]                 DMIADDR;
+  logic [31:0]                DMIDATA;
+  logic [1:0]                 DMIOP;
+  logic                       DMIREADY;
+  logic                       DMIVALID;
+
+  logic [31:0]                DMIRSPDATA;
+  logic [1:0]                 DMIRSPOP;
+  logic                       DMIRSPREADY;
+  logic                       DMIRSPVALID;
+
+  logic                       DebugNDMReset;
+  logic                       DebugHaltReq;
+  logic                       DebugResumeReq;
+  logic                       DebugMode;
+  logic                       DebugHaveReset;
+  logic                       DebugHaveResetAck;
+  logic                       DebugResetHaltReq;
+
+  // Debug APB interface
+  logic                       DebugPCLK, DebugPRESETn;
+  logic                       DebugPENABLE;
+  logic                       DebugPSELRegister;
+  logic                       DebugPSELMemory;
+  logic                       DebugPWRITE;
+  logic [P.LLEN/8-1:0]        DebugPSTRB;
+  logic [P.LLEN-1:0]          DebugPWDATA;
+  logic [15:0]                DebugPADDR; // Should be XLEN wide when Abstract Memory Access is supported
+  //Completer signals
+  logic                       DebugPREADY;
+  logic [P.LLEN-1:0]          DebugPRDATA;
+  logic                       DebugPSLVERR;
+
+  assign PlatformReset = reset | DebugNDMReset;
+
   // synchronize reset to SOC clock domain
   synchronizer resetsync(.clk, .d(reset_ext), .q(reset));
 
   // instantiate processor and internal memories
-  wallypipelinedcore #(P) core(.clk, .reset,
+  wallypipelinedcore #(P) core(.clk, .reset(PlatformReset),
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt, .MTIME_CLINT,
     .HRDATA, .HREADY, .HRESP, .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB,
-    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall
+    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall,
+    .DebugMode, .DebugHaltReq, .DebugResumeReq,
+    .DebugHaveReset, .DebugHaveResetAck, .DebugResetHaltReq,
+    .DebugPCLK, .DebugPRESETn,
+    .DebugPENABLE, .DebugPSELRegister, .DebugPWRITE, .DebugPWDATA, .DebugPSTRB, .DebugPADDR(DebugPADDR[15:0]),
+    .DebugPREADY, .DebugPRDATA, .DebugPSLVERR
    );
 
   // instantiate uncore if a bus interface exists
@@ -96,5 +143,23 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
             MTIME_CLINT, GPIOOUT, GPIOEN, UARTSout, SPIOut, SPICS, SPICLK, SDCCmd, SDCCS, SDCCLK, PWMGPIO} = '0;
   end
 
+  if (P.DEBUG_SUPPORTED) begin : debug
+    dtm #(P) dtm(.clk, .reset, .tck, .tms, .tdi, .tdo,
+      .DMIADDR, .DMIDATA, .DMIOP, .DMIREADY, .DMIVALID,
+      .DMIRSPDATA, .DMIRSPOP, .DMIRSPREADY, .DMIRSPVALID);
+
+    debug #(P) debug(.clk, .reset, .DebugNDMReset, .DebugHaltReq, .DebugResumeReq, .DebugMode,
+      .DMIADDR, .DMIDATA, .DMIOP, .DMIREADY, .DMIVALID,
+      .DMIRSPDATA, .DMIRSPOP, .DMIRSPREADY, .DMIRSPVALID,
+      .DebugPCLK, .DebugPRESETn, .DebugPENABLE, .DebugPSELRegister, .DebugPSELMemory,
+      .DebugPWRITE, .DebugPWDATA, .DebugPSTRB, .DebugPADDR, .DebugPREADY, .DebugPRDATA, .DebugPSLVERR,
+      .DebugHaveReset, .DebugHaveResetAck, .DebugResetHaltReq);
+  end else begin
+    assign tdo = 1'bz;
+    assign {DebugPCLK, DebugPRESETn,
+      DebugPENABLE, DebugPSELRegister, DebugPSELMemory, DebugPWRITE, DebugPWDATA,
+      DebugPSTRB, DebugPADDR, DebugHaltReq, DebugResumeReq, DebugNDMReset,
+      DebugHaveResetAck, DebugResetHaltReq} = '0;
+  end
 
 endmodule
