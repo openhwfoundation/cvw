@@ -250,6 +250,7 @@ typedef struct packed {
 
   // Memory synthesis configuration
   logic         USE_SRAM;
+  logic         LATCH_BASED_REGISTERFILE;
 
   // constants defining different privilege modes
   // defined in Table 1.1 of the privileged spec

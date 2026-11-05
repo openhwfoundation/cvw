@@ -270,9 +270,9 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
   always_comb
     case (WalkerState)
-      L4_RD:   NextPageType = PETAPAGE;  // petapage
+      L4_RD:   NextPageType = PETAPAGE;  // petapage // exclusion-tag: hptw-pagetype-l4
       L3_RD:   NextPageType = TERAPAGE;  // terapage
-      L2_RD:   NextPageType = GIGAPAGE;  // gigapage
+      L2_RD:   NextPageType = GIGAPAGE;  // gigapage // exclusion-tag: hptw-pagetype-l2
       L1_RD:   NextPageType = MEGAPAGE;  // megapage
       L0_RD:   NextPageType = KILOPAGE;  // kilopage
       default: NextPageType = PageType;
@@ -331,7 +331,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
     case (WalkerState)
       IDLE:       if (AcceptReq)                                           NextWalkerState = InitialWalkerState;
                   else                                                     NextWalkerState = IDLE;
-      L4_ADR:                                                              NextWalkerState = L4_RD; // First access in SV57
+      L4_ADR:                                                              NextWalkerState = L4_RD; // First access in SV57 // exclusion-tag: hptw-l4-adr
       L4_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L4_RD;
                   else                                                     NextWalkerState = L3_ADR;   // Transition to level 3
@@ -346,10 +346,10 @@ module hptw import cvw::*; #(parameter cvw_t P) (
                   else                                                     NextWalkerState = LEAF;
       L2_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L2_RD;
-                  else                                                     NextWalkerState = L1_ADR;
-      L1_ADR:     if (HPTWFaultM)                                          NextWalkerState = FAULT;
+                  else                                                     NextWalkerState = L1_ADR; // exclusion-tag: hptw-l2-rd-next
+      L1_ADR:     if (HPTWFaultM)                                          NextWalkerState = FAULT; // exclusion-tag: hptw-l1-adr-fault
                   else if (InitialWalkerState == L1_ADR | ValidNonLeafPTE) NextWalkerState = L1_RD; // First access in SV32
-                  else                                                     NextWalkerState = LEAF;
+                  else                                                     NextWalkerState = LEAF; // exclusion-tag: hptw-l1-adr-leaf
       L1_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L1_RD;
                   else                                                     NextWalkerState = L0_ADR;
@@ -364,7 +364,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
                   else if (DTLBWalk & ITLBWalkPending)                     NextWalkerState = InitialWalkerState; // DTLB walk done; chain directly to the pending ITLB walk
                   else                                                     NextWalkerState = IDLE;
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
-                  else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE;
+                  else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE; // exclusion-tag: hptw-update-pte-wait
                   else                                                     NextWalkerState = LEAF;
       FAULT:                                                               NextWalkerState = IDLE;
       default:                                                             NextWalkerState = IDLE; // Should never be reached
