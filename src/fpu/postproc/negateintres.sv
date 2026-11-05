@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module negateintres import cvw::*;  #(parameter cvw_t P) (
+module negateintres import cvw::*; #(parameter cvw_t P) (
   input  logic                     Signed,         // is the integer input signed
   input  logic                     Int64,          // is the integer input 64-bits
   input  logic                     Plus1,          // should one be added for rounding?

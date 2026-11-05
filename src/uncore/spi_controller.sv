@@ -47,56 +47,53 @@ module spi_controller (
 );
 
   // CSMode Stuff
-  localparam         HOLDMODE = 2'b10;
-  localparam         AUTOMODE = 2'b00;
-  localparam         OFFMODE = 2'b11;
+  localparam HOLDMODE = 2'b10;
+  localparam AUTOMODE = 2'b00;
+  localparam OFFMODE  = 2'b11;
 
   // FSM States
-  typedef enum       logic [2:0] {INACTIVE, CSSCK, TRANSMIT, SCKCS, HOLD, INTERCS, INTERXFR} statetype;
-  statetype CurrState, NextState;
+  typedef enum logic [2:0] {INACTIVE, CSSCK, TRANSMIT, SCKCS, HOLD, INTERCS, INTERXFR} statetype;
+  statetype    CurrState, NextState;
 
   // SCLKenable stuff
-  logic [11:0]       DivCounter;
-  logic              SCK;
+  logic [11:0] DivCounter;
+  logic        SCK;
 
   // Shift and Sample Edges
-  logic EdgePulse;
-  logic ShiftEdgePulse;
-  logic SampleEdgePulse;
-  logic EndOfFramePulse;
-  logic InvertClock;
+  logic        EdgePulse;
+  logic        ShiftEdgePulse;
+  logic        SampleEdgePulse;
+  logic        EndOfFramePulse;
+  logic        InvertClock;
 
   // Frame stuff
-  logic [3:0] BitNum;
-  logic       LastBit;
+  logic [3:0]  BitNum;
+  logic        LastBit;
 
   // Transmit Stuff
-  logic       ContinueTransmit;
-  logic       EndTransmission;
-  logic       NextEndDelay;
-  logic       CurrentEndDelay;
+  logic        ContinueTransmit;
+  logic        EndTransmission;
 
   // Delay Stuff
-  logic [7:0] cssck;
-  logic [7:0] sckcs;
-  logic [7:0] intercs;
-  logic [7:0] interxfr;
-  logic       Phase;
+  logic [7:0]  cssck;
+  logic [7:0]  sckcs;
+  logic [7:0]  intercs;
+  logic [7:0]  interxfr;
+  logic        Phase;
 
-  logic       HasCSSCK;
-  logic       HasSCKCS;
-  logic       HasINTERCS;
-  logic       HasINTERXFR;
+  logic        HasCSSCK;
+  logic        HasSCKCS;
+  logic        HasINTERXFR;
 
-  logic       EndOfCSSCK;
-  logic       EndOfSCKCS;
-  logic       EndOfINTERCS;
-  logic       EndOfINTERXFR;
-  logic       EndOfDelay;
+  logic        EndOfCSSCK;
+  logic        EndOfSCKCS;
+  logic        EndOfINTERCS;
+  logic        EndOfINTERXFR;
+  logic        EndOfDelay;
 
-  logic [7:0] DelayCounter;
+  logic [7:0]  DelayCounter;
 
-  logic       DelayState;
+  logic        DelayState;
 
   // Convenient Delay Reg Names
   assign cssck = Delay0[7:0];
@@ -107,7 +104,6 @@ module spi_controller (
   // Do we have delay for anything?
   assign HasCSSCK = cssck > 8'b0;
   assign HasSCKCS = sckcs > 8'b0;
-  assign HasINTERCS = intercs > 8'b0;
   assign HasINTERXFR = interxfr > 8'b0;
 
   // Have we hit full delay for any of the delays?

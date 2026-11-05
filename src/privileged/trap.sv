@@ -53,7 +53,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
   assign SIntGlobalEnM = (PrivilegeModeW == P.U_MODE) | ((PrivilegeModeW == P.S_MODE) & STATUS_SIE); // if in lower priv mode, or if S ints enabled and not in higher priv mode 3.1.9
   assign PendingIntsM  = MIP_REGW & MIE_REGW;
   assign IntPendingM   = |PendingIntsM;
-  assign Committed     = CommittedM | CommittedF;
+  assign Committed     = CommittedM | CommittedF; // exclusion-tag: trap-committed
   assign EnabledIntsM  = (MIntGlobalEnM ? PendingIntsM & ~MIDELEG_REGW : '0) | (SIntGlobalEnM ? PendingIntsM & MIDELEG_REGW : '0);
   // Suppress interrupts if the memory system has partially processed a request, or if a wfi
   // in M has waited: it then retires and the interrupt is taken on the next instruction (mepc = pc + 4).
@@ -79,7 +79,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
                       BreakpointFaultM | EcallFaultM |
                       LoadAccessFaultM | StoreAmoAccessFaultM;
   // coverage on
-  assign TrapM = (ExceptionM & ~CommittedF) | InterruptM;
+  assign TrapM = (ExceptionM & ~CommittedF) | InterruptM; // exclusion-tag: trap-trapm
 
   ///////////////////////////////////////////
   // Cause priority defined in privileged spec
@@ -91,13 +91,13 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (ValidIntsM[3])                                   CauseM = 5'd3;  // Machine Sw Int
     else if (ValidIntsM[7])                                   CauseM = 5'd7;  // Machine Timer Int
     // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
-    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                CauseM = 5'd9;  // not delegated Supervisor External Int
+    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                CauseM = 5'd9;  // not delegated Supervisor External Int // exclusion-tag: trap-sint-start
     else if (~MIDELEG_REGW[1] & ValidIntsM[1])                CauseM = 5'd1;  // not delegated Supervisor Sw Int
     else if (~MIDELEG_REGW[5] & ValidIntsM[5])                CauseM = 5'd5;  // not delegated Supervisor Timer Int
     else if (ValidIntsM[9])                                   CauseM = 5'd9;  // delegated Supervisor External Int
     else if (ValidIntsM[1])                                   CauseM = 5'd1;  // delegated Supervisor Sw Int
-    else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int
-    else if (BothInstrPageFaultM)                             CauseM = 5'd12; // Instruction page fault
+    else if (ValidIntsM[5])                                   CauseM = 5'd5;  // delegated Supervisor Timer Int // exclusion-tag: trap-sint-end
+    else if (BothInstrPageFaultM)                             CauseM = 5'd12; // Instruction page fault // exclusion-tag: trap-instr-page-fault
     else if (BothInstrAccessFaultM)                           CauseM = 5'd1;  // Instruction access fault
     else if (IllegalInstrFaultM)                              CauseM = 5'd2;  // Illegal instruction
     // coverage off
@@ -108,8 +108,8 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW}; // Ecall: 8 from U, 9 from S, 11 from M
     else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED) CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
     else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd4;  // Load address misaligned
-    else if (StoreAmoPageFaultM)                              CauseM = 5'd15; // Store/AMO page fault
-    else if (LoadPageFaultM)                                  CauseM = 5'd13; // Load page fault
+    else if (StoreAmoPageFaultM)                              CauseM = 5'd15; // Store/AMO page fault // exclusion-tag: trap-store-page-fault
+    else if (LoadPageFaultM)                                  CauseM = 5'd13; // Load page fault // exclusion-tag: trap-load-page-fault
     else if (StoreAmoAccessFaultM)                            CauseM = 5'd7;  // Store/AMO access fault
     else if (LoadAccessFaultM)                                CauseM = 5'd5;  // Load access fault
     else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)  CauseM = 5'd6; // See priority in Privileged Spec 3.1.15
