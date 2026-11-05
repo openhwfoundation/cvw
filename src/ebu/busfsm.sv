@@ -48,15 +48,15 @@ module busfsm #(
 
   always_comb begin
     case (CurrState)
-      ADR_PHASE:  if (HREADY & |BusRW)          NextState = DATA_PHASE;
+      ADR_PHASE:  if (HREADY & |BusRW)          NextState = DATA_PHASE; // exclusion-tag: busfsm-adr-request
                   else                          NextState = ADR_PHASE;
-      DATA_PHASE: if (HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE;
-                  else if (HREADY & ~BusAtomic) NextState = MEM3;
+      DATA_PHASE: if (HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE; // exclusion-tag: busfsm-data-atomic
+                  else if (HREADY & ~BusAtomic) NextState = MEM3; // exclusion-tag: busfsm-data-done
                   else                          NextState = DATA_PHASE;
-      ATOMIC_READ_DATA_PHASE: if (HREADY)       NextState = ATOMIC_PHASE;
+      ATOMIC_READ_DATA_PHASE: if (HREADY)       NextState = ATOMIC_PHASE; // exclusion-tag: busfsm-atomic-start
                   else                          NextState = ATOMIC_READ_DATA_PHASE;
       ATOMIC_PHASE: if (HREADY)                 NextState = MEM3;
-                    else                        NextState = ATOMIC_PHASE;
+                    else                        NextState = ATOMIC_PHASE; // exclusion-tag: busfsm-atomic-end
       MEM3:       if (Stall)                    NextState = MEM3;
                   else                          NextState = ADR_PHASE;
       default:                                  NextState = ADR_PHASE;

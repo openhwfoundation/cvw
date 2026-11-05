@@ -390,7 +390,8 @@ def runQuesta(args, flags, env):
 def runVerilator(args):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
-    bhash = buildHash(args.params, args.define, fcovKey(args))
+    speedopt = args.test == "buildroot"  # speed-optimized model only for Linux boots
+    bhash = buildHash(args.params, args.define, fcovKey(args), "speedopt" if speedopt else "")
     workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = workdir / f"V{args.tb}"
 
@@ -403,6 +404,7 @@ def runVerilator(args):
         f"DEFINE_ARGS={args.define}",
         f"BUILD_HASH={bhash}",
         f"FCOV={int(args.fcov)}",
+        f"SPEED_OPT={int(speedopt)}",
     ]
     target_mtime = targetMtime(binary)
     needs_compile = target_mtime is None or not isDesignUpToDate(binary, fcovDirs(args))

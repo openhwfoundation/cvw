@@ -18,6 +18,15 @@ FCOV       ?= 0             # 1 compiles in the riscv-arch-test covergroups (wsi
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
 
+# Speed-optimized model for long runs.  wsim sets SPEED_OPT=1 for Linux boots (the buildroot test).
+# Verilator compiles the generated C++ with -Os by default.  -O2 makes Linux boots 12-20% faster for
+# about 20% more compile CPU time.  -O3 (with Verilator's own -O3) boots about 3% faster than -O2 but
+# runs CoreMark and riscv-arch-test tests 4-5% slower and costs another 20% of compile time.
+# Multithreading (--threads) made it slower.
+ifeq ($(SPEED_OPT),1)
+    VERILATOR_FLAGS += --MAKEFLAGS OPT_FAST=-O2 --MAKEFLAGS OPT_SLOW=-O1 --MAKEFLAGS OPT_GLOBAL=-O2
+endif
+
 # Compiling the generated C++ dominates the build, and Verilator does it serially by default.
 JOBS ?= $(shell nproc)
 

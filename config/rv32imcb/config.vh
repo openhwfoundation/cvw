@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 // RV32 or RV64: XLEN = 32 or 64
 localparam XLEN = 32'd32;
 
@@ -224,5 +225,6 @@ localparam DIVCOPIES = 32'd4;
 
 // Memory synthesis configuration
 localparam logic USE_SRAM = 0;
+localparam logic LATCH_BASED_REGISTERFILE = 1; // integer register file built from latches for smaller ASIC area, or flops for FPGAs
 
 `include "config-shared.vh"
