@@ -80,7 +80,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up tools
-        uses: $/.github/actions/setup-tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
         with:
           verilator: "true"
 
@@ -108,7 +110,9 @@ jobs:
         run: git submodule update --init --depth 1 addins/riscv-arch-test
 
       - name: Set up tools
-        uses: $/.github/actions/setup-tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
         with:
           verilator: "true"
           act: "true"
