@@ -66,6 +66,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
   logic                    BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF;
   logic                    BPBranchF, BPJumpF, BPReturnF, BPCallF;
+  logic                    BPCallD;
   logic                    BPReturnD;
   logic                    ReturnD, CallD;
   logic                    ReturnE, CallE;
@@ -142,11 +143,13 @@ module bpred import cvw::*; #(parameter cvw_t P) (
   icpred #(P, P.INSTR_CLASS_PRED) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
     .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
     .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW, .BTBCallF, .BTBReturnF, .BTBJumpF,
-    .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD);
+    .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
 
   // Part 3 RAS
+  logic [P.XLEN-1:0] PCLinkD;
+  flopenr #(P.XLEN) PCLinkDReg(clk, reset, ~StallD, PCPlus2or4F, PCLinkD); // link address of the instruction in D
   RASPredictor #(P) RASPredictor(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
-    .BPReturnF, .ReturnD, .ReturnE, .CallE,
+    .BPReturnF, .ReturnD, .ReturnE, .CallE, .BPCallD, .PCLinkD,
     .BPReturnWrongD, .BPReturnD, .RASPCF, .PCLinkE);
 
   // Check the prediction

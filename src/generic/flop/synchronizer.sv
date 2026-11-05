@@ -14,15 +14,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module synchronizer (
-  input  logic clk,
-  input  logic d,
-  output logic q);
+module synchronizer #(parameter WIDTH = 1) (
+  input  logic             clk,
+  input  logic [WIDTH-1:0] d,
+  output logic [WIDTH-1:0] q);
 
-  logic mid;
+  (* ASYNC_REG = "TRUE" *) logic [WIDTH-1:0] mid, sync; // keep both flops together on FPGAs
 
   always_ff @(posedge clk) begin
-    mid <= d;
-    q <= mid;
+    mid  <= d;
+    sync <= mid;
   end
+  assign q = sync;
 endmodule
