@@ -713,6 +713,8 @@ def run_test_case(config, dryrun: bool = False, timeout=None):
     if config.ucdb:
         removeCoverage(config.ucdb)
     failed = run_test_command(config, timeout)
+    if failed:
+        print(f"{bcolors.FAIL}Reproduce with: {shlex.join(config.cmd)}{bcolors.ENDC}", flush=True)
     if config.ucdb and os.path.exists(config.ucdb):
         if failed:
             removeCoverage(config.ucdb)

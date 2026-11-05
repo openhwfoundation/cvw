@@ -5,8 +5,9 @@
 # simulations, and Embench and CoreMark.  The lockstep, testfloat (Questa) and buildroot parts need
 # commercial tools or locally built Linux images, so they stay in the local nightly.
 #
-# A failed scheduled run opens an issue labeled nightly-failure that lists the failing tests, or
-# comments on the open one; the next passing run closes it.
+# A failed scheduled run opens an issue labeled nightly-failure, or comments on the open one, with
+# what failed, the commit and tool versions, and the commands that reproduce it locally
+# (.github/scripts/nightly-report.sh); the next passing run closes it.
 
 name: Nightly regression
 
@@ -70,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 345
     outputs:
-      failures: ${{ steps.failures.outputs.failures }}
+      report: ${{ steps.report.outputs.report }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -92,21 +93,16 @@ jobs:
           set -o pipefail
           regression-wally --ci --nightly 2>&1 | tee regression.log
 
-      # The failure lines regression-wally prints, for the job summary and the report job
-      - name: List failures
-        id: failures
-        if: always()
+      # What failed, the versions, and the commands that reproduce it, for the job summary and the
+      # report job
+      - name: Write failure report
+        id: report
+        if: failure()
         run: |
-          sed 's/\x1b\[[0-9;]*m//g' regression.log 2>/dev/null |
-            grep -E 'FAIL|Timeout|Execution failed|did not finish|failed' | head -100 > failures.txt || true
-          {
-            echo "### Nightly regression failures"
-            echo '```'
-            cat failures.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          .github/scripts/nightly-report.sh regression.log report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
           delimiter="EOF_$(openssl rand -hex 8)"
-          { echo "failures<<$delimiter"; cat failures.txt; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+          { echo "report<<$delimiter"; cat report.md; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
 
       - name: Upload logs
         if: failure()
@@ -131,8 +127,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
-          FAILURES: ${{ needs.nightly.outputs.failures }}
+          REPORT: ${{ needs.nightly.outputs.report }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
         run: |
           label=nightly-failure
           issue=$(gh issue list --repo "$REPO" --label "$label" --state open --json number --jq '.[0].number')
@@ -142,9 +139,9 @@ jobs:
             fi
             exit 0
           fi
-          fence=$'\x60\x60\x60' # a Markdown code fence
-          body=$(printf 'The weekly nightly regression failed (job results: %s): %s\n\n%s\n%s\n%s\n' \
-            "$RESULTS" "$RUN_URL" "$fence" "${FAILURES:-See the run for details.}" "$fence")
+          # Without a report, the toolchain build failed and the regression did not run
+          body="$(printf 'The weekly nightly regression failed (job results: toolchain, nightly = %s): %s\n\n%s\n' \
+            "$RESULTS" "$RUN_URL" "${REPORT:-The multilib toolchain build failed. Reproduce it with \`bash bin/installation/riscv-gnu-toolchain-install.sh\` at commit $SHA.}")"
           if [[ -n "$issue" ]]; then
             gh issue comment "$issue" --repo "$REPO" --body "$body"
           else
