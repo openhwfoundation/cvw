@@ -50,7 +50,7 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   localparam GPIO_IOF_SEL    = 8'h3C;
   localparam GPIO_OUT_XOR    = 8'h40;
 
-  logic [31:0]                input0d, input1d, input2d, input3d;
+  logic [31:0]                input0d, input2d, input3d;
   logic [31:0]                input_val, input_en, output_en, output_val;
   logic [31:0]                rise_ie, rise_ip, fall_ie, fall_ip, high_ie, high_ip, low_ie, low_ip;
   logic [31:0]                out_xor, iof_en, iof_sel, iof_out, gpio_out;
@@ -139,10 +139,9 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   if (P.GPIO_LOOPBACK_TEST) assign input0d = ((output_en & GPIOOUT) | (~output_en & GPIOIN)) & input_en;
   else                      assign input0d = GPIOIN & input_en;
 
-  // synchronizer for inputs
-  flop #(32) sync1(PCLK, input0d, input1d);
-  flop #(32) sync2(PCLK, input1d, input2d);
-  flop #(32) sync3(PCLK, input2d, input3d);
+  // synchronizer for inputs; input3d is one cycle later for edge detection
+  synchronizer #(32) inputsync(.clk(PCLK), .d(input0d), .q(input2d));
+  flop #(32) edgereg(PCLK, input2d, input3d);
   assign input_val = input3d;
   assign iof_out   = iof_sel & iof1 | ~iof_sel & iof0;        // per-bit mux between iof1 and iof0
   assign gpio_out  = iof_en & iof_out | ~iof_en & output_val; // per-bit mux between IOF and output_val
