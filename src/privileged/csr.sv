@@ -119,36 +119,28 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic                    ENVCFG_STCE; // supervisor timer counter enable
   logic                    ENVCFG_FIOM; // fence implies io (presently not used)
-  logic [63:0]             MaskedIEUAdrxTvalM; //Masked virtual address to write to Xtval
+  logic [P.XLEN-1:0]       MaskedIEUAdrxTvalM; //Masked virtual address to write to Xtval
+  logic [1:0]              EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
-
+  assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
   ///////////////////////////////////////////
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
   if (P.ZPM_SUPPORTED) begin //If pointer masking is supported, hardware writes to CSRs can be subject to pointer masking
-    assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS])) ? (PMLength ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLength ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
-    always_comb
-      if (InterruptM)           NextFaultXtvalM = '0;
-      else case (CauseM)
-        12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch
-        3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
-        2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-        0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = PointerMaskApplicable ? MaskedIEUAdrxTvalM : IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults, pointer masking is applicable to hardware writes to xtval
-        default:                NextFaultXtvalM = '0; // Ecall, interrupts
-      endcase
-  end else begin
-    always_comb
-      if (InterruptM)           NextFaultXtvalM = '0;
-      else case (CauseM)
-        12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch
-        3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
-        2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-        0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults, pointer masking is applicable to hardware writes to xtval
-        default:                NextFaultXtvalM = '0; // Ecall, interrupts
-      endcase
-  end
+    assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLength ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLength ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
+  end else assign MaskedIEUAdrxTvalM = IEUAdrxTvalM;
+  always_comb
+    if (InterruptM)           NextFaultXtvalM = '0;
+    else case (CauseM)
+      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
+      3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
+      2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
+      4, 6, 13, 15, 5, 7:     NextFaultXtvalM = PointerMaskApplicable ? MaskedIEUAdrxTvalM : IEUAdrxTvalM; // Load/Store Misaligned/page/access faults, pointer masking is applicable to hardware writes to xtval // exclusion-tag: xtval-data-fault
+      0:                      NextFaultXtvalM = IEUAdrxTvalM; // Instruction Misaligned // exclusion-tag: xtval-data-fault
+      default:                NextFaultXtvalM = '0; // Ecall, interrupts
+    endcase
   ///////////////////////////////////////////
   // Trap Vectoring & Returns; vectored traps must be aligned to 64-byte address boundaries
   ///////////////////////////////////////////

@@ -184,6 +184,9 @@ derivconfigtests = [
         ["fdh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/Zfa"]],
         ["fdq_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/I", "rv64i/Zfa/Zfa-*", "rv64i/Zfa/ZfaD-*"]],
         ["fdqh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/I", "rv64i/Zfa"]], # "wally64q" when Q is supported again
+
+        # pm16 variant
+        ["pm16", "rv64gc", ["priv/Smmpm", "priv/Smnpm", "priv/Ssnpm"]],
     ]
 
 bpredtests = [
