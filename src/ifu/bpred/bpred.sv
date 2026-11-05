@@ -66,6 +66,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
   logic                    BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF;
   logic                    BPBranchF, BPJumpF, BPReturnF, BPCallF;
+  logic                    BPCallD;
   logic                    BPReturnD;
   logic                    ReturnD, CallD;
   logic                    ReturnE, CallE;
