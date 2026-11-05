@@ -1,38 +1,27 @@
 ///////////////////////////////////////////
 // hazard.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Katherine Parry, Jarred Allen
 //
-// Purpose: Determine stalls and flushes
+// Purpose: Pipeline stall and flush control.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module hazard (
-  input  logic  BPWrongE, CSRWriteFenceM, RetM, TrapM,
-  input  logic  StructuralStallD,
-  input  logic  LSUStallM, IFUStallF,
-  input  logic  FPUStallD, ExternalStall,
-  input  logic  DivBusyE, FDivBusyE,
+  input  logic BPWrongE, CSRWriteFenceM, RetM, TrapM,
+  input  logic StructuralStallD,
+  input  logic LSUStallM, IFUStallF,
+  input  logic FPUStallD, ExternalStall,
+  input  logic DivBusyE, FDivBusyE,
   input  logic  WaitM,                 // wfi in M is waiting for an interrupt
   // Stall & flush outputs
   output logic StallF, StallD, StallE, StallM, StallW,
@@ -63,7 +52,7 @@ module hazard (
   // Branch misprediction is found in the Execute stage and must flush the next two instructions.
   //   However, an active division operation resides in the Execute stage, and when the BP incorrectly mispredicts the divide as a taken branch, the divide must still complete
   assign FlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE;
-  assign FlushECause = TrapM | RetM | CSRWriteFenceM | (BPWrongE & ~(DivBusyE | FDivBusyE));
+  assign FlushECause = TrapM | RetM | CSRWriteFenceM | (BPWrongE & ~(DivBusyE | FDivBusyE)); // exclusion-tag: hzu-flushe-cause
   assign FlushMCause = TrapM | RetM | CSRWriteFenceM;
   assign FlushWCause = TrapM;
 
@@ -78,7 +67,7 @@ module hazard (
   //  A waiting wfi in M (WaitM) stalls the entire pipeline in the same way, so the instruction in W keeps forwarding
   assign StallFCause = 1'b0;
   assign StallDCause = (StructuralStallD | FPUStallD) & ~FlushDCause;
-  assign StallECause = (DivBusyE | FDivBusyE) & ~FlushECause;
+  assign StallECause = (DivBusyE | FDivBusyE) & ~FlushECause; // exclusion-tag: hzu-stalle-cause
   assign StallMCause = 1'b0;
   // Need to gate IFUStallF when the equivalent FlushFCause = FlushDCause = 1.
   // assign StallWCause = ((IFUStallF & ~FlushDCause) | LSUStallM) & ~FlushWCause;

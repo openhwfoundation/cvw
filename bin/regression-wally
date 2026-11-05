@@ -32,9 +32,12 @@ WALLY = os.environ.get('WALLY')
 regressionDir = f'{WALLY}/sim'
 archVerifDir = os.environ.get('ACTDIR', f'{WALLY}/addins/riscv-arch-test') # riscv-arch-test checkout; override with ACTDIR
 periphDir = f'{WALLY}/tests/periph'
-coverageDir = f'{WALLY}/tests/coverage'
-coverage32Dir = f'{WALLY}/tests/coverage32'  # RV32 coverage-targeted tests, run on rv32gc
-coveragesim = "questa"     # Questa is required for code/functional coverage
+# Configurations with code coverage (regression-wally --ccov [config]), and the directory of each one's
+# coverage-targeted tests
+coverageConfigs = ["rv64gc", "rv32gc", "rv32imc"]
+def coverageDir(config):
+    return f'{WALLY}/tests/coverage{config.removeprefix("rv")}'
+coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
 testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
@@ -47,12 +50,13 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 # Standard regression: every configuration listed here has an ACT test-generation configuration in
 # config/<cfg>/act/ (cvw owns these; actconfig-sync keeps ACT's copies matching).  Its self-checking
 # ELFs are built into addins/riscv-arch-test/work/<name>/elfs and run one leaf directory per simulation.
-standard_configs = ["rv32i", "rv64i", "rv32imc", "rv32gc", "rv64gc"]
+standard_configs = ["rv32i", "rv64i", "rv32imc", "rv32imcb", "rv32gc", "rv64gc"]
 
 # Self-checking peripheral tests (tests/periph), run as one group per configuration.
-# rv32imc lacks supervisor mode and PMP, so it only runs the machine-mode peripheral test.
+# rv32imc and rv32imcb lack supervisor mode and PMP, so they only run the machine-mode peripheral test.
 periph_tests = {
     "rv32imc": ["rv32/WALLY-periph-m-01"],
+    "rv32imcb": ["rv32/WALLY-periph-m-01"],
     "rv32gc":  ["rv32/WALLY-periph-01", "rv32/WALLY-gpio-01", "rv32/WALLY-clint-01", "rv32/WALLY-uart-01",
                 "rv32/WALLY-plic-01", "rv32/WALLY-plic-s-01", "rv32/WALLY-spi-01", "rv32/WALLY-pwm-01",
                 "rv32/WALLY-uart-timeout-01"],
@@ -61,12 +65,16 @@ periph_tests = {
                 "rv64/WALLY-uart-timeout-01"],
 }
 
-# Coverage-targeted tests (tests/coverage) that need a derivative configuration, run as one group per
-# configuration in the nightly regression.  Every ELF in tests/coverage also runs on rv64gc.
+# Coverage-targeted tests (tests/coverage64gc) that need a derivative configuration, run as one group per
+# configuration in the nightly regression.  Every ELF in tests/coverage64gc also runs on rv64gc.
 deriv_coverage_tests = {
     # A/D updates on single-precision FP loads and stores with FLEN < XLEN
     "f_rv64gc":  ["fpADUpdate32"],
     "fh_rv64gc": ["fpADUpdate32"],
+    # misaligned flq/fsq that cross a D$ line
+    "fdq_rv64gc": ["misalignedQuadSpill"],
+    # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
+    "extio_rv64gc": ["extIOWindow"],
 }
 
 # The tests below are a list with one element for each configuration
@@ -109,20 +117,23 @@ def _fdiv(i):
 
 derivconfigtests = [
         # memory system
-        ["tlb2_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb16_rv32gc", "rv32gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb2_rv64gc", "rv64gc", ["priv/Sv", "priv/SvSm"]],
-        ["tlb16_rv64gc", "rv64gc", ["priv/Sv", "priv/SvSm"]],
+        ["tlb2_rv32gc", "rv32gc", ["priv/Sv"]],
+        ["tlb16_rv32gc", "rv32gc", ["priv/Sv"]],
+        ["tlb2_rv64gc", "rv64gc", ["priv/Sv"]],
+        ["tlb16_rv64gc", "rv64gc", ["priv/Sv"]],
         *[[f"way_{w}_rv32gc", "rv32gc", ["rv32i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"way_{w}_rv64gc", "rv64gc", ["rv64i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"ram_{r}_rv64gc", "rv64gc", ["rv64i/I"]] for r in ["0_0", "1_0", "1_1", "2_0", "2_1"]],
         # RV32 cacheless designs will not work unless DTIM supports FLEN > XLEN.  This support is not planned.
-        # ["nodcache_rv32gc", "rv32gc", ["rv32i/I"]],
-        # ["nocache_rv32gc", "rv32gc", ["rv32i/I"]],
-        ["noicache_rv32gc", "rv32gc", ["rv32i/I"]],
-        ["noicache_rv64gc", "rv64gc", ["rv64i/I"]],
-        ["nodcache_rv64gc", "rv64gc", ["rv64i/I"]],
-        ["nocache_rv64gc", "rv64gc", ["rv64i/I"]],
+        # The cacheless designs also drop virtual memory, so they run the ELFs of rv32i and rv64i: the rv32gc
+        # and rv64gc ELFs build page tables as they boot and execute sfence.vma, which is an illegal
+        # instruction without virtual memory.
+        # ["nodcache_rv32gc", "rv32i", ["rv32i/I"]],
+        # ["nocache_rv32gc", "rv32i", ["rv32i/I"]],
+        ["noicache_rv32gc", "rv32i", ["rv32i/I"]],
+        ["noicache_rv64gc", "rv64i", ["rv64i/I"]],
+        ["nodcache_rv64gc", "rv64i", ["rv64i/I"]],
+        ["nocache_rv64gc", "rv64i", ["rv64i/I"]],
 
         # Atomic variants
         ["zaamo_rv64gc", "rv64gc", ["rv64i/I", "rv64i/Zaamo"]],
@@ -139,13 +150,14 @@ derivconfigtests = [
         # No privilege modes variants.  The rv32gc and rv64gc ACT ELFs set up S mode as they boot, so these
         # run the ELFs of the configurations without S: rv32i and rv64i (I, in M mode) and rv32imc (I, M,
         # C and machine-mode exceptions).  rv32imc runs its unprivileged tests in U mode without setting up
-        # PMP, which it lacks, so they fail on noS_rv32gc, whose PMP then denies U mode every access; on
-        # noU_rv32gc they run in M mode.  TODO: give the derivative configurations ACT configurations of
+        # PMP, which it lacks, so they fail on noS_rv32gc, whose PMP then denies U mode every access.  The
+        # rv32imc ELFs also write menvcfg as they boot, which does not exist without U mode, so noU_rv32gc
+        # runs only the M-mode rv32i ELFs.  TODO: give the derivative configurations ACT configurations of
         # their own.
         ["noS_rv32gc", "rv32i", ["rv32i/I"]],
-        ["noS_rv32gc", "rv32imc", ["priv/ExceptionsSm"]],
+        ["noS_rv32gc", "rv32imc", ["priv/Exceptions/Exceptions_Sm*"]],
         ["noS_rv64gc", "rv64i", ["rv64i/I"]],
-        ["noU_rv32gc", "rv32imc", ["rv32i/I", "rv32i/M", "rv32i/Zca", "priv/ExceptionsSm"]],
+        ["noU_rv32gc", "rv32i", ["rv32i/I"]],
         ["noU_rv64gc", "rv64i", ["rv64i/I"]],
 
         # VM variants
@@ -265,6 +277,10 @@ testfloatdivconfigs = [
 # Each entry is the ELF file name, or the <directory>_<file> name used for the log.
 lockstepwaivers = [
     "Zicbom-cbo.inval-00.elf", # ImperasDV lacks cache model to match CVW on invalidation
+    # Same: these check the data a cbo.inval leaves under each xenvcfg.CBIE setting
+    "Exceptions_ZicboS-00.elf",
+    "Exceptions_ZicboSm-00.elf",
+    "Exceptions_ZicboU-00.elf",
 
     # Wally implements writable mhpmevent bits; ImperasDV models them as read-only zero and offers no
     # parameter to change that, so every test that walks or writes mhpmevent disagrees.  The tests
@@ -278,7 +294,8 @@ lockstepwaivers = [
     "Sm_mcsr_walk-07.elf",
     "Sm_mcsr_walk-08.elf",
     "Sm_mcsr_walk-09.elf",
-    "SsstrictSm_CSR-08.elf",   # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
+    "Ssstrict_Sm_CSR-08.elf",  # writes mhpmevent3 (CSR 0x323); same mhpmevent limitation as above
+    "SsstrictSm_CSR-08.elf",   # the same test in the SsstrictSm suite
 
     # ImperasDV accepts N=1 on a superpage leaf PTE instead of page faulting (riscv-arch-test does
     # not run Svnapot on Imperas for the same reason)
@@ -288,13 +305,20 @@ lockstepwaivers = [
     "Svnapot_sv48_Svnapot_reserved_enc_Umode-00.elf",
     "Svnapot_sv57_Svnapot_reserved_enc_Smode-00.elf",
     "Svnapot_sv57_Svnapot_reserved_enc_Umode-00.elf",
+    "Svadu_sv39_Svadu_fault_Smode-00.elf",  # test cases with N=1 on a superpage leaf
+    "Svadu_sv48_Svadu_fault_Smode-00.elf",
+    "Svadu_sv57_Svadu_fault_Smode-00.elf",
 
     # ImperasDV traps a wfi below M mode with mstatus.TW=1 at once, while Wally waits a bounded time
     # (WFI_TIMEOUT_BIT) before the illegal-instruction trap; both are legal (Privileged Spec
-    # mstatus_tw_always_illegal vs mstatus_tw_op).  These tests depend on the wait, so lockstep mismatches.
+    # mstatus_tw_always_illegal vs mstatus_tw_op).
     "wfiTW.elf",
     "wfitimeoutint.elf",
     "wfitimeoutnext.elf",
+
+    # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
+    # garbage PTE from the level-0 table this test places in the CLINT and page faults
+    "hptwamoioptes.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
@@ -367,8 +391,8 @@ def addTests(testList, sim, coverStr, configs):
             configs.append(tc)
 
 
-def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, brekerMode=0, flags="", chunk=0):
-    """Run every .elf under testDir on config.
+def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, brekerMode=0, flags="", chunk=0, only=None):
+    """Run every .elf under testDir on config, or only those whose names are in only.
 
     Each leaf directory becomes one test case: wsim runs all of its ELFs back-to-back in a single
     simulation session, so the design compiles once and the simulator starts once per directory.
@@ -391,7 +415,7 @@ def addTestsByDir(testDir, config, sim, coverStr, configs, lockstepMode=0, breke
         gs = passed
     reused = []
     for dirpath, _, filenames in sorted(os.walk(os.path.abspath(testDir))):
-        elfs = sorted(f for f in filenames if f.endswith(".elf"))
+        elfs = sorted(f for f in filenames if f.endswith(".elf") and (only is None or f in only))
         if not elfs:
             continue
         parent, leaf = dirpath.rsplit('/', 2)[-2:]
@@ -484,26 +508,49 @@ keptCoverage = set()  # reused .ucdb files; with the ones the selected tests wri
 
 
 def coverageDatabase(coverStr, config, name):
-    """The .ucdb a coverage run named <config>_<name> writes (see wally-run.do), or None."""
+    """The coverage database a run named <config>_<name> writes, or None: a .ucdb file from Questa
+    (see wally-run.do) or a .vdb directory from VCS (see run_vcs)."""
+    ext = ".vdb" if coveragesim == "vcs" else ".ucdb"
     if "--ccov" in coverStr:
-        return f"{regressionDir}/questa/ucdb/{config}_{name}.ucdb"
+        return f"{regressionDir}/{coveragesim}/ucdb/{config}_{name}{ext}"
     if "--fcov" in coverStr:
-        return f"{regressionDir}/questa/fcov_ucdb/{config}_{name}.ucdb"
+        return f"{regressionDir}/{coveragesim}/fcov_ucdb/{config}_{name}{ext}"
     return None
+
+
+def coverageMtime(db):
+    """When a coverage database was completed, or None if there is no complete one.  run_vcs creates
+    a .vdb directory before the simulation starts; the simulation adds its results under testdata
+    only when it finishes, so an interrupted run leaves a .vdb without them."""
+    if db.endswith(".vdb"):
+        results = glob.glob(f"{db}/snps/coverage/db/testdata/*")
+        return max(os.path.getmtime(r) for r in results) if results else None
+    return os.path.getmtime(db) if os.path.isfile(db) else None
+
+
+def removeCoverage(db):
+    """Remove a coverage database (a .ucdb file or a .vdb directory) and its record of ELFs."""
+    if os.path.isdir(db):
+        shutil.rmtree(db, ignore_errors=True)
+    elif os.path.exists(db):
+        os.remove(db)
+    if os.path.exists(f"{db}.elfs"):
+        os.remove(f"{db}.elfs")
 
 
 def coverageInputsMtime():
     """Newest mtime among everything that shapes a run's coverage: the design and testbench sources,
-    the ImperasDV configurations (.ic), and the Questa scripts that compile and run the tests, plus,
-    for functional coverage, the riscv-arch-test covergroups and the sources they include.  The code
-    coverage exclusions are applied to the merged database (sim/Makefile), so editing them does not
-    require rerunning the tests."""
+    the ImperasDV configurations (.ic), and the coverage simulator's scripts that compile and run the
+    tests, plus, for functional coverage, the riscv-arch-test covergroups and the sources they include.
+    The code coverage exclusions are applied to the merged database (sim/Makefile), so editing them
+    does not require rerunning the tests."""
     global _inputsMtime
     if _inputsMtime is None:
         dirs = [f"{WALLY}/{d}" for d in ("src", "testbench", "config")]
         if fcovRun:
             dirs += [f"{archVerifDir}/{d}" for d in ("coverpoints", "framework/src/act/fcov", "tests/env")]
-        _inputsMtime = max(os.path.getmtime(f"{regressionDir}/questa/{f}") for f in ("wally-compile.do", "wally-run.do"))
+        scripts = ("run_vcs", "coverage.hier") if coveragesim == "vcs" else ("wally-compile.do", "wally-run.do")
+        _inputsMtime = max(os.path.getmtime(f"{regressionDir}/{coveragesim}/{f}") for f in scripts)
         for d in dirs:
             for root, _, files in os.walk(d):
                 for f in files:
@@ -514,47 +561,71 @@ def coverageInputsMtime():
 
 def coverageTools():
     """Versions of the tools that produce coverage, so coverage from other versions is not reused."""
-    vsim = shutil.which("vsim")
-    version = subprocess.run([vsim, "-version"], capture_output=True, text=True).stdout.strip() if vsim else ""
+    if coveragesim == "vcs":
+        urg = shutil.which("urg")
+        out = subprocess.run([urg, "-full64", "-version"], capture_output=True, text=True).stdout if urg else ""
+        version = "".join(line for line in out.splitlines(keepends=True) if "ersion" in line).strip()
+        sim = f"VCS_HOME={os.path.realpath(os.environ.get('VCS_HOME', ''))}\n{version}"
+    else:
+        vsim = shutil.which("vsim")
+        sim = subprocess.run([vsim, "-version"], capture_output=True, text=True).stdout.strip() if vsim else ""
     imperas = os.path.realpath(os.environ.get("IMPERAS_HOME", ""))
-    return f"{version}\nIMPERAS_HOME={imperas}\n"
+    return f"{sim}\nIMPERAS_HOME={imperas}\n"
 
 
 def elfList(elfs):
-    """The record of the ELFs a coverage database was collected from, kept in <ucdb>.elfs."""
+    """The record of the ELFs a coverage database was collected from, kept in <database>.elfs."""
     return "".join(f"{elf}\n" for elf in elfs)
 
 
 def coverageUpToDate(ucdb, elfs):
-    """True if ucdb was collected from exactly these ELFs and is newer than each of them and than
-    every input that shapes coverage."""
-    if not (reuseCoverage and ucdb and os.path.isfile(ucdb) and os.path.isfile(f"{ucdb}.elfs")):
+    """True if the coverage database ucdb was collected from exactly these ELFs and is newer than each
+    of them and than every input that shapes coverage."""
+    if not (reuseCoverage and ucdb and os.path.isfile(f"{ucdb}.elfs")):
         return False
     with open(f"{ucdb}.elfs") as f:
         if f.read() != elfList(elfs):
             return False
-    mtime = os.path.getmtime(ucdb)
-    return mtime > coverageInputsMtime() and all(mtime > os.path.getmtime(elf) for elf in elfs)
+    mtime = coverageMtime(ucdb)
+    return mtime is not None and mtime > coverageInputsMtime() and all(mtime > os.path.getmtime(elf) for elf in elfs)
 
 
-def prepareCoverage(coverStr, clean):
-    """Coverage is per simulation, so an unchanged simulation's .ucdb is still valid: keep the
-    databases and rerun only what is out of date.  --clean discards them all and starts over."""
+def coverageConfig(args):
+    """The configuration whose coverage databases a --ccov, --fcov or --breker run writes (<config>_*)."""
+    return args.ccov or args.fcov or "rv64breker"
+
+
+def prepareCoverage(coverStr, clean, config, dryrun):
+    """Coverage is per simulation, so an unchanged simulation's database is still valid: keep the
+    databases and rerun only what is out of date.  --clean discards them all and starts over, except
+    in a dry run, which must not discard the coverage of an earlier run.  Each configuration's
+    databases and reports are kept apart (<config>_*), so --clean discards only those of the
+    configuration being run, and a tool change discards every configuration's."""
     global reuseCoverage, fcovRun
     fcovRun = "--fcov" in coverStr
-    ucdbDir, reportDir = [f"{regressionDir}/questa/{d}" for d in (("fcov_ucdb", "fcov") if fcovRun else ("ucdb", "cov"))]
+    ucdbDir, reportDir = [f"{regressionDir}/{coveragesim}/{d}" for d in (("fcov_ucdb", "fcov") if fcovRun else ("ucdb", "cov"))]
     reuseCoverage = not clean
     toolsFile = f"{ucdbDir}/.tools"
     tools = coverageTools()
     if reuseCoverage and os.path.isfile(toolsFile) and open(toolsFile).read() != tools:
-        print(f"{bcolors.WARNING}Questa or ImperasDV changed since the coverage was collected; rerunning every test{bcolors.ENDC}")
+        print(f"{bcolors.WARNING}{coveragesim} or ImperasDV changed since the coverage was collected; rerunning every test{bcolors.ENDC}")
         reuseCoverage = False
+    toolsChanged = os.path.isfile(toolsFile) and open(toolsFile).read() != tools
     for d in [ucdbDir, reportDir]:
-        if not reuseCoverage:
+        if reuseCoverage or dryrun:
+            pass
+        elif toolsChanged:
             shutil.rmtree(d, ignore_errors=True)
+        else:
+            for f in glob.glob(f"{d}/{config}_*"):
+                if os.path.isdir(f):
+                    shutil.rmtree(f)
+                else:
+                    os.remove(f)
         os.makedirs(d, exist_ok=True)
-    with open(toolsFile, "w") as f:
-        f.write(tools)
+    if not dryrun:
+        with open(toolsFile, "w") as f:
+            f.write(tools)
 
 
 def actElfDir(config):
@@ -565,12 +636,12 @@ def actElfDir(config):
 builtTargets = set()
 
 
-def buildTests(periph=True, coverage=False, deriv=False, testfloat=False):
+def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True):
     """Build the tests with the root Makefile, which rebuilds only what is out of date: the ACT ELFs
-    for every configuration with an ACT configuration, the boot image a 64-bit IROM (rv64i) is
-    preloaded from (zsbl), and optionally the peripheral and coverage tests, the derivative
-    configurations (config/deriv) and the testfloat vectors."""
-    targets = [t for t in ["act", "zsbl"] + (["periph"] if periph else []) + (["coverage"] if coverage else [])
+    for every configuration with an ACT configuration and the boot image a 64-bit IROM (rv64i) is
+    preloaded from (zsbl), unless act is False, and optionally the peripheral and coverage tests, the
+    derivative configurations (config/deriv) and the testfloat vectors."""
+    targets = [t for t in (["act", "zsbl"] if act else []) + (["periph"] if periph else []) + (["coverage"] if coverage else [])
                + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) if t not in builtTargets]
     if not targets:
         return
@@ -629,20 +700,18 @@ def search_log_for_text(text, grepfile):
 
 def run_test_case(config, dryrun: bool = False, timeout=None):
     """Run one test case; 0 if it passed.  The command runs in its own process group so that a
-    timeout stops the simulator it started too.  A coverage run's .ucdb is removed first and again
+    timeout stops the simulator it started too.  A coverage run's database is removed first and again
     if the run fails, so a failing or interrupted run never contributes coverage; a passing run
     records the ELFs it was collected from next to it."""
     if dryrun:
         print(f"Executing {shlex.join(config.cmd)} > {config.log}", flush=True)
         return 0
     if config.ucdb:
-        for f in [config.ucdb, f"{config.ucdb}.elfs"]:
-            if os.path.exists(f):
-                os.remove(f)
+        removeCoverage(config.ucdb)
     failed = run_test_command(config, timeout)
     if config.ucdb and os.path.exists(config.ucdb):
         if failed:
-            os.remove(config.ucdb)
+            removeCoverage(config.ucdb)
         else:
             with open(f"{config.ucdb}.elfs", "w") as f:
                 f.write(elfList(config.elfs or ()))
@@ -706,9 +775,12 @@ def unreported_elfs(config, logfile):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ccov", help="Code Coverage", action="store_true")
+    parser.add_argument("--ccov", nargs="?", const="rv64gc", choices=coverageConfigs, metavar="CONFIG",
+                        help=f"Code coverage of CONFIG ({', '.join(coverageConfigs)}; default rv64gc)")
     parser.add_argument("--clean", help="With --ccov or --fcov, discard existing coverage and rerun every test", action="store_true")
-    parser.add_argument("--fcov", help="Functional Coverage", action="store_true")
+    parser.add_argument("--fcov", nargs="?", const="rv64gc", choices=coverageConfigs, metavar="CONFIG",
+                        help=f"Functional coverage of CONFIG ({', '.join(coverageConfigs)}; default rv64gc)")
+    parser.add_argument("--coveragesim", help="Simulator for --ccov and --fcov", choices=["questa", "vcs"], default="questa")
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
     parser.add_argument("--testfloat", help="Include Testfloat floating-point unit tests", action="store_true")
@@ -721,6 +793,8 @@ def parse_args():
 
 
 def process_args(args):
+    global coveragesim
+    coveragesim = args.coveragesim
     coverStr = ""
     # exercise all simulators in nightly; can omit a sim if no license is available
     sims = ["questa", "verilator", "vcs"] if args.nightly else [defaultsim]
@@ -744,13 +818,14 @@ def process_args(args):
     else:
         TIMEOUT_DUR = 10*60 # seconds
     if coverStr:
-        prepareCoverage(coverStr, args.clean)
+        prepareCoverage(coverStr, args.clean, coverageConfig(args), args.dryrun)
 
     return sims, coverStr, TIMEOUT_DUR
 
 
 def selectTests(args, sims, coverStr):
-    # Run Lint
+    # Run Lint.  lint-wally also lints a derivative configuration, so generate config/deriv first.
+    buildTests(act=False, periph=False, deriv=True)
     configs = [
         TestCase(
             name="lints",
@@ -766,13 +841,15 @@ def selectTests(args, sims, coverStr):
         addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
     # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
     # against the reference model (one simulation per ELF).
-    # code coverage: rv64gc runs the ACT tests, the coverage-targeted tests, and the peripheral tests
+    # code coverage: the configuration runs its ACT tests, its coverage-targeted tests, and its peripheral tests
     if args.ccov:
         buildTests(coverage=True)
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir, "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(f"{periphDir}/rv64", "rv64gc", coveragesim, coverStr, configs, lockstepMode=1)
-    # functional coverage: rv64gc runs the ACT tests, one leaf directory per simulation.
+        config = args.ccov
+        addTestsByDir(actElfDir(config), config, coveragesim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir(config), config, coveragesim, coverStr, configs, lockstepMode=1)
+        periph = {os.path.basename(t) + ".elf" for t in periph_tests.get(config, [])}
+        addTestsByDir(f"{periphDir}/rv{config[2:4]}", config, coveragesim, coverStr, configs, lockstepMode=1, only=periph)
+    # functional coverage: the configuration runs its ACT tests, one leaf directory per simulation.
     # Unlike code coverage this cannot run in lockstep: the covergroups read the virtual memory
     # fields of riscv-arch-test's RVVI trace, while ImperasDV needs the RVVI API tasks of its own,
     # and only one of the two interfaces can be compiled in.  The tests still check themselves.
@@ -780,10 +857,9 @@ def selectTests(args, sims, coverStr):
     # copy would race it for the same log and testlist files.
     if args.fcov:
         buildTests(periph=False)
-        # Functional coverage slows the simulation to between half a minute and two minutes per
-        # ELF (the Ssstrict tests are the slowest), so split each directory into simulations of at
-        # most 8 ELFs
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", coveragesim, coverStr, configs, chunk=8)
+        # Each simulation compiles in only the covergroups of its own directory (see wsim fcovGroups).
+        # Split each directory into simulations of at most 8 ELFs so that the large ones run in parallel.
+        addTestsByDir(actElfDir(args.fcov), args.fcov, coveragesim, coverStr, configs, chunk=8)
      # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
@@ -806,13 +882,16 @@ def selectTests(args, sims, coverStr):
     # run derivative configurations and lockstep tests in nightly regression
     if args.nightly:
         buildTests(periph=False, coverage=True, deriv=True)
-        addTestsByDir(coverageDir, "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
         addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverage32Dir, "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
         addActTests(derivconfigtests, defaultsim, coverStr, configs)
         for config, tests in deriv_coverage_tests.items():
-            addTestGroup("coverage", coverageDir, tests, config, defaultsim, coverStr, configs)
+            addTestGroup("coverage", coverageDir("rv64gc"), tests, config, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
@@ -902,15 +981,14 @@ def main(args):
     configs = selectTests(args, sims, coverStr)
     if coverStr and not args.dryrun:
         # Merge only coverage that belongs to the tests selected now: drop the .ucdb of any test that
-        # was renamed, removed, or run by hand outside the regression.
+        # was renamed, removed, or run by hand outside the regression.  Coverage of the other
+        # configurations is left alone.
         current = keptCoverage | {c.ucdb for c in configs if c.ucdb}
-        merged = {f"{regressionDir}/questa/ucdb/cov.ucdb", f"{regressionDir}/questa/fcov_ucdb/fcov.ucdb"}  # sim/Makefile writes these
-        ucdbDir = f"{regressionDir}/questa/{'fcov_ucdb' if fcovRun else 'ucdb'}"
-        stale = [f for f in glob.glob(f"{ucdbDir}/*.ucdb") if f not in current and f not in merged]
+        ext = ".vdb" if coveragesim == "vcs" else ".ucdb"
+        ucdbDir = f"{regressionDir}/{coveragesim}/{'fcov_ucdb' if fcovRun else 'ucdb'}"
+        stale = [f for f in glob.glob(f"{ucdbDir}/{coverageConfig(args)}_*{ext}") if f not in current]
         for f in stale:
-            for g in [f, f"{f}.elfs"]:
-                if os.path.exists(g):
-                    os.remove(g)
+            removeCoverage(f)
         if stale:
             print(f"{bcolors.OKCYAN}Removed {len(stale)} coverage databases that no selected test writes{bcolors.ENDC}")
     # Scale the number of concurrent processes to the number of test cases, but
@@ -927,16 +1005,17 @@ def main(args):
             num_fail += result.get() # each test enforces its own timeout
     # A run that passed but left no coverage database would silently lower the merged coverage
     if (args.ccov or args.fcov) and not args.dryrun:
-        missing = [c for c in configs if c.ucdb and not os.path.exists(c.ucdb)]
+        missing = [c for c in configs if c.ucdb and coverageMtime(c.ucdb) is None]
         for c in missing:
             print(f"{bcolors.FAIL}{c.cmd}: no coverage database {c.ucdb}{bcolors.ENDC}")
         if missing:
             print(f"{bcolors.FAIL}The merged coverage leaves out the {len(missing)} runs above{bcolors.ENDC}")
 
     # Coverage report; a merge or exclusion failure means the report cannot be trusted
-    for enabled, target in ((args.ccov, "QuestaCodeCoverage"), (args.fcov, "QuestaFunctCoverage")):
-        if enabled and not args.dryrun and subprocess.run(["make", "-C", regressionDir, target]).returncode:
-            print(f"{bcolors.FAIL}make {target} failed{bcolors.ENDC}")
+    prefix = "Vcs" if coveragesim == "vcs" else "Questa"
+    for enabled, target in ((args.ccov, [f"{prefix}CodeCoverage", f"CONFIG={args.ccov}"]), (args.fcov, [f"{prefix}FunctCoverage", f"CONFIG={args.fcov}"])):
+        if enabled and not args.dryrun and subprocess.run(["make", "-C", regressionDir, *target]).returncode:
+            print(f"{bcolors.FAIL}make {' '.join(target)} failed{bcolors.ENDC}")
             num_fail += 1
     # Count the number of failures
     if num_fail:

@@ -1,52 +1,41 @@
 ///////////////////////////////////////////
 // rvvisynth.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 23 January 2024
-// Modified: 23 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 23 January 2024
+// Modified:
 //
-// Purpose: Synthesizable rvvi bridge from Wally to generic compressed format.
+// Purpose: Synthesizable RVVI tracer.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module rvvisynth import cvw::*; #(parameter cvw_t P,
                                   parameter integer MAX_CSRS = 5,
                                   parameter integer TOTAL_CSRS = 36) (
-  input logic                                     clk, reset,
-  input logic                                     StallE, StallM, StallW, FlushE, FlushM, FlushW,
+  input  logic                                          clk, reset,
+  input  logic                                          StallE, StallM, StallW, FlushE, FlushM, FlushW,
   // required
-  input logic [P.XLEN-1:0]                        PCM,
-  input logic                                     InstrValidM,
-  input logic [31:0]                              InstrRawD,
-  input logic [63:0]                              Mcycle, Minstret,
-  input logic                                     TrapM,
-  input logic [1:0]                               PrivilegeModeW,
+  input  logic [P.XLEN-1:0]                             PCM,
+  input  logic                                          InstrValidM,
+  input  logic [31:0]                                   InstrRawD,
+  input  logic [63:0]                                   Mcycle, Minstret,
+  input  logic                                          TrapM,
+  input  logic [1:0]                                    PrivilegeModeW,
   // registers gpr and fpr
-  input logic                                     GPRWen, FPRWen,
-  input logic [4:0]                               GPRAddr, FPRAddr,
-  input logic [P.XLEN-1:0]                        GPRValue, FPRValue,
-  input var logic [P.XLEN-1:0]                    CSRArray [TOTAL_CSRS-1:0],
-  output logic                                    valid,
-  output logic [72+(5*P.XLEN) + MAX_CSRS*(P.XLEN+16)-1:0] rvvi
-  );
+  input  logic                                          GPRWen, FPRWen,
+  input  logic [4:0]                                    GPRAddr, FPRAddr,
+  input  logic [P.XLEN-1:0]                             GPRValue, FPRValue,
+  input  var logic [P.XLEN-1:0]                         CSRArray [TOTAL_CSRS-1:0],
+  output logic                                          valid,
+  output logic [72+(5*P.XLEN)+MAX_CSRS*(P.XLEN+16)-1:0] rvvi
+);
 
   // pipeline controls
 
@@ -81,7 +70,7 @@ module rvvisynth import cvw::*; #(parameter cvw_t P,
   flopenrc #(32)     InstrRawWReg (clk, reset, FlushW, ~StallW, InstrRawM, InstrRawW);
   flopenrc #(1)      TrapWReg (clk, reset, 1'b0, ~StallW, TrapM, TrapW);
 
-  assign valid  = InstrValidW & ~StallW;
+  assign valid = InstrValidW & ~StallW;
   assign Required = {4'b0, CSRCount, 3'b0, FPRWen, GPRWen, PrivilegeModeW, TrapW, Minstret, Mcycle, InstrRawW, PCW};
   assign Registers = {FPRWen, GPRWen} == 2'b11 ? {FPRValue, 3'b0, FPRAddr, GPRValue, 3'b0, GPRAddr} :
                      {FPRWen, GPRWen} == 2'b01 ? {XLENZeros, 8'b0, GPRValue, 3'b0, GPRAddr} :

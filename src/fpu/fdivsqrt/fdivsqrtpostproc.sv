@@ -1,33 +1,22 @@
 ///////////////////////////////////////////
 // fdivsqrtpostproc.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 7 September 2022
+// Modified: Kevin Kim, Alessandro Maiuolo
 //
-// Purpose: Divide/Square root postprocessing
+// Purpose: Divide and square root result correction and sticky bit.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk, reset,
   input  logic                 StallM,
   input  logic [P.DIVb+3:0]    WS, WC,            // Q4.DIVb
@@ -51,7 +40,6 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
   logic                      NegStickyM;
   logic                      weq0E, WZeroM;
   logic [P.XLEN-1:0]         IntDivResultM;
-  logic                      NegQuotM; // Integer quotient is negative
 
   //////////////////////////
   // Execute Stage: Detect early termination for an exact result
@@ -99,7 +87,7 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
 
   // Integer quotient or remainder correction, normalization, and special cases
   if (P.IDIV_ON_FPU) begin : intpostproc // Int supported
-    logic [P.INTDIVb+3:0] UnsignedQuotM, NormRemM, NormRemDM, NormQuotM;
+    logic [P.INTDIVb+3:0] UnsignedQuotM, NormRemDM;
     logic signed [P.INTDIVb+3:0] PreResultM, PreResultShiftedM, PreIntResultM;
     logic [P.INTDIVb+3:0] DTrunc, SumTrunc;
 
@@ -109,12 +97,11 @@ module fdivsqrtpostproc import cvw::*;  #(parameter cvw_t P) (
     assign W = $signed(SumTrunc) >>> P.LOGR;
     assign UnsignedQuotM = {3'b000, PreUmM[P.DIVb:P.DIVb-P.INTDIVb]};
 
-    // Integer remainder: sticky and sign correction muxes
-    assign NegQuotM = AsM ^ BsM; // Integer Quotient is negative
+    // Integer remainder: sticky correction mux
     mux2 #(P.INTDIVb+4) normremdmux(W, W + DTrunc, NegStickyM, NormRemDM);
 
     // Select quotient or remainder and do normalization shift
-    mux2 #(P.INTDIVb+4)    presresultmux(UnsignedQuotM, NormRemDM, RemOpM, PreResultM);
+    mux2 #(P.INTDIVb+4)    preresultmux(UnsignedQuotM, NormRemDM, RemOpM, PreResultM);
     assign PreResultShiftedM = PreResultM >> IntNormShiftM;
     // Negate if the result is negative: a remainder takes the sign of A; a quotient is negative if A and B signs differ
     mux2 #(P.INTDIVb+4)    preintresultmux(PreResultShiftedM, -PreResultShiftedM, AsM ^ (BsM & ~RemOpM), PreIntResultM);

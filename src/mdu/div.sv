@@ -1,33 +1,22 @@
 ///////////////////////////////////////////
-// intdivrestoring.sv
+// div.sv
 //
-// Written: David_Harris@hmc.edu 12 September 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 12 September 2021
+// Modified: Rose Thompson, Ben Bracker, Skylar Litz
 //
-// Purpose: Restoring integer division using a shift register and subtractor
+// Purpose: Iterative integer divider.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module div import cvw::*;  #(parameter cvw_t P) (
+module div import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              reset,
   input  logic              StallM,
@@ -112,7 +101,7 @@ module div import cvw::*;  #(parameter cvw_t P) (
   // Memory Stage: output sign correction and special cases
   //////////////////////////////
 
-  flopen #(3) Div0eMReg(clk, DivStartE, {Div0E, NegQE, SignXE}, {Div0M, NegQM, NegWM});
+  flopen #(3) Div0MReg(clk, DivStartE, {Div0E, NegQE, SignXE}, {Div0M, NegQM, NegWM});
 
   // On final step of signed operations, negate outputs as needed to get correct sign
   neg #(P.XLEN) qneg(XQ[0], XQnM);

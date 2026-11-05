@@ -1,107 +1,95 @@
 ///////////////////////////////////////////
 // ifu.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Thomas Fleming, Jarred Allen, Kip Macsai-Goren, Shreya Sanghai, Ben Bracker, Jordan Carlin
 //
-// Purpose: Instruction Fetch Unit
-//           PC, branch prediction, instruction cache
+// Purpose: Instruction fetch unit.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ifu import cvw::*;  #(parameter cvw_t P) (
-  input  logic                 clk, reset,
-  input  logic                 StallF, StallD, StallE, StallM, StallW,
-  input  logic                 FlushD, FlushE, FlushM, FlushW,
-  output logic                 IFUStallF,                                // IFU stalls pipeline during a multicycle operation
+module ifu import cvw::*; #(parameter cvw_t P) (
+  input  logic                     clk, reset,
+  input  logic                     StallF, StallD, StallE, StallM, StallW,
+  input  logic                     FlushD, FlushE, FlushM, FlushW,
+  output logic                     IFUStallF,                                // IFU stalls pipeline during a multicycle operation
   // Command from CPU
-  input  logic                 InvalidateICacheM,                        // Clears all instruction cache valid bits
-  input  logic                 CSRWriteFenceM,                           // CSR write or fence instruction, PCNextF = the next valid PC (typically PCE)
-  input  logic                 InstrValidD, InstrValidE,
-  input  logic                 BranchD, BranchE,
-  input  logic                 JumpD, JumpE,
+  input  logic                     InvalidateICacheM,                        // Clears all instruction cache valid bits
+  input  logic                     CSRWriteFenceM,                           // CSR write or fence instruction, PCNextF = the next valid PC (typically PCE)
+  input  logic                     InstrValidD, InstrValidE,
+  input  logic                     BranchD, BranchE,
+  input  logic                     JumpD, JumpE,
   // Bus interface
-  output logic [P.PA_BITS-1:0] IFUHADDR,                                 // Bus address from IFU to EBU
-  input  logic [P.XLEN-1:0]    HRDATA,                                   // Bus read data from EBU to IFU
-  input  logic                 IFUHREADY,                                // Bus ready from EBU to IFU
-  output logic                 IFUHWRITE,                                // Bus write operation from IFU to EBU
-  output logic [2:0]           IFUHSIZE,                                 // Bus operation size from IFU to EBU
-  output logic [2:0]           IFUHBURST,                                // Bus burst from IFU to EBU
-  output logic [1:0]           IFUHTRANS,                                // Bus transaction type from IFU to EBU
+  output logic [P.PA_BITS-1:0]     IFUHADDR,                                 // Bus address from IFU to EBU
+  input  logic [P.XLEN-1:0]        HRDATA,                                   // Bus read data from EBU to IFU
+  input  logic                     IFUHREADY,                                // Bus ready from EBU to IFU
+  output logic                     IFUHWRITE,                                // Bus write operation from IFU to EBU
+  output logic [2:0]               IFUHSIZE,                                 // Bus operation size from IFU to EBU
+  output logic [2:0]               IFUHBURST,                                // Bus burst from IFU to EBU
+  output logic [1:0]               IFUHTRANS,                                // Bus transaction type from IFU to EBU
 
-  output logic [P.XLEN-1:0]    PCSpillF,                                 // PCF with possible + 2 to handle spill to HPTW
+  output logic [P.XLEN-1:0]        PCSpillF,                                 // PCF with possible + 2 to handle spill to HPTW
   // Execute
-  output logic [P.XLEN-1:0]    PCLinkE,                                  // The address following the branch instruction. (AKA Fall through address)
-  input  logic                 PCSrcE,                                   // Execution stage branch is taken
-  input  logic [P.XLEN-1:0]    IEUAdrE,                                  // The branch/jump target address
-  input  logic [P.XLEN-1:0]    IEUAdrM,                                  // The branch/jump target address
-  output logic [P.XLEN-1:0]    PCE,                                      // Execution stage instruction address
-  output logic                 BPWrongE,                                 // Prediction is wrong
-  output logic                 BPWrongM,                                 // Prediction is wrong
+  output logic [P.XLEN-1:0]        PCLinkE,                                  // The address following the branch instruction. (AKA Fall through address)
+  input  logic                     PCSrcE,                                   // Execution stage branch is taken
+  input  logic [P.XLEN-1:0]        IEUAdrE,                                  // The branch/jump target address
+  input  logic [P.XLEN-1:0]        IEUAdrM,                                  // The branch/jump target address
+  output logic [P.XLEN-1:0]        PCE,                                      // Execution stage instruction address
+  output logic                     BPWrongE,                                 // Prediction is wrong
+  output logic                     BPWrongM,                                 // Prediction is wrong
   // Mem
-  output logic                 CommittedF,                               // I$ or bus memory operation started, delay interrupts
-  input  logic [P.XLEN-1:0]    EPCM,                                     // Exception Program counter from privileged unit
-  input  logic [P.XLEN-1:0]    TrapVectorM,                              // Trap vector, from privileged unit
-  input  logic                 RetM, TrapM,                              // return instruction, or trap
-  output logic [31:0]          InstrD,                                   // The decoded instruction in Decode stage
-  output logic [31:0]          InstrM,                                   // The decoded instruction in Memory stage
-  output logic [31:0]          InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
-  output logic [P.XLEN-1:0]    PCM,                                      // Memory stage instruction address
-  output logic [P.XLEN-1:0]    PCSpillM,                                 // PCM, plus 2 if the instruction spilled across two fetches
+  output logic                     CommittedF,                               // I$ or bus memory operation started, delay interrupts
+  input  logic [P.XLEN-1:0]        EPCM,                                     // Exception Program counter from privileged unit
+  input  logic [P.XLEN-1:0]        TrapVectorM,                              // Trap vector, from privileged unit
+  input  logic                     RetM, TrapM,                              // return instruction, or trap
+  output logic [31:0]              InstrD,                                   // The decoded instruction in Decode stage
+  output logic [31:0]              InstrM,                                   // The decoded instruction in Memory stage
+  output logic [31:0]              InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
+  output logic [P.XLEN-1:0]        PCM,                                      // Memory stage instruction address
+  output logic [P.XLEN-1:0]        PCSpillM,                                 // PCM, plus 2 if the instruction spilled across two fetches
   // branch predictor
-  output logic [3:0]           IClassM,                                  // The valid instruction class. 1-hot encoded as {call, return, jump, branch}
-  output logic                 BPDirWrongM,                              // Prediction direction is wrong
-  output logic                 BTAWrongM,                                // Prediction target wrong
-  output logic                 RASPredPCWrongM,                          // RAS prediction is wrong
-  output logic                 IClassWrongM,                             // Class prediction is wrong
-  output logic                 ICacheStallF,                             // I$ busy with multicycle operation
+  output logic [3:0]               IClassM,                                  // The valid instruction class. 1-hot encoded as {call, return, jump, branch}
+  output logic                     BPDirWrongM,                              // Prediction direction is wrong
+  output logic                     BTAWrongM,                                // Prediction target wrong
+  output logic                     RASPredPCWrongM,                          // RAS prediction is wrong
+  output logic                     IClassWrongM,                             // Class prediction is wrong
+  output logic                     ICacheStallF,                             // I$ busy with multicycle operation
   // Faults
-  input  logic                 IllegalBaseInstrD,                        // Illegal non-compressed instruction
-  input  logic                 IllegalFPUInstrD,                         // Illegal FP instruction
-  output logic                 InstrPageFaultF,                          // Instruction page fault
-  output logic                 IllegalIEUFPUInstrD,                      // Illegal instruction including compressed & FP
-  output logic                 InstrMisalignedFaultM,                    // Branch target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
+  input  logic                     IllegalBaseInstrD,                        // Illegal non-compressed instruction
+  input  logic                     IllegalFPUInstrD,                         // Illegal FP instruction
+  output logic                     InstrPageFaultF,                          // Instruction page fault
+  output logic                     IllegalIEUFPUInstrD,                      // Illegal instruction including compressed & FP
+  output logic                     InstrMisalignedFaultM,                    // Branch target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
   // mmu management
-  input  logic [1:0]           PrivilegeModeW,                           // Privilege mode in Writeback stage
-  input  logic [P.XLEN-1:0]    PTE,                                      // Hardware page table walker (HPTW) writes Page table entry (PTE) to ITLB
-  input  logic [2:0]           PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
-  input  logic                 ITLBWriteF,                               // Writes PTE and PageType to ITLB
-  input  logic [P.XLEN-1:0]    SATP_REGW,                                // Location of the root page table and page table configuration
-  input  logic                 STATUS_MXR,                               // Status CSR: make executable page readable
-  input  logic                 STATUS_SUM,                               // Status CSR: Supervisor access to user memory
-  input  logic                 STATUS_MPRV,                              // Status CSR: modify machine privilege
-  input  logic [1:0]           STATUS_MPP,                               // Status CSR: previous machine privilege level
-  input  logic                 ENVCFG_PBMTE,                             // Page-based memory types enabled
-  input  logic                 ENVCFG_ADUE,                              // HPTW A/D Update enable
-  input  logic                 sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
-  input  logic                 sfencevmaAllM,                            // sfence.vma with rs2=x0: flush all TLB entries including global
-  output logic                 ITLBMissOrUpdateAF,                       // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit (masked while a walk fault is held)
-  input  logic                 HPTWInstrAccessFaultF,                    // HPTW access fault while walking for the fetch (one-cycle pulse from the walker)
-  input  logic                 HPTWInstrPageFaultF,                      // HPTW page fault while walking for the fetch (one-cycle pulse from the walker)
-  output logic                 HPTWInstrAccessFaultHeldF,                // HPTW access fault for the current fetch, held until the fetch advances
-  output logic                 HPTWInstrPageFaultHeldF,                  // HPTW page fault for the current fetch, held until the fetch advances
-  input  var logic [7:0]       PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],     // PMP configuration from privileged unit
+  input  logic [1:0]               PrivilegeModeW,                           // Privilege mode in Writeback stage
+  input  logic [P.XLEN-1:0]        PTE,                                      // Hardware page table walker (HPTW) writes Page table entry (PTE) to ITLB
+  input  logic [2:0]               PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
+  input  logic                     ITLBWriteF,                               // Writes PTE and PageType to ITLB
+  input  logic [P.XLEN-1:0]        SATP_REGW,                                // Location of the root page table and page table configuration
+  input  logic                     STATUS_MXR,                               // Status CSR: make executable page readable
+  input  logic                     STATUS_SUM,                               // Status CSR: Supervisor access to user memory
+  input  logic                     STATUS_MPRV,                              // Status CSR: modify machine privilege
+  input  logic [1:0]               STATUS_MPP,                               // Status CSR: previous machine privilege level
+  input  logic                     ENVCFG_PBMTE,                             // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,                              // HPTW A/D Update enable
+  input  logic                     sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
+  input  logic                     sfencevmaAllM,                            // sfence.vma with rs2=x0: flush all TLB entries including global
+  output logic                     ITLBMissOrUpdateAF,                       // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit (masked while a walk fault is held)
+  input  logic                     HPTWInstrAccessFaultF,                    // HPTW access fault while walking for the fetch (one-cycle pulse from the walker)
+  input  logic                     HPTWInstrPageFaultF,                      // HPTW page fault while walking for the fetch (one-cycle pulse from the walker)
+  output logic                     HPTWInstrAccessFaultHeldF,                // HPTW access fault for the current fetch, held until the fetch advances
+  output logic                     HPTWInstrPageFaultHeldF,                  // HPTW page fault for the current fetch, held until the fetch advances
+  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],     // PMP configuration from privileged unit
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
-  output logic                 InstrAccessFaultF,                        // Instruction access fault
-  output logic                 ICacheAccess,                             // Report I$ read to performance counters
-  output logic                 ICacheMiss                                // Report I$ miss to performance counters
+  output logic                     InstrAccessFaultF,                        // Instruction access fault
+  output logic                     ICacheAccess,                             // Report I$ read to performance counters
+  output logic                     ICacheMiss                                // Report I$ miss to performance counters
 );
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
@@ -157,7 +145,6 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if (P.ZCA_SUPPORTED) begin : Spill
-    logic [P.XLEN-1:0] PCSpillD, PCSpillE;
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
@@ -224,7 +211,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 
     // Hold a page table walk fault for the current fetch (issues #1538, #1766).
-    // A walk that faults (access fault on a page table entry address, or reserved bits in a non-leaf PTE) writes
+    // A walk that faults (access fault on a page table entry address, reserved bits in a non-leaf PTE, or an invalid PTE) writes
     // nothing into the ITLB, so the miss would re-request a walk every cycle.  The walker reports the fault as a
     // one-cycle pulse; remember it until the fetch advances (PCF changes), present it to the pipeline as a level,
     // suppress further walk requests, and do not fetch.
@@ -262,7 +249,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // The IROM uses untranslated addresses, so it is not compatible with virtual memory.
   if (P.IROM_SUPPORTED) begin : irom
     logic IROMce;
-    assign IROMce = ~GatedStallD | reset;
+    assign IROMce = ~GatedStallD | reset; // exclusion-tag: ifu-irom-ce
     assign IFURWF = 2'b10;
     irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF[P.XLEN-1:0]), .IROMInstrF);
   end else begin
@@ -366,7 +353,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
 
   mux3 #(P.XLEN) pcmux3(PC2NextF, EPCM, TrapVectorM, {TrapM, RetM}, UnalignedPCNextF);
   mux2 #(P.XLEN) pcresetmux({UnalignedPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
-  flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF);
+  flopen #(P.XLEN) pcreg(clk, ~StallF | reset, PCNextF, PCF); // exclusion-tag: ifu-pc-enable
 
   // pcadder
   // add 2 or 4 to the PC, based on whether the instruction is 16 bits or 32
@@ -407,7 +394,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
       .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),
       .BTBBranchF(1'b0), .BPCallF(), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
-      .BPReturnWrongD(), .BPReturnD());
+      .BPReturnWrongD(), .BPReturnD(), .BPCallD());
     flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, BPWrongM);
     assign RASPredPCWrongM = 1'b0;
     assign BPDirWrongM = BPWrongM;

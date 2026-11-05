@@ -1,35 +1,19 @@
 ///////////////////////////////////////////
-// ram1p1r2be.sv
-// 1 port sram with byte enables
+// ram1p1rwbe.sv
 //
-// Written: rose@rosethompson.net
-// Created: 3 May 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 3 May 2021
+// Modified: David Harris, James Stine, Jacob Pease
 //
-// Purpose: Storage and read/write access to data cache data, tag valid, dirty, and replacement.
-//          Basic sram with 1 read write port.
-//          When clk rises Addr and LineWriteData are sampled.
-//          Following the clk edge read data is output from the sampled Addr.
+// Purpose: Single-port RAM with byte write enables.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // WIDTH is number of bits in one "word" of the memory, DEPTH is number of such words
@@ -57,7 +41,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 4
       .A(addr), .D(din),
       .BWEB(~BitWriteMask), .Q(dout));
 
-  end else if ((USE_SRAM == 1) & (WIDTH == 44)  & (DEPTH == 64)) begin // RV64 cache tag
+  end else if ((USE_SRAM == 1) & (WIDTH == 44) & (DEPTH == 64)) begin // RV64 cache tag
     genvar index;
     // 64 x 44-bit SRAM
     logic [WIDTH-1:0] BitWriteMask;
@@ -67,7 +51,7 @@ module ram1p1rwbe import cvw::*; #(parameter USE_SRAM = 0, DEPTH = 64, WIDTH = 4
       .A(addr), .D(din),
       .BWEB(~BitWriteMask), .Q(dout));
 
-  end else if ((USE_SRAM == 1) & (WIDTH == 22)  & (DEPTH == 64)) begin // RV32 cache tag
+  end else if ((USE_SRAM == 1) & (WIDTH == 22) & (DEPTH == 64)) begin // RV32 cache tag
     genvar index;
     // 64 x 22-bit SRAM
     logic [WIDTH-1:0] BitWriteMask;

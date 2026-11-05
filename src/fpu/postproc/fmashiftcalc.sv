@@ -1,33 +1,22 @@
 ///////////////////////////////////////////
 // fmashiftcalc.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 7/5/2022
+// Written:  Katherine Parry me@KatherineParry.com 13 June 2022
+// Modified: David Harris
 //
-// Purpose: FMA shift calculation
+// Purpose: Normalization shift for FMA results.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
+module fmashiftcalc import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FMTBITS-1:0]          Fmt,                 // precision 1 = double 0 = single
   input  logic [P.NE+1:0]               FmaSe,               // sum's exponent
   input  logic [P.FMALEN-1:0]           FmaSm,               // the positive sum
@@ -71,10 +60,10 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
   end else if (P.FPSIZES == 4) begin
     always_comb begin
       case (Fmt)
-        2'h3: BiasCorr = '0;
-        2'h1: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
-        2'h0: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
-        2'h2: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
+        P.Q_FMT: BiasCorr = '0;
+        P.D_FMT: BiasCorr = (P.NE+2)'(P.D_BIAS-P.Q_BIAS);
+        P.S_FMT: BiasCorr = (P.NE+2)'(P.S_BIAS-P.Q_BIAS);
+        P.H_FMT: BiasCorr = (P.NE+2)'(P.H_BIAS-P.Q_BIAS);
       endcase
     end
     assign NormSumExp = PreNormSumExp + BiasCorr;
@@ -121,10 +110,10 @@ module fmashiftcalc import cvw::*;  #(parameter cvw_t P) (
     assign Sum3GEFL = $signed(PreNormSumExp) >= $signed((P.NE+2)'(-P.H_NF-1+P.BIAS-P.H_BIAS)) | ~|PreNormSumExp;
     always_comb begin
       case (Fmt)
-        2'h3: FmaPreResultSubnorm = Sum0LEZ & Sum0GEFL;
-        2'h1: FmaPreResultSubnorm = Sum1LEZ & Sum1GEFL;
-        2'h0: FmaPreResultSubnorm = Sum2LEZ & Sum2GEFL;
-        2'h2: FmaPreResultSubnorm = Sum3LEZ & Sum3GEFL;
+        P.Q_FMT: FmaPreResultSubnorm = Sum0LEZ & Sum0GEFL;
+        P.D_FMT: FmaPreResultSubnorm = Sum1LEZ & Sum1GEFL;
+        P.S_FMT: FmaPreResultSubnorm = Sum2LEZ & Sum2GEFL;
+        P.H_FMT: FmaPreResultSubnorm = Sum3LEZ & Sum3GEFL;
       endcase
     end
   end

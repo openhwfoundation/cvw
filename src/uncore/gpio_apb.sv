@@ -1,32 +1,20 @@
 ///////////////////////////////////////////
 // gpio_apb.sv
 //
-// Written: David_Harris@hmc.edu 14 January 2021
-// Modified: bbracker@hmc.edu 15 Apr. 2021
+// Written:  David Harris David_Harris@hmc.edu 14 January 2021
+// Modified: Ben Bracker bbracker@hmc.edu
 //
-// Purpose: General Purpose I/O peripheral
-//   See FE310-G002-Manual-v19p05 for specifications
-//   No interrupts, drive strength, or pull-ups supported
+// Purpose: GPIO on APB.
+//          See FE310-G002-Manual-v19p05. No interrupts, drive strength, or pull-ups.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module gpio_apb import cvw::*; #(parameter cvw_t P) (
@@ -62,7 +50,7 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   localparam GPIO_IOF_SEL    = 8'h3C;
   localparam GPIO_OUT_XOR    = 8'h40;
 
-  logic [31:0]                input0d, input1d, input2d, input3d;
+  logic [31:0]                input0d, input2d, input3d;
   logic [31:0]                input_val, input_en, output_en, output_val;
   logic [31:0]                rise_ie, rise_ip, fall_ie, fall_ip, high_ie, high_ip, low_ie, low_ip;
   logic [31:0]                out_xor, iof_en, iof_sel, iof_out, gpio_out;
@@ -151,10 +139,9 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   if (P.GPIO_LOOPBACK_TEST) assign input0d = ((output_en & GPIOOUT) | (~output_en & GPIOIN)) & input_en;
   else                      assign input0d = GPIOIN & input_en;
 
-  // synchronizer for inputs
-  flop #(32) sync1(PCLK, input0d, input1d);
-  flop #(32) sync2(PCLK, input1d, input2d);
-  flop #(32) sync3(PCLK, input2d, input3d);
+  // synchronizer for inputs; input3d is one cycle later for edge detection
+  synchronizer #(32) inputsync(.clk(PCLK), .d(input0d), .q(input2d));
+  flop #(32) edgereg(PCLK, input2d, input3d);
   assign input_val = input3d;
   assign iof_out   = iof_sel & iof1 | ~iof_sel & iof0;        // per-bit mux between iof1 and iof0
   assign gpio_out  = iof_en & iof_out | ~iof_en & output_val; // per-bit mux between IOF and output_val

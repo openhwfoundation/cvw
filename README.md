@@ -21,9 +21,24 @@ Other configurations range down to a minimal RV32E core, and derivative configur
 
 Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages.hmc.edu/harris/ddca/rvsocd.html), by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.
 
+# Configurations
+
+Wally default configurations are listed below.  Synthesis results from TSMC 28HPC+ TT conditions (0.9 V, 25 °C), Design Compiler, no layout.  Embench results are without F and D.
+
+| Config  | Features        | CoreMark/MHz | Embench Speed | Clock Frequency (MHz) | Area (mm^2) |
+| ------- | --------------- | -----------: | ------------: | --------------------: | ----------: |
+| rv32e   | Tiny Embedded   |         0.35 |          0.16 |                  2840 |      0.0062 |
+| rv32i   | RVI20U32        |         1.04 |          0.49 |                  2800 |      0.0083 |
+| rv32imc | Microcontroller |         2.79 |          0.92 |                  2050 |       0.029 |
+| rv32gc  | Like rv64gc     |         4.33 |          1.23 |                  1000 |        0.42 |
+| rv64i   | RVI20U64        |         0.88 |          0.53 |                  2600 |       0.015 |
+| rv64gc  | RVA22S64        |         3.86 |          1.38 |                   840 |        0.48 |
+
+CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, and rv64i using the AHB bus in place of the IROM and DTIM.  The rv32gc and rv64gc areas include 0.31 mm^2 of SRAM macros (43.5 KB, including I$ and D$ data and tags, BTB, and PHT).  rv32gc uses the same macros, though its narrower tags and BTB entries need only 38 KB.
+
 # Verification
 
-Wally is presently at Technology Readiness Level 4, passing the RISC-V compatibility test suite and custom tests, and booting Linux in simulation and on an FPGA.  See the [Test Plan](docs/testplans/testplan.md) for details.
+Wally is presently at Technology Readiness Level 4, passing the [RISC-V architectural certification tests](https://github.com/riscv/riscv-arch-test) and custom tests, and booting Linux in simulation and on an FPGA.  The rv32imc, rv32gc, and rv64gc configurations achieve 100% code and functional coverage.  See the [Test Plan](docs/testplans/testplan.md) for details.
 
 # New User Setup
 
@@ -167,7 +182,7 @@ Verilator is an open-source Verilog simulator.  It is fast and free.  Run Wally 
 regression-wally
 ```
 
-Running code or functional coverage simulations or lock-step presently require commercial tools.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally and lock-step simulation.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+Running code coverage simulations or lock-step presently requires commercial tools; functional coverage also runs on Verilator.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
 
 Note: Some EDA tools utilize `LM_LICENSE_FILE` for their environmental variable to point to their license server.  Some operating systems may also utilize `MGLS_LICENSE_FILE` instead, therefore, it is important to read the user manual on the preferred environmental variable required to point to a user’s license file.  Although there are different mechanisms to allow licenses to work, many companies commonly utilize the FlexLM (i.e., Flex-enabled) license server manager that runs off a node locked license.
 
@@ -290,7 +305,7 @@ Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requi
 wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
 ```
 
-Collect functional coverage over a directory of tests.
+Collect functional coverage over a directory of tests (add `--sim vcs` to use VCS).
 
 ```bash
 wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov

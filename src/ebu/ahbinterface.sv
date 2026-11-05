@@ -1,36 +1,24 @@
 ///////////////////////////////////////////
 // ahbinterface.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: August 29, 2022
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 August 2022
+// Modified: David Harris
 //
-// Purpose: Translates LSU simple memory requests into AHB transactions (NON_SEQ).
+// Purpose: AHB interface for uncached single-transfer IFU or LSU requests.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ahbinterface #(
   parameter XLEN,
-  parameter logic LSU = 1'b0                                   // 1: LSU bus width is `XLEN, 0: IFU bus width is 32 bits
+  parameter logic LSU = 1'b0 // 1: LSU bus width is XLEN, 0: IFU bus width is 32 bits
 )(
   input  logic                          HCLK, HRESETn,
   // bus interface
@@ -53,7 +41,7 @@ module ahbinterface #(
   output logic [XLEN-1:0]               FetchBuffer   // Register to hold HRDATA after arriving from the bus
 );
 
-  logic                                 CaptureEn;
+  logic CaptureEn;
 
   // The IFU decodes its fetch buffer for spill detection even on a fetch that faulted before reaching the
   // bus.  A configuration that fetches everything from the IROM never fills the buffer, so reset it there

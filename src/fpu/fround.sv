@@ -1,33 +1,22 @@
 ///////////////////////////////////////////
 // fround.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 4/21/2024
+// Written:  David Harris David_Harris@hmc.edu 21 April 2024
+// Modified: Corey Hickson, Jordan Carlin, Vikram Krishna
 //
-// Purpose: Floating-point round to integer for Zfa
+// Purpose: Zfa fround and froundnx.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fround import cvw::*;  #(parameter cvw_t P) (
+module fround import cvw::*; #(parameter cvw_t P) (
   input  logic                    Xs,           // input's sign
   input  logic [P.NE-1:0]         Xe,           // input's exponent
   input  logic [P.NF:0]           Xm,           // input's fraction with leading integer bit (U1.NF)
@@ -122,11 +111,11 @@ module fround import cvw::*;  #(parameter cvw_t P) (
   // Rounding logic: determine whether to round up in magnitude
   always_comb begin
     case (Frm) // Frm is either specified in the instruction or is the dynamic rounding mode
-      3'b000:  RoundUp = Rp & (Lp | Tp);  // RNE
-      3'b001:  RoundUp = 0;               // RTZ
-      3'b010:  RoundUp = Xs & (Rp | Tp);  // RDN
-      3'b011:  RoundUp = ~Xs & (Rp | Tp); // RUP
-      3'b100:  RoundUp = Rp;              // RMM
+      RM_RNE:  RoundUp = Rp & (Lp | Tp);  // RNE
+      RM_RTZ:  RoundUp = 0;  // RTZ
+      RM_RDN:  RoundUp = Xs & (Rp | Tp);  // RDN
+      RM_RUP:  RoundUp = ~Xs & (Rp | Tp);  // RUP
+      RM_RMM:  RoundUp = Rp;  // RMM
       default: RoundUp = 0;               // should never happen
     endcase
 
