@@ -368,7 +368,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE; // exclusion-tag: hptw-update-pte-wait
                   else                                                     NextWalkerState = LEAF;
-      // TrapM waits while the IFU has a committed fetch (trap.sv).  Hold the fault rather than returning to
+      //  A potential TrapM waits while the IFU has a committed fetch. Hold the fault rather than returning to
       // IDLE, where the DTLB miss would start the same walk again (issue #845).
       FAULT:      if (CommittedF)                                          NextWalkerState = FAULT;
                   else                                                     NextWalkerState = IDLE;
