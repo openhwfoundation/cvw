@@ -49,7 +49,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              ITLBMissOrUpdateAF,
   input  logic              DTLBMissOrUpdateDAM,
   input  logic              FlushW,
-  input  logic              CommittedF,             // IFU fetch in flight: a potential trap is deferred, so hold a faulting walk until it ends 
+  input  logic              CommittedF,             // IFU fetch in flight: a potential trap is deferred, so hold a faulting walk until it ends
   input  logic [3:0]        CMOpM,
   output logic [P.XLEN-1:0] PTE,                    // page table entry to TLBs
   output logic [2:0]        PageType,               // page type to TLBs
