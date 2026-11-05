@@ -381,8 +381,9 @@ module debug import cvw::*; #(parameter cvw_t P) (
     if (reset) begin
       ResumePending <= 1'b0;
       ResumeAck     <= 1'b0;
-    end else if (ResumeReqPulse & DebugMode) begin
-      ResumePending <= 1'b1;
+    end else if (ResumeReqPulse) begin
+      // ResumePending <= 1'b1;
+      ResumePending <= DebugMode;
       ResumeAck <= 1'b0;
     end else if (ResumePending & ~DebugMode) begin
       ResumePending <= 1'b0;
