@@ -222,9 +222,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   end
   if (P.MSECCFG_SUPPORTED) begin:mseccfg
     // MSECCFG register
-    // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh.
-    // Wally does not yet support any of the extensions that define mseccfg fields, so every
-    // field is presently read-only 0.  Uncomment the terms below as each extension is added.
+    // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh. Uncomment the terms below as each extension is added.
     // Note that the Smepmp fields also need sticky/locking behavior: MML and MMWP cannot be
     // cleared once set, and RLB cannot be set once any pmpcfg entry has its L bit set, both
     // until a PMP reset.

@@ -38,7 +38,6 @@ localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORT
 localparam logic ZPM_SUPPORTED = (SMMPM_SUPPORTED | SSNPM_SUPPORTED | SMNPM_SUPPORTED);
 // mseccfg/mseccfgh exist only when an extension defining one of their fields is implemented
 // (Smepmp, Zkr, Zicfilp, Smmpm); otherwise accesses raise illegal instruction.
-// Wally supports none of them yet.  Replace the 0 with the OR of those parameters as they are added.
 localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED | SMMPM_SUPPORTED
 
 // Configure MISA based on supported extensions
