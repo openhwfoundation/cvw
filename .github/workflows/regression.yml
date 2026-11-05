@@ -100,6 +100,13 @@ jobs:
       fail-fast: false
       matrix:
         config: [rv32i, rv64i, rv32imc, rv32imcb, rv32gc, rv64gc] # standard_configs in regression-wally
+    env:
+      CONFIG: ${{ matrix.config }}
+      # Build the ACT ELFs without disassembly listings or intermediate files.  The testbench needs
+      # neither, and they would make the cached work directory about eight times larger.  Every make
+      # act in the job must see the same settings, or it rebuilds what the other one left out.
+      FAST: "1"
+      CLEAN_INTERMEDIATES: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -117,9 +124,44 @@ jobs:
           verilator: "true"
           act: "true"
 
-      - name: Regression
+      # The ACT ELFs depend only on the riscv-arch-test commit, the configuration's ACT files, the
+      # GCC and Sail versions (set by the setup action and Sail's installer) and the build rules.  Most
+      # PRs change none of these, so they reuse the ELFs built on main.  Only an exact key match is
+      # restored, because ACT never deletes an ELF it no longer builds, and a partial match could
+      # leave a stale test behind to run.
+      - name: Compute ACT test cache key
+        id: act-key
         env:
-          CONFIG: ${{ matrix.config }}
+          INPUTS_HASH: ${{ hashFiles(format('config/{0}/act/**', matrix.config), '.github/actions/setup-tools/action.yml', 'bin/installation/sail-install.sh', 'Makefile') }}
+        run: echo "key=act-elfs-${CONFIG}-$(git -C addins/riscv-arch-test rev-parse HEAD)-${INPUTS_HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore ACT tests
+        id: act-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: addins/riscv-arch-test/work/cvw-${{ matrix.config }}
+          key: ${{ steps.act-key.outputs.key }}
+
+      # The checkout gives config/<cfg>/act a newer mtime than the restored stamp, so make act would
+      # discard the restored ELFs.  The exact key match means those files are unchanged.  ACT's own
+      # build checks content hashes, not mtimes, so it then finds every ELF up to date.
+      - name: Keep restored ACT tests
+        if: steps.act-cache.outputs.cache-hit == 'true'
+        run: touch "addins/riscv-arch-test/work/cvw-${CONFIG}/.cvw_config_stamp"
+
+      # regression-wally builds the tests too; building them first lets them be cached before the
+      # simulations add memfiles beside them
+      - name: Build ACT tests
+        run: make act ACT_CONFIGS="${WALLY}/config/${CONFIG}/act/test_config.yaml"
+
+      - name: Save ACT tests
+        if: (github.ref == 'refs/heads/main' || github.event_name == 'pull_request') && steps.act-cache.outputs.cache-hit != 'true' # TEMPORARY: verify the cache from this PR
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: addins/riscv-arch-test/work/cvw-${{ matrix.config }}
+          key: ${{ steps.act-key.outputs.key }}
+
+      - name: Regression
         run: regression-wally --ci --config "$CONFIG"
 
       - name: Upload logs
