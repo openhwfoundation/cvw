@@ -13,21 +13,9 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "config.vh"
-`include "BranchPredictorType.vh"
 
 `ifdef USE_IMPERAS_DV
     `include "idv/idv.svh"
@@ -572,7 +560,7 @@ module testbench;
   wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall,
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
+    .HTRANS, .HMASTLOCK, .HREADY, .GPIOIN, .GPIOOUT, .GPIOEN,
     .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK, .PWMGPIO);
 
   // generate clock to sequence tests
@@ -730,7 +718,7 @@ module testbench;
 `endif
 
 // Functional coverage.  riscv_arch_test comes from riscv-arch-test and samples the generated
-// covergroups off the RVVI trace; wally-compile.do supplies it and its include paths with --fcov.
+// covergroups off the RVVI trace; each simulator's compile script supplies it and its include paths with --fcov.
 `ifdef FCOV
   riscv_arch_test riscv_arch_test(rvvi);
 `endif
@@ -946,9 +934,6 @@ module testbench;
     if (labFD != 0) $fclose(labFD);
   endtask
 
-`ifdef PMP_COVERAGE
-test_pmp_coverage #(P) pmp_inst(clk);
-`endif
   /* verilator lint_on WIDTHTRUNC */
   /* verilator lint_on WIDTHEXPAND */
 

@@ -1,33 +1,22 @@
 ///////////////////////////////////////////
 // fmaalign.sv
 //
-// Written:  6/23/2021 me@KatherineParry.com, David_Harris@hmc.edu
+// Written:  Katherine Parry me@KatherineParry.com, David Harris David_Harris@hmc.edu 23 June 2021
 // Modified:
 //
-// Purpose: FMA alignment shift
+// Purpose: FMA addend alignment.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaalign import cvw::*;  #(parameter cvw_t P) (
+module fmaalign import cvw::*; #(parameter cvw_t P) (
   input  logic [P.NE-1:0]      Xe, Ye, Ze,          // biased exponents in B(NE.0) format
   input  logic [P.NF:0]        Zm,                  // significand in U(1.NF) format
   input  logic                 XZero, YZero, ZZero, // is the input zero
@@ -65,8 +54,8 @@ module fmaalign import cvw::*;  #(parameter cvw_t P) (
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     if (KillProd) begin
-        ZmShifted = {(P.NF+3)'(0), Zm, (2*P.NF+2)'(0)};
-        ASticky   = ~(XZero | YZero);
+      ZmShifted = {(P.NF+3)'(0), Zm, (2*P.NF+2)'(0)};
+      ASticky   = ~(XZero | YZero);
 
     // If the addend is too small to affect the addition
     //      - The addend has to shift two past the end of the product to be considered too small
@@ -75,15 +64,15 @@ module fmaalign import cvw::*;  #(parameter cvw_t P) (
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     end else if (KillZ) begin
-        ZmShifted = '0;
-        ASticky   = ~ZZero;
+      ZmShifted = '0;
+      ASticky   = ~ZZero;
 
     // If the Addend is shifted right
     //  |   54'b0    |  106'b(product)  | 2'b0 |
     //  | addend     |
     end else begin
-        ZmShifted = ZmPreshifted >> ACnt;
-        ASticky   = |(ZmShifted[P.NF-1:0]);
+      ZmShifted = ZmPreshifted >> ACnt;
+      ASticky   = |(ZmShifted[P.NF-1:0]);
     end
   end
 

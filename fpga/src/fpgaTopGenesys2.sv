@@ -255,7 +255,7 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
                     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
                     .HCLK(HCLKOpen), .HRESETn(HRESETnOpen),
                     .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-                    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0),
+                    .HTRANS, .HMASTLOCK, .HREADY,
                     .GPIOIN, .GPIOOUT, .GPIOEN,
                     .UARTSin, .UARTSout, .SDCIn, .SDCCmd, .SDCCS(SDCCSin), .SDCCLK, .ExternalStall(RVVIStall));
 

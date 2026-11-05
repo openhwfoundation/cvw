@@ -1,3 +1,19 @@
+///////////////////////////////////////////
+// spi_fifo.sv
+//
+// Written:  Naiche Whyte-Aguayo 16 November 2022
+// Modified: David Harris, Rose Thompson, Jacob Pease
+//
+// Purpose: SPI FIFO with watermarks.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 module spi_fifo #(parameter M = 3, N = 8) (                 // 2^M entries of N bits each
   input  logic         PCLK, wen, ren, PRESETn,
   input  logic         winc, rinc,
@@ -15,14 +31,10 @@ module spi_fifo #(parameter M = 3, N = 8) (                 // 2^M entries of N 
   */
 
   logic [N-1:0] mem[2**M];
-  logic [M:0] rptr, wptr;
-  logic [M:0] rptrnext, wptrnext;
+  logic [M:0]   rptr, wptr;
+  logic [M:0]   rptrnext, wptrnext;
   logic [M-1:0] raddr;
   logic [M-1:0] waddr;
-
-  logic [M-1:0] numVals;
-
-  assign numVals = waddr - raddr;
 
   assign rdata = mem[raddr];
   always_ff @(posedge PCLK)

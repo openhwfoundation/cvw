@@ -1,31 +1,19 @@
 ///////////////////////////////////////////
-// busfsm.sv
+// buscachefsm.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: December 29, 2021
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 December 2021
+// Modified: David Harris
 //
-// Purpose: Controller for cache to AHB bus interface
+// Purpose: AHB bus state machine for cache bursts and uncached accesses.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // HCLK and clk must be the same clock!
@@ -99,10 +87,10 @@ module buscachefsm #(
       ATOMIC_PHASE: if (HREADY)                                      NextState = MEM3;                   // exclusion-tag: buscachefsm AtomicPhase
                     else                                             NextState = ATOMIC_PHASE;           // exclusion-tag: buscachefsm AtomicWait
       MEM3:        if (Stall)                                        NextState = MEM3;
-                   else                                              NextState = ADR_PHASE;
+                   else                                              NextState = ADR_PHASE; // exclusion-tag: buscachefsm-mem3-done
       CACHE_FETCH: if (HREADY & FinalBeatCount & CacheBusRW[0])      NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm FetchWriteback
                    else if (HREADY & FinalBeatCount & CacheBusRW[1]) NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm FetchWait
-                   else if (HREADY & FinalBeatCount & ~|CacheBusRW)  NextState = ADR_PHASE;
+                   else if (HREADY & FinalBeatCount & ~|CacheBusRW)  NextState = ADR_PHASE; // exclusion-tag: buscachefsm-fetch-done
                    else                                              NextState = CACHE_FETCH;
       CACHE_WRITEBACK:  if (HREADY & FinalBeatCount & CacheBusRW[0]) NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm WritebackWriteback
                    else if (HREADY & FinalBeatCount & CacheBusRW[1]) NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm HREADY4
@@ -115,8 +103,8 @@ module buscachefsm #(
 
   // IEU, LSU, and IFU controls
   // Used to store data from data phase of AHB.
-  flopenr #(AHBWLOGBWPL) BeatCountReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, NextBeatCount, BeatCount);
-  flopenr #(AHBWLOGBWPL) BeatCountDelayedReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, BeatCount, BeatCountDelayed);
+  flopenr #(AHBWLOGBWPL) BeatCountReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, NextBeatCount, BeatCount); // exclusion-tag: buscachefsm-beat-count-reset
+  flopenr #(AHBWLOGBWPL) BeatCountDelayedReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, BeatCount, BeatCountDelayed); // exclusion-tag: buscachefsm-beat-count-delayed-reset
   assign NextBeatCount = BeatCount + 1'b1;
 
   assign FinalBeatCount = BeatCountDelayed == BeatCountThreshold[AHBWLOGBWPL-1:0];
@@ -127,12 +115,14 @@ module buscachefsm #(
   assign CaptureEn = (CurrState == DATA_PHASE & BusRW[1] & ~Flush) | (CurrState == CACHE_FETCH & HREADY);
   assign CacheAccess = CurrState == CACHE_FETCH | CurrState == CACHE_WRITEBACK;
 
+  // An uncached cbo.zero stalls through its final beat and retires in MEM3, like an uncached store, so the next
+  // access is not presented while the FSM sits in MEM3 and ignores it
   assign BusStall = (CurrState == ADR_PHASE & ((|BusRW) | (|CacheBusRW) | BusCMOZero)) |
                     (CurrState == DATA_PHASE) |
                     (CurrState == ATOMIC_PHASE) |
                     (CurrState == ATOMIC_READ_DATA_PHASE) |
                     (CurrState == CACHE_FETCH & ~FinalBeatCount) |
-                    (CurrState == CACHE_WRITEBACK & ~FinalBeatCount);
+                    (CurrState == CACHE_WRITEBACK & (~FinalBeatCount | BusCMOZero));
 
   assign BusCommitted = (CurrState != ADR_PHASE) & ~(READ_ONLY_CACHE & CurrState == MEM3);
 
@@ -140,7 +130,7 @@ module buscachefsm #(
   assign HTRANS = (CurrState == ADR_PHASE & HREADY & ((|BusRW) | (|CacheBusRW) | BusCMOZero) & ~Flush) |
                   (CurrState == ATOMIC_READ_DATA_PHASE) |
                   (CacheAccess & FinalBeatCount & |CacheBusRW & HREADY & ~Flush) ? AHB_NONSEQ : // if we have a pipelined request
-                  (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE;
+                  (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE; // exclusion-tag: buscachefsm-htrans-burst
 
   assign HWRITE = (((BusRW[0] & ~BusAtomic) | BusWrite & ~Flush) | (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic) |
                   (CurrState == CACHE_WRITEBACK & |BeatCount)) & ~READ_ONLY_CACHE;

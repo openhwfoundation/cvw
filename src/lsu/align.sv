@@ -1,36 +1,23 @@
 ///////////////////////////////////////////
-// spill.sv
+// align.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 26 October 2023
-// Modified: 26 October 2023
+// Written:  Rose Thompson rose@rosethompson.net 26 October 2023
+// Modified: David Harris
 //
-// Purpose: This module implements native alignment support for the Zicclsm extension
-//          It is similar to the IFU's spill module and probably could be merged together with
-//          some effort.
+// Purpose: Splits misaligned accesses that cross a line boundary (Zicclsm).
+//          Similar to the IFU's spill module; the two could be merged with some effort.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module align import cvw::*;  #(parameter cvw_t P) (
+module align import cvw::*; #(parameter cvw_t P) (
   input  logic                    clk,
   input  logic                    reset,
   input  logic                    StallM, FlushM,
@@ -40,7 +27,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   input  logic                    FpLoadStoreM, // Floating point Load or Store
   input  logic [1:0]              MemRWM,
   input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM, // D$ read data, two LLEN words wide
-  input  logic                    CacheBusHPWTStall, // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
+  input  logic                    CacheBusHPTWStall,        // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
   input  logic                    SelHPTW,
   input  logic                    DataFaultM,   // This M-stage access raises a page or access fault: do not take the spill
 
@@ -61,7 +48,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   localparam LLENINBYTES = P.LLEN/8;
   localparam OFFSET_BIT_POS = $clog2(P.DCACHE_LINELENINBITS/8);
   // A spill occurs when a misaligned access crosses a cache line boundary
-  typedef enum logic [1:0]  {STATE_READY, STATE_SPILL, STATE_STORE_DELAY} statetype;
+  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
 
   statetype          CurrState, NextState;
   logic              ValidSpillM;
@@ -113,11 +100,15 @@ module align import cvw::*;  #(parameter cvw_t P) (
       default: AccessByteOffsetM = '0;                                        // shouldn't happen
     endcase
     // An access can spill only if it starts in the last naturally aligned slot of its size in the cache line
-    case (Funct3M[1:0])
-      2'b00: PotentialSpillM = 1'b0; // byte access
-      2'b01: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
-      2'b10: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:2] == '1; // word access
-      2'b11: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:3] == '1; // double access
+    case (Funct3M & {FpLoadStoreM, 2'b11})
+      3'b000: PotentialSpillM = 1'b0; // byte access
+      3'b001: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
+      3'b010: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:2] == '1; // word access
+      3'b011: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:3] == '1; // double access
+      // coverage off
+      // RV64GC doesn't support Q
+      3'b100: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:4] == '1; // quad access
+      // coverage on
       default: PotentialSpillM = 1'b0;
     endcase
   end
@@ -126,7 +117,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   // Don't take the spill if there is a stall or the access faults.  A faulting access must keep presenting the
   // original address: the fault is recomputed combinationally each cycle and would vanish at the second-half
   // address while a committed I$ fill defers the trap, losing the exception and half-executing a store.
-  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPWTStall & ~DataFaultM;
+  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPTWStall & ~DataFaultM;
 
   always_ff @(posedge clk)
     if (reset | FlushM)    CurrState <= STATE_READY;
@@ -143,7 +134,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   end
 
   assign SelSpillM = CurrState == STATE_SPILL;
-  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPWTStall);
+  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPTWStall);
   assign SpillSaveM = (CurrState == STATE_READY) & ValidSpillM & ~FlushM;
   assign SpillStallM = SelSpillE;
 

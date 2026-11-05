@@ -1,32 +1,19 @@
 ///////////////////////////////////////////
 // ebufsmarb.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 23 January 2023
-// Modified: 23 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 23 January 2023
+// Modified: David Harris
 //
-// Purpose: Arbitrates requests from instruction and data streams
-//          LSU has priority.
+// Purpose: Arbitrates the AHB bus between the IFU and LSU, LSU first.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ebufsmarb (
@@ -46,7 +33,7 @@ module ebufsmarb (
   output logic       LSUDisable,
   output logic       LSUSelect);
 
-  typedef enum       logic [1:0] {IDLE, ARBITRATE} statetype;
+  typedef enum logic [1:0] {IDLE, ARBITRATE} statetype;
   statetype          CurrState, NextState;
 
   logic              both;                       // Both the LSU and IFU request at the same time
@@ -67,10 +54,10 @@ module ebufsmarb (
   flopenl #(.TYPE(statetype)) busreg(HCLK, ~HRESETn, 1'b1, NextState, IDLE, CurrState);
   always_comb
     case (CurrState)
-      IDLE:      if (both)                                      NextState = ARBITRATE;
+      IDLE:      if (both)                                      NextState = ARBITRATE; // exclusion-tag: arb-idle
                  else                                           NextState = IDLE;
-      ARBITRATE: if (HREADY & FinalBeatD & ~both)               NextState = IDLE;
-                 else                                           NextState = ARBITRATE;
+      ARBITRATE: if (HREADY & FinalBeatD & ~both)               NextState = IDLE; // exclusion-tag: arb-arbitrate-exit
+                 else                                           NextState = ARBITRATE; // exclusion-tag: arb-arbitrate-hold
       default:                                                  NextState = IDLE;
     endcase
 
@@ -80,7 +67,7 @@ module ebufsmarb (
   assign IFUSave = CurrState == IDLE & both;
   assign IFURestore = CurrState == ARBITRATE;
   assign IFUDisable = IFURestore;
-  assign IFUSelect = (NextState == ARBITRATE) ? 1'b0 : IFUReq;
+  assign IFUSelect = (NextState == ARBITRATE) ? 1'b0 : IFUReq; // exclusion-tag: arb-ifuselect
   // Controller 1 (LSU)
   // When both the IFU and LSU request at the same time, the FSM will go into the arbitrate state.
   // Once the LSU request is done the fsm returns to IDLE.  To prevent the LSU from regaining
@@ -89,14 +76,15 @@ module ebufsmarb (
   // and the LSU memory request will still be active.
   flopr #(1) ifureqreg(HCLK, ~HRESETn, IFUReq, IFUReqDelay);
   assign LSUDisable = (CurrState != ARBITRATE) & IFUReqDelay;
-  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq;
+  assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq; // exclusion-tag: arb-lsuselect
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // Burst mode logic
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
   assign BeatCntReset = NextState == IDLE;
-  assign FinalBeat = (BeatCount == Threshold); // Detect when we are waiting on the final access.
+  assign FinalBeat = (BeatCount == Threshold) & HREADY; // The final access completes. HREADY prevents
+  // FinalBeat from pulsing and therefore reseting when the bus is not ready.
   // Counting the beats in the EBU is only necessary when both the LSU and IFU request concurrently.
   // LSU has priority. HREADY serves double duty during a burst transaction.  It indicates when the
   // beat completes and when the transaction finishes.  However there is nothing external to
@@ -106,7 +94,7 @@ module ebufsmarb (
   counter #(4) BeatCounter(HCLK, ~HRESETn | BeatCntReset | FinalBeat, BeatCntEn, BeatCount);
 
   // Used to store data from data phase of AHB.
-  flopenr #(1) FinalBeatReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, FinalBeat, FinalBeatD);
+  flopenr #(1) FinalBeatReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, FinalBeat, FinalBeatD); // exclusion-tag: arb-finalbeat-reset
 
   // unlike the bus fsm in lsu/ifu, we need to derive the number of beats from HBURST, Threshold = num beats - 1.
   //  HBURST[2:1] Beats  threshold

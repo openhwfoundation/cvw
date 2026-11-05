@@ -15,16 +15,6 @@
 ##
 ## SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ##
-## Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-## except in compliance with the License, or, at your option, the Apache License version 2.0. You
-## may obtain a copy of the License at
-##
-## https://solderpad.org/licenses/SHL-2.1/
-##
-## Unless required by applicable law or agreed to in writing, any work distributed under the
-## License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-## either express or implied. See the License for the specific language governing permissions
-## and limitations under the License.
 ################################################################################################
 
 set -e # break on error
@@ -42,7 +32,7 @@ fi
 
 # Packages are grouped by which tool requires them. If multiple tools need a package, it is included in each tool's list.
 # Packages that are constant across distros
-GENERAL_PACKAGES+=(rsync git tar unzip gzip bzip2 gcc make dialog mutt) # TODO: check what needs dialog
+GENERAL_PACKAGES+=(rsync git tar unzip gzip bzip2 gcc make dialog mutt tcl) # TODO: check what needs dialog
 GNU_PACKAGES+=(autoconf automake gawk bison flex texinfo gperf libtool patchutils bc)
 SAIL_PACKAGES+=(cmake)
 VERILATOR_PACKAGES+=(autoconf flex bison help2man perl ccache numactl gtkwave) # gtkwave is not needed for verilator, but useful for viewing waveforms
@@ -95,7 +85,7 @@ case "$FAMILY" in
         GENERAL_PACKAGES+=(curl "$PYTHON_VERSION" python3-pip "$PYTHON_VERSION"-venv pkg-config build-essential g++ ssmtp wget)
         GNU_PACKAGES+=(autotools-dev libmpc-dev libmpfr-dev libgmp-dev zlib1g-dev libexpat1-dev libglib2.0-dev libslirp-dev)
         QEMU_PACKAGES+=(libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build)
-        SPIKE_PACKAGES+=(device-tree-compiler libboost-regex-dev libboost-system-dev)
+        SPIKE_PACKAGES+=(device-tree-compiler libboost-regex-dev)
         SAIL_PACKAGES+=(ninja-build libgmp-dev)
         VERILATOR_PACKAGES+=(libfl2 libfl-dev zlib1g-dev libunwind-dev libgoogle-perftools-dev perl-doc)
         BUILDROOT_PACKAGES+=(ncurses-base ncurses-bin libncurses-dev gfortran) # gfortran is only needed for compiling spec benchmarks on buildroot linux
@@ -107,6 +97,13 @@ case "$FAMILY" in
         # Whisper Uses C++20 features with incorrect support in gcc11 (As of October 18, 2026)
         if (( UBUNTU_VERSION == 22 )); then
             WHISPER_PACKAGES+=(gcc-12 g++-12)
+        fi
+        # As of Boost 1.90, libboost-system-dev is no longer a package. Ubuntu 26.04 ships this version
+        # of boost, and this version has not hit debian stable yet
+        if (( UBUNTU_VERSION >= 26 )); then
+            SPIKE_PACKAGES+=(libboost-dev)
+        else
+            SPIKE_PACKAGES+=(libboost-system-dev)
         fi
         ;;
     suse)
