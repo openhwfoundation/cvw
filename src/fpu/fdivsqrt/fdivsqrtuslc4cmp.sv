@@ -77,7 +77,7 @@ module fdivsqrtuslc4cmp (
 
   // handles special case when j = 0 or j = 1 for sqrt
   assign mkj2 = 20; // when j = 1 use mks2[3'b101] = 20; when j = 0 use anything bigger than 7
-  assign mkj1 = j0 ? 0 : 8; // when j = 1 use mks1[3'b101] = 8; when j = 0 use 0 so we choose u_0 = 1
+  assign mkj1 = j0 ? 0 : 8; // when j = 1 use mks1[3'b101] = 8; when j = 0 use 0 so we choose u_0 = 1 // exclusion-tag: uslc4-mkj1
   assign sqrtspecial = SqrtE & (j1 | j0);
 
   // Choose A for current operation

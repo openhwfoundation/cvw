@@ -31,12 +31,11 @@ module localrepairbp import cvw::*; #(parameter cvw_t P,
 
   logic [1:0]             BPDirE;
   logic [1:0]             BPDirM;
-  logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+  logic [1:0]             NewBPDirM, NewBPDirW;
 
-  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW, LHRNextF;
+  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW;
   logic [k-1:0]           LHRNextW;
   logic                   PCSrcM;
-  logic [2**m-1:0][k-1:0] LHRArray;
   logic [m-1:0]           IndexLHRNextF, IndexLHRM;
   logic [XLEN-1:0]        PCW;
 

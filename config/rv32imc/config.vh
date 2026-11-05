@@ -14,8 +14,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-`include "BranchPredictorType.vh"
-
 // RV32 or RV64: XLEN = 32 or 64
 localparam XLEN = 32'd32;
 
@@ -83,7 +81,7 @@ localparam logic SSTC_SUPPORTED = 0; // Supervisor-mode timer interrupts
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 1;
 localparam logic ZIHPM_SUPPORTED  = 1;
-localparam COUNTERS = 12'd32;
+localparam COUNTERS = 12'd7; // mcycle, time, minstret, and mhpmcounter3-6
 
 // Cache-management operation extensions
 localparam logic ZICBOM_SUPPORTED = 0;
@@ -211,7 +209,7 @@ localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 0;
-localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
+localparam cvw::bpred_type_t BPRED_TYPE = cvw::BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
@@ -224,5 +222,6 @@ localparam DIVCOPIES = 32'd4;
 
 // Memory synthesis configuration
 localparam logic USE_SRAM = 0;
+localparam logic LATCH_BASED_REGISTERFILE = 1; // integer register file built from latches for smaller ASIC area, or flops for FPGAs
 
 `include "config-shared.vh"

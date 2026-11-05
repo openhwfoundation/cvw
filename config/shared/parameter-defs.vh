@@ -1,8 +1,6 @@
 
 // Populate parameter structure with values specific to the current configuration
 
-`include "BranchPredictorType.vh"
-
 localparam cvw_t P = '{
   XLEN :                 XLEN,
   IEEE754 :              IEEE754,
@@ -132,6 +130,7 @@ localparam cvw_t P = '{
   ZKNH_SUPPORTED:        ZKNH_SUPPORTED,
   ZKN_SUPPORTED :        ZKN_SUPPORTED,
   USE_SRAM :        USE_SRAM,
+  LATCH_BASED_REGISTERFILE : LATCH_BASED_REGISTERFILE,
   M_MODE  : M_MODE,
   S_MODE  : S_MODE,
   U_MODE  : U_MODE,

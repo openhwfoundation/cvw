@@ -18,7 +18,7 @@ fi
 
 # === Defaults ===
 GOAL="lint/lint_rtl"
-DEFAULT_CONFIGS=(rv32e rv64gc rv32gc rv32imc rv32i rv64i)
+DEFAULT_CONFIGS=(rv32e rv64gc rv32gc rv32imc rv32imcb rv32i rv64i)
 CONFIGS=()
 BATCH_FLAG="-batch"
 

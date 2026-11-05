@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module dtim import cvw::*;  #(parameter cvw_t P) (
+module dtim import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk, reset,
   input  logic                 FlushW,
   input  logic                 ce,            // Chip Enable.  0: Holds ReadDataWordM
@@ -30,14 +30,14 @@ module dtim import cvw::*;  #(parameter cvw_t P) (
   logic                       we;
 
   localparam LLENBYTES  = P.LLEN/8;
-  // verilator  lint_off WIDTH
+  // verilator lint_off WIDTH
   localparam DEPTH      = (P.DTIM_RANGE+1)/LLENBYTES; // DTIM_RANGE is a mask (size-1)
-  // verilator  lint_on WIDTH
-  localparam ADDR_WDITH = $clog2(DEPTH);
+  // verilator lint_on WIDTH
+  localparam ADDR_WIDTH = $clog2(DEPTH);
   localparam OFFSET     = $clog2(LLENBYTES);
 
   assign we = MemRWM[0] & ~FlushW;  // have to ignore write if Trap.
 
   ram1p1rwbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(DEPTH), .WIDTH(P.LLEN))
-    ram(.clk, .ce, .we, .bwe(ByteMaskM), .addr(DTIMAdr[ADDR_WDITH+OFFSET-1:OFFSET]), .dout(ReadDataWordM), .din(WriteDataM));
+    ram(.clk, .ce, .we, .bwe(ByteMaskM), .addr(DTIMAdr[ADDR_WIDTH+OFFSET-1:OFFSET]), .dout(ReadDataWordM), .din(WriteDataM));
 endmodule

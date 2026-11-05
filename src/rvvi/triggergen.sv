@@ -25,7 +25,7 @@ module triggergen import cvw::*; (
   output logic        IlaTrigger);
 
   typedef enum logic [2:0] {STATE_RST, STATE_COMPARE, STATE_MISMATCH, STATE_TRIGGER, STATE_TRIGGER_DONE} statetype;
-(* mark_debug = "true" *)  statetype CurrState, NextState;
+  (* mark_debug = "true" *) statetype CurrState, NextState;
 
   logic [31:0] mem [4:0];
   logic [2:0]  Counter;
@@ -50,7 +50,7 @@ module triggergen import cvw::*; (
 
   always_ff @(posedge clk) begin
     if (reset) CurrState <= STATE_RST;
-    else      CurrState <= NextState;
+    else       CurrState <= NextState;
   end
 
   always_comb begin

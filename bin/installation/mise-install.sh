@@ -17,7 +17,7 @@
 ##
 ################################################################################################
 
-MISE_VERSION=v2026.3.13 # Latest version as of March 23, 2026
+MISE_VERSION=v2026.10.25 # Latest version as of November 2, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script
