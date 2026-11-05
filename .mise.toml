@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+# Tool versions for CI and local development. Run `mise run prek` to check every file
+# with the hooks in .pre-commit-config.yaml, as CI does.
+
+[tools]
+prek = "0.5.7"
+
+[tasks.prek]
+description = "Run prek hooks on all files"
+run = "prek run --all-files"

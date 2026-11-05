@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Weekly run of the nightly regression's Verilator part (regression-wally --ci --nightly): lint of
+# every derivative configuration, the standard tests, the derivative configurations, the cache
+# simulations, and Embench and CoreMark.  The lockstep, testfloat (Questa) and buildroot parts need
+# commercial tools or locally built Linux images, so they stay in the local nightly.
+#
+# A failed scheduled run opens an issue labeled nightly-failure that lists the failing tests, or
+# comments on the open one; the next passing run closes it.
+
+name: Nightly regression
+
+on:
+  schedule:
+    - cron: "0 8 * * 6" # Saturdays at 12:00 AM Pacific Time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WALLY: ${{ github.workspace }}
+  # Trust cvw's and riscv-arch-test's .mise.toml
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  # Embench and CoreMark link C libraries for rv32, which the riscv-collab release toolchain lacks,
+  # so the nightly uses cvw's multilib toolchain.  Building it takes hours, so it is cached until
+  # bin/installation/riscv-gnu-toolchain-install.sh changes.
+  toolchain:
+    name: Multilib RISC-V GCC
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Look up cached toolchain
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /opt/cvw-tools/gcc
+          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+          lookup-only: true
+
+      - name: Build toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          ./.github/scripts/cli-space-cleanup.sh
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autotools-dev bc bison build-essential cmake curl flex gawk \
+            git gperf libexpat-dev libglib2.0-dev libgmp-dev libmpc-dev libmpfr-dev libslirp-dev libtool \
+            ninja-build patchutils python3 texinfo zlib1g-dev
+          sudo mkdir -p /opt/cvw-tools
+          sudo chown "$USER:$USER" /opt/cvw-tools
+          bash bin/installation/riscv-gnu-toolchain-install.sh --clean /opt/cvw-tools/gcc
+
+      - name: Save toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /opt/cvw-tools/gcc
+          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+
+  nightly:
+    name: Nightly regression (Verilator)
+    needs: toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    outputs:
+      failures: ${{ steps.failures.outputs.failures }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out submodules
+        run: git submodule update --init --depth 1 addins/riscv-arch-test addins/embench-iot addins/coremark
+
+      - name: Set up tools
+        uses: $/.github/actions/setup-tools
+        with:
+          verilator: "true"
+          act: "true"
+          multilib: "true"
+
+      - name: Nightly regression
+        run: |
+          set -o pipefail
+          regression-wally --ci --nightly 2>&1 | tee regression.log
+
+      # The failure lines regression-wally prints, for the job summary and the report job
+      - name: List failures
+        id: failures
+        if: always()
+        run: |
+          sed 's/\x1b\[[0-9;]*m//g' regression.log 2>/dev/null |
+            grep -E 'FAIL|Timeout|Execution failed|did not finish|failed' | head -100 > failures.txt || true
+          {
+            echo "### Nightly regression failures"
+            echo '```'
+            cat failures.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          delimiter="EOF_$(openssl rand -hex 8)"
+          { echo "failures<<$delimiter"; cat failures.txt; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-logs
+          path: |
+            regression.log
+            sim/verilator/logs
+            benchmarks/embench/run.log
+
+  report:
+    name: Report
+    needs: [toolchain, nightly]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update, or close the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          FAILURES: ${{ needs.nightly.outputs.failures }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          label=nightly-failure
+          issue=$(gh issue list --repo "$REPO" --label "$label" --state open --json number --jq '.[0].number')
+          if [[ "$RESULTS" == "success success" ]]; then
+            if [[ -n "$issue" ]]; then
+              gh issue close "$issue" --repo "$REPO" --comment "The nightly regression passed again: $RUN_URL"
+            fi
+            exit 0
+          fi
+          fence=$'\x60\x60\x60' # a Markdown code fence
+          body=$(printf 'The weekly nightly regression failed (job results: %s): %s\n\n%s\n%s\n%s\n' \
+            "$RESULTS" "$RUN_URL" "$fence" "${FAILURES:-See the run for details.}" "$fence")
+          if [[ -n "$issue" ]]; then
+            gh issue comment "$issue" --repo "$REPO" --body "$body"
+          else
+            gh label create "$label" --repo "$REPO" --color B60205 \
+              --description "The weekly nightly regression is failing" 2>/dev/null || true
+            gh issue create --repo "$REPO" --title "Weekly nightly regression failed" --label "$label" --body "$body"
+          fi

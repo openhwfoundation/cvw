@@ -6,7 +6,8 @@
 version: 2
 updates:
   # Update git submodules to latest version
-  - package-ecosystem: "gitsubmodule"
+  # No cooldown: the submodules are tracked deliberately, riscv-arch-test in particular
+  - package-ecosystem: "gitsubmodule" # zizmor: ignore[dependabot-cooldown]
     directory: "/"
     schedule:
       interval: "daily"
@@ -16,6 +17,10 @@ updates:
       - dependency-name: "addins/verilog-ethernet"
   # Update actions in the GitHub Actions workflow files
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories: # the workflows and the composite actions they use
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
