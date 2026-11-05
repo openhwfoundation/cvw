@@ -66,6 +66,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          LateOK2D;                                 // slot 1 could run on the late ALU
   logic                          Fuse2D, FuseM;                            // the pair is fused into one indexed load (Decode / Memory)
   logic                          FuseBr2D;                                 // the pair is fused into one ALU op + branch
+  logic                          FuseBrAdd2D;                              // ... whose slot 0 is an add (else a logic op)
   logic                          PredTakenE;                               // fetch went to slot 0's predicted target
   logic                          LateBrM, LateBrTakenM, LateBrWrongM;      // slot 0 branch resolved in Memory
   logic                          Replay2RawM;                              // slot 1 must re-run alone, unless it was on the wrong path
@@ -207,7 +208,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
-    .InstrD, .Instr2D, .Issue2D, .Issue2E, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp2M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
+    .InstrD, .Instr2D, .Issue2D, .Issue2E, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseBrAdd2D, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp2M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
@@ -221,7 +222,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
     // Decode Stage interface
-    .InstrD, .Instr2D, .Issue2D, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseM, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem2M, .Illegal2M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .InstrD, .Instr2D, .Issue2D, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseBrAdd2D, .FuseM, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem2M, .Illegal2M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     // Execute Stage interface
     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .LSUAdrE, .IntDivE, .W64E,
     .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,

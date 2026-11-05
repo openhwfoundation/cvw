@@ -52,6 +52,7 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]        CZero2E,                 // Slot 1: czero.* active
   input  logic              BranchSigned2E,          // Slot 1: branch comparison is signed
   input  logic              FuseBrA2E, FuseBrB2E,    // Slot 1's branch is fused with slot 0's ALU op: its rs1 / rs2 is slot 0's result
+  input  logic              FuseBrAdd2E,             // ... and slot 0's op is an add (else a logic op)
   input  logic              Jump2E,                  // Slot 1: jal, whose result is its link address
   input  logic [P.XLEN-1:0] PCLink2E,                // Slot 1: its link address, the PC just past it
   output logic [1:0]        Flags2E,                 // Slot 1: comparison flags ({eq, lt})
@@ -209,15 +210,59 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   mux5  #(P.XLEN)  faemux2(R1_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2AE, ForwardedSrc2AE);
   mux5  #(P.XLEN)  fbemux2(R2_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2BE, ForwardedSrc2BE);
   // Macro-op fusion: ALU op + dependent branch (issue.sv).  The pair is one compare-and-branch op, decided
-  // in Execute: the branch compares slot 0's result straight from slot 0's ALU, this same cycle, instead
-  // of its own forwarded register, which does not hold that result yet.  No new adder: slot 0's ALU makes
-  // the result, comp2 compares it, and slot 1's ALU still makes the target.
-  //   add t0, a1, a2 ; blt t0, a3, L     comp2 compares (IEUResultE, a3)  =  (a1 + a2) < a3
-  //   li  t0, 5      ; beq a4, t0, L     comp2 compares (a4, IEUResultE)  =  a4 == 5
+  // in Execute.  The branch must not wait for slot 0's ALU result: that would put two carry chains in a
+  // row (slot 0's add, then comp2's compare) on the clock's critical path.  So comp2 works from slot 0's
+  // ALU inputs (SrcAE, SrcBE) instead.  No new adder: slot 0's ALU still makes rd, comp2 does the compare,
+  // and slot 1's ALU still makes the target.
+  //
+  // Logic op: no carry chain, so its result is simply remade here, one gate deep, and compared as usual.
+  //   andi t0, a1, 1  ; bnez t0, L      comp2 compares (a1 & 1, x0)
+  //
+  // Add, X = P + Q: the question "X < Y" is the sign/borrow of X - Y = P + Q + ~Y + 1, three numbers.  A full
+  // adder per bit, with no carry passing between bits, turns P, Q, ~Y into two numbers, a sum Sum and a
+  // carry Carry, with P + Q + ~Y = Sum + (Carry << 1).  comp2 compares a = Sum against b = ~(Carry << 1):
+  // its a - b = Sum + (Carry << 1) + 1 = X - Y, the one carry chain.  So comp2's eq is X == Y, and its
+  // unsigned lt is X < Y once corrected for the two carries that fall off the top bit: Carry's top bit and
+  // slot 0's own carry out of P + Q (made from the top bits of P, Q and slot 0's sum, ready alongside).
+  // Signed: X < Y signed is X < Y unsigned, flipped when X and Y have different sign bits.
+  //   add t0, a1, a2  ; blt t0, a3, L   is a1 + a2 < a3?   (P = a1, Q = a2, Y = a3)
+  //   li  t0, 5       ; beq a4, t0, L   is 0 + 5 == a4?    (P = x0, Q = 5,  Y = a4)
+  // When slot 0's result is rs2 (blt a3, t0), comp2 still answers X < Y, and Y < X = not (X < Y or X == Y).
+  // When it is both (beq t0, t0), the operands are equal.
+  logic [P.XLEN-1:0] Logic0E;                        // Slot 0's logic result, remade from its ALU inputs
+  logic [P.XLEN-1:0] FuseYE, NotYE;                  // Y: the branch operand that is not slot 0's result, and ~Y
+  logic [P.XLEN-1:0] CsaSumE, CsaCarryE;             // P + Q + ~Y as two numbers: Sum + (Carry << 1)
   logic [P.XLEN-1:0] Cmp2AE, Cmp2BE;                 // Slot 1's comparator inputs
-  mux2  #(P.XLEN)  cmp2amux(ForwardedSrc2AE, IEUResultE, FuseBrA2E, Cmp2AE);
-  mux2  #(P.XLEN)  cmp2bmux(ForwardedSrc2BE, IEUResultE, FuseBrB2E, Cmp2BE);
-  comparator #(P.XLEN) comp2(Cmp2AE, Cmp2BE, BranchSigned2E, Flags2E);
+  logic [1:0]        CmpFlags2E;                     // comp2's {eq, lt}
+  logic              CarryOutE;                      // Carry out of slot 0's P + Q
+  logic              LtuE, LtE;                      // Fused add: X < Y unsigned, X < Y as the branch asks
+
+  always_comb
+    case (ALUSelectE[1:0])                           // slot 0's ALUSelect: 100 xor, 110 or, 111 and
+      2'b00:   Logic0E = SrcAE ^ SrcBE;
+      2'b10:   Logic0E = SrcAE | SrcBE;
+      default: Logic0E = SrcAE & SrcBE;
+    endcase
+
+  mux2  #(P.XLEN)  fuseymux(ForwardedSrc2AE, ForwardedSrc2BE, FuseBrA2E, FuseYE);  // slot 0's is rs1: Y is rs2
+  assign NotYE     = ~FuseYE;
+  assign CsaSumE   = SrcAE ^ SrcBE ^ NotYE;                                       // full adder sum, per bit
+  assign CsaCarryE = (SrcAE & SrcBE) | (SrcAE & NotYE) | (SrcBE & NotYE);         // full adder carry, per bit
+
+  // select: 00 slot 1's own register, 01 logic result, 1x carry-save (an add replaces both inputs)
+  mux3  #(P.XLEN)  cmp2amux(ForwardedSrc2AE, Logic0E, CsaSumE, {FuseBrAdd2E, FuseBrA2E}, Cmp2AE);
+  mux3  #(P.XLEN)  cmp2bmux(ForwardedSrc2BE, Logic0E, ~{CsaCarryE[P.XLEN-2:0], 1'b0}, {FuseBrAdd2E, FuseBrB2E}, Cmp2BE);
+  comparator #(P.XLEN) comp2(Cmp2AE, Cmp2BE, BranchSigned2E & ~FuseBrAdd2E, CmpFlags2E);  // an add compares unsigned
+
+  assign CarryOutE = SrcAE[P.XLEN-1] & SrcBE[P.XLEN-1] | (SrcAE[P.XLEN-1] | SrcBE[P.XLEN-1]) & ~IEUAdrRawE[P.XLEN-1];
+  assign LtuE      = CmpFlags2E[0] ^ CsaCarryE[P.XLEN-1] ^ CarryOutE;
+  assign LtE       = BranchSigned2E ? LtuE ^ IEUAdrRawE[P.XLEN-1] ^ FuseYE[P.XLEN-1] : LtuE;  // IEUAdrRawE: P + Q
+
+  always_comb
+    if      (FuseBrA2E & FuseBrB2E) Flags2E = 2'b10;                                  // beq t0, t0: equal
+    else if (~FuseBrAdd2E)          Flags2E = CmpFlags2E;                             // not fused, or a logic op
+    else if (FuseBrA2E)             Flags2E = {CmpFlags2E[1], LtE};                   // blt X, Y
+    else                            Flags2E = {CmpFlags2E[1], ~LtE & ~CmpFlags2E[1]}; // blt Y, X
   // Slot 1 sits one instruction after slot 0, so its PC is PCLinkE (= PCE + 4, since the issue
   // rules require an uncompressed slot 0).  Using PCE here would make every paired auipc off by 4.
   mux2  #(P.XLEN)  srcamux2(ForwardedSrc2AE, PCLinkE, ALUSrcA2E, SrcA2E);

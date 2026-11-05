@@ -72,6 +72,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   output logic                 LateOK2D,                                 // Slot 1 is an operation the late ALU implements
   output logic                 Fuse2D,                                   // The pair is fused into one indexed load (issue.sv)
   output logic                 FuseBr2D,                                 // The pair is fused into one ALU op + branch (issue.sv)
+  output logic                 FuseBrAdd2D,                              // ... and slot 0 is an add (else a logic op)
   output logic                 Issue2M, Issue2W,                         // ... and in Memory / Writeback, where it commits
   input  logic                 Replay2M,                                 // Slot 1's memory operation faulted; refetch it alone
   output logic                 PredTakenE,                               // Fetch went to slot 0's predicted target
@@ -167,6 +168,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   logic                        LateOK2F;                                 // ... and whether slot 1 could run on the late ALU
   logic                        Fuse2F;                                   // ... and whether the pair fuses into one indexed load
   logic                        FuseBr2F;                                 // ... or into one ALU op + branch
+  logic                        FuseBrAdd2F;                              // ... whose slot 0 is an add
   logic                        Kill2E;                                   // Slot 1 issued but must not commit
   logic                        Commit2E;                                 // Slot 1 issued and will commit
   logic                        BPPCSrcF;                                 // Branch predictor says this fetch is a taken branch or jump
@@ -418,7 +420,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Decide in Fetch whether both slots may issue together.  This has to happen here rather than in
   // Decode because the PC advance below depends on it: a bundle of two advances the PC by both
   // lengths at once.  When Issue2F is low the core behaves exactly as single-issue Wally.
-  issue #(P) issue(.Instr0F(InstrRawF), .Instr1F(Instr2RawF), .Instr2ValidF, .BPPCSrcF, .Issue2F, .LateA2F, .LateB2F, .LateOK2F, .Fuse2F, .FuseBr2F);
+  issue #(P) issue(.Instr0F(InstrRawF), .Instr1F(Instr2RawF), .Instr2ValidF, .BPPCSrcF, .Issue2F, .LateA2F, .LateB2F, .LateOK2F, .Fuse2F, .FuseBr2F, .FuseBrAdd2F);
 
   assign IFUCacheBusStallF = ICacheStallF | BusStall;
   // The fetch side owns the stall for an unresolved ITLB miss / A update: the pipeline holds until the walker
@@ -438,7 +440,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Which way fetch went after slot 0: a late branch (ieu.sv) keeps that direction until Memory checks it.
   flopenrc #(1)      PredTakenDReg(clk, reset, FlushD, ~StallD, BPPCSrcF, PredTakenD);
   flopenrc #(1)      PredTakenEReg(clk, reset, FlushE, ~StallE, PredTakenD, PredTakenE);
-  flopenrc #(5)      Late2DReg(clk, reset, FlushD, ~StallD, {LateA2F, LateB2F, LateOK2F, Fuse2F, FuseBr2F}, {LateA2D, LateB2D, LateOK2D, Fuse2D, FuseBr2D});
+  flopenrc #(6)      Late2DReg(clk, reset, FlushD, ~StallD, {LateA2F, LateB2F, LateOK2F, Fuse2F, FuseBr2F, FuseBrAdd2F}, {LateA2D, LateB2D, LateOK2D, Fuse2D, FuseBr2D, FuseBrAdd2D});
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // PCNextF logic

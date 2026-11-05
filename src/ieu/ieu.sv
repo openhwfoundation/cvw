@@ -38,6 +38,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   input  logic              LateOK2D,                         // Slot 1 is an operation the late ALU implements
   input  logic              Fuse2D,                           // The pair is fused into one indexed load (issue.sv)
   input  logic              FuseBr2D,                         // The pair is fused into one ALU op + branch (issue.sv)
+  input  logic              FuseBrAdd2D,                      // ... and slot 0 is an add (else a logic op)
   output logic              FuseM,                            // ... which is now in Memory
   input  logic              Replay2M,                         // ... and faulted: slot 0 commits as the add alone
   input  logic              PredTakenE,                       // Fetch went to slot 0's branch target (predicted taken)
@@ -209,6 +210,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   logic       UnfuseW;                                        // The fused load faulted: slot 0 writes the add's sum
   logic [2:0] ResultSrc0W;                                    // Slot 0's writeback select from the controller
   logic       FuseBrA2E, FuseBrB2E;                           // Fused ALU + branch: slot 1's rs1 / rs2 is slot 0's result
+  logic       FuseBrAdd2E;                                    // Fused ALU + branch whose slot 0 is an add (else a logic op)
 
   logic [2:0] ForwardAE, ForwardBE;                           // Select signals for forwarding multiplexers
   logic       RegWriteW;                                      // Register will be written in Writeback stage
@@ -377,7 +379,9 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
   // and the offset, so LateSelA2E/LateSelB2E below are 00.  And slot 0 is then never late itself (Late0D
   // and LateBrD refuse when LateA2DQ/LateB2DQ is set), so its result is ready in Execute.
   //   addi t0, t0, -1 ; bnez t0, L      FuseBrA2E = 1: compare slot 0's t0 with x0
-  flopenrc #(2) FuseBrEReg(clk, reset, FlushE | ~Issue2D, ~StallE, {FuseBr2D & LateA2DQ, FuseBr2D & LateB2DQ}, {FuseBrA2E, FuseBrB2E});
+  flopenrc #(3) FuseBrEReg(clk, reset, FlushE | ~Issue2D, ~StallE,
+                           {FuseBr2D & LateA2DQ, FuseBr2D & LateB2DQ, FuseBr2D & FuseBrAdd2D & (LateA2DQ | LateB2DQ)},
+                           {FuseBrA2E, FuseBrB2E, FuseBrAdd2E});
 
   // The late ALU also takes an operand that the bundle now in Execute produces too late to forward --
   // a load, a multiply or divide, a CSR read or an FPU-to-integer move in slot 0, or a load, multiply
@@ -575,7 +579,7 @@ module ieu import cvw::*;  #(parameter cvw_t P) (
     .ImmSrc2D, .Instr2D, .Rs1_2D, .Rs2_2D, .Rs2_2E, .Forward2AE, .Forward2BE,                       // slot 1
     .ALUSrcA2E, .ALUSrcB2E, .ALUResultSrc2E, .ALUSelect2E, .Funct3_2E, .Funct7_2E,                  // slot 1
     .W64_2E, .UW64_2E, .SubArith2E, .BSelect2E, .ZBBSelect2E, .BALUControl2E, .BMUActive2E, .CZero2E, // slot 1
-    .BranchSigned2E, .Flags2E, .IEUAdr2E, .Jump2E, .PCLink2E, .FuseBrA2E, .FuseBrB2E,               // slot 1 branch / jal
+    .BranchSigned2E, .Flags2E, .IEUAdr2E, .Jump2E, .PCLink2E, .FuseBrA2E, .FuseBrB2E, .FuseBrAdd2E, // slot 1 branch / jal
     .RegWrite2W, .Rd2W,                                                                             // slot 1 write port
     .Mem2E, .ResultSrc2W,                                                                           // slot 1 memory steering
     .Mdu2E, .MDUSrcAE, .MDUSrcBE,                                                                   // slot 1 multiply steering

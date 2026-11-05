@@ -54,7 +54,8 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   output logic        LateA2F, LateB2F, // Slot 1's rs1 / rs2 is slot 0's rd: its operand comes from the late ALU's bypass
   output logic        LateOK2F,         // Slot 1 is an operation the late ALU implements
   output logic        Fuse2F,           // The pair is fused into one indexed load, executed by slot 0
-  output logic        FuseBr2F          // The pair is fused into one ALU op + compare-and-branch
+  output logic        FuseBr2F,         // The pair is fused into one ALU op + compare-and-branch
+  output logic        FuseBrAdd2F       // ... and slot 0 is an add (else a logic op); see datapath.sv
 );
 
   // Opcodes
@@ -97,6 +98,8 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   logic       IsJal0F, IsJal1F;           // Each slot is a jal, c.j or c.jal
   logic       FuseAdd0F;                  // Slot 0 is add, sh1add, sh2add, sh3add, c.add or c.mv
   logic       FuseLoad1F;                 // Slot 1 is a load with offset 0
+  logic       FuseBrAdd0F;                // Slot 0 is add, addi, c.addi, c.li, c.mv or c.add (li, mv are addi)
+  logic       FuseBrLogic0F;              // Slot 0 is and, or, xor, andi, ori, xori, c.andi, c.and, c.or or c.xor
 
   assign Op0F      = Instr0F[6:0];
   assign Op1F      = Instr1F[6:0];
@@ -307,10 +310,31 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // other branch.
   //   andi a5, a5, 1   ; bnez a5, L        branch if (a5 & 1) != 0
   //   addw a5, a5, a4  ; blt  a5, s1, L    branch if (a5 + a4) < s1
-  // Slot 0 must be an integer ALU operation, whose result is ready at the end of Execute (Slot0EarlyF);
-  // the other slot 1 branch rules (Branch1OKF) still apply.  The register fields of a branch are exact, so
-  // SameRdF (rd is immediate bits there) does not apply.
-  assign FuseBr2F = Slot0EarlyF & IsBranch1F & SrcDepF;
+  // Slot 0 must be an add or a logic op: the two kinds the branch can compare without waiting for slot 0's
+  // ALU (datapath.sv), which keeps the fused pair off the critical path.  An add (li and mv are addi) is
+  // compared by carry-save; a logic op has no carry chain, so its result is remade beside the comparator.
+  // sub, shifts, slt, lui, auipc, the *w ops and Zb ops do not fuse.  The other slot 1 branch rules
+  // (Branch1OKF) still apply.  The register fields of a branch are exact, so SameRdF (rd is immediate bits
+  // there) does not apply.
+  //   compressed:  c.addi 01_000, c.li 01_010, c.mv/c.add 10_100 (rs2 != 0, else c.jr/c.jalr/c.ebreak)
+  //                c.andi 01_100 [11:10]=10;  c.xor/c.or/c.and 01_100 [11:10]=11, [12]=0, [6:5]!=00 (00 is c.sub)
+  //   32-bit:      addi, add (funct3 000);  xor(i) 100, or(i) 110, and(i) 111;  add/xor/or/and need funct7 = 0
+  always_comb
+    if (~&Instr0F[1:0]) begin
+      FuseBrAdd0F   = ({Instr0F[1:0], Instr0F[15:13]} == 5'b01_000) |                                // c.addi
+                      ({Instr0F[1:0], Instr0F[15:13]} == 5'b01_010) |                                // c.li
+                      ({Instr0F[1:0], Instr0F[15:13]} == 5'b10_100) & (Instr0F[6:2] != 5'b0);        // c.mv, c.add
+      FuseBrLogic0F = ({Instr0F[1:0], Instr0F[15:13]} == 5'b01_100) &
+                      ((Instr0F[11:10] == 2'b10) |                                                   // c.andi
+                       (Instr0F[11:10] == 2'b11) & ~Instr0F[12] & (Instr0F[6:5] != 2'b00));          // c.xor, c.or, c.and
+    end else begin
+      FuseBrAdd0F   = ((Op0F == OP_IMM) | (Op0F == OP) & (Instr0F[31:25] == 7'b0)) & (Instr0F[14:12] == 3'b000);
+      FuseBrLogic0F = ((Op0F == OP_IMM) | (Op0F == OP) & (Instr0F[31:25] == 7'b0)) &
+                      Instr0F[14] & (Instr0F[13:12] != 2'b01);                                       // 100, 110, 111
+    end
+
+  assign FuseBr2F    = (FuseBrAdd0F | FuseBrLogic0F) & IsBranch1F & SrcDepF;
+  assign FuseBrAdd2F = FuseBrAdd0F;
 
   // Macro-op fusion: Indexed Load (Celio et al., arXiv 1607.02318).  An add whose only use is as the
   // address of the load right after it, which then overwrites it, is fused with that load into one
