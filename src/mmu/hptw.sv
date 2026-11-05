@@ -114,6 +114,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   logic                     InvalidPTEFaultM;
   logic                     WalkPageFaultM;
   logic                     HPTWFaultM;
+  logic                     HPTWAccessFaultEn;
 
   // map hptw access faults onto either the original LSU load/store fault or instruction access fault
   assign LSUAccessFaultM         = LSULoadAccessFaultM | LSUStoreAmoAccessFaultM;
@@ -126,8 +127,10 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   assign HPTWStoreAmoPageFault   = WalkPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
   assign HPTWInstrPageFault      = WalkPageFaultM & ~DTLBWalk;
 
+  assign HPTWAccessFaultEn = WalkerState != FAULT;
+
   // The fault registers hold while the walker waits in FAULT for a committed IFU fetch to finish.
-  flopenr #(6) HPTWAccessFaultReg(clk, reset, WalkerState != FAULT, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
+  flopenr #(6) HPTWAccessFaultReg(clk, reset, HPTWAccessFaultEn, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
                                                HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
                                   {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
                                    HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
