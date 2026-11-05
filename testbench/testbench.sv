@@ -525,6 +525,12 @@ module testbench;
           $display("Functional coverage test complete.");
         `else
           if (selfcheck_record_addr != 0) CheckSelfCheck(ElfFile, selfcheck_record_addr, errors);
+          else if (P.DEBUG_SUPPORTED && debugfile != "none") begin
+            // Debug test: check the Spike signature and the DMI responses
+            CheckSignature("", ElfFile.substr(0, ElfFile.len()-5), 0, begin_signature_addr, errors);
+            if (errors == 0 && DebuggerErrors == 0) $display("SUCCESS! All tests ran without failures.");
+            else $display("FAIL: %0d signature errors, %0d DMI mismatches", errors, DebuggerErrors);
+          end
           else $display("Single Elf file tests are not signatured verified.");
         `endif
 `ifdef QUESTA

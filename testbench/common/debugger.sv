@@ -47,7 +47,18 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
   input string filename,
   output int unsigned DebuggerErrors
 );
-  localparam int tcktime = 52;
+  // TCK half-period in time units. A "tck <n>" testvector line changes it
+  // until the end of that test.
+  localparam int TCKTIME = 52;
+  int tcktime = TCKTIME;
+
+  // Instruction currently in the DTM's IR, as far as the debugger knows.
+  // Raw "ir"/"tlr" testvector lines change it; DMI lines reselect dmi.
+  logic [4:0] cur_ir = 5'h11;
+
+  // Run-Test/Idle cycles before each raw scan ("rti <n>" lines). 0 goes
+  // from Update-xR straight to Select-DR-Scan.
+  int rti_cycles = 1;
 
   // ANSII color codes
   string red     = "\033[1;31m"; // Red text
@@ -69,6 +80,24 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
   endfunction
 
   assign DebuggerErrors = DebuggerErrors_int;
+
+  // Setters for the raw-JTAG state, which the Debugger class changes
+  // (Verilator can't write module variables directly from a class).
+  function void setTckTime(input int t);
+    tcktime = t;
+  endfunction
+
+  function void setRtiCycles(input int n);
+    rti_cycles = n;
+  endfunction
+
+  function void setCurIr(input logic [4:0] ir);
+    cur_ir = ir;
+  endfunction
+
+  function logic [4:0] getCurIr();
+    return cur_ir;
+  endfunction
 
   // ----------------------------------------------------------------
   //  Write instruction task.
@@ -119,6 +148,45 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     #(tcktime) tck = ~tck;          // go high
   endtask
 
+  // ----------------------------------------------------------------
+  //  Raw JTAG scans (testvector lines "ir", "dr", "tlr")
+  // ----------------------------------------------------------------
+
+  // One TCK cycle. TDO changes on the falling edge, so it is sampled
+  // just before the rising edge that shifts tdi_i in.
+  task automatic jtag_cycle_rise(input logic tms_i, input logic tdi_i, output logic tdo_o);
+    #(tcktime) tck = 0;
+    tms = tms_i;
+    tdi = tdi_i;
+    #(tcktime) tdo_o = tdo;
+    tck = 1;
+  endtask
+
+  // IR or DR scan of width bits (<= 64), starting in Run-Test/Idle or
+  // Update-xR and ending in Update-xR. out[k] is the k-th bit shifted
+  // out (bit 0 = LSB of the captured value).
+  task automatic raw_scan(input bit ir, input int width, input logic [63:0] val,
+                          output logic [63:0] out);
+    logic o;
+    out = '0;
+    repeat (rti_cycles) jtag_cycle_rise(1'b0, 1'b0, o); // Run-Test/Idle
+    jtag_cycle_rise(1'b1, 1'b0, o);                     // Select-DR-Scan
+    if (ir) jtag_cycle_rise(1'b1, 1'b0, o);             // Select-IR-Scan
+    jtag_cycle_rise(1'b0, 1'b0, o);                     // Capture-xR
+    jtag_cycle_rise(1'b0, 1'b0, o);                     // capture, -> Shift-xR
+    for (int k = 0; k < width; k++) begin
+      jtag_cycle_rise(k == width - 1, val[k], o);       // last bit -> Exit1-xR
+      out[k] = o;
+    end
+    jtag_cycle_rise(1'b1, 1'b0, o);                     // Update-xR
+  endtask
+
+  // Test-Logic-Reset by holding TMS high, then Run-Test/Idle.
+  task automatic jtag_tlr();
+    logic o;
+    repeat (5) jtag_cycle_rise(1'b1, 1'b0, o);
+    jtag_cycle_rise(1'b0, 1'b0, o);
+  endtask
 
   // JTAG_DR Class that generalizes the task of reading and writing
   // to the Test Data Regisers.
@@ -259,9 +327,21 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
     logic [15:0] last_abstract_reg;
     logic [2:0]  last_aarsize;
 
+    // Raw JTAG lines, each run just before DMI testvector [vecidx]
+    typedef struct {
+      string       kind;     // "ir", "dr", "tlr", "tck", "rti"
+      int          width;    // scan width, or the tck/rti argument
+      logic [63:0] tdi, expected, mask, alt, altmask;
+      int          vecidx;
+      string       text;
+    } rawop_t;
+    rawop_t rawops[$];
+
     // For running testvectors instead of the encapsulated tests.
     logic [40:0] testvectors[$];
     logic [40:0] expected_outputs[$];
+    logic [40:0] cmpmask[$];   // response bits compared ("x " = none, mask= data bits)
+    bit          strict;       // "#pragma strict": no knownExceptions
 
     // Error tracking
     int          error_locations[$];
@@ -294,6 +374,7 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       // Set instruction DMI
       write_instr(5'b10001);
+      setCurIr(5'h11);
     endtask
 
     task init_dm();
@@ -399,17 +480,53 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
 
       testvectors = {};
       expected_outputs = {};
+      cmpmask = {};
+      rawops = {};
+      strict = 0;
+      setTckTime(TCKTIME);
+      setRtiCycles(1);
       while (!$feof(file)) begin
         if ($fgets(line, file) != 0) begin
+          bit dontcompare;
+          if (line.substr(0, 13) == "#pragma strict") begin
+            strict = 1;
+            continue;
+          end
           // Allow comments and whitespace
           if (line[0] == "#" | line[0] == " " | line[0] == "\n") begin
             continue;
           end
+          // "x " marks a vector whose response is not compared
+          dontcompare = (line[0] == "x" & line[1] == " ");
+          if (dontcompare) line = line.substr(2, line.len() - 1);
 
           // Split needs to be a function with side effects apparently
           // because the old way of returning a Queue was not
           // compatible with Verilator.
           split(line, " ", items);
+
+          // Raw JTAG lines: "ir|dr <width> <tdi>[ -> <tdo> mask=<m>[ alt=<v>/<m>]]",
+          // "tlr", "tck <n>", "rti <n>" (hex without 0x)
+          if (items[0] == "ir" | items[0] == "dr" | items[0] == "tlr" |
+              items[0] == "tck" | items[0] == "rti") begin
+            rawop_t r;
+            r.kind = items[0];
+            r.width = (items.size() > 1) ? items[1].atoi() : 0;
+            r.tdi = '0; r.expected = '0; r.mask = '0; r.alt = '0; r.altmask = '0;
+            if (items.size() > 2) void'($sscanf(items[2], "%h", r.tdi));
+            if (!dontcompare & items.size() > 5) begin
+              void'($sscanf(items[4], "%h", r.expected));
+              void'($sscanf(items[5].substr(5, items[5].len() - 1), "%h", r.mask));
+              if (items.size() > 6)
+                void'($sscanf(items[6].substr(4, items[6].len() - 1), "%h/%h", r.alt, r.altmask));
+            end
+            r.vecidx = testvectors.size();
+            r.text = (line[line.len() - 1] == "\n") ? line.substr(0, line.len() - 2) : line;
+            rawops.push_back(r);
+            continue;
+          end
+
+          cmpmask.push_back(dontcompare ? 41'b0 : {41{1'b1}});
 
           // These values must be converted to the right bit widths
           // for Verilator.
@@ -424,6 +541,10 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
             32'(items[5].atohex()),
             op_decode(items[4], 1)}
           );
+
+          // Optional "mask=<hex>": compare only these data bits
+          if (items.size() > 7 && items[7].substr(0, 4) == "mask=")
+            cmpmask[cmpmask.size()-1][33:2] = 32'(items[7].substr(5, 12).atohex());
         end
       end
 
@@ -641,11 +762,23 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
      */
     task run_testvectors();
       logic exception;
+      int   rp;        // next raw JTAG line
       // Reset errors back to zero
       error_locations = {};
       setDebuggerErrors(0);
       this.getEndVector();
+      rp = 0;
       foreach (testvectors[i]) begin
+        // Raw JTAG lines that come before this DMI vector
+        while (rp < rawops.size() && rawops[rp].vecidx == i) begin
+          this.run_rawop(rawops[rp], rp);
+          rp++;
+        end
+        if (getCurIr() != 5'h11) begin // a raw IR scan or TLR changed the IR
+          write_instr(5'h11);
+          setCurIr(5'h11);
+        end
+
         if (i == endIndex - 1) begin
           this.reportErrors();
         end
@@ -667,14 +800,14 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
         // $display("\033[1mtestvector\033[0m[%0d]: \033[1m addr:\033[0m %2h, data: %8h, op: %2b", i, this.testvectors[i][40:34], this.testvectors[i][33:2], this.testvectors[i][1:0]);
 
         if (state == DATA0_READ | state == DATA1_READ | state == DMREG_READ | state == ABSTRACT_READ) begin
-          exception = this.knownExceptions(this.expected_outputs[i], this.dmireg.result);
+          exception = ~strict & this.knownExceptions(this.expected_outputs[i], this.dmireg.result);
         end
 
         // Update State after using the previous state to determine exception value
         this.changeState(testvectors[i]);
 
         // Assert that the output should equal what Spike outputs.
-        assert(this.dmireg.result == expected_outputs[i] | exception | i == 0) begin
+        assert(((this.dmireg.result ^ expected_outputs[i]) & cmpmask[i]) == '0 | exception | i == 0) begin
           string green   = "\033[1;32m"; // Green text
           string normal  = "\033[0m";    // Reset to default
           exception = 0;
@@ -693,6 +826,34 @@ module debugger import cvw::*;  #(parameter cvw_t P)(
           error_locations.push_back(i);
         end
       end
+    endtask
+
+    // Run one raw JTAG line and compare its TDO under the mask.
+    task run_rawop(rawop_t r, int idx);
+      logic [63:0] out;
+      string red    = "\033[1;31m"; // Red text
+      string normal = "\033[0m";    // Reset to default
+      case (r.kind)
+        "tck": setTckTime(r.width);
+        "rti": setRtiCycles(r.width);
+        "tlr": begin
+          jtag_tlr();
+          setCurIr(5'h01); // IDCODE
+        end
+        default: begin
+          raw_scan(r.kind == "ir", r.width, r.tdi, out);
+          if (r.kind == "ir") setCurIr(5'(r.tdi >> (r.width - 5))); // last 5 bits in
+          if (((out ^ r.expected) & r.mask) != '0 &&
+              !(r.altmask != '0 && ((out ^ r.alt) & r.altmask) == '0)) begin
+            $display("%sFAILED:%s raw JTAG scan %0d (before DMI vector %0d): %s",
+                     red, normal, idx, r.vecidx, r.text);
+            $display("  Expected = %h mask %h%s", r.expected, r.mask,
+                     r.altmask != '0 ? $sformatf(" (or %h mask %h)", r.alt, r.altmask) : "");
+            $display("  Actual   = %h", out);
+            error_locations.push_back(r.vecidx);
+          end
+        end
+      endcase
     endtask
 
     function void getEndVector();

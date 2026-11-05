@@ -9,8 +9,10 @@
 
 import argparse
 import os
-import socket
+import re
+import selectors
 import subprocess
+import threading
 import time
 
 WALLY = os.environ.get("WALLY")
@@ -18,6 +20,7 @@ DEBUGTESTS = f"{WALLY}/tests/debug/build"
 ISA = "rv64gc_zicsr"
 ISA32 = "rv32gcB_Zicbom_Zicsr_zicntr"
 RBBPORT = "9824"
+OPENOCD_TIMEOUT = 600  # seconds; a stuck OpenOCD fails the test instead of hanging make
 
 SPIKEARGS = [
     "spike",
@@ -34,34 +37,36 @@ SPIKEARGS = [
 # --------------------------------------------------------------------
 # Port control
 # --------------------------------------------------------------------
-def find_free_port(host = "127.0.0.1"):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, 0))
-        return s.getsockname()[1]
+# Spike is started with --rbb-port=0, so the kernel picks a free port
+# when Spike binds it, and Spike prints the port it got. Choosing a
+# port in this script first and passing it to Spike races with other
+# parallel generators, which can then attach OpenOCD to the wrong Spike.
+LISTENING = re.compile(r"Listening for remote bitbang connection on port (\d+)")
 
-def is_port_in_use(port, host = "127.0.0.1"):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind((host, port))
-            return False          # we succeeded → nothing is listening
-        except OSError:
-            return True           # address in use → server is up
-
-def wait_for_port(port, host = "127.0.0.1",
-                  timeout = 10.0,
-                  process = None):
+def wait_for_port(process, timeout = 10.0):
+    sel = selectors.DefaultSelector()
+    sel.register(process.stdout, selectors.EVENT_READ)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if process is not None and process.poll() is not None:
+        if not sel.select(timeout=deadline - time.monotonic()):
+            break
+        line = process.stdout.readline()
+        if not line:
             raise RuntimeError(
-                f"Server process exited early (return code {process.returncode})"
+                f"Spike exited early (return code {process.wait()})"
             )
-        if is_port_in_use(port, host):
-            return
-        time.sleep(0.05)
-    raise TimeoutError(f"Nothing listening on {host}:{port} after {timeout}s")
+        print(line, end="")
+        m = LISTENING.search(line)
+        if m:
+            # Keep passing Spike's output through so its pipe never fills.
+            threading.Thread(target=copy_output, args=(process.stdout,),
+                             daemon=True).start()
+            return m.group(1)
+    raise TimeoutError(f"Spike did not report its port after {timeout}s")
+
+def copy_output(stream):
+    for line in stream:
+        print(line, end="")
 
 # --------------------------------------------------------------------
 # Argument parsing
@@ -86,20 +91,19 @@ def parse_args():
 # --------------------------------------------------------------------
 # Processes
 # --------------------------------------------------------------------
-def start_spike(test, isa, port = "9824"):
-    print(f"Launching Spike with port: {port}")
+def start_spike(test, isa):
+    print("Launching Spike")
     spikeargs = SPIKEARGS[:]
 
     if (isa == "32"):
         spikeargs[1] = f"--isa={ISA32}"
         #spikeargs[7] = f"--dm-datacount=1" # default is 2 in Spike, despite 32 bit or 64 bit architectures
 
-    if (port):
-        spikeargs[2] = f"--rbb-port={port}"
+    spikeargs[2] = "--rbb-port=0"
     spikeargs = spikeargs + \
         [f"+signature={os.path.splitext(test)[0]}.signature.output", test]
     print(" ".join(spikeargs))
-    return subprocess.Popen(spikeargs)
+    return subprocess.Popen(spikeargs, stdout=subprocess.PIPE, text=True)
 
 def start_openocd(tclscript, isa, elf, port = "9824"):
     print(f"Launching OpenOCD with port: {port}")
@@ -108,7 +112,8 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
 
     # Parallel OpenOCD instances will collide on gdb/telnet/and tcl
     # ports, so disabling those ports for parallel test generation is
-    # necessary.
+    # necessary. Disable them before the test script runs init, which
+    # opens the ports.
 
     openocd_args = [
         "openocd",
@@ -118,7 +123,7 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
         "-c", f"set ISA32 {1 if isa == '32' else 0}",
         "-c", f"set BUILD_DIR {build_dir}",
         "-c", f"set TEST_NAME {test_name}",
-        "-c", f"source {tclscript}"
+        "-c", f"source {tclscript}",
     ]
     print(" ".join(openocd_args))
     return subprocess.Popen(openocd_args)
@@ -126,19 +131,24 @@ def start_openocd(tclscript, isa, elf, port = "9824"):
 # --------------------------------------------------------------------
 
 def main(args):
-    port = find_free_port()
-
-    spikeinst = start_spike(args.test, args.isa, port)
+    spikeinst = start_spike(args.test, args.isa)
 
     try:
-        wait_for_port(port, process=spikeinst)
+        port = wait_for_port(spikeinst)
     except Exception:
         spikeinst.kill()
         spikeinst.wait()
         raise
 
     openocd_proc = start_openocd(args.tcl, args.isa, args.test, port)
-    openocd_proc.wait()
+    try:
+        openocd_proc.wait(timeout=OPENOCD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        openocd_proc.kill()
+        openocd_proc.wait()
+        spikeinst.kill()
+        spikeinst.wait()
+        raise RuntimeError(f"OpenOCD did not finish within {OPENOCD_TIMEOUT}s")
     try:
         spikeinst.wait(timeout=1)  # Some tests end after OpenOCD finishes. Have to wait for them.
     except subprocess.TimeoutExpired:

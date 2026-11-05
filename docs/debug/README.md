@@ -83,6 +83,9 @@ Wally currently targets:
 Development continues toward expanded functionality and improved
 tool interoperability.
 
+The debug tests, and how to generate their testvectors on Spike, are
+described in [tests/debug/README.md](../../tests/debug/README.md).
+
 ---
 
 ## Note on Spike Debug Compatibility
