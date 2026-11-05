@@ -26,7 +26,7 @@
 // OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ///////////////////////////////////////////
 
-module hptw import cvw::*;  #(parameter cvw_t P) (
+module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic [P.XLEN-1:0] SATP_REGW,              // includes SATP.MODE to determine number of levels in page table
   input  logic [P.XLEN-1:0] PCSpillF,               // addresses to translate
@@ -107,7 +107,6 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic                     HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay;
   logic                     HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault;
   logic                     HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay;
-  logic                     HPTWAccessFaultDelay;
   logic                     TakeHPTWFault;
   logic                     NonLeafReservedFaultM;
   logic                     DAUFaultM;
@@ -126,10 +125,10 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   assign HPTWStoreAmoPageFault   = WalkPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
   assign HPTWInstrPageFault      = WalkPageFaultM & ~DTLBWalk;
 
-  flopr #(6) HPTWAccesFaultReg(clk, reset, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
-                                            HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
-                               {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
-                                HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
+  flopr #(6) HPTWAccessFaultReg(clk, reset, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
+                                             HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
+                                {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
+                                 HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
 
   assign TakeHPTWFault = WalkerState != IDLE;
 
@@ -221,7 +220,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     mux2 #(P.PA_BITS) HPTWWriteAdrMux(HPTWReadAdr, HPTWWriteAdr, SelHPTWWriteAdr, HPTWAdr);
 
     assign {Dirty, Accessed} = PTE[7:6];
-    assign WriteAccess = MemRWM[0] | CMOpM[3]; // implies | (|AtomicM); cbo.zero needs W and sets D, as in tlbcontrol
+    assign WriteAccess = MemRWM[0] | CMOpM[CMO_ZERO]; // implies | (|AtomicM); cbo.zero needs W and sets D, as in tlbcontrol
     assign SetDirty = ~Dirty & DTLBWalk & WriteAccess;
     assign ReadAccess = MemRWM[1] | (|CMOpM[2:0]); // cbo.clean/flush/inval need R (or X with MXR), as in tlbcontrol
 
@@ -271,11 +270,11 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
   always_comb
     case (WalkerState)
-      L4_RD:  NextPageType = 3'b100; // petapage
-      L3_RD:  NextPageType = 3'b011; // terapage
-      L2_RD:  NextPageType = 3'b010; // gigapage
-      L1_RD:  NextPageType = 3'b001; // megapage
-      L0_RD:  NextPageType = 3'b000; // kilopage
+      L4_RD:   NextPageType = PETAPAGE;  // petapage // exclusion-tag: hptw-pagetype-l4
+      L3_RD:   NextPageType = TERAPAGE;  // terapage
+      L2_RD:   NextPageType = GIGAPAGE;  // gigapage // exclusion-tag: hptw-pagetype-l2
+      L1_RD:   NextPageType = MEGAPAGE;  // megapage
+      L0_RD:   NextPageType = KILOPAGE;  // kilopage
       default: NextPageType = PageType;
     endcase
 
@@ -309,7 +308,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   if (P.XLEN == 32) begin
     assign InitialWalkerState = L1_ADR;
     assign MegapageMisaligned = |(CurrentPPN[9:0]); // must have zero PPN0
-    assign Misaligned = (WalkerState == LEAF) & (PageType == 3'b001) & MegapageMisaligned;
+    assign Misaligned = (WalkerState == LEAF) & (PageType == MEGAPAGE) & MegapageMisaligned;
   end else begin
     logic PetapageMisaligned, TerapageMisaligned, GigapageMisaligned;
     assign InitialWalkerState = (P.SV57_SUPPORTED & SvMode == P.SV57) ? L4_ADR :
@@ -320,10 +319,10 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign GigapageMisaligned =                    |(CurrentPPN[17:0]); // Must have zero PPN1 and PPN0
     assign MegapageMisaligned = |(CurrentPPN[8:0]);  // Must have zero PPN0
     assign Misaligned = (WalkerState == LEAF) &
-                        ((P.SV57_SUPPORTED & (PageType == 3'b100) & PetapageMisaligned) |
-                         (P.SV48_SUPPORTED & (PageType == 3'b011) & TerapageMisaligned) |
-                                            ((PageType == 3'b010) & GigapageMisaligned) |
-                                            ((PageType == 3'b001) & MegapageMisaligned));
+                        ((P.SV57_SUPPORTED & (PageType == PETAPAGE) & PetapageMisaligned) |
+                         (P.SV48_SUPPORTED & (PageType == TERAPAGE) & TerapageMisaligned) |
+                                            ((PageType == GIGAPAGE) & GigapageMisaligned) |
+                                            ((PageType == MEGAPAGE) & MegapageMisaligned));
   end
 
   // Page Table Walker FSM
@@ -332,7 +331,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     case (WalkerState)
       IDLE:       if (AcceptReq)                                           NextWalkerState = InitialWalkerState;
                   else                                                     NextWalkerState = IDLE;
-      L4_ADR:                                                              NextWalkerState = L4_RD; // First access in SV57
+      L4_ADR:                                                              NextWalkerState = L4_RD; // First access in SV57 // exclusion-tag: hptw-l4-adr
       L4_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L4_RD;
                   else                                                     NextWalkerState = L3_ADR;   // Transition to level 3
@@ -347,10 +346,10 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
                   else                                                     NextWalkerState = LEAF;
       L2_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L2_RD;
-                  else                                                     NextWalkerState = L1_ADR;
-      L1_ADR:     if (HPTWFaultM)                                          NextWalkerState = FAULT;
+                  else                                                     NextWalkerState = L1_ADR; // exclusion-tag: hptw-l2-rd-next
+      L1_ADR:     if (HPTWFaultM)                                          NextWalkerState = FAULT; // exclusion-tag: hptw-l1-adr-fault
                   else if (InitialWalkerState == L1_ADR | ValidNonLeafPTE) NextWalkerState = L1_RD; // First access in SV32
-                  else                                                     NextWalkerState = LEAF;
+                  else                                                     NextWalkerState = LEAF; // exclusion-tag: hptw-l1-adr-leaf
       L1_RD:      if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = L1_RD;
                   else                                                     NextWalkerState = L0_ADR;
@@ -365,7 +364,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
                   else if (DTLBWalk & ITLBWalkPending)                     NextWalkerState = InitialWalkerState; // DTLB walk done; chain directly to the pending ITLB walk
                   else                                                     NextWalkerState = IDLE;
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
-                  else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE;
+                  else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE; // exclusion-tag: hptw-update-pte-wait
                   else                                                     NextWalkerState = LEAF;
       FAULT:                                                               NextWalkerState = IDLE;
       default:                                                             NextWalkerState = IDLE; // Should never be reached

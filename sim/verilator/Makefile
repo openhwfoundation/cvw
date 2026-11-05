@@ -13,9 +13,19 @@ PARAM_ARGS  =               # Compile-time parameter overrides (e.g. MAKE_VCD=1)
 DEFINE_ARGS =               # Compile-time defines (e.g. +define+USE_IMPERAS_DV)
 BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARGS vary;
                             # computed by wsim to avoid shell-escaping issues in Make
+FCOV       ?= 0             # 1 compiles in the riscv-arch-test covergroups (wsim --fcov)
 
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
+
+# Speed-optimized model for long runs.  wsim sets SPEED_OPT=1 for Linux boots (the buildroot test).
+# Verilator compiles the generated C++ with -Os by default.  -O2 makes Linux boots 12-20% faster for
+# about 20% more compile CPU time.  -O3 (with Verilator's own -O3) boots about 3% faster than -O2 but
+# runs CoreMark and riscv-arch-test tests 4-5% slower and costs another 20% of compile time.
+# Multithreading (--threads) made it slower.
+ifeq ($(SPEED_OPT),1)
+    VERILATOR_FLAGS += --MAKEFLAGS OPT_FAST=-O2 --MAKEFLAGS OPT_SLOW=-O1 --MAKEFLAGS OPT_GLOBAL=-O2
+endif
 
 # Compiling the generated C++ dominates the build, and Verilator does it serially by default.
 JOBS ?= $(shell nproc)
@@ -35,6 +45,25 @@ SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/
 # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
 ifneq ($(findstring RVVI_SYNTH_SUPPORTED=1,$(PARAM_ARGS)),)
     SOURCES += ${WALLY}/addins/verilog-ethernet/*/*.sv ${WALLY}/addins/verilog-ethernet/*/*/*/*.sv
+endif
+
+# Functional coverage comes from riscv-arch-test: riscv_arch_test.sv instantiates the generated
+# covergroups and samples them off the RVVI trace.  It needs four include paths: its own sources,
+# the generated coverpoints, the test environment for derived_config.svh, and the env directory of
+# the matching ACT configuration (cvw-<config>) for the generated rvtest_config.svh and
+# rvmodel_macros.svh.  wsim passes +define+FCOV and a +define+<GROUP>_COVERAGE for each covergroup
+# in DEFINE_ARGS, and names the coverage file at run time.
+ifeq ($(strip $(FCOV)),1)
+    ACT_DIR = ${WALLY}/addins/riscv-arch-test
+    FCOV_SRC = $(ACT_DIR)/framework/src/act/fcov
+    # riscv-arch-test's covergroups still draw Verilator warnings, which are not Wally's to fix, so
+    # report them without stopping the build.  Some bin arrays sweep more values than Verilator's
+    # default limit of 1024 (e.g. all 2^14 compressed encodings), so raise the limit to keep them.
+    VERILATOR_FLAGS += --coverage-user --coverage-max-bins 16384 -Wno-fatal
+    INCLUDE_PATH += "-I$(FCOV_SRC)" "-I$(ACT_DIR)/coverpoints" "-I$(ACT_DIR)/coverpoints/unpriv" \
+                    "-I$(ACT_DIR)/coverpoints/priv" "-I$(ACT_DIR)/tests/env" \
+                    "-I$(ACT_DIR)/work/cvw-$(strip $(WALLYCONF))/env"
+    SOURCES := $(FCOV_SRC)/rvviTrace.sv $(FCOV_SRC)/riscv_arch_test.sv $(SOURCES)
 endif
 
 # Convert PARAM_ARGS entries (e.g. "MAKE_VCD=1") into verilator -G flags (e.g. "-GMAKE_VCD=1")

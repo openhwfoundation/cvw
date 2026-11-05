@@ -16,40 +16,40 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module mmu import cvw::*;  #(parameter cvw_t P,
-                             parameter TLB_ENTRIES = 8, IMMU = 0) (
-  input  logic                 clk, reset,
-  input  logic [P.XLEN-1:0]    SATP_REGW,          // Current value of satp CSR (from privileged unit)
-  input  logic                 STATUS_MXR,         // Status CSR: make executable page readable
-  input  logic                 STATUS_SUM,         // Status CSR: Supervisor access to user memory
-  input  logic                 STATUS_MPRV,        // Status CSR: modify machine privilege
-  input  logic [1:0]           STATUS_MPP,         // Status CSR: previous machine privilege level
-  input  logic                 ENVCFG_PBMTE,       // Page-based memory types enabled
-  input  logic                 ENVCFG_ADUE,        // HPTW A/D Update enable
-  input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processor
-  input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
-  input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
-  input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
-  input  logic [P.XLEN-1:0]    PTE,                // page table entry
-  input  logic [2:0]           PageTypeWriteVal,   // page type
-  input  logic                 TLBWrite,           // write TLB entry
-  input  logic                 TLBFlush,           // Invalidate all TLB entries (ASID-specific preserves global)
-  input  logic                 TLBFlushAll,        // Flush global (G=1) entries too; when 0, G=1 entries are preserved
-  output logic [P.PA_BITS-1:0] PhysicalAddress,    // PAdr when no translation, or translated VAdr (TLBPAdr) when there is translation
-  output logic                 TLBMiss,            // Miss TLB
-  output logic                 Cacheable,          // PMA indicates memory address is cacheable
-  output logic                 Idempotent,         // PMA indicates memory address is idempotent
-  output logic                 SelTIM,             // Select a tightly integrated memory
+module mmu import cvw::*; #(parameter cvw_t P,
+                            parameter TLB_ENTRIES = 8, IMMU = 0) (
+  input  logic                     clk, reset,
+  input  logic [P.XLEN-1:0]        SATP_REGW,          // Current value of satp CSR (from privileged unit)
+  input  logic                     STATUS_MXR,         // Status CSR: make executable page readable
+  input  logic                     STATUS_SUM,         // Status CSR: Supervisor access to user memory
+  input  logic                     STATUS_MPRV,        // Status CSR: modify machine privilege
+  input  logic [1:0]               STATUS_MPP,         // Status CSR: previous machine privilege level
+  input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
+  input  logic [1:0]               PrivilegeModeW,     // Current privilege level of the processor
+  input  logic                     DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
+  input  logic [P.XLEN+1:0]        VAdr,               // virtual/physical address from IEU or physical address from HPTW
+  input  logic [1:0]               Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
+  input  logic [P.XLEN-1:0]        PTE,                // page table entry
+  input  logic [2:0]               PageTypeWriteVal,   // page type
+  input  logic                     TLBWrite,           // write TLB entry
+  input  logic                     TLBFlush,           // Invalidate all TLB entries (ASID-specific preserves global)
+  input  logic                     TLBFlushAll,        // Flush global (G=1) entries too; when 0, G=1 entries are preserved
+  output logic [P.PA_BITS-1:0]     PhysicalAddress,    // PAdr when no translation, or translated VAdr (TLBPAdr) when there is translation
+  output logic                     TLBMiss,            // Miss TLB
+  output logic                     Cacheable,          // PMA indicates memory address is cacheable
+  output logic                     Idempotent,         // PMA indicates memory address is idempotent
+  output logic                     SelTIM,             // Select a tightly integrated memory
   // Faults
-  output logic                 InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // access fault sources
-  output logic                 InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // page fault sources
-  output logic                 UpdateDA,                                                  // TLB hit needs to set the dirty or access bit
-  output logic                 LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // misaligned fault sources
+  output logic                     InstrAccessFaultF, LoadAccessFaultM, StoreAmoAccessFaultM, // access fault sources
+  output logic                     InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM,       // page fault sources
+  output logic                     UpdateDA,                                                  // TLB hit needs to set the dirty or access bit
+  output logic                     LoadMisalignedFaultM, StoreAmoMisalignedFaultM,            // misaligned fault sources
   // PMA checker signals
-  input  logic [3:0]           CMOpM,                                                     // Cache management instructions
-  input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
-  input var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
-  input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0]                   // PMP addresses
+  input  logic [3:0]               CMOpM,                                                     // Cache management instructions
+  input  logic                     AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
+  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0]                      // PMP addresses
 );
 
   logic [P.PA_BITS-1:0]        TLBPAdr;                  // physical address for TLB
@@ -133,10 +133,10 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Misaligned faults
   always_comb // exclusion-tag: immu-wordaccess
     case (Size)
-      2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu
-      2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu
+      2'b00:  DataMisalignedM = 1'b0;              // lb, sb, lbu // exclusion-tag: mmu-size-byte
+      2'b01:  DataMisalignedM = VAdr[0];           // lh, sh, lhu // exclusion-tag: mmu-size-half
       2'b10:  DataMisalignedM = VAdr[1] | VAdr[0]; // lw, sw, flw, fsw, lwu
-      2'b11:  DataMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd
+      2'b11:  DataMisalignedM = |VAdr[2:0];        // ld, sd, fld, fsd // exclusion-tag: mmu-size-double
     endcase
 
   // When ZICCLSM_SUPPORTED, misaligned cacheable loads and stores are handled in hardware so they do not throw a misaligned fault
@@ -155,9 +155,9 @@ module mmu import cvw::*;  #(parameter cvw_t P,
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.
-  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss;
-  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss;
-  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss;
+  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss; // exclusion-tag: mmu-instr-fault
+  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss; // exclusion-tag: mmu-load-fault
+  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss; // exclusion-tag: mmu-store-fault
 
   // Specify which type of page fault is occurring
   assign InstrPageFaultF    = TLBPageFault & ExecuteAccessF;

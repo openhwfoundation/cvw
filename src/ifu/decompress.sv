@@ -15,7 +15,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-module decompress import cvw::*;  #(parameter cvw_t P) (
+module decompress import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0] InstrRawD,         // 32-bit instruction or raw compressed 16-bit instruction in bottom half
   output logic [31:0] InstrD,            // Decompressed instruction
   output logic        IllegalCompInstrD  // Invalid decompressed instruction

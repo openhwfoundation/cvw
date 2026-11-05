@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module align import cvw::*;  #(parameter cvw_t P) (
+module align import cvw::*; #(parameter cvw_t P) (
   input  logic                    clk,
   input  logic                    reset,
   input  logic                    StallM, FlushM,
@@ -27,7 +27,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   input  logic                    FpLoadStoreM, // Floating point Load or Store
   input  logic [1:0]              MemRWM,
   input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM, // D$ read data, two LLEN words wide
-  input  logic                    CacheBusHPWTStall, // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
+  input  logic                    CacheBusHPTWStall,        // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
   input  logic                    SelHPTW,
   input  logic                    DataFaultM,   // This M-stage access raises a page or access fault: do not take the spill
 
@@ -48,7 +48,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   localparam LLENINBYTES = P.LLEN/8;
   localparam OFFSET_BIT_POS = $clog2(P.DCACHE_LINELENINBITS/8);
   // A spill occurs when a misaligned access crosses a cache line boundary
-  typedef enum logic [1:0]  {STATE_READY, STATE_SPILL, STATE_STORE_DELAY} statetype;
+  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
 
   statetype          CurrState, NextState;
   logic              ValidSpillM;
@@ -117,7 +117,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   // Don't take the spill if there is a stall or the access faults.  A faulting access must keep presenting the
   // original address: the fault is recomputed combinationally each cycle and would vanish at the second-half
   // address while a committed I$ fill defers the trap, losing the exception and half-executing a store.
-  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPWTStall & ~DataFaultM;
+  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPTWStall & ~DataFaultM;
 
   always_ff @(posedge clk)
     if (reset | FlushM)    CurrState <= STATE_READY;
@@ -134,7 +134,7 @@ module align import cvw::*;  #(parameter cvw_t P) (
   end
 
   assign SelSpillM = CurrState == STATE_SPILL;
-  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPWTStall);
+  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPTWStall);
   assign SpillSaveM = (CurrState == STATE_READY) & ValidSpillM & ~FlushM;
   assign SpillStallM = SelSpillE;
 
