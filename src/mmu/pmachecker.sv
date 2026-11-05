@@ -40,9 +40,9 @@ module pmachecker import cvw::*; #(parameter cvw_t P) (
   logic                        SelExtIO, SelExtMem;
 
   // Determine what type of access is being made
-  assign AccessRW  = ReadAccessM | WriteAccessM;
+  assign AccessRW  = ReadAccessM | WriteAccessM; // exclusion-tag: pma-access-rw
   assign AccessRWXC = ReadAccessM | WriteAccessM | ExecuteAccessF | (|CMOpM);
-  assign AccessRX  = ReadAccessM | ExecuteAccessF;
+  assign AccessRX  = ReadAccessM | ExecuteAccessF; // exclusion-tag: pma-access-rx
 
   // Determine which region of physical memory (if any) is being accessed
   // SelRegions: 0 none, 1 DTIM, 2 IROM, 3 EXT_MEM, 4 BOOTROM, 5 UNCORE_RAM, 6 CLINT, 7 GPIO, 8 UART, 9 PLIC, 10 SDC, 11 SPI, 12 PWM
@@ -52,7 +52,7 @@ module pmachecker import cvw::*; #(parameter cvw_t P) (
   // peripheral): still decoded and routed as EXT_MEM, but not cacheable, not
   // idempotent, not atomic and not executable.
   adrdec #(P.PA_BITS) extiodec(PhysicalAddress, P.EXT_IO_BASE[P.PA_BITS-1:0], P.EXT_IO_RANGE[P.PA_BITS-1:0], P.EXT_IO_SUPPORTED, AccessRWXC, Size, 4'b1111, SelExtIO);
-  assign SelExtMem = SelRegions[3] & ~SelExtIO;
+  assign SelExtMem = SelRegions[3] & ~SelExtIO; // exclusion-tag: sel-ext-mem
 
   // Only non-core RAM/ROM memory regions are cacheable. PBMT can override cacheable; NC and IO are uncachable
   assign CacheableRegion = SelExtMem | SelRegions[4] | SelRegions[5];  // exclusion-tag: unused-cacheable
@@ -70,8 +70,8 @@ module pmachecker import cvw::*; #(parameter cvw_t P) (
 
   // Detect access faults.  An address outside the physical address space selects no region.
   // A fetch from the I/O window faults, so the IFU never reads it, not even on a wrong path.
-  assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed | ExecuteAccessF & SelExtIO;
-  assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault;
-  assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMAAccessFault;
-  assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMAAccessFault;
+  assign PMAAccessFault          = (SelRegions[0] | PAOutOfRange) & AccessRWXC | AtomicAccessM & ~AtomicAllowed | ExecuteAccessF & SelExtIO; // exclusion-tag: pma-access-fault
+  assign PMAInstrAccessFaultF    = ExecuteAccessF & PMAAccessFault; // exclusion-tag: pma-instr-fault
+  assign PMALoadAccessFaultM     = ReadAccessM & ~WriteAccessM & PMAAccessFault; // exclusion-tag: pma-load-fault
+  assign PMAStoreAmoAccessFaultM = (WriteAccessM | (|CMOpM))   & PMAAccessFault; // exclusion-tag: pma-store-fault
 endmodule

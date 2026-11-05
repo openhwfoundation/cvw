@@ -36,7 +36,7 @@ module regfile #(parameter XLEN, E_SUPPORTED, LATCH_BASED) (
   // reset is intended for simulation only, not synthesis
   // can logic be adjusted to not need resettable registers?
 
-  if (LATCH_BASED) begin : latches
+  if (LATCH_BASED) begin : regs
     // Each register is a row of latches, transparent while clk is low and the register is written.
     // This replaces a flop and a write-enable mux per bit with one latch.  A clock gate per register,
     // clocked by ~clk, opens the latches; wd3 comes from a Writeback-stage flop, so it is stable while clk is low.
@@ -49,7 +49,7 @@ module regfile #(parameter XLEN, E_SUPPORTED, LATCH_BASED) (
     assign WriteData = reset ? '0 : wd3;
     always_latch
       for (i=1; i<NUMREGS; i++) if (WriteClk[i]) rf[i] = WriteData;
-  end else begin : flops
+  end else begin : regs
     always_ff @(negedge clk)
       if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;
       else       if (we3)                  rf[a3] <= wd3;
