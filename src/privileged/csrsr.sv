@@ -153,7 +153,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
           STATUS_MPIE <= STATUS_MIE;
           STATUS_MIE  <= 1'b0;
           STATUS_MPP  <= PrivilegeModeW;
-        end else if (P.S_SUPPORTED) begin // supervisor mode
+        end else if (P.S_SUPPORTED) begin // supervisor mode // exclusion-tag: csrsr-trap-to-s
           STATUS_SPIE <= STATUS_SIE;
           STATUS_SIE  <= 1'b0;
           STATUS_SPP  <= PrivilegeModeW[0];
@@ -197,6 +197,6 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_SPIE     <= P.S_SUPPORTED & CSRWriteValM[5];
         STATUS_SIE      <= P.S_SUPPORTED & CSRWriteValM[1];
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
-      end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM) STATUS_FS_INT <= 2'b11;
+      end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM) STATUS_FS_INT <= 2'b11; // exclusion-tag: csrsr-fs-dirty
     end
 endmodule
