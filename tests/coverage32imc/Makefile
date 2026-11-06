@@ -19,7 +19,8 @@ all: $(addsuffix .objdump, $(ELFS)) $(addsuffix .memfile, $(ELFS))
 %.o: %.s
 	riscv64-unknown-elf-as -g -o $@ -march=rv32imc_zicsr -mabi=ilp32 $<
 
-%.s: %.S
+# Preprocess assembly files; a test can include either of the WALLY-*.h headers
+%.s: %.S $(wildcard WALLY-*.h)
 	riscv64-unknown-elf-gcc -E -g -o $@ $<
 
 clean:
