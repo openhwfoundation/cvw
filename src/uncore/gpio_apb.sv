@@ -5,7 +5,7 @@
 // Modified: Ben Bracker bbracker@hmc.edu
 //
 // Purpose: GPIO on APB.
-//          See FE310-G002-Manual-v19p05. No interrupts, drive strength, or pull-ups.
+//          See FE310-G002-Manual-v19p05. No drive strength or pull-ups.
 //
 // Documentation: RISC-V System on Chip Design
 //
@@ -17,7 +17,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module gpio_apb import cvw::*; #(parameter cvw_t P) (
+module gpio_apb import cvw::*; #(parameter cvw_t P,
+  parameter logic [31:0] IOF0_PINS = '0,      // pins that have an IOF0
+  parameter logic [31:0] IOF1_PINS = '0) (    // pins that have an IOF1
   input  logic                PCLK, PRESETn,
   input  logic                PSEL,
   input  logic [7:0]          PADDR,
@@ -53,7 +55,7 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   logic [31:0]                input0d, input2d, input3d;
   logic [31:0]                input_val, input_en, output_en, output_val;
   logic [31:0]                rise_ie, rise_ip, fall_ie, fall_ip, high_ie, high_ip, low_ie, low_ip;
-  logic [31:0]                out_xor, iof_en, iof_sel, iof_out, gpio_out;
+  logic [31:0]                out_xor, iof_en, iof_sel, iof_out, iof_active, gpio_out;
   logic [7:0]                 entry;
   logic [31:0]                Din, Dout;
   logic                       memwrite;
@@ -104,15 +106,12 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
         endcase
       /* verilator lint_on CASEINCOMPLETE */
 
-      // interrupts can be cleared by writing corresponding bits to a register
-      if (memwrite & entry == GPIO_RISE_IP)   rise_ip <= rise_ip & ~Din;
-      else                                    rise_ip <= rise_ip | (input2d & ~input3d);
-      if (memwrite & (entry == GPIO_FALL_IP)) fall_ip <= fall_ip & ~Din;
-      else                                    fall_ip <= fall_ip | (~input2d & input3d);
-      if (memwrite & (entry == GPIO_HIGH_IP)) high_ip <= high_ip & ~Din;
-      else                                    high_ip <= high_ip | input3d;
-      if (memwrite & (entry == GPIO_LOW_IP))  low_ip  <= low_ip  & ~Din;
-      else                                    low_ip  <= low_ip  | ~input3d;
+      // interrupts are cleared by writing 1s to the corresponding bits of a *_ip register.  A condition in the
+      // same cycle still sets its bit, so a write never loses an edge or a one-cycle level on any pin.
+      rise_ip <= (rise_ip & ~((memwrite & (entry == GPIO_RISE_IP)) ? Din : '0)) | (input2d & ~input3d);
+      fall_ip <= (fall_ip & ~((memwrite & (entry == GPIO_FALL_IP)) ? Din : '0)) | (~input2d & input3d);
+      high_ip <= (high_ip & ~((memwrite & (entry == GPIO_HIGH_IP)) ? Din : '0)) | input3d;
+      low_ip  <= (low_ip  & ~((memwrite & (entry == GPIO_LOW_IP))  ? Din : '0)) | ~input3d;
 
       case (entry) // flop to sample inputs
         GPIO_INPUT_VAL:   Dout <= input_val;
@@ -144,7 +143,9 @@ module gpio_apb import cvw::*; #(parameter cvw_t P) (
   flop #(32) edgereg(PCLK, input2d, input3d);
   assign input_val = input3d;
   assign iof_out   = iof_sel & iof1 | ~iof_sel & iof0;        // per-bit mux between iof1 and iof0
-  assign gpio_out  = iof_en & iof_out | ~iof_en & output_val; // per-bit mux between IOF and output_val
+  // FE310 17.8: a pin configured for an IOF it does not have reverts to full software control
+  assign iof_active = iof_en & (iof_sel & IOF1_PINS | ~iof_sel & IOF0_PINS);
+  assign gpio_out  = iof_active & iof_out | ~iof_active & output_val; // per-bit mux between IOF and output_val
   assign GPIOOUT   = gpio_out ^ out_xor;                      // per-bit flip output polarity
   assign GPIOEN    = output_en;
 
