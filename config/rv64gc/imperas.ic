@@ -78,3 +78,8 @@
 --callcommand refRoot/cpu/setPMA -lo 0x0010040000 -hi 0x0010040FFF -attributes " rw-aA- --4- " # SPI
 --callcommand refRoot/cpu/setPMA -lo 0x0010020000 -hi 0x00100200FF -attributes " rw-aA- --4- " # PWM
 --callcommand refRoot/cpu/setPMA -lo 0x0080000000 -hi 0x0087FFFFFF -attributes " rwx--- 1248 " # UNCORE_RAM
+
+# PM overrides
+--override cpu/Smmpm=57
+--override cpu/Smnpm=57
+--override cpu/Ssnpm=57

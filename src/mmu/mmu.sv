@@ -132,7 +132,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // If RV64, pointer masking may be applicable. If PMLEN16_SUPPORTED, then MaskedVAdr has already been optionally sign extended
   // If !PMLEN16_SUPPORTED, validity checks must be turned off if the mask is applicable.
   if (P.XLEN > P.PA_BITS) begin
-    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? (PMLength ? 1'b0 : ~Translate & (|VAdr[56:P.PA_BITS])) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
+    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? ~Translate & (|VAdr[56:P.PA_BITS]) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
     else assign PAOutOfRange = ~Translate & (|MaskedVAdr[P.XLEN-1:P.PA_BITS]);
   end else                    assign PAOutOfRange = 1'b0;
   ///////////////////////////////////////////

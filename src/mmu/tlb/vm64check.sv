@@ -50,16 +50,29 @@ module vm64check import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
           (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 ))) :                             // SV48 Mode
                       (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56))));
     end else begin : dtlb // Data TLB pointer masking can turn off validity checks
-      always_comb
-        case(SATP_MODE)
-          P.SV39: if (PointerMaskApplicable) UpperBitsUnequal = PMLength ? ~((all0_46_38 & ~VAdr[47]) | (all1_46_38 & VAdr[47])): ~((all0_46_38 & all0_55_47 & ~VAdr[56]) | (all1_46_38 & all1_55_47 & VAdr[56]));
-                  else UpperBitsUnequal = ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56));
-          P.SV48: if (PointerMaskApplicable) UpperBitsUnequal = PMLength ? 1'b0 : P.SV48_SUPPORTED & ~((all0_55_47 & ~VAdr[56]) | (all1_55_47 & VAdr[56]));
-                  else UpperBitsUnequal = (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 )));
-          P.SV57: if (PointerMaskApplicable) UpperBitsUnequal = 1'b0;
-                  else UpperBitsUnequal = (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56)));
-          default: UpperBitsUnequal = 1'b0;
-        endcase
+      if (P.PMLEN16_SUPPORTED) begin
+        always_comb
+          case(SATP_MODE)
+            P.SV39: if (PointerMaskApplicable) UpperBitsUnequal = PMLength ? ~((all0_46_38 & ~VAdr[47]) | (all1_46_38 & VAdr[47])): ~((all0_46_38 & all0_55_47 & ~VAdr[56]) | (all1_46_38 & all1_55_47 & VAdr[56]));
+                    else UpperBitsUnequal = ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56));
+            P.SV48: if (PointerMaskApplicable) UpperBitsUnequal = PMLength ? 1'b0 : P.SV48_SUPPORTED & ~((all0_55_47 & ~VAdr[56]) | (all1_55_47 & VAdr[56]));
+                    else UpperBitsUnequal = (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 )));
+            P.SV57: if (PointerMaskApplicable) UpperBitsUnequal = 1'b0;
+                    else UpperBitsUnequal = (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56)));
+            default: UpperBitsUnequal = 1'b0;
+          endcase
+      end else begin
+        always_comb
+          case(SATP_MODE)
+            P.SV39: if (PointerMaskApplicable) UpperBitsUnequal = ~((all0_46_38 & all0_55_47 & ~VAdr[56]) | (all1_46_38 & all1_55_47 & VAdr[56]));
+                    else UpperBitsUnequal = ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56));
+            P.SV48: if (PointerMaskApplicable) UpperBitsUnequal = P.SV48_SUPPORTED & ~((all0_55_47 & ~VAdr[56]) | (all1_55_47 & VAdr[56]));
+                    else UpperBitsUnequal = (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 )));
+            P.SV57: if (PointerMaskApplicable) UpperBitsUnequal = 1'b0;
+                    else UpperBitsUnequal = (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56)));
+            default: UpperBitsUnequal = 1'b0;
+          endcase
+        end
       end
     end else begin
       assign SV39Mode = 1'b0;
