@@ -122,16 +122,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
         .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCM, .BPDirF, .BPDirWrongE,
         .BranchE, .BranchM, .PCSrcE);
-    end else if (P.BPRED_TYPE == BP_LOCAL_AHEAD) begin : Predictor
-      localaheadbp #(P, P.XLEN, P.BPRED_NUM_LHR, P.BPRED_SIZE) DirPredictor(.clk, .reset,
-        .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-        .PCNextF, .PCM, .BPDirD(BPDirF), .BPDirWrongE,
-        .BranchE, .BranchM, .PCSrcE);
-    end else if (P.BPRED_TYPE == BP_LOCAL_REPAIR) begin : Predictor
-      localrepairbp #(P, P.XLEN, P.BPRED_NUM_LHR, P.BPRED_SIZE) DirPredictor(.clk, .reset,
-        .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-        .PCNextF, .PCE, .PCM, .BPDirD(BPDirF), .BPDirWrongE,
-        .BranchD, .BranchE, .BranchM, .PCSrcE);
     end
 
     flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
