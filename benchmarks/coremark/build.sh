@@ -12,7 +12,7 @@ wrap=""; [[ $march == rv32* ]] && wrap="-fwrapv"
 FLAGS="-O3 -finline-functions -finline-limit=400 -falign-jumps=4 -fno-delete-null-pointer-checks -fno-rename-registers \
 --param=loop-max-datarefs-for-datadeps=0 -funroll-all-loops --param=uninlined-function-insns=8 -fno-tree-vrp $wrap -fipa-pta \
 -falign-functions=16 -mbranch-cost=1 -mtune=sifive-3-series -fno-tree-loop-distribute-patterns -fno-common -mstrict-align"
-riscv64-unknown-elf-gcc -march=$march -mabi=$mabi -mcmodel=medany -mno-relax -static -nostdlib -nostartfiles -ffreestanding \
+riscv64-unknown-elf-gcc -march=$march -mabi=$mabi -mcmodel=medany -static -nostdlib -nostartfiles -ffreestanding \
   $FLAGS -DPERFORMANCE_RUN=1 -DITERATIONS=$iters -DTOTAL_DATA_SIZE=2000 -DMAIN_HAS_NOARGC=1 \
   -DFLAGS_STR="\"$FLAGS\"" "$@" -I$P -I$C -I$cfg -T $cfg/link.ld \
   $P/crt.S $C/core_list_join.c $C/core_main.c $C/core_matrix.c $C/core_state.c $C/core_util.c \
