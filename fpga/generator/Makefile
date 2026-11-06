@@ -2,7 +2,7 @@ dst := IP
 
 all: ArtyA7
 
-.PHONY: ArtyA7 vcu118 vcu108 genesys2
+.PHONY: ArtyA7 vcu118 vcu108 genesys2 nexysa7 qmtechk7
 
 ArtyA7: export XILINX_PART := xc7a100tcsg324-1
 ArtyA7: export XILINX_BOARD := digilentinc.com:arty-a7-100:part0:1.1
@@ -32,6 +32,20 @@ genesys2: export SYSTEMCLOCK := 40000000
 genesys2: export MAXSDCCLOCK  := 10000000
 genesys2: FPGA_GENESYS2
 
+nexysa7: export XILINX_PART := xc7a100tcsg324-1
+nexysa7: export XILINX_BOARD := digilentinc.com:nexys-a7-100t:part0:1.0
+nexysa7: export board := nexysa7
+nexysa7: export SYSTEMCLOCK := 20000000
+nexysa7: export MAXSDCCLOCK  :=  10000000
+nexysa7: FPGA_NEXYSA7
+
+qmtechk7: export XILINX_PART := xc7k325tffg676-1
+qmtechk7: export XILINX_BOARD := qmtechk7
+qmtechk7: export board := qmtechk7
+qmtechk7: export SYSTEMCLOCK := 32000000
+qmtechk7: export MAXSDCCLOCK  := 10000000
+qmtechk7: FPGA_QMTECHK7
+
 # variables computed from config
 EXT_MEM_BASE = $(shell grep 'EXT_MEM_BASE' ../../config/deriv/fpga$(board)/config.vh | sed 's/.*=.*h\([[:alnum:]]*\);/0x\1/g')
 
@@ -45,6 +59,12 @@ FPGA_VCU: PreProcessFiles IP_VCU zsbl
 	vivado -mode tcl -source wally.tcl 2>&1 | tee wally.log
 
 FPGA_GENESYS2: PreProcessFiles IP_GENESYS2 zsbl
+	vivado -mode tcl -source wally.tcl 2>&1 | tee wally.log
+
+FPGA_NEXYSA7: PreProcessFiles IP_NEXYSA7 zsbl
+	vivado -mode tcl -source wally.tcl 2>&1 | tee wally.log
+
+FPGA_QMTECHK7: PreProcessFiles IP_QMTECHK7 zsbl
 	vivado -mode tcl -source wally.tcl 2>&1 | tee wally.log
 
 # Generate IP Blocks
@@ -65,6 +85,17 @@ IP_GENESYS2: $(dst)/sysrst.log \
 	$(dst)/clkconverter.log \
 	$(dst)/ahbaxibridge.log
 
+IP_NEXYSA7: $(dst)/sysrst.log \
+	MEM_NEXYSA7 \
+	$(dst)/mmcm-nexysa7.log \
+	$(dst)/clkconverter.log \
+	$(dst)/ahbaxibridge.log
+
+IP_QMTECHK7: $(dst)/sysrst.log \
+	MEM_QMTECHK7 \
+	$(dst)/mmcm-qmtechk7.log \
+	$(dst)/clkconverter.log \
+	$(dst)/ahbaxibridge.log
 # Generate Memory IP Blocks
 .PHONY: MEM_VCU MEM_Arty
 MEM_VCU:
@@ -73,6 +104,12 @@ MEM_Arty:
 	$(MAKE) $(dst)/ddr3-$(board).log
 
 MEM_GENESYS2:
+	$(MAKE) $(dst)/ddr3-$(board).log
+
+MEM_NEXYSA7:
+	$(MAKE) $(dst)/ddr2-$(board).log
+
+MEM_QMTECHK7:
 	$(MAKE) $(dst)/ddr3-$(board).log
 
 # Copy files and make necessary modifications
@@ -114,7 +151,7 @@ cleanFPGA:
 cleanAll: cleanIP cleanLogs cleanFPGA
 
 # Aliases
-.PHONY: arty artya7 VCU118 VCU108
+.PHONY: arty artya7 VCU118 VCU108 nexys nexysa7 qmtechk7
 arty artya7: ArtyA7
 VCU118: vcu118
 VCU108: vcu108

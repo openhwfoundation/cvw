@@ -9,22 +9,11 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtuslc4cmp (
@@ -86,20 +75,19 @@ module fdivsqrtuslc4cmp (
   assign mksm1[6] = -22;
   assign mksm1[7] = -23;
 
-
   // handles special case when j = 0 or j = 1 for sqrt
-  assign mkj2 = 20; // when j = 1 use mk2[101] when j = 0 use anything bigger than 7.
-  assign mkj1 = j0 ? 0 : 8; // when j = 1 use mk1[101] = 8 and when j = 0 use 0 so we choose u_0 = 1
+  assign mkj2 = 20; // when j = 1 use mks2[3'b101] = 20; when j = 0 use anything bigger than 7
+  assign mkj1 = j0 ? 0 : 8; // when j = 1 use mks1[3'b101] = 8; when j = 0 use 0 so we choose u_0 = 1
   assign sqrtspecial = SqrtE & (j1 | j0);
 
   // Choose A for current operation
- always_comb
+  always_comb
     if (SqrtE) begin
       if (Smsbs[4]) A = 3'b111; // for S = 1.0000
       else A = Smsbs[2:0];
     end else A = Dmsbs;
 
-  // Choose selection constants based on a
+  // Choose selection constants based on A
 
   assign mk2 = sqrtspecial ? mkj2 : mks2[A];
   assign mk1 = sqrtspecial ? mkj1 : mks1[A];

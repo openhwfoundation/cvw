@@ -33,7 +33,6 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
   input  logic [63:0]       MENVCFG_REGW, HENVCFG_REGW,
   input  logic [P.XLEN-1:0] SENVCFG_REGW,
   output logic [3:0]        ENVCFG_CBE,
-  output logic              ENVCFG_STCE,
   output logic              ENVCFG_PBMTE,
   output logic              ENVCFG_ADUE,
   output logic              VirtualCMOInstrM
@@ -41,7 +40,6 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
 
   // Effective envcfg controls broadcast to IEU/MMU. Machine envcfg gates all
   // lower modes; henvcfg additionally gates VS/VU behavior when V=1.
-  assign ENVCFG_STCE =  (P.H_SUPPORTED & VirtModeW) ? (HENVCFG_REGW[63] & MENVCFG_REGW[63]) : MENVCFG_REGW[63];
   assign ENVCFG_PBMTE = (P.H_SUPPORTED & VirtModeW) ? (HENVCFG_REGW[62] & MENVCFG_REGW[62]) : MENVCFG_REGW[62];
   assign ENVCFG_ADUE  = (P.H_SUPPORTED & VirtModeW) ? (HENVCFG_REGW[61] & MENVCFG_REGW[61]) : MENVCFG_REGW[61];
 

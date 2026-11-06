@@ -1,0 +1,270 @@
+#!/usr/bin/env -S uv run --script
+#
+# actconfig-sync
+# David_Harris@hmc.edu 18 September 2026
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Keep the riscv-arch-test (ACT) test-generation configurations in sync with the cvw configurations.
+#
+# cvw owns the ACT configuration for each of its configurations in config/<cfg>/act/ (test_config.yaml,
+# the UDB architecture yaml, sail.json, link.ld, rvmodel_macros.h, run_cmd.txt).  regression-wally and
+# `make act` build tests from these.  The ACT repository carries copies of the standard ones in
+# addins/riscv-arch-test/config/cores/cvw/cvw-<cfg>/ for its own CI; those copies must match cvw's.
+#
+# This script checks two things for every config/*/act directory:
+#   1. the extensions the UDB yaml declares agree with the *_SUPPORTED parameters in config.vh
+#   2. the extensions sail.json and imperas.ic enable for the reference models agree with config.vh
+#   3. if ACT has a copy of the configuration, it is identical to cvw's
+# and with --push copies cvw's configurations into the ACT tree (to be committed there).
+#
+# usage: actconfig-sync [--check] [--push] [config ...]
+
+import argparse
+import filecmp
+import json
+import os
+import re
+import shutil
+import sys
+from pathlib import Path
+
+WALLY = Path(os.environ.get("WALLY", Path(__file__).resolve().parent.parent))
+ACTDIR = Path(os.environ.get("ACTDIR", WALLY / "addins" / "riscv-arch-test"))
+ACT_CVW_CONFIGS = ACTDIR / "config" / "cores" / "cvw"
+
+# config.vh parameter -> UDB extension name.  A parameter set to 1 means the extension must be
+# implemented; 0 means it must not be listed.
+PARAM_TO_EXTENSION = {
+    "E_SUPPORTED": "E",
+    "M_SUPPORTED": "M", "ZMMUL_SUPPORTED": "Zmmul",
+    "F_SUPPORTED": "F", "D_SUPPORTED": "D", "Q_SUPPORTED": "Q", "ZFH_SUPPORTED": "Zfh", "ZFA_SUPPORTED": "Zfa",
+    "ZAAMO_SUPPORTED": "Zaamo", "ZALRSC_SUPPORTED": "Zalrsc", "ZABHA_SUPPORTED": "Zabha",
+    "ZAWRS_SUPPORTED": "Zawrs",
+    "ZCA_SUPPORTED": "Zca", "ZCB_SUPPORTED": "Zcb", "ZCF_SUPPORTED": "Zcf", "ZCD_SUPPORTED": "Zcd",
+    "ZBA_SUPPORTED": "Zba", "ZBB_SUPPORTED": "Zbb", "ZBC_SUPPORTED": "Zbc", "ZBS_SUPPORTED": "Zbs",
+    "ZBKB_SUPPORTED": "Zbkb", "ZBKC_SUPPORTED": "Zbkc", "ZBKX_SUPPORTED": "Zbkx",
+    "ZKND_SUPPORTED": "Zknd", "ZKNE_SUPPORTED": "Zkne", "ZKNH_SUPPORTED": "Zknh",
+    "ZICSR_SUPPORTED": "Zicsr", "ZIFENCEI_SUPPORTED": "Zifencei", "ZICNTR_SUPPORTED": "Zicntr", "ZIHPM_SUPPORTED": "Zihpm",
+    "ZICOND_SUPPORTED": "Zicond", "ZIMOP_SUPPORTED": "Zimop", "ZCMOP_SUPPORTED": "Zcmop", "ZICCLSM_SUPPORTED": "Zicclsm",
+    "ZICBOM_SUPPORTED": "Zicbom", "ZICBOZ_SUPPORTED": "Zicboz", "ZICBOP_SUPPORTED": "Zicbop",
+    "S_SUPPORTED": "S", "U_SUPPORTED": "U", "SSTC_SUPPORTED": "Sstc",
+    "SV32_SUPPORTED": "Sv32", "SV39_SUPPORTED": "Sv39", "SV48_SUPPORTED": "Sv48", "SV57_SUPPORTED": "Sv57",
+    "SVPBMT_SUPPORTED": "Svpbmt", "SVNAPOT_SUPPORTED": "Svnapot", "SVINVAL_SUPPORTED": "Svinval", "SVADU_SUPPORTED": "Svadu",
+}
+
+# Extensions that are always present, implied by others, or describe behavior rather than a cvw
+# parameter, so the yaml may list them without a matching parameter.
+IMPLIED_EXTENSIONS = {
+    "I", "Sm",                        # base ISA and machine mode are always implemented
+    "A", "B", "C",                    # umbrella names for Zaamo+Zalrsc, Zba+Zbb+Zbs, Zca(+Zcf/Zcd)
+    "Zfhmin",                         # implied by Zfh
+    "Zihintntl", "Zihintpause",       # hints execute as nops
+    "Zic64b", "Ziccamoa", "Ziccif", "Ziccrse", "Za64rs", "Za128rs", "Zkt",  # profile behavior guarantees
+    "Ssccptr", "Sscounterenw", "Ssstrict", "Sstvala", "Sstvecd", "Ssu64xl", "Svade", "Svbare", "Svvptc",
+}
+
+
+class bcolors:
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
+def readParams(configVh):
+    """Return {param: value} for the *_SUPPORTED localparams in a config.vh."""
+    params = {}
+    for line in configVh.read_text().splitlines():
+        m = re.match(r"\s*localparam\s+logic\s+(\w+_SUPPORTED)\s*=\s*(\d+)\s*;", line)
+        if m:
+            params[m.group(1)] = int(m.group(2))
+    return params
+
+
+def readExtensions(udbYaml):
+    """Return the set of extension names a UDB configuration yaml declares as implemented."""
+    text = udbYaml.read_text()
+    block = text.split("implemented_extensions:", 1)[1].split("\nparams:", 1)[0]
+    return set(re.findall(r"\{\s*name:\s*(\w+)", block))
+
+
+def readSailExtensions(sailJson):
+    """Return {extension: supported} from the "extensions" section of a sail.json.
+    The file carries // comment lines, which json cannot parse, so strip them first."""
+    data = json.loads(re.sub(r"^\s*//.*$", "", sailJson.read_text(), flags=re.M))
+    return {name: bool(entry.get("supported")) for name, entry in data.get("extensions", {}).items() if isinstance(entry, dict)}
+
+
+def checkSail(cfg, actDir):
+    """The Sail reference model must implement exactly the extensions config.vh enables, or its
+    expected signatures will disagree with Wally; return the number of mismatches."""
+    sailJson = actDir / "sail.json"
+    if not sailJson.is_file():
+        return 0
+    params = readParams(actDir.parent / "config.vh")
+    supported = readSailExtensions(sailJson)
+    errors = 0
+    for param, ext in PARAM_TO_EXTENSION.items():
+        # A parameter cvw never defines is a parameter cvw never implements, so absent means 0.
+        # Skipping it instead would let sail.json claim an extension that no Wally config has.
+        enabled = bool(params.get(param, 0))
+        if ext in supported and enabled != supported[ext]:
+            have = f"{param}={params[param]} in config.vh" if param in params else f"no {param} in config.vh"
+            print(f"{bcolors.FAIL}{cfg}: {have} but sail.json has {ext} supported={str(supported[ext]).lower()}{bcolors.ENDC}")
+            errors += 1
+    governed = set(PARAM_TO_EXTENSION.values())
+    for ext in sorted(e for e, on in supported.items() if on and e not in governed and e not in IMPLIED_EXTENSIONS):
+        print(f"{bcolors.FAIL}{cfg}: sail.json enables {ext}, which no config.vh parameter governs{bcolors.ENDC}")
+        errors += 1
+    # A memory region may only advertise compare-and-swap atomics when Zacas is implemented
+    if not supported.get("Zacas", False):
+        for amocas in sorted(set(re.findall(r'"atomic_support":\s*"(AMOCAS\w*)"', sailJson.read_text()))):
+            print(f"{bcolors.FAIL}{cfg}: sail.json has a memory region with atomic_support {amocas}, which requires Zacas{bcolors.ENDC}")
+            errors += 1
+    return errors
+
+
+def shortPath(path):
+    """Path relative to cvw when it lies inside the repo, else the absolute path: ACTDIR may point
+    at an ACT checkout anywhere on disk."""
+    try:
+        return path.relative_to(WALLY)
+    except ValueError:
+        return path
+
+
+def checkImperas(cfg, actDir):
+    """ImperasDV must model exactly the extensions config.vh enables.  When it does not, lockstep
+    reports mismatches that are reference-model configuration drift rather than DUT bugs; return the
+    number of mismatches.  imperas.ic lists only some extensions, so only those are checked."""
+    imperasIc = actDir.parent / "imperas.ic"
+    if not imperasIc.is_file():
+        return 0
+    params = readParams(actDir.parent / "config.vh")
+    text = imperasIc.read_text()
+    errors = 0
+    for param, ext in sorted(PARAM_TO_EXTENSION.items()):
+        m = re.search(rf"^--override cpu/{ext}=([TF])\s*$", text, re.M)
+        if m is None:
+            continue
+        enabled = bool(params.get(param, 0))
+        if enabled != (m.group(1) == "T"):
+            have = f"{param}={params[param]} in config.vh" if param in params else f"no {param} in config.vh"
+            print(f"{bcolors.FAIL}{cfg}: {have} but imperas.ic sets cpu/{ext}={m.group(1)}{bcolors.ENDC}")
+            errors += 1
+    return errors
+
+
+def udbYamlFor(actDir):
+    """The UDB yaml is the file named by udb_config in test_config.yaml."""
+    m = re.search(r"^udb_config:\s*(\S+)", (actDir / "test_config.yaml").read_text(), re.M)
+    return actDir / m.group(1)
+
+
+def checkExtensions(cfg, actDir):
+    """Compare the UDB yaml's extensions against config.vh; return the number of mismatches."""
+    configVh = actDir.parent / "config.vh"
+    params = readParams(configVh)
+    extensions = readExtensions(udbYamlFor(actDir))
+    errors = 0
+    for param, ext in PARAM_TO_EXTENSION.items():
+        # A parameter cvw never defines is a parameter cvw never implements, so absent means 0.
+        enabled = bool(params.get(param, 0))
+        if enabled and ext not in extensions:
+            print(f"{bcolors.FAIL}{cfg}: {param}=1 in config.vh but {ext} is not in the ACT yaml{bcolors.ENDC}")
+            errors += 1
+        elif not enabled and ext in extensions:
+            have = f"{param}=0 in config.vh" if param in params else f"no {param} in config.vh"
+            print(f"{bcolors.FAIL}{cfg}: {have} but {ext} is in the ACT yaml{bcolors.ENDC}")
+            errors += 1
+    governed = set(PARAM_TO_EXTENSION.values())
+    for ext in sorted(extensions - governed - IMPLIED_EXTENSIONS):
+        print(f"{bcolors.FAIL}{cfg}: ACT yaml lists {ext}, which no config.vh parameter governs{bcolors.ENDC}")
+        errors += 1
+    return errors
+
+
+def sharedTarget(link):
+    """(configuration, file) a shared-file symlink points to, for either tree's layout:
+    cvw: ../../<cfg>/act/<file>    ACT: ../cvw-<cfg>/<file>"""
+    target = Path(os.readlink(link))
+    cfg = target.parts[-3] if target.parts[-2] == "act" else target.parts[-2].removeprefix("cvw-")
+    return (cfg, target.name)
+
+
+def checkCopy(cfg, actDir):
+    """If ACT carries a copy of this configuration, report where it differs from cvw's; return the
+    number of differences.  These are warnings rather than errors: only a commit in the ACT
+    repository can settle them, and cvw's submodule pointer has to stay on an upstream commit, so a
+    cvw pull request cannot clear them.  Run --push and take the result to ACT instead."""
+    actCopy = ACT_CVW_CONFIGS / f"cvw-{cfg}"
+    if not actCopy.is_dir():
+        return 0
+    differences = 0
+    for f in sorted(actDir.iterdir()):
+        other = actCopy / f.name
+        # a shared file is a symlink to another configuration on both sides; compare where it points
+        if f.is_symlink() != other.is_symlink() or (f.is_symlink() and sharedTarget(f) != sharedTarget(other)):
+            print(f"{bcolors.WARNING}{cfg}: {shortPath(f)} and {shortPath(other)} differ in what they link to{bcolors.ENDC}")
+            differences += 1
+        elif not other.exists() or not filecmp.cmp(f, other, shallow=False):
+            print(f"{bcolors.WARNING}{cfg}: {shortPath(f)} differs from {shortPath(other)}{bcolors.ENDC}")
+            differences += 1
+    for f in sorted(actCopy.iterdir()):
+        if not (actDir / f.name).exists():
+            print(f"{bcolors.WARNING}{cfg}: {shortPath(f)} has no counterpart in cvw{bcolors.ENDC}")
+            differences += 1
+    return differences
+
+
+def push(cfg, actDir):
+    """Copy cvw's configuration over ACT's copy, if ACT has one."""
+    actCopy = ACT_CVW_CONFIGS / f"cvw-{cfg}"
+    if not actCopy.is_dir():
+        return
+    for f in actCopy.iterdir():
+        f.unlink()
+    for f in actDir.iterdir():
+        if f.is_symlink():  # ../../<other>/act/<file> in cvw is ../cvw-<other>/<file> in ACT
+            other, name = sharedTarget(f)
+            (actCopy / f.name).symlink_to(f"../cvw-{other}/{name}")
+        else:
+            shutil.copy2(f, actCopy / f.name)
+    print(f"{cfg}: copied {actDir.relative_to(WALLY)} to {actCopy.relative_to(WALLY)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="Check extension agreement and ACT copies (default)")
+    parser.add_argument("--push", action="store_true", help="Copy cvw's configurations into the ACT tree")
+    parser.add_argument("configs", nargs="*", help="Configurations to process (default: all with config/<cfg>/act)")
+    args = parser.parse_args()
+
+    actDirs = {p.parent.name: p for p in sorted((WALLY / "config").glob("*/act")) if p.is_dir()}
+    if args.configs:
+        missing = [c for c in args.configs if c not in actDirs]
+        if missing:
+            print(f"{bcolors.FAIL}No ACT configuration for: {' '.join(missing)}{bcolors.ENDC}")
+            sys.exit(1)
+        actDirs = {c: actDirs[c] for c in args.configs}
+
+    errors = staleCopies = 0
+    for cfg, actDir in actDirs.items():
+        errors += checkExtensions(cfg, actDir)
+        errors += checkSail(cfg, actDir)
+        errors += checkImperas(cfg, actDir)
+        if args.push:
+            push(cfg, actDir)
+        else:
+            staleCopies += checkCopy(cfg, actDir)
+    if staleCopies:
+        print(f"{bcolors.WARNING}actconfig-sync: {staleCopies} files differ from ACT's copies; "
+              f"run actconfig-sync --push and commit the result in {shortPath(ACTDIR)}{bcolors.ENDC}")
+    if errors:
+        print(f"{bcolors.FAIL}actconfig-sync: {errors} problems{bcolors.ENDC}")
+        sys.exit(1)
+    print(f"{bcolors.OKGREEN}actconfig-sync: ACT configurations agree with config.vh{bcolors.ENDC}")
+
+
+if __name__ == "__main__":
+    main()

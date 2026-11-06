@@ -93,7 +93,6 @@ ib1g-dev verilator cpio bc vim emacs gedit nano
 RUN pip3 install chardet==3.0.4
 RUN pip3 install urllib3==1.22
 RUN pip3 install testresources
-RUN pip3 install riscof --ignore-installed PyYAML
 RUN echo "root:wally" | chpasswd
 
 # ADD RISCV
@@ -133,16 +132,6 @@ imafc-ilp32f--;rv32imafdc-ilp32d--;rv64i-lp64--;rv64ic-lp64--;rv64iac-lp64--;rv6
 4imac-lp64--;rv64imafdc-lp64d--;rv64im-lp64--;" && \
     make --jobs && \
     make install
-
-# elf2hex
-ENV PATH=$RISCV/riscv-gnu-toolchain/bin:$PATH
-WORKDIR /opt/riscv
-RUN git clone https://github.com/sifive/elf2hex.git && \
-  cd elf2hex && \
-  autoreconf -i && \
-  ./configure --target=riscv64-unknown-elf --prefix=$RISCV && \
-  make && \
-  make install
 
 # QEMU
 WORKDIR /opt/riscv

@@ -9,28 +9,17 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fma import cvw::*;  #(parameter cvw_t P) (
   input  logic                         Xs, Ys, Zs,             // input's signs
   input  logic [P.NE-1:0]              Xe, Ye, Ze,             // input's biased exponents in B(NE.0) format
-  input  logic [P.NF:0]                Xm, Ym, Zm,             // input's significands in U(0.NF) format
+  input  logic [P.NF:0]                Xm, Ym, Zm,             // input's significands in U(1.NF) format
   input  logic                         XZero, YZero, ZZero,    // is the input zero
   input  logic [2:0]                   OpCtrl,                 // operation control
   output logic                         ASticky,                // sticky bit that is calculated during alignment
@@ -44,7 +33,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
 );
 
   //  OpCtrl:
-  //    Fma: {not multiply-add?, negate prod?, negate Z?}
+  //    Fma: {not multiply-add?, negate prod? (multiply-add) or add/sub? (otherwise), negate Z?}
   //        000 - fmadd
   //        001 - fmsub
   //        010 - fnmsub
@@ -62,7 +51,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
 
   ///////////////////////////////////////////////////////////////////////////////
   // Calculate the product
-  //      - When multipliying two fp numbers, add the exponents
+  //      - When multiplying two fp numbers, add the exponents
   //      - Subtract the bias (XExp + YExp has two biases, one from each exponent)
   //      - If the product is zero then kill the exponent
   //      - Multiply the mantissas
@@ -71,7 +60,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
   // calculate the product's exponent
   fmaexpadd #(P) expadd(.Xe, .Ye, .XZero, .YZero, .Pe);
 
-  // multiplication of the mantissa's
+  // multiplication of the mantissas
   fmamult #(P) mult(.Xm, .Ym, .Pm);
 
   // calculate the signs and take the operation into account
@@ -89,6 +78,7 @@ module fma import cvw::*;  #(parameter cvw_t P) (
 
   fmaadd #(P) add(.Am, .Pm, .Ze, .Pe, .Ps, .KillProd, .ASticky, .AmInv, .PmKilled, .InvA, .Sm, .Se, .Ss);
 
+  // LZA carry-in matches the +1 of the adder's two's complement negation of A (see fmaadd)
   fmalza #(P.FMALEN, P.NF) lza(.A(AmInv), .Pm(PmKilled), .Cin(InvA & (~ASticky | KillProd)), .sub(InvA), .SCnt);
 
 endmodule

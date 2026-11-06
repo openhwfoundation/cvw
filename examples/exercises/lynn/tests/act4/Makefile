@@ -3,7 +3,7 @@
 # kacassidy@hmc.edu
 # 1/22/26
 
-RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test-cvw
+RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test
 
 WORK_DIR        ?= $(CURDIR)/work
 STAMP           := $(WORK_DIR)/copy_stamp
@@ -20,10 +20,10 @@ $(STAMP): Makefile
 	@$(MAKE) -C $(RISCV_ARCH_TEST) \
 		CONFIG_FILES=$(CONFIG_FILES) \
 		WORKDIR=$(WORK_DIR) \
-		EXTENSIONS=I \
 		--jobs $$(nproc)
-	@rm -f $(ELFS_DIR)/Zicntr/*csrrc*
-	@rm -f $(ELFS_DIR)/Zihpm/*csrrc*
+	@rm -rf $(ELFS_DIR)/Zicsr
+	@rm -f  $(ELFS_DIR)/Zicntr/*csrrc*
+	@rm -f  $(ELFS_DIR)/Zihpm/*csrrc*
 	@touch $(STAMP)
 
 .PHONY: list-elfs

@@ -18,17 +18,6 @@
 // Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_apb import cvw::*; #(parameter cvw_t P) (
@@ -80,7 +69,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Bus interface signals
   logic [7:0]  Entry;
   logic        Memwrite;
-  logic [31:0] Din,  Dout;
+  logic [31:0] Din, Dout;
 
   // SPI Controller signals
   logic        SCLKenable;
@@ -123,6 +112,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   logic [7:0]  TransmitReg;                        // Transmit shift register
   logic [7:0]  ReceiveShiftReg;                    // Receive shift register
   logic [7:0]  TransmitDataEndian;                 // Reverses TransmitData from txFIFO if littleendian, since TransmitReg always shifts MSB
+  logic [7:0]  TransmitDataReversed;               // TransmitData from txFIFO with bit order reversed
   logic        TransmitLoad;                       // Determines when to load TransmitReg
   logic        TransmitRegLoaded;
 
@@ -130,13 +120,14 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   logic        ShiftIn;                            // Determines whether to shift from SPIIn or SPIOut (if SPI_LOOPBACK_TEST)
   logic [3:0]  LeftShiftAmount;                    // Determines left shift amount to left-align data when little endian
   logic [7:0]  ASR;                                // AlignedReceiveShiftReg
+  logic [7:0]  ASRReversed;                        // ASR with bit order reversed
 
   // CS signals
   logic [3:0]  ChipSelectAuto;                     // Assigns ChipSelect value to selected CS signal based on CS ID
   logic [3:0]  ChipSelectInternal;                 // Defines what each ChipSelect signal should be based on transmission status and ChipSelectDef
 
   // APB access
-  assign Entry = {PADDR[7:2],2'b00};  //  32-bit word-aligned accesses
+  assign Entry = {PADDR[7:2], 2'b00};  // 32-bit word-aligned accesses
   assign Memwrite = PWRITE & PENABLE & PSEL;  // Only write in access phase
   assign PREADY = 1'b1;
 
@@ -144,19 +135,19 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // -- Note SPI registers are 32 bits no matter what; access them with LW SW.
 
   assign Din = PWDATA[31:0];
-  if (P.XLEN == 64) assign PRDATA = { Dout,  Dout};
-  else              assign PRDATA =  Dout;
+  if (P.XLEN == 64) assign PRDATA = {Dout, Dout};
+  else              assign PRDATA = Dout;
 
   // Register access
-  always_ff@(posedge PCLK)
+  always_ff @(posedge PCLK)
     if (~PRESETn) begin
       SckDiv <= 12'd3;
       SckMode <= 2'b0;
       ChipSelectID <= 2'b0;
       ChipSelectDef <= 4'b1111;
       ChipSelectMode <= 2'b0;
-      Delay0 <= {8'b1,8'b1};
-      Delay1 <= {8'b0,8'b1};
+      Delay0 <= {8'b1, 8'b1};
+      Delay1 <= {8'b0, 8'b1};
       Format <= {5'b10000};
       TransmitData <= 9'b0;
       TransmitWatermark <= 3'b0;
@@ -166,7 +157,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
     end else begin // writes
       /* verilator lint_off CASEINCOMPLETE */
       if (Memwrite)
-        case(Entry) // flop to sample inputs
+        case (Entry) // register writes
           SPI_SCKDIV:  SckDiv <= Din[11:0];
           SPI_SCKMODE: SckMode <= Din[1:0];
           SPI_CSID:    ChipSelectID <= Din[1:0];
@@ -174,7 +165,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
           SPI_CSMODE:  ChipSelectMode <= Din[1:0];
           SPI_DELAY0:  Delay0 <= {Din[23:16], Din[7:0]};
           SPI_DELAY1:  Delay1 <= {Din[23:16], Din[7:0]};
-          SPI_FMT:     Format <= {Din[19:16], Din[2]};
+          SPI_FMT:     Format <= {Din[19:16], Din[2]}; // fmt fields len[19:16], endian[2]; proto and dir are not implemented
           SPI_TXDATA:  if (~TransmitFIFOFull) TransmitData[7:0] <= Din[7:0];
           SPI_TXMARK:  TransmitWatermark <= Din[2:0];
           SPI_RXMARK:  ReceiveWatermark <= Din[2:0];
@@ -187,7 +178,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
       InterruptPending[0] <= TransmitReadMark;
       InterruptPending[1] <= ReceiveWriteMark;
 
-      case(Entry) // Flop to sample inputs
+      case (Entry) // flop read data
         SPI_SCKDIV:  Dout <= {20'b0, SckDiv};
         SPI_SCKMODE: Dout <= {30'b0, SckMode};
         SPI_CSID:    Dout <= {30'b0, ChipSelectID};
@@ -266,7 +257,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
     endcase
   end
 
-  // Delayed TransmitStart signal for incrementing tx read point.
+  // Delayed TransmitStart signal for incrementing tx read pointer.
   assign TransmitStart = (CurrState == START);
   always_ff @(posedge PCLK)
     if (~PRESETn) TransmitStartD <= 1'b0;
@@ -274,7 +265,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
     else if (SCLKenable) TransmitStartD <= 1'b0;
 
   // Transmit FIFO
-  spi_fifo #(3,8) txFIFO(PCLK, 1'b1, SCLKenable, PRESETn,
+  spi_fifo #(3, 8) txFIFO(PCLK, 1'b1, SCLKenable, PRESETn,
                          TransmitFIFOWriteInc, TransmitFIFOReadInc,
                          TransmitData[7:0],
                          TransmitWriteWatermarkLevel, TransmitWatermark[2:0],
@@ -295,7 +286,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
                              EndOfFrame, ReceiveFIFOWriteInc);
 
   // Receive FIFO
-  spi_fifo #(3,8) rxFIFO(PCLK, SCLKenable, 1'b1, PRESETn,
+  spi_fifo #(3, 8) rxFIFO(PCLK, SCLKenable, 1'b1, PRESETn,
                          ReceiveFIFOWriteInc, ReceiveFIFOReadInc,
                          ReceiveShiftRegEndian, ReceiveWatermark[2:0],
                          ReceiveReadWatermarkLevel,
@@ -307,9 +298,10 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Shift Registers --------------------------------------------------
   // Transmit shift register
   assign TransmitLoad = TransmitStart | (EndOfFrame & ~TransmitFIFOEmpty);
-  assign TransmitDataEndian = Format[0] ? {<<{TransmitReadData[7:0]}} : TransmitReadData[7:0];
+  assign TransmitDataReversed = {<<{TransmitReadData[7:0]}};
+  assign TransmitDataEndian = Format[0] ? TransmitDataReversed : TransmitReadData[7:0];
   always_ff @(posedge PCLK)
-    if(~PRESETn)            TransmitReg <= 8'b0;
+    if (~PRESETn)           TransmitReg <= 8'b0;
     else if (TransmitLoad)  TransmitReg <= TransmitDataEndian;
     else if (ShiftEdge)     TransmitReg <= {TransmitReg[6:0], TransmitReg[0]};
 
@@ -323,7 +315,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
 
   // Receive shift register
   always_ff @(posedge PCLK)
-    if(~PRESETn) begin
+    if (~PRESETn) begin
       ReceiveShiftReg <= 8'b0;
     end else if (SampleEdge) begin
       ReceiveShiftReg <= {ReceiveShiftReg[6:0], ShiftIn};
@@ -332,7 +324,8 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Aligns received data and reverses if little-endian
   assign LeftShiftAmount = 4'h8 - FrameLength;
   assign ASR = ReceiveShiftReg << LeftShiftAmount[2:0];
-  assign ReceiveShiftRegEndian = Format[0] ? {<<{ASR[7:0]}} : ASR[7:0];
+  assign ASRReversed = {<<{ASR[7:0]}};
+  assign ReceiveShiftRegEndian = Format[0] ? ASRReversed : ASR[7:0];
 
   // Interrupt logic: raise interrupt if any enabled interrupts are pending
   assign SPIIntr = |(InterruptPending & InterruptEnable);
@@ -340,11 +333,11 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Chip select logic
   assign ChipSelectInternal = InactiveState ? ChipSelectDef : ~ChipSelectDef;
   always_comb
-    case(ChipSelectID[1:0])
+    case (ChipSelectID[1:0])
       2'b00: ChipSelectAuto = {ChipSelectDef[3], ChipSelectDef[2], ChipSelectDef[1], ChipSelectInternal[0]};
-      2'b01: ChipSelectAuto = {ChipSelectDef[3],ChipSelectDef[2], ChipSelectInternal[1], ChipSelectDef[0]};
-      2'b10: ChipSelectAuto = {ChipSelectDef[3],ChipSelectInternal[2], ChipSelectDef[1], ChipSelectDef[0]};
-      2'b11: ChipSelectAuto = {ChipSelectInternal[3],ChipSelectDef[2], ChipSelectDef[1], ChipSelectDef[0]};
+      2'b01: ChipSelectAuto = {ChipSelectDef[3], ChipSelectDef[2], ChipSelectInternal[1], ChipSelectDef[0]};
+      2'b10: ChipSelectAuto = {ChipSelectDef[3], ChipSelectInternal[2], ChipSelectDef[1], ChipSelectDef[0]};
+      2'b11: ChipSelectAuto = {ChipSelectInternal[3], ChipSelectDef[2], ChipSelectDef[1], ChipSelectDef[0]};
     endcase
   assign SPICS = ChipSelectMode[0] ? ChipSelectDef : ChipSelectAuto;
 

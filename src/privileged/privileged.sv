@@ -10,7 +10,7 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
@@ -28,15 +28,15 @@
 // SOFTWARE.
 ///////////////////////////////////////////
 
-module privileged import cvw::*;  #(parameter cvw_t P) (
+module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              StallD, StallE, StallM, StallW,
   input  logic              FlushD, FlushE, FlushM, FlushW,
   // CSR Reads and Writes, and values needed for traps
   input  logic              CSRReadM, CSRWriteM,                            // Read or write CSRs
-  input  logic [P.XLEN-1:0] SrcAM,                                          // GPR register to write
+  input  logic [P.XLEN-1:0] SrcAM,                                          // rs1 source operand for CSR writes
   input  logic [31:0]       InstrM,                                         // Instruction
-  input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
+  input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
@@ -50,12 +50,12 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              StoreStallD,                                    // store instruction is stalling
   input  logic              ICacheStallF,                                   // I cache stalled
   input  logic              DCacheStallM,                                   // D cache stalled
-  input  logic              BPDirWrongM,                                // branch predictor guessed wrong direction
+  input  logic              BPDirWrongM,                                    // branch predictor guessed wrong direction
   input  logic              BTAWrongM,                                      // branch predictor guessed wrong target
   input  logic              RASPredPCWrongM,                                // return address stack guessed wrong target
   input  logic              IClassWrongM,                                   // branch predictor guessed wrong instruction class
   input  logic              BPWrongM,                                       // branch predictor is wrong
-  input  logic [3:0]        IClassM,                                    // actual instruction class
+  input  logic [3:0]        IClassM,                                        // actual instruction class
   input  logic              DCacheMiss,                                     // data cache miss
   input  logic              DCacheAccess,                                   // data cache accessed (hit or miss)
   input  logic              ICacheMiss,                                     // instruction cache miss
@@ -101,11 +101,12 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   // control outputs
   output logic              RetM, TrapM,                                    // return instruction, or trap
   output logic              sfencevmaM,                                     // sfence.vma instruction
+  output logic              sfencevmaAllM,                                  // sfence.vma with rs2=x0: flush all TLB entries including global
   output logic              HLVHSVLegalM,                                   // HLV/HLVX/HSV may issue its LSU access
-  input  logic              InvalidateICacheM,                              // fence instruction
+  input  logic              InvalidateICacheM,                              // fence.i instruction
   output logic              BigEndianM,                                     // Use big endian in current privilege mode
   // Fault outputs
-  output logic              wfiM, IntPendingM                               // Stall in Memory stage for WFI until interrupt pending or timeout
+  output logic              WaitM                                           // wfi is waiting for an interrupt: stall the pipeline
 );
 
   logic [4:0]               CauseM;                                         // trap cause
@@ -121,7 +122,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   logic                     VirtualCMOInstrM;                               // CBO instruction that raises virtual-instruction
   logic                     IllegalIEUFPUInstrM;                            // Illegal IEU or FPU instruction, delayed to Mem stage
   logic                     InstrPageFaultM;                                // Instruction page fault, delayed to Mem stage
-  logic                     InstrAccessFaultM;                              // Instruction access fault, delayed to Mem stages
+  logic                     InstrAccessFaultM;                              // Instruction access fault, delayed to Mem stage
   logic                     IllegalInstrFaultM;                             // Illegal instruction fault
   logic                     STATUS_SPP, STATUS_TSR, STATUS_TW, STATUS_TVM;  // Status bits needed within privileged unit
   logic                     STATUS_MIE, STATUS_SIE;                         // status bits: interrupt enables
@@ -132,9 +133,10 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   logic                     ExceptionM;                                     // Memory stage instruction caused a fault
   logic                     HPTWInstrAccessFaultM;                          // Hardware page table access fault while fetching instruction PTE
   logic                     HPTWInstrPageFaultM;                            // Hardware page table page fault while fetching instruction PTE
-  logic                     BreakpointFaultM, EcallFaultM;                  // breakpoint and Ecall traps should retire
+  logic                     BreakpointFaultM, EcallFaultM;                  // breakpoint and Ecall traps; they do not retire
 
-  logic                     wfiW;
+  logic                     IntPendingM;                                    // a locally enabled interrupt is pending
+  logic                     WaitedM;                                        // wfi in M has waited
 
     // --- Hypervisor ---
   logic                     HSTATUS_SPV;     // from CSR (prev V for SRET in HS)
@@ -152,11 +154,11 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
 
   // decode privileged instructions
   logic VirtualInstrFaultM;
-  privdec #(P) pmd(.clk, .reset, .StallW, .FlushW, .InstrM(InstrM[31:7]),
+  privdec #(P) pmd(.clk, .reset, .StallM, .InstrM(InstrM[31:7]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM, .VirtualCSRAccessM, .VirtualCMOInstrM, .HLVHSVInstrM,
     .HLVHSVBareM, .PrivilegeModeW, .VirtModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW,
-    .HSTATUS_VTSR, .HSTATUS_VTVM, .HSTATUS_VTW, .HSTATUS_HU, .IllegalInstrFaultM, .VirtualInstrFaultM,
-    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .wfiM, .wfiW, .sfencevmaM);
+    .HSTATUS_VTSR, .HSTATUS_VTVM, .HSTATUS_VTW, .HSTATUS_HU, .IntPendingM, .IllegalInstrFaultM, .VirtualInstrFaultM,
+    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .WaitM, .WaitedM, .sfencevmaM, .sfencevmaAllM);
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,
@@ -191,6 +193,6 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
     .PrivilegeModeW, .VirtModeW,
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .STATUS_MIE, .STATUS_SIE, .VSSTATUS_SIE,
     .InstrValidM, .CommittedM, .CommittedF,
-    .TrapM, .wfiM, .wfiW, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
+    .TrapM, .WaitedM, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
     .TrapToM, .TrapToHSM, .TrapToVSM);
 endmodule

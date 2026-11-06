@@ -12,40 +12,31 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spill import cvw::*;  #(parameter cvw_t P) (
-  input logic               clk,
-  input logic               reset,
-  input logic               StallF, FlushD,
-  input logic [P.XLEN-1:0]  PCF,               // 2 byte aligned PC in Fetch stage
-  input logic [P.XLEN-1:2]  PCPlus4F,          // PCF + 4
-  input logic [P.XLEN-1:0]  PCNextF,           // The next PCF
-  input logic [31:0]        InstrRawF,         // Instruction from the IROM, I$, or bus. Used to check if the instruction if compressed
-  input logic               IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
-  input logic               ITLBMissOrUpdateAF, // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
-  input logic               CacheableF,        // Is the instruction from the cache?
+  input  logic              clk,
+  input  logic              reset,
+  input  logic              StallF, FlushD,
+  input  logic [P.XLEN-1:0] PCF,               // 2 byte aligned PC in Fetch stage
+  input  logic [P.XLEN-1:2] PCPlus4F,          // PCF + 4
+  input  logic [P.XLEN-1:0] PCNextF,           // The next PCF
+  input  logic [31:0]       InstrRawF,         // Instruction from the IROM, I$, or bus. Used to check if the instruction is compressed
+  input  logic              IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
+  input  logic              ITLBMissOrUpdateRawF, // ITLB miss or A update; not masked by a walk fault, so it blocks the spill when the first half's walk faults
+  input  logic              CacheableF,        // Is the instruction from the cache?
+  input  logic              InstrPageFaultF,   // Page fault on the first half; the spill is not taken if it faults
+  input  logic              InstrAccessFaultF, // Access fault on the first half; the spill is not taken if it faults
   output logic [P.XLEN-1:0] PCSpillNextF,      // The next PCF for one of the two memory addresses of the spill
   output logic [P.XLEN-1:0] PCSpillF,          // PCF for one of the two memory addresses of the spill
   output logic              SelSpillNextF,     // During the transition between the two spill operations, the IFU should stall the pipeline
   output logic              SelSpillF,         // Select incremented PC on a spill
-  output logic [31:0]       PostSpillInstrRawF,// The final 32 bit instruction after merging the two spilled fetches into 1 instruction
+  output logic [31:0]       PostSpillInstrRawF, // The final 32 bit instruction after merging the two spilled fetches into 1 instruction
   output logic              CompressedF);      // The fetched instruction is compressed
 
   // Spill threshold occurs when all the cache offset PC bits are 1 (except [0]).  Without a cache this is just PCF[1]
@@ -84,8 +75,12 @@ module spill import cvw::*;  #(parameter cvw_t P) (
     assign SpillF = (CacheableF ? SpillCachedF : SpillUncachedF);
   end else
     assign SpillF = PCF[1];
-  // Don't take the spill if there is a stall, TLB miss, or hardware update to the D/A bits
-  assign TakeSpillF = SpillF & ~EarlyCompressedF & ~IFUCacheBusStallF & ~ITLBMissOrUpdateAF;
+  // Don't take the spill if there is a stall, TLB miss, or hardware update to the D/A bits.
+  // Nor if the first half faults: its bits are not the instruction, so the instruction length is
+  // unknown, and the fault on the first half is reported alone at PCF.  A page table walk fault on the
+  // first half is not in InstrPageFaultF/InstrAccessFaultF; ITLBMissOrUpdateRawF blocks the spill then.
+  assign TakeSpillF = SpillF & ~EarlyCompressedF & ~IFUCacheBusStallF & ~ITLBMissOrUpdateRawF &
+                      ~InstrPageFaultF & ~InstrAccessFaultF;
 
   always_ff @(posedge clk)
     if (reset | FlushD)    CurrState <= STATE_READY;
@@ -95,7 +90,7 @@ module spill import cvw::*;  #(parameter cvw_t P) (
     case (CurrState)
       STATE_READY: if (TakeSpillF)                NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
-      STATE_SPILL: if(StallF)                     NextState = STATE_SPILL;
+      STATE_SPILL: if (StallF)                    NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
       default:                                    NextState = STATE_READY;
     endcase
@@ -115,10 +110,10 @@ module spill import cvw::*;  #(parameter cvw_t P) (
   // merge together
   mux2 #(32) postspillmux(InstrRawF, {InstrRawF[15:0], InstrFirstHalfF}, SelSpillF, PostSpillInstrRawF);
 
-  // Need to use always comb to avoid pessimistic x propagation if PostSpillInstrRawF is x
+  // Need to use always_comb to avoid pessimistic x propagation if PostSpillInstrRawF is x
   always_comb
-  if (PostSpillInstrRawF[1:0] != 2'b11) CompressedF = 1'b1;
-  else CompressedF = 1'b0;
+    if (PostSpillInstrRawF[1:0] != 2'b11) CompressedF = 1'b1;
+    else CompressedF = 1'b0;
   assign EarlyCompressedF = ~(&InstrRawF[1:0]);
 
 endmodule

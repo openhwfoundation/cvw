@@ -6,7 +6,7 @@
 // Purpose: one-hot to binary encoding.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
@@ -32,11 +32,11 @@ module binencoder #(parameter N = 8) (
 
   // behavioral description
   // this is coded as a priority encoder
-  // consider redesigning to take advanteage of one-hot nature of input
-  always_comb  begin
+  // consider redesigning to take advantage of one-hot nature of input
+  always_comb begin
     Y = '0;
-    for(index = 0; index < N; index++)
-      if(A[index] == 1'b1) Y = index[$clog2(N)-1:0];
+    for (index = 0; index < N; index++)
+      if (A[index] == 1'b1) Y = index[$clog2(N)-1:0];
   end
 
 endmodule

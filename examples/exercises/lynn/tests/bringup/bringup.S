@@ -7,6 +7,8 @@
 .extern or_test
 .extern and_test
 .extern sub_test
+.extern beq_test
+.extern slt_test
 
     .section .text.init
     .globl main
@@ -14,6 +16,8 @@
     .globl return_or_test
     .globl return_and_test
     .globl return_sub_test
+    .globl return_beq_test
+    .globl return_slt_test
     .type  main, @function
 
 main:
@@ -29,4 +33,10 @@ return_and_test:
     j sub_test
 
 return_sub_test:
+    j beq_test
+
+return_beq_test:
+    j slt_test
+
+return_slt_test:
     j pass

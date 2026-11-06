@@ -4,18 +4,13 @@
 # jcarlin@hmc.edu 7 Jul 2025
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-# the width is set by the elf's type to allow for individual elf compilation
-
-BITWIDTH = $(if $(findstring ELF32, $(shell riscv64-unknown-elf-readelf -h $<)),32, \
-	         $(if $(findstring ELF64, $(shell riscv64-unknown-elf-readelf -h $<)),64, \
-					 $(error "Unknown bit width (XLEN) for $<")))
-
+# Write through a temporary file, so that a simulation running the same ELF in parallel never reads
+# a partly written file
 %.memfile: %
-	echo "Processing $< with --bit-width ${BITWIDTH}"; \
-	riscv64-unknown-elf-elf2hex --bit-width ${BITWIDTH} --input $< --output $@
+	elf2hex $< $@.$$$$ && mv $@.$$$$ $@
 
-%.objdump.addr: %.objdump
-	extractFunctionRadix.sh $<
-
-%.objdump: %
-	riscv64-unknown-elf-objdump -S -D $< > $@
+# The label maps list the ELF's symbols; regenerate them when the extraction script changes.  The
+# testbench asks for the .addr map, so it is moved into place last: a parallel simulation that finds
+# it up to date can then also open the .lab map
+%.objdump.addr %.objdump.lab: % $(WALLY)/bin/extractFunctionRadix.sh
+	extractFunctionRadix.sh $< $*.objdump.$$$$ && mv $*.objdump.$$$$.lab $*.objdump.lab && mv $*.objdump.$$$$.addr $*.objdump.addr

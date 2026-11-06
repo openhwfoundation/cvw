@@ -36,6 +36,7 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   input  logic              VirtualCSRCAccessM,
   input  logic              TrapWritesVAToTvalM,
   input  logic              HLVHSVLegalM,
+  input  logic              MENVCFG_STCE,
   output logic [11:0]       CSRAdrM,
   output logic              VirtualCSRAccessM,
   output logic              TrapGVAM
@@ -115,9 +116,9 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
       SATP:
         HSQualifiedSCSRAccessM = P.VIRTMEM_SUPPORTED;
       STIMECMP:
-        HSQualifiedSCSRAccessM = P.SSTC_SUPPORTED;
+        HSQualifiedSCSRAccessM = (P.SSTC_SUPPORTED) & (MCOUNTEREN_REGW[1] & MENVCFG_STCE);
       STIMECMPH:
-        HSQualifiedSCSRAccessM = P.SSTC_SUPPORTED & (P.XLEN == 32);
+        HSQualifiedSCSRAccessM = P.SSTC_SUPPORTED & (P.XLEN == 32) & (MCOUNTEREN_REGW[1] & MENVCFG_STCE);
     endcase
   end
 
@@ -142,9 +143,9 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
       VSSTATUS, VSIE, VSTVEC, VSSCRATCH, VSEPC, VSCAUSE, VSTVAL, VSIP, VSATP:
         HSQualifiedVSCSRAccessM = 1'b1;
       VSTIMECMP:
-        HSQualifiedVSCSRAccessM = P.SSTC_SUPPORTED;
+        HSQualifiedVSCSRAccessM = P.SSTC_SUPPORTED & (MCOUNTEREN_REGW[1] & MENVCFG_STCE);
       VSTIMECMPH:
-        HSQualifiedVSCSRAccessM = P.SSTC_SUPPORTED & (P.XLEN == 32);
+        HSQualifiedVSCSRAccessM = (P.SSTC_SUPPORTED & (P.XLEN == 32)) & (MCOUNTEREN_REGW[1] & MENVCFG_STCE);
     endcase
   end
   /* verilator lint_on CASEINCOMPLETE */
@@ -152,14 +153,17 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   assign MapVSCSR = VirtModeW & (PrivilegeModeW == P.S_MODE) & HasVSCSR;
   mux2 #(12) csradrmux(CSRAdrM_In, {CSRAdrM_In[11:10], 2'b10, CSRAdrM_In[7:0]}, MapVSCSR, CSRAdrM);
 
+
   assign VirtualSCSRAccessM = VirtModeW & (PrivilegeModeW == P.U_MODE) & HSQualifiedSCSRAccessM;
   assign VirtualHCSRAccessM = VirtModeW & HSQualifiedHCSRAccessM;
-  assign VirtualVSCSRAccessM = VirtModeW & HSQualifiedVSCSRAccessM;
-  // norm:henvcfg-stce and norm:hcounteren_acc make VS stimecmp/vstimecmp access virtual
-  // when hcounteren.TM or henvcfg.STCE blocks it while mcounteren.TM allows it.
-  assign VirtualVSTimecmpAccessM = VirtModeW & (PrivilegeModeW == P.S_MODE) & P.SSTC_SUPPORTED &
-                                   ((CSRAdrM_In == STIMECMP) | ((P.XLEN == 32) & (CSRAdrM_In == STIMECMPH))) &
-                                   ~(MCOUNTEREN_REGW[1] & HCOUNTEREN_REGW[1] & HENVCFG_REGW[63]);
+  assign VirtualVSCSRAccessM = VirtModeW & HSQualifiedVSCSRAccessM; // Virtual modes accessing VS CSRs raise virtual exception
+  // VS access to stimecmp (remapped to vstimecmp) raises a virtual-instruction exception
+  // when hcounteren.TM or henvcfg.STCE blocks it but mcounteren.TM & menvcfg.STCE allow it
+  // (norm:henvcfg-stce, norm:hcounteren_acc). If the M-level gates block it, it is illegal instead.
+  assign VirtualVSTimecmpAccessM = VirtModeW & (PrivilegeModeW == P.S_MODE) & P.SSTC_SUPPORTED & // in VS mode
+                                   ((CSRAdrM_In == STIMECMP) | ((P.XLEN == 32) & (CSRAdrM_In == STIMECMPH))) & // accessing vstimecmp
+                                   ~(HCOUNTEREN_REGW[1] & HENVCFG_REGW[63]) &
+                                   (MCOUNTEREN_REGW[1] & MENVCFG_STCE); // not illegal instruction fault
   assign VirtualCSRAccessM = CSRReadM & (VirtualSCSRAccessM | VirtualHCSRAccessM | VirtualVSCSRAccessM |
                                          VirtualVSTimecmpAccessM | VirtualCSRCAccessM);
 

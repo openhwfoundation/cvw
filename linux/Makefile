@@ -1,3 +1,5 @@
+BUILDROOT_VERSION := 2026.02.x
+
 BUILDROOT         := buildroot
 IMAGE_DIR         := ${BUILDROOT}/output/images
 DISASSEMBLY_DIR   := ${IMAGE_DIR}/disassembly
@@ -97,14 +99,14 @@ $(DISASSEMBLY_DIR)/rootfs: $(IMAGE_DIR)/rootfs.cpio
 # Disassemble binaries
 $(DISASSEMBLY_DIR)/%.objdump: $(IMAGE_DIR)/% | $(DISASSEMBLY_DIR)
 	riscv64-unknown-elf-objdump -S $< >> $@
-	$(WALLY)/bin/extractFunctionRadix.sh $@
+	$(WALLY)/bin/extractFunctionRadix.sh $< $@
 
 # Disassemble binaries ending in .elf
 # Add -D flag back to disassemble all sections (instead of just code sections)
 # once objdump bug is fixed and the pinned version of the toolchain is updated.
 $(DISASSEMBLY_DIR)/%.objdump: $(IMAGE_DIR)/%.elf | $(DISASSEMBLY_DIR)
 	riscv64-unknown-elf-objdump -S $< >> $@
-	$(WALLY)/bin/extractFunctionRadix.sh $@
+	$(WALLY)/bin/extractFunctionRadix.sh $< $@
 
 # Load wally buildroot configuration
 config: $(BUILDROOT) $(BR2_EXTERNAL_TREE)/configs/wally_defconfig
@@ -113,7 +115,7 @@ config: $(BUILDROOT) $(BR2_EXTERNAL_TREE)/configs/wally_defconfig
 # Clone buildroot and checkout the correct version
 $(BUILDROOT):
 	git clone https://github.com/buildroot/buildroot.git $@
-	cd $@; git checkout 2024.11.x
+	cd $@; git checkout $(BUILDROOT_VERSION)
 
 # Create directories
 $(LINUX_TESTVECTORS): check_write_permissions
