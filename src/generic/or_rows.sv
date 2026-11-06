@@ -26,13 +26,11 @@ module or_rows #(parameter ROWS = 8, COLS = 2) (
   if (ROWS == 1)
     assign y = a[0];
   else begin
-    /* verilator lint_off UNOPTFLAT */
-    logic [COLS-1:0] mid[ROWS-1:1];
+    logic [COLS-1:0] mid[ROWS-1:1] /* verilator split_var */;
 
     assign mid[1] = a[0] | a[1];
     for (row = 2; row < ROWS; row++)
       assign mid[row] = mid[row-1] | a[row];
     assign y = mid[ROWS-1];
-    /* verilator lint_on UNOPTFLAT */
   end
 endmodule

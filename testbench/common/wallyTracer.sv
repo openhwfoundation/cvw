@@ -84,7 +84,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign FlushM         = testbench.dut.core.FlushM;
   assign FlushW         = testbench.dut.core.FlushW;
   assign TrapM          = testbench.dut.core.TrapM;
-  assign HaltM          = testbench.DCacheFlushStart;
+  assign HaltM          = testbench.EndTest;
   if (P.ZICSR_SUPPORTED) begin
     assign PrivilegeModeW = testbench.dut.core.priv.priv.privmode.PrivilegeModeW;
     assign STATUS_SXL     = testbench.dut.core.priv.priv.csr.csrsr.STATUS_SXL;

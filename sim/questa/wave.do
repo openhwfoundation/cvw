@@ -660,7 +660,7 @@ add wave -noupdate -group wfi /testbench/dut/core/priv/priv/pmd/PrivilegeModeW
 add wave -noupdate -group wfi /testbench/dut/core/priv/priv/pmd/waitcnt/WaitCount
 add wave -noupdate -group wfi /testbench/dut/core/priv/priv/pmd/WaitedM
 add wave -noupdate -group wfi /testbench/dut/core/priv/priv/pmd/TWTimeoutM
-add wave -noupdate -group testbench /testbench/DCacheFlushStart
+add wave -noupdate -group testbench /testbench/EndTest
 add wave -noupdate /testbench/dut/core/lsu/hptw/hptw/HPTWLoadPageFault
 add wave -noupdate /testbench/dut/core/lsu/hptw/hptw/HPTWLoadPageFaultDelay
 add wave -noupdate -group spi /testbench/dut/uncoregen/uncore/spi/spi/PCLK
