@@ -288,7 +288,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign ENVCFG_ADUE  = MENVCFG_REGW[61]; // Hardware A/D Update enable
   assign ENVCFG_CBE   = (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[7:4] :
-                                                                       (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
+                                                                        (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
   // broadcast environmental configuration pointer masking signals
   assign MENVCFG_PMM = MENVCFG_REGW[33:32];
   //SENVCFG is XLEN, when XLEN = 32 PMM doesn't exist
@@ -297,7 +297,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // FIOM presently doesn't do anything because Wally fences don't do anything
   assign ENVCFG_FIOM  = (PrivilegeModeW == P.M_MODE) ? 1'b1 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[0] :
-                                                                       (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
+                                                                        (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
   assign MSECCFG_PMM =   MSECCFG_REGW[33:32];
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM;

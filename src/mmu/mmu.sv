@@ -16,8 +16,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module mmu import cvw::*;  #(parameter cvw_t P,
-                             parameter TLB_ENTRIES = 8, IMMU = 0) (
+module mmu import cvw::*; #(parameter cvw_t P,
+                            parameter TLB_ENTRIES = 8, IMMU = 0) (
   input  logic                 clk, reset,
   input  logic [P.XLEN-1:0]    SATP_REGW,          // Current value of satp CSR (from privileged unit)
   input  logic                 STATUS_MXR,         // Status CSR: make executable page readable
@@ -26,7 +26,9 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic [1:0]           STATUS_MPP,         // Status CSR: previous machine privilege level
   input  logic                 ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                 ENVCFG_ADUE,        // HPTW A/D Update enable
-  input  logic [1:0]           MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, //Pointer mask config bits from CSR
+  input  logic [1:0]           MSECCFG_PMM,        // Pointer mask config bits from CSR
+  input  logic [1:0]           MENVCFG_PMM,        // Pointer mask config bits from CSR
+  input  logic [1:0]           SENVCFG_PMM,        // Pointer mask config bits from CSR
   input  logic [1:0]           MemRWM,             // Memory stage memory read/write decode for pointermask control
   input  logic [3:0]           CMOpMUngated,       // Ungated CMOpM used to apply pointer mask
   input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processor
