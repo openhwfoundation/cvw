@@ -67,7 +67,7 @@
 --callcommand refRoot/cpu/setPMA -lo 0x0000000000 -hi 0xFFFFFFFFFFFFFFFFFF -attributes " ---a-- ---- " # All memory inaccessible unless defined otherwise
 --callcommand refRoot/cpu/setPMA -lo 0x0000000000 -hi 0x7FFFFFFFFF -attributes " ---a-- ---- " # INITIAL
 --callcommand refRoot/cpu/setPMA -lo 0x0000001000 -hi 0x0000001FFF -attributes " r-x-A- 1248 " # BOOTROM
---callcommand refRoot/cpu/setPMA -lo 0x0002000000 -hi 0x000200FFFF -attributes " rw-aA- 1248 " # CLINT
+--callcommand refRoot/cpu/setPMA -lo 0x0002000000 -hi 0x000200FFFF -attributes " rw-aA- 124- " # CLINT: no 64-bit accesses, which are wider than the bus
 --callcommand refRoot/cpu/setPMA -lo 0x000C000000 -hi 0x000FFFFFFF -attributes " rw-aA- --4- " # PLIC
 --callcommand refRoot/cpu/setPMA -lo 0x0010000000 -hi 0x0010000007 -attributes " rw-aA- 1--- " # UART0
 --callcommand refRoot/cpu/setPMA -lo 0x0010060000 -hi 0x00100600FF -attributes " rw-aA- --4- " # GPIO

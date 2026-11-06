@@ -388,8 +388,11 @@ ExcludeTermRows $IMMU/pmachecker e {ReadAccessM_1 WriteAccessM_1 ExecuteAccessF_
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 WriteAccessM_0 |CMOpM_0}
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-rx]
 ExcludeRows $IMMU/pmachecker e {AtomicAllowed_* +AtomicAccessM_*}
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 PMAAccessFault_* +ReadAccessM_*}
-ExcludeRows $IMMU/pmachecker e {PMAAccessFault_* +|CMOpM_*}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 PMADataAccessFault_* +ReadAccessM_*}
+ExcludeRows $IMMU/pmachecker e {PMADataAccessFault_* +|CMOpM_*}
+# Every fetch is a word (Size = 2), no wider than the bus, so the IMMU never checks an access wider than the bus
+# against Cacheable: (Size > 2)_1 and the Cacheable rows, whose non-masking condition needs it, cannot be reached.
+ExcludeRows $IMMU/pmachecker e {{(Size > 2)_1} Cacheable_*}
 ExcludeTermRows $IMMU/pmp/pmpchecker e {ReadAccessM_1 WriteAccessM_1 ExecuteAccessF_0 {|CMOpM\[2:0\]_1} {CMOpM\[3\]_1}
   PMPCBOMAccessFault_1 PMPCBOZAccessFault_1 PMPCMOAccessFault_1}
 ExcludeRows $IMMU/pmp/pmpchecker e {MatchingR_* EnforcePMP_* {+|CMOpM\[2:0\]*}}
@@ -451,10 +454,10 @@ foreach dec {bootromdec uncoreramdec} {
 foreach dec {dtimdec iromdec ddr4dec sdcdec} {
   ExcludeRows $DMMU/pmachecker/adrdecs/$dec e {Match_* Supported_1 AccessValid_* SizeValid_*}
 }
-foreach dec {bootromdec uncoreramdec} {
+foreach dec {bootromdec clintdec uncoreramdec} {
   ExcludeRows $DMMU/pmachecker/adrdecs/$dec e {Supported_0 SizeValid_0}
 }
-foreach dec {clintdec gpiodec uartdec plicdec spidec pwmdec} {
+foreach dec {gpiodec uartdec plicdec spidec pwmdec} {
   ExcludeRows $DMMU/pmachecker/adrdecs/$dec e {Supported_0}
 }
 

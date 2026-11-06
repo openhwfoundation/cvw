@@ -33,8 +33,7 @@ package cvw;
     BP_GSHARE_BASIC = 3'd3,
     BP_GLOBAL_BASIC = 3'd4,
     BP_LOCAL_BASIC  = 3'd5,
-    BP_LOCAL_AHEAD  = 3'd6,
-    BP_LOCAL_REPAIR = 3'd7
+    BP_STATIC       = 3'd6   // no BTB; Decode predicts JAL and backward branches taken
   } bpred_type_t;
 
   // Shared constants; some are unused in configurations that omit the hardware using them

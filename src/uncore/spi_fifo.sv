@@ -41,22 +41,19 @@ module spi_fifo #(parameter M = 3, N = 8) (                 // 2^M entries of N 
     if (winc & wen & ~wfull) mem[waddr] <= wdata;
 
   // write and read are enabled
+  // The pointers move only when their side is enabled, but full and empty follow both pointers every
+  // cycle, so a read is seen by the write side (and a write by the read side) at once
   always_ff @(posedge PCLK)
     if (~PRESETn) begin
       rptr <= '0;
       wptr <= '0;
-      wfull <= 1'b0;
-      rempty <= 1'b1;
     end else begin
-      if (wen) begin
-        wfull <= ({~wptrnext[M], wptrnext[M-1:0]} == rptr);
-        wptr  <= wptrnext;
-      end
-      if (ren) begin
-        rptr <= rptrnext;
-        rempty <= (wptr == rptrnext);
-      end
+      if (wen) wptr <= wptrnext;
+      if (ren) rptr <= rptrnext;
     end
+
+  assign wfull  = ({~wptr[M], wptr[M-1:0]} == rptr);
+  assign rempty = (wptr == rptr);
 
   assign raddr = rptr[M-1:0];
   assign rptrnext = rptr + {{(M){1'b0}}, (rinc & ~rempty)};
