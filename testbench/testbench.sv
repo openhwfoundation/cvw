@@ -128,6 +128,8 @@ module testbench;
   logic [31:0] TohostHi;         // upper word of tohost, stored separately on RV32
   logic [63:0] TohostWord;       // the 64-bit tohost value being stored
   logic [31:0] TohostValue;      // value stored to tohost: 1 = pass, (code << 1) | 1 = fail, 0 = never written
+  localparam SIG_WORDS = 5;      // words captured from begin_signature (embench's timing and result)
+  logic [P.XLEN-1:0] Signature[SIG_WORDS-1:0];
   logic PrevPCZero;
   logic ExternalStall;
 
@@ -657,8 +659,6 @@ module testbench;
 
   // Capture the words a test stores to begin_signature (embench's timing and result) as they are stored,
   // like the tohost value, so the result does not depend on the stores reaching memory
-  localparam SIG_WORDS = 5;
-  logic [P.XLEN-1:0] Signature[SIG_WORDS-1:0];
   logic [P.XLEN-1:0] SigOffset;
   assign SigOffset = dut.core.lsu.IEUAdrM - begin_signature_addr;
   always @(posedge clk)

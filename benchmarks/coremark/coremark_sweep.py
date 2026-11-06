@@ -61,7 +61,7 @@ with open(resultfile, mode='w', newline='') as csvfile:
     fieldnames = ['Architecture', 'CM / MHz','CPI','MTIME','MINSTRET','Load Stalls','Store Stalls','D$ Accesses',
                     'D$ Misses','I$ Accesses','I$ Misses','Branches','Branch Mispredicts','BTB Misses',
                     'Jump/JR','RAS Wrong','Returns','BP Class Pred Wrong']
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames, lineterminator='\n')  # LF, like expected_coremark_results.csv
 
     writer.writeheader()
 
