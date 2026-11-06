@@ -34,6 +34,10 @@ localparam logic A_SUPPORTED = (ZAAMO_SUPPORTED & ZALRSC_SUPPORTED);
 localparam logic B_SUPPORTED = ((ZBA_SUPPORTED & ZBB_SUPPORTED & ZBS_SUPPORTED));
 localparam logic C_SUPPORTED = ZCA_SUPPORTED & (D_SUPPORTED ? ZCD_SUPPORTED : 1) & (F_SUPPORTED ? ((XLEN == 32) ? ZCF_SUPPORTED : 1) : 1);
 localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORTED & ZKND_SUPPORTED & ZKNE_SUPPORTED & ZKNH_SUPPORTED);
+// mseccfg/mseccfgh exist only when an extension defining one of their fields is implemented
+// (Smepmp, Zkr, Zicfilp, Smmpm); otherwise accesses raise illegal instruction.
+// Wally supports none of them yet.  Replace the 0 with the OR of those parameters as they are added.
+localparam logic MSECCFG_SUPPORTED = 0; // SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED | SMMPM_SUPPORTED
 
 // Configure MISA based on supported extensions
 localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,
