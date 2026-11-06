@@ -337,7 +337,6 @@ typedef struct packed {
   // largest length in IEU/FPU
   int           CVTLEN;
   int           LLEN;
-  int           IROM_LINELEN;
   int           LOGCVTLEN;
   int           NORMSHIFTSZ;
   int           LOGNORMSHIFTSZ;
