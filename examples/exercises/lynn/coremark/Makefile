@@ -13,7 +13,7 @@ LINKER     ?=
 
 WORK_DIR   ?= $(CURDIR)/work
 
-WALLY_PORT_DIR := $(WALLY)/benchmarks/coremark/riscv64-baremetal
+WALLY_PORT_DIR := $(CURDIR)
 cmbase         := $(WALLY)/addins/coremark
 
 PORT_CFLAGS ?= \
@@ -51,7 +51,7 @@ cmscript_files := \
   $(cmbase)/core_matrix.c $(cmbase)/core_state.c $(cmbase)/core_util.c
 
 cmconfig_files := \
-  $(WALLY_PORT_DIR)/core_portme.h $(CURDIR)/core_portme.c $(WALLY_PORT_DIR)/core_portme.mak \
+  $(WALLY_PORT_DIR)/core_portme.h $(CURDIR)/core_portme.c \
   $(CURDIR)/crt.S $(WALLY_PORT_DIR)/encoding.h $(CURDIR)/util.h $(CURDIR)/syscalls.c \
   $(LINKER)
 

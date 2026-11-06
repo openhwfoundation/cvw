@@ -1,57 +1,34 @@
-# Wally Coremark Makefile
+# CoreMark on CORE-V-Wally
 # Daniel Torres & David Harris 28 July 2022
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Builds the common CoreMark port (build.sh, also used for the other cores in docs/comparison.adoc)
+# with the configuration's riscv-arch-test link.ld and rvmodel_macros.h, and runs it on wsim.
+# -DWALLY_HPM adds CORE-V-Wally's performance-counter report for coremark_sweep.py.
 
-PORT_DIR = $(CURDIR)/riscv64-baremetal
-cmbase= $(WALLY)/addins/coremark
-work_dir= $(WALLY)/benchmarks/coremark/work
-XLEN ?=32
-sources=$(cmbase)/core_main.c $(cmbase)/core_list_join.c $(cmbase)/coremark.h  \
-	$(cmbase)/core_matrix.c $(cmbase)/core_state.c $(cmbase)/core_util.c \
-	$(PORT_DIR)/core_portme.h $(PORT_DIR)/core_portme.c $(PORT_DIR)/core_portme.mak \
-	$(PORT_DIR)/crt.S $(PORT_DIR)/encoding.h $(PORT_DIR)/util.h $(PORT_DIR)/syscalls.c
-ABI := $(if $(findstring "64","$(XLEN)"),lp64,ilp32)
-ARCH := rv$(XLEN)im_zicsr_zba_zbb_zbc_zbs
-CONFIG := rv$(XLEN)gc
-#ARCH := rv$(XLEN)gc
-#ARCH := rv$(XLEN)imc_zicsr
-#ARCH := rv$(XLEN)im_zicsr
-#ARCH := rv$(XLEN)i_zicsr
+XLEN ?= 32
+CONFIG ?= rv$(XLEN)gc
+ARCH ?= rv$(XLEN)im_zicsr_zba_zbb_zbc_zbs
+ABI ?= $(if $(filter 64,$(XLEN)),lp64,ilp32)
+ITERATIONS ?= 10
+# Derived configurations have no act directory; rv64gc's files serve every configuration
+ACTDIR ?= $(firstword $(wildcard $(WALLY)/config/$(CONFIG)/act) $(WALLY)/config/rv64gc/act)
+work_dir = $(CURDIR)/build/$(CONFIG)-$(ARCH)
+elf = $(work_dir)/coremark.elf
 
-# On RV64, preserving wrapping 32-bit indices prevents GCC from using efficient
-# pointer induction variables in the matrix loops. RV32 still benefits from -fwrapv.
-ifeq ($(XLEN),64)
-WRAP_FLAGS = -fno-wrapv
-else
-WRAP_FLAGS = -fwrapv
-endif
-
-PORT_CFLAGS = -g -mabi=$(ABI) -march=$(ARCH) -static -falign-functions=16 \
-	-mbranch-cost=1 -DSKIP_DEFAULT_MEMSET -mtune=sifive-3-series -O3 -finline-functions -finline-limit=400 -falign-jumps=4 \
-	-fno-delete-null-pointer-checks -fno-rename-registers --param=loop-max-datarefs-for-datadeps=0 \
-	-funroll-all-loops --param=uninlined-function-insns=8 -fno-tree-vrp $(WRAP_FLAGS) -fipa-pta \
-	-nostdlib -nostartfiles -ffreestanding -mstrict-align \
-	-DTOTAL_DATA_SIZE=2000 -DMAIN_HAS_NOARGC=1 -DPERFORMANCE_RUN=1 -DITERATIONS=10 -DXLEN=$(XLEN)
-
-all: $(work_dir)/coremark.bare.riscv.elf.memfile
+all: $(elf)
 
 # pipefail, so that a failing simulation fails the make rather than being hidden by tee
 run: SHELL := /bin/bash
 run: .SHELLFLAGS := -o pipefail -c
-run: $(work_dir)/coremark.bare.riscv.elf.memfile
-	time wsim --sim verilator ${CONFIG} --elf $(work_dir)/coremark.bare.riscv --test coremark 2>&1 | tee $(work_dir)/coremark.sim.log
+run: $(elf)
+	time wsim --sim verilator $(CONFIG) $(elf) 2>&1 | tee $(work_dir)/coremark.sim.log
 
-$(work_dir)/coremark.bare.riscv.elf.memfile: $(work_dir)/coremark.bare.riscv
-	riscv64-unknown-elf-objdump -D $< > $<.elf.objdump
-	elf2hex $< $@
+$(elf): build.sh crt.S core_portme.c core_portme.h ee_printf.c Makefile
+	OUT=$(work_dir) ./build.sh $(CONFIG) $(ACTDIR) $(ARCH) $(ABI) $(ITERATIONS) -DWALLY_HPM
+	riscv64-unknown-elf-objdump -D $@ > $@.objdump
 
-$(work_dir)/coremark.bare.riscv: $(sources) Makefile
-	$(MAKE) -C $(cmbase) PORT_DIR=$(PORT_DIR) compile RISCV=$(RISCV) XCFLAGS="$(PORT_CFLAGS)"
-	mkdir -p $(work_dir)
-	mv $(cmbase)/coremark.bare.riscv $(work_dir)
-
-.PHONY: clean
+.PHONY: all run clean
 
 clean:
-	$(MAKE) -C $(cmbase) clean
-	rm -f $(work_dir)/*
+	rm -rf build
