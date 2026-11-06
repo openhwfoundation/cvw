@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // hazard.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Katherine Parry, Jarred Allen
 //
-// Purpose: Determine stalls and flushes
+// Purpose: Pipeline stall and flush control.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module hazard (
@@ -33,7 +22,8 @@ module hazard (
   input  logic  LSUStallM, IFUStallF,
   input  logic  FPUStallD, ExternalStall, VPUFrontEndBusyD, VPUBackEndBusyE,
   input  logic  DivBusyE, FDivBusyE,
-  input  logic  wfiM, IntPendingM, VectorD, IllegalVPUInstrD,
+  input  logic  WaitM,                 // wfi in M is waiting for an interrupt
+  input  logic  VectorD, IllegalVPUInstrD,
   // Stall & flush outputs
   output logic StallF, StallD, StallE, StallM, StallW,
   output logic FlushD, FlushE, FlushM, FlushW,
@@ -41,27 +31,18 @@ module hazard (
   output logic VectorFlushD, VectorFlushE, VectorFlushM
 );
 
-  logic                                       StallFCause, StallDCause, StallECause, StallMCause, StallWCause;
-  logic                                       LatestUnstalledD, LatestUnstalledE, LatestUnstalledM, LatestUnstalledW;
-  logic                                       FlushDCause, FlushECause, FlushMCause, FlushWCause;
-
-  // for vpu
+  logic StallFCause, StallDCause, StallECause, StallMCause, StallWCause;
+  logic LatestUnstalledD, LatestUnstalledE, LatestUnstalledM;
+  logic FlushDCause, FlushECause, FlushMCause, FlushWCause;
   logic                                       VectorStallFCause;
   logic                                       VectorStallDCause;
   logic                                       VectorStallECause;
   logic                                       VectorLatestUnstalledD, VectorLatestUnstalledE, VectorLatestUnstalledM;
   logic                                       VectorFlushDCause, VectorFlushECause;
 
-
-  logic WFIStallM, WFIInterruptedM;
-
-  // WFI logic
-  assign WFIStallM = wfiM & ~IntPendingM;         // WFI waiting for an interrupt or timeout
-  assign WFIInterruptedM = wfiM & IntPendingM;    // WFI detects a pending interrupt.  Retire WFI; trap if interrupt is enabled.
-
   // stalls and flushes
   // loads: stall for one cycle if the subsequent instruction depends on the load
-  // branches and jumps: flush the next two instructions if the branch is taken in EXE
+  // branches and jumps: flush the next two instructions if the branch is mispredicted in the Execute stage
   // CSR Writes: stall all instructions after the CSR until it completes, except that PC must change when branch is resolved
   //             this also applies to other privileged instructions such as M/S/URET, ECALL/EBREAK
   // Exceptions: flush entire pipeline
@@ -72,17 +53,16 @@ module hazard (
   // If any stages are stalled, the first stage that isn't stalled must flush.
 
   // Flush causes
-  // Traps (TrapM) flush the entire pipeline.
-  //   However, breakpoint and ecall traps must finish the writeback stage (commit their results) because these instructions complete before trapping.
+  // Traps (TrapM) flush the entire pipeline, including W: the trapping instruction does not retire.
+  //   This includes ecall and ebreak, which are not considered to retire (privileged spec, Environment Call and Breakpoint).
   // Trap returns (RetM) also flush the entire pipeline after the RetM (all stages except W) because all the subsequent instructions must be discarded.
   // Similarly, CSR writes and fences flush all subsequent instructions and refetch them in light of the new operating modes and cache/TLB contents
   // Branch misprediction is found in the Execute stage and must flush the next two instructions.
   //   However, an active division operation resides in the Execute stage, and when the BP incorrectly mispredicts the divide as a taken branch, the divide must still complete
-  // When a WFI is interrupted and causes a trap, it flushes the rest of the pipeline but not the W stage, because the WFI needs to commit
   assign FlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE;
-  assign FlushECause = TrapM | RetM | CSRWriteFenceM  | (VectorD & ~IllegalVPUInstrD) | (BPWrongE & ~(DivBusyE | FDivBusyE));
+  assign FlushECause = TrapM | RetM | CSRWriteFenceM | (VectorD & ~IllegalVPUInstrD) | (BPWrongE & ~(DivBusyE | FDivBusyE)); // exclusion-tag: hzu-flushe-cause
   assign FlushMCause = TrapM | RetM | CSRWriteFenceM;
-  assign FlushWCause = TrapM & ~WFIInterruptedM;
+  assign FlushWCause = TrapM;
 
   assign VectorFlushDCause = TrapM | RetM | CSRWriteFenceM | BPWrongE;
   assign VectorFlushECause = TrapM | RetM | CSRWriteFenceM | (BPWrongE & ~(DivBusyE | FDivBusyE));
@@ -98,7 +78,7 @@ module hazard (
   assign StallFCause = '0;
   assign StallDCause = (StructuralStallD | FPUStallD | VPUFrontEndBusyD) & ~FlushDCause;
   assign StallECause = (DivBusyE | FDivBusyE | (VPUBackEndBusyE & ~VectorD)) & ~FlushECause;
-  assign StallMCause = WFIStallM & ~FlushMCause;
+  assign StallMCause = '0;
 
   assign VectorStallFCause = '0;
   assign VectorStallDCause = (StructuralStallD | FPUStallD) & ~FlushDCause;
@@ -107,7 +87,7 @@ module hazard (
   // Need to gate IFUStallF when the equivalent FlushFCause = FlushDCause = 1.
   // assign StallWCause = ((IFUStallF & ~FlushDCause) | LSUStallM) & ~FlushWCause;
   // Because FlushWCause is a strict subset of FlushDCause, FlushWCause is factored out.
-  assign StallWCause = (IFUStallF & ~FlushDCause) | (LSUStallM & ~FlushWCause) | ExternalStall;
+  assign StallWCause = (IFUStallF & ~FlushDCause) | ((LSUStallM | WaitM) & ~FlushWCause) | ExternalStall;
 
   // Stall each stage for cause or if the next stage is stalled
   // coverage off: StallFCause is always 0
@@ -115,7 +95,9 @@ module hazard (
   // coverage on
   assign StallD = StallDCause | StallE;
   assign StallE = StallECause | StallM;
+  // coverage off: StallMCause is always 0
   assign StallM = StallMCause | StallW;
+  // coverage on
   assign StallW = StallWCause;
 
   assign StallVectorF = VectorStallFCause | VectorStallD;
@@ -127,7 +109,6 @@ module hazard (
   assign LatestUnstalledD = ~StallD & StallF; // coverage tag: StallD always equals StallF
   assign LatestUnstalledE = ~StallE & StallD;
   assign LatestUnstalledM = ~StallM & StallE;
-  assign LatestUnstalledW = ~StallW & StallM;
 
   assign VectorLatestUnstalledD = ~VectorStallD & StallVectorF;
   assign VectorLatestUnstalledE = ~VectorStallE & VectorStallD;
@@ -138,7 +119,7 @@ module hazard (
   assign FlushD = LatestUnstalledD | FlushDCause; // coverage tag: LatestUnstalledD always 0
   assign FlushE = LatestUnstalledE | FlushECause;
   assign FlushM = LatestUnstalledM | FlushMCause;
-  assign FlushW = LatestUnstalledW | FlushWCause;
+  assign FlushW = FlushWCause;
 
   assign VectorFlushD = VectorLatestUnstalledD | VectorFlushDCause;
   assign VectorFlushE = VectorLatestUnstalledE | VectorFlushECause;

@@ -1,8 +1,6 @@
 
 // Populate parameter structure with values specific to the current configuration
 
-`include "BranchPredictorType.vh"
-
 localparam cvw_t P = '{
   XLEN :                 XLEN,
   IEEE754 :              IEEE754,
@@ -99,6 +97,9 @@ localparam cvw_t P = '{
   EXT_MEM_SUPPORTED :        EXT_MEM_SUPPORTED,
   EXT_MEM_BASE :        EXT_MEM_BASE,
   EXT_MEM_RANGE :        EXT_MEM_RANGE,
+  EXT_IO_SUPPORTED :        EXT_IO_SUPPORTED,
+  EXT_IO_BASE :        EXT_IO_BASE,
+  EXT_IO_RANGE :        EXT_IO_RANGE,
   CLINT_SUPPORTED :        CLINT_SUPPORTED,
   CLINT_BASE :        CLINT_BASE,
   CLINT_RANGE :        CLINT_RANGE,
@@ -117,15 +118,20 @@ localparam cvw_t P = '{
   SPI_SUPPORTED :        SPI_SUPPORTED,
   SPI_BASE :        SPI_BASE,
   SPI_RANGE :        SPI_RANGE,
+  PWM_SUPPORTED :        PWM_SUPPORTED,
+  PWM_BASE :        PWM_BASE,
+  PWM_RANGE :        PWM_RANGE,
   GPIO_LOOPBACK_TEST :        GPIO_LOOPBACK_TEST,
   SPI_LOOPBACK_TEST :        SPI_LOOPBACK_TEST,
-  UART_PRESCALE :        UART_PRESCALE ,
+  UART_PRESCALE :        UART_PRESCALE,
+  PWM_WIDTH :        PWM_WIDTH,
   PLIC_NUM_SRC :        PLIC_NUM_SRC,
   PLIC_NUM_SRC_LT_32 :        PLIC_NUM_SRC_LT_32,
   PLIC_GPIO_ID :        PLIC_GPIO_ID,
   PLIC_UART_ID :        PLIC_UART_ID,
   PLIC_SPI_ID :        PLIC_SPI_ID,
   PLIC_SDC_ID :        PLIC_SDC_ID,
+  PLIC_PWM_ID :        PLIC_PWM_ID,
   BPRED_SUPPORTED :        BPRED_SUPPORTED,
   BPRED_TYPE :        BPRED_TYPE,
   BPRED_SIZE :        BPRED_SIZE,
@@ -151,6 +157,7 @@ localparam cvw_t P = '{
   ZKNH_SUPPORTED:        ZKNH_SUPPORTED,
   ZKN_SUPPORTED :        ZKN_SUPPORTED,
   USE_SRAM :        USE_SRAM,
+  LATCH_BASED_REGISTERFILE : LATCH_BASED_REGISTERFILE,
   M_MODE  : M_MODE,
   S_MODE  : S_MODE,
   U_MODE  : U_MODE,
