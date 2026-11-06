@@ -11,17 +11,17 @@
       "nbody" : 0.69,
       "nettle-aes" : 0.82,
       "nettle-sha256" : 0.96,
-      "nsichneu" : 1.20,
-      "picojpeg" : 0.89,
+      "nsichneu" : 1.19,
+      "picojpeg" : 0.88,
       "primecount" : 1.30,
       "qrduino" : 1.21,
       "sglib-combined" : 1.17,
       "slre" : 1.26,
       "st" : 0.88,
-      "statemate" : 2.22,
+      "statemate" : 2.23,
       "tarfind" : 2.36,
       "ud" : 0.92,
-      "wikisort" : 1.78
+      "wikisort" : 1.79
     },
     "speed geometric mean" : 1.09,
     "speed geometric standard deviation" : 1.49
