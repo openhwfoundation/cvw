@@ -243,8 +243,8 @@ ExcludeRows /core/ieu/c e {FCvtIntStallD_1}
 coverage exclude -scope /core/lsu -linerange [TagLine ${SRC}/lsu/lsu.sv lsu-fp-size] -item b 1
 coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty] -item bs 1
 
-# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a branch predictor
-# (BPRED_SUPPORTED = 0, so BPWrongE = PCSrcE, never 1 for a divide); FDivBusyE needs an FPU.
+# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a BTB predictor
+# (BP_STATIC predicts only branches and JAL, so BPWrongE is never 1 for a divide); FDivBusyE needs an FPU.
 ExcludeRows /core/hzu e {DivBusyE_1 FDivBusyE_1} [TagLine ${SRC}/hazard/hazard.sv hzu-flushe-cause]
 
 ######################################################################################################

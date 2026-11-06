@@ -376,51 +376,29 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Branch and Jump Predictor
   ////////////////////////////////////////////////////////////////////////////////////////////////
-  if (P.BPRED_SUPPORTED & P.BPRED_TYPE != BP_STATIC) begin : bpred
+  if (P.BPRED_SUPPORTED) begin : bpred
     bpred #(P) bpred(.clk, .reset,
                 .StallF, .StallD, .StallE, .StallM, .StallW,
                 .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE,
                 .BranchD, .BranchE, .JumpD, .JumpE,
                 .InstrD, .PCNextF, .PCPlus2or4F, .PC1NextF, .PCE, .PCM, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCF, .NextValidPCE,
-                .PCD, .PCLinkE, .IClassM, .BPWrongE, .PostSpillInstrRawF, .BPWrongM,
+                .PCD, .PCLinkE, .IClassM, .BPWrongE, .BPRedirectD, .PostSpillInstrRawF, .BPWrongM,
                 .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM);
-    assign BPRedirectD = 1'b0;
 
   end else begin : bpred
+    mux2 #(P.XLEN) pcmux1(.d0(PCPlus2or4F), .d1(IEUAdrE), .s(PCSrcE), .y(PC1NextF));
     logic BranchM, JumpM, BranchW, JumpW;
     logic CallD, CallE, CallM, CallW;
     logic ReturnD, ReturnE, ReturnM, ReturnW;
-    if (P.BPRED_SUPPORTED) begin : staticbp
-      // Static prediction in the Decode stage, with no BTB.  JAL and backward conditional branches (negative offset)
-      // are predicted taken and redirect fetch to PCD + offset, costing one bubble instead of two.
-      // The Execute stage corrects a wrong prediction as it would with no predictor.
-      logic              BranchInstrD, JalD, PredTakenD, PredTakenE;
-      logic [P.XLEN-1:0] OffsetD, PredPCD, CorrectPCE, PCDecodeF;
-      assign BranchInstrD = InstrD[6:0] == 7'b1100011;
-      assign JalD = InstrD[6:0] == 7'b1101111;
-      assign OffsetD = JalD ? {{(P.XLEN-20){InstrD[31]}}, InstrD[19:12], InstrD[20], InstrD[30:21], 1'b0}
-                            : {{(P.XLEN-12){InstrD[31]}}, InstrD[7], InstrD[30:25], InstrD[11:8], 1'b0};
-      assign PredTakenD = JalD | BranchInstrD & InstrD[31];
-      assign PredPCD = PCD + OffsetD;
-      // a branch or JAL predicted taken is wrong only if not taken; anything else is wrong if taken
-      assign BPWrongE = PCSrcE ^ PredTakenE;
-      assign BPRedirectD = PredTakenD & ~StallD;
-      flopenrc #(1) PredTakenEReg(clk, reset, FlushE, ~StallE, PredTakenD, PredTakenE);
-      mux2 #(P.XLEN) correctmux(.d0(IEUAdrE), .d1(PCLinkE), .s(PredTakenE), .y(CorrectPCE));
-      mux2 #(P.XLEN) decodemux(.d0(PCPlus2or4F), .d1(PredPCD), .s(PredTakenD), .y(PCDecodeF));
-      mux2 #(P.XLEN) pcmux1(.d0(PCDecodeF), .d1(CorrectPCE), .s(BPWrongE), .y(PC1NextF));
-    end else begin
-      mux2 #(P.XLEN) pcmux1(.d0(PCPlus2or4F), .d1(IEUAdrE), .s(PCSrcE), .y(PC1NextF));
-      assign BPWrongE = PCSrcE;
-      assign BPRedirectD = 1'b0;
-    end
+    assign BPWrongE = PCSrcE;
+    assign BPRedirectD = 1'b0;
     icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
       .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
       .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),
       .BTBBranchF(1'b0), .BPCallF(), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
       .BPReturnWrongD(), .BPReturnD(), .BPCallD());
-    flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, BPWrongE, BPWrongM);
+    flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, BPWrongM);
     assign RASPredPCWrongM = 1'b0;
     assign BPDirWrongM = BPWrongM;
     assign BTAWrongM = BPWrongM;
