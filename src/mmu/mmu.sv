@@ -20,11 +20,15 @@ module mmu import cvw::*;  #(parameter cvw_t P,
                              parameter TLB_ENTRIES = 8, IMMU = 0) (
   input  logic                 clk, reset,
   input  logic [P.XLEN-1:0]    SATP_REGW,          // Current value of satp CSR (from privileged unit)
+  input  logic [P.XLEN-1:0]    VSATP_REGW,         // Current value of vsatp CSR (from privileged unit)
+  input  logic [P.XLEN-1:0]    HGATP_REGW,
   input  logic                 STATUS_MXR,         // Status CSR: make executable page readable
   input  logic                 STATUS_SUM,         // Status CSR: Supervisor access to user memory
   input  logic                 STATUS_MPRV,        // Status CSR: modify machine privilege
   input  logic [1:0]           STATUS_MPP,         // Status CSR: previous machine privilege level
   input  logic                 HSTATUS_SPVP,       // HLV/HLVX/HSV effective privilege: 0=VU, 1=VS
+  input  logic                 VirtModeW,          // current virtualization mode V
+  input  logic                 MSTATUS_MPV,        // mstatus.MPV: effective V for MPRV data accesses
   input  logic                 HLVHSVLegalM,       // HLV/HLVX/HSV memory access in Bare/Bare path
   input  logic                 ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                 ENVCFG_ADUE,        // HPTW A/D Update enable
@@ -71,6 +75,22 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
   logic                        PAOutOfRange;             // Untranslated address has nonzero bits above PA_BITS
 
+  // Get Effective Virtualization Mode
+  logic                    EffVirtMode;
+  logic [P.XLEN-1:0]       EffSATP;
+  logic [P.SVMODE_BITS-1:0] HGATP_MODE;
+
+  if (P.H_SUPPORTED) begin: effvirt
+    if (IMMU) assign EffVirtMode = VirtModeW;
+    else      assign EffVirtMode = HLVHSVLegalM | (STATUS_MPRV ? MSTATUS_MPV : VirtModeW);
+    assign EffSATP    = EffVirtMode ? VSATP_REGW : SATP_REGW;
+    assign HGATP_MODE = HGATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS];
+  end else begin: effvirt_noh
+    assign EffVirtMode = 1'b0;
+    assign EffSATP     = SATP_REGW;
+    assign HGATP_MODE  = '0;
+  end
+
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
   if (IMMU) begin: effpriv_immu
@@ -93,6 +113,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .clk, .reset,
           .SATP_MODE(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]),
           .SATP_ASID(SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE]),
+          .EffVirtMode, .HGATP_MODE,
           .VAdr(VAdr[P.XLEN-1:0]), .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
           .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM,
           .DisableTranslation, .PTE, .PageTypeWriteVal,

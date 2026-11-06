@@ -82,9 +82,13 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] CSRReadValW,                                    // Value read from CSR
   output logic [1:0]        PrivilegeModeW,                                 // current privilege mode
   output logic [P.XLEN-1:0] SATP_REGW,                                      // supervisor address translation register
+  output  logic [P.XLEN-1:0]       VSATP_REGW,                // vsatp: VS-stage translation when V=1 or for HLV/HSV
+  output  logic [P.XLEN-1:0]       HGATP_REGW,                // hgatp: G-stage translation when V=1 or for HLV/HSV
   output logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV,            // status register bits
   output logic [1:0]        STATUS_MPP, STATUS_FS,                          // status register bits
   output logic              HSTATUS_SPVP,                                   // HLV/HLVX/HSV effective privilege
+  output logic              VirtModeW,                                      // current virtualization mode V
+  output logic              MSTATUS_MPV,                                    // mstatus.MPV: previous V, effective V for MPRV data accesses
   output var logic [7:0]    PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],           // PMP configuration entries to MMU
   output var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW [P.PMP_ENTRIES-1:0],  // PMP address entries to MMU
   output logic [2:0]        FRM_REGW,                                       // FPU rounding mode
@@ -135,8 +139,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     WaitedM;                                        // wfi in M has waited
 
     // --- Hypervisor ---
-  logic                     VirtModeW;       // current V (from privmode)
-  logic                     MSTATUS_MPV;     // from CSR (prev V for MRET)
   logic                     HSTATUS_SPV;     // from CSR (prev V for SRET in HS)
   logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM, HSTATUS_HU;
   logic                     HLVHSVBareM;     // VSATP/HGATP both Bare for initial HLV/HSV path
@@ -172,7 +174,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS,
     .HSTATUS_SPV, .HSTATUS_SPVP, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM, .HSTATUS_HU, .VSSTATUS_SPP, .VSSTATUS_SIE,
     .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .HIE_REGW, .HGEIE_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
-    .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
+    .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
     .CSRReadValW, .IllegalCSRAccessM, .VirtualCSRAccessM, .VirtualCMOInstrM, .HLVHSVBareM, .BigEndianM);

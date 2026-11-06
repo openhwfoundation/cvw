@@ -73,6 +73,9 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  logic [2:0]           PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
   input  logic                 ITLBWriteF,                               // Writes PTE and PageType to ITLB
   input  logic [P.XLEN-1:0]    SATP_REGW,                                // Location of the root page table and page table configuration
+  input  logic [P.XLEN-1:0]    VSATP_REGW,                               // Location of the root page table and page table configuration for VS-stage translation when V=1 or for HLV/HSV
+  input  logic [P.XLEN-1:0]    HGATP_REGW,
+  input  logic                 VirtModeW,                                // current virtualization mode V                               // Location of the root page table and page table configuration for G-stage translation when V=1 or for HLV/HSV
   input  logic                 STATUS_MXR,                               // Status CSR: make executable page readable
   input  logic                 STATUS_SUM,                               // Status CSR: Supervisor access to user memory
   input  logic                 STATUS_MPRV,                              // Status CSR: modify machine privilege
@@ -194,8 +197,8 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     // HLV/HLVX/HSV explicit accesses are data-side only; tie off their controls for the IMMU.
     // TODO: Full VS/VU instruction fetch needs separate two-stage VSATP/HGATP translation plumbing.
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
-    immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP,
-         .HSTATUS_SPVP(1'b0), .HLVHSVLegalM(1'b0), .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    immu(.clk, .reset, .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP,
+         .HSTATUS_SPVP(1'b0), .VirtModeW, .MSTATUS_MPV(1'b0), .HLVHSVLegalM(1'b0), .ENVCFG_PBMTE, .ENVCFG_ADUE,
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(2'b10),

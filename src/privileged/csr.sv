@@ -80,6 +80,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic [15:0]              HIE_REGW,
   output logic [P.XLEN-1:0]        HGEIE_REGW,
   output logic [P.XLEN-1:0]        SATP_REGW,
+  output  logic [P.XLEN-1:0]       VSATP_REGW,                // vsatp: VS-stage translation when V=1 or for HLV/HSV
+  output  logic [P.XLEN-1:0]       HGATP_REGW,                // hgatp: G-stage translation when V=1 or for HLV/HSV
   output logic [15:0]              MIP_REGW, MIE_REGW, MIDELEG_REGW,
   output logic                     STATUS_MIE, STATUS_SIE,
   output logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_TW,
@@ -143,7 +145,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [63:0]             MENVCFG_REGW;
   logic [63:0]             HENVCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
-  logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
+  logic [P.XLEN-1:0]       SATP_REGW_INT; // Internal SATP
   logic                    TrapGVAM;
   logic                    TrapWritesVAToTvalM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;

@@ -74,9 +74,13 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   output logic [P.XLEN/8-1:0]     LSUHWSTRB,                            // Bus byte write enables from LSU to EBU
   // page table walker
   input  logic [P.XLEN-1:0]       SATP_REGW,                            // SATP (supervisor address translation and protection) CSR
+  input  logic [P.XLEN-1:0]       VSATP_REGW,                           // VSATP (VS-stage translation) CSR
+  input  logic [P.XLEN-1:0]       HGATP_REGW,                           // HGATP (G-stage translation) CSR
   input  logic                    STATUS_MXR, STATUS_SUM, STATUS_MPRV,  // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
   input  logic [1:0]              STATUS_MPP,                           // Machine previous privilege mode
   input  logic                    HSTATUS_SPVP,                         // HLV/HLVX/HSV effective privilege: 0=VU, 1=VS
+  input  logic                    VirtModeW,                            // current virtualization mode V
+  input  logic                    MSTATUS_MPV,                          // mstatus.MPV: effective V for MPRV data accesses
   input  logic                    ENVCFG_PBMTE,                         // Page-based memory types enabled
   input  logic                    ENVCFG_ADUE,                          // HPTW A/D Update enable
   input  logic [P.XLEN-1:0]       PCSpillF,                             // Fetch PC
@@ -207,7 +211,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   if (P.VIRTMEM_SUPPORTED) begin : hptw
     hptw #(P) hptw(.clk, .reset, .MemRWM(GatedMemRWM), .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
       .DTLBMissOrUpdateDAM, .DTLBWriteM,
-      .FlushW, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
+      .FlushW, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .VirtModeW, .MSTATUS_MPV, .HLVHSVLegalM, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
       .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,
@@ -283,7 +287,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     end
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
-    dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVLegalM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    dmmu(.clk, .reset, .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .VirtModeW, .MSTATUS_MPV, .HLVHSVLegalM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUFunct3M[1:0]),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),
