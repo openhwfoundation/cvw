@@ -148,6 +148,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
+      .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
       .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
       .IFUCacheBusStallF, .ITLBMissOrUpdateRawF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
       .PostSpillInstrRawF, .CompressedF);
