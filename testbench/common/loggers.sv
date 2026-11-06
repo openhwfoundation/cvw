@@ -24,8 +24,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
                                 parameter BPRED_LOGGER) (
   input logic  clk,
   input logic  reset,
-  input logic  DCacheFlushStart,
-  input logic  DCacheFlushDone,
+  input logic  EndTest,           // pulses for one cycle when a test finishes
 //  input logic BeginSample,
 //  input logic StartSample,
 //  input logic EndSample,
@@ -91,7 +90,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
       if (TEST == "embench" | TEST == "coremark") begin
         EndSample = EndSampleFirst & ~ EndSampleDelayed;
       end else begin
-        EndSample = DCacheFlushStart & ~DCacheFlushDone;
+        EndSample = EndTest;
       end
 
   /*
@@ -119,11 +118,11 @@ module loggers import cvw::*; #(parameter cvw_t P,
 
     end else begin
       // default start condition is reset
-      // default end condition is end of test (DCacheFlushDone)
+      // default end condition is end of test (EndTest)
       //assign StartSampleFirst = reset;
       //flopr #(1) StartSampleReg(clk, reset, StartSampleFirst, StartSampleDelayed);
       //assign StartSample = StartSampleFirst & ~ StartSampleDelayed;
-      //assign EndSample = DCacheFlushStart & ~DCacheFlushDone;
+      //assign EndSample = EndTest;
 
       flop #(1) BeginReg(clk, StartSampleFirst, BeginDelayed);
       assign BeginSample = StartSampleFirst & ~BeginDelayed;
