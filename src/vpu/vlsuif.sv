@@ -48,17 +48,18 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   input logic [P.VLEN-1:0]            Vs3D,                           // store data (vs3)
 
   // to/from the LSU
-  output logic [P.VLEN-1:0]   VWriteDataM,                    // Data to be written to memory (to LSU)
+  output logic [1:0]                  VMemRWM,                        // Memory read/write (to LSU): [1] = read, [0] = write
+  output logic [P.VLEN-1:0]           VWriteDataM,                    // Data to be written to memory (to LSU)
   output logic [P.XLEN-1:0]           VEUAdrE,                        // Memory address (to LSU)
   output logic [P.XLEN-1:0]           VEUAdrM,                        // Memory address (to LSU)
   output logic [2:0]                  VSizeM,                         // Memory size (to LSU), values 0-6 cover 1, 2, 4, 8, 16, 32, 64 bytes; 7 is reserved
-  input logic [P.VLEN-1:0]    VReadDataM,                     // Read data (from LSU)
+  input logic [P.VLEN-1:0]            VReadDataM,                     // Read data (from LSU)
 
   // result to the vregfile
   output logic [P.VLEN-1:0]           VReadDataW                      // Read data (to vregfile)
 );
 
-  logic [1:0]        VMemRWE, VMemRWM, VMemRWW;
+  logic [1:0]        VMemRWE, VMemRWW;
   logic [4:0]        VdE, VdM;
   logic [P.VLEN-1:0] VWriteDataE;
 

@@ -61,6 +61,13 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   // fpu
   input  logic [P.FLEN-1:0]       FWriteDataM,                          // Write data from FPU
   input  logic                    FpLoadStoreM,                         // Selects FPU as store for write data
+  // vpu
+  input  logic [1:0]              VMemRWE, VMemRWM,                     // Vector memory read/write: [1] = read, [0] = write
+  input  logic [P.XLEN-1:0]       VEUAdrE,                              // Execution stage vector memory address
+  input  logic [P.XLEN-1:0]       VEUAdrM,                              // Memory stage vector memory address
+  input  logic [2:0]              VSizeM,                               // Vector memory access size: 0-6 = 1, 2, 4, 8, 16, 32, 64 bytes
+  input  logic [P.VLEN-1:0]       VWriteDataM,                          // Write data from VPU
+  output logic [P.VLEN-1:0]       VReadDataM,                           // Read data to VPU
   // faults
   output logic                    LoadPageFaultM, StoreAmoPageFaultM,   // Page fault exceptions
   output logic                    LoadMisalignedFaultM,                 // Load address misaligned fault
@@ -152,6 +159,30 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
 
+  logic                  VectorOpE, VectorOpM;                   // Vector memory operation in E / M stage
+  logic [1:0]            effMemRWE, effMemRWM;
+  logic [P.XLEN-1:0]     effAdrE, effAdrM;                       // IEU or VPU memory address
+  logic [P.LLEN-1:0]     effWriteDataM;                          // IEU, HPTW, AMO, FPU, or VPU write data
+
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  // Vector load/store interface
+  // Select the VPU's address and write data, and return read data, when it has a memory operation.
+  // *** TODO: assumes vector data is LLEN wide; bits above LLEN are dropped / zero.
+  // *** TODO: VMemRWM and VSizeM not yet muxed into MemRWM / Funct3M.
+  /////////////////////////////////////////////////////////////////////////////////////////////
+
+  assign VectorOpE = |VMemRWE;
+  assign VectorOpM = |VMemRWM;
+
+  mux2 #(2) effmemrwemux(MemRWE, VMemRWE, VectorOpE, effMemRWE);
+  mux2 #(2) effmemrwmmux(MemRWM, VMemRWM, VectorOpM, effMemRWM);
+
+  mux2 #(P.XLEN) effadremux(IEUAdrE, VEUAdrE, VectorOpE, effAdrE);
+  mux2 #(P.XLEN) effadrmmux(IEUAdrM, VEUAdrM, VectorOpM, effAdrM);
+
+  mux2 #(P.LLEN) vwritedatamux(IMAFWriteDataM, VWriteDataM, VectorOpM, effWriteDataM);
+  assign VReadDataM = ReadDataM;
+
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
@@ -161,7 +192,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   if(MISALIGN_SUPPORT) begin : ziccslm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
-    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
+    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE(effAdrE), .IEUAdrM(effAdrM), .Funct3M, .FpLoadStoreM,
                      .MemRWM,
                      .DCacheReadDataWordM, .CacheBusHPWTStall, .SelHPTW,
                      .ByteMaskM, .ByteMaskExtendedM, .LSUWriteDataM, .ByteMaskSpillM, .LSUWriteDataSpillM,
@@ -169,15 +200,15 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     assign IEUAdrExtM = {2'b00, IEUAdrSpillM};
     assign IEUAdrExtE = {2'b00, IEUAdrSpillE};
   end else begin : no_ziccslm_align
-    assign IEUAdrExtM = {2'b00, IEUAdrM};
-    assign IEUAdrExtE = {2'b00, IEUAdrE};
+    assign IEUAdrExtM = {2'b00, effAdrM};
+    assign IEUAdrExtE = {2'b00, effAdrE};
     assign SelSpillE = 1'b0;
     assign DCacheReadDataWordSpillM = DCacheReadDataWordM;
     assign ByteMaskSpillM = ByteMaskM;
     assign LSUWriteDataSpillM = LSUWriteDataM;
     assign MemRWSpillM = MemRWM;
     assign {SpillStallM} = 1'b0;
-    assign IEUAdrxTvalM = IEUAdrM;
+    assign IEUAdrxTvalM = effAdrM;
   end
 
     if(P.ZICBOZ_SUPPORTED) begin : cboz
@@ -410,7 +441,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
 
   subwordread #(P) subwordread(.ReadDataWordMuxM(LittleEndianReadDataWordM), .PAdrM(PAdrM[3:0]), .BigEndianM,
     .FpLoadStoreM, .Funct3M(LSUFunct3M), .ReadDataM);
-  subwordwrite #(P.LLEN) subwordwrite(.LSUFunct3M, .IMAFWriteDataM, .LittleEndianWriteDataM);
+  subwordwrite #(P.LLEN) subwordwrite(.LSUFunct3M, .IMAFWriteDataM(effWriteDataM), .LittleEndianWriteDataM);
 
   // Compute byte masks
   swbytemask #(P.LLEN, P.ZICCLSM_SUPPORTED) swbytemask(.Size(LSUFunct3M), .Adr(PAdrM[$clog2(P.LLEN/8)-1:0]), .ByteMask(ByteMaskM), .ByteMaskExtended(ByteMaskExtendedM));

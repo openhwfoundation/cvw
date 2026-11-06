@@ -187,9 +187,11 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          VectorD;
   logic                          IllegalVPUInstrD;
   logic [P.XLEN-1:0]             VIEUFPResultFinalW;
-  logic [P.VPU_LSU_BLEN-1:0]     VWriteDataM;
-  logic [P.XLEN-1:0]             VEUAdrM;
-  logic [P.VPU_LSU_BLEN-1:0]     VReadDataM;
+  logic [P.VLEN-1:0]             VWriteDataM;
+  logic [P.XLEN-1:0]             VEUAdrE, VEUAdrM;
+  logic [1:0]                    VMemRWM;
+  logic [2:0]                    VSizeM;
+  logic [P.VLEN-1:0]             VReadDataM;
   logic                          VPUFrontEndBusyD;
   logic                          VPUBackEndBusyE;
   logic                          VWriteIntE;
@@ -249,6 +251,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
     .FpLoadStoreM, .FWriteDataM, .IEUAdrE, .IEUAdrM, .WriteDataM,
+    .VMemRWM, .VEUAdrE, .VEUAdrM, .VSizeM, .VWriteDataM, .VReadDataM,
     .ReadDataW, .FlushDCacheM, .CMOpM, .LSUPrefetchM,
     // connected to ahb (all stay the same)
     .LSUHADDR,  .HRDATA, .LSUHWDATA, .LSUHWSTRB, .LSUHSIZE,
@@ -387,27 +390,18 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
             FWriteDataM, FCvtIntResW, FIntDivResultW, FDivBusyE} = '0;
   end
 
-  // *** fix me replace with driver from LSU
-  assign VReadDataM = '0;
-
   if (P.ZVE32X_SUPPORTED) begin : vpu
-    logic [P.VLEN-1:0] VWriteDataM;
-    logic [P.VLEN-1:0] VReadDataM;
-    logic [P.XLEN-1:0] VEUAdrM, VEUAdrE;
-    logic [2:0] VSizeM;
-
-    assign VReadDataM = '0; // *** TODO: fix me replace with driver from LSU
-
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
                  .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .StallE, .FlushE, .FlushM,
                  .VPUFrontEndBusyD, .VPUBackEndBusyE,
-                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VMemRWM, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
                  .VIntResM, .IllegalVPUInstrD, .VIEUFPResultFinalW,
                  .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin
     assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD, VWriteIntE, VIntResM,
-            WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM} = '0;
+            WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM,
+            VMemRWM, VWriteDataM, VEUAdrE, VEUAdrM, VSizeM} = '0;
   end
 
 endmodule
