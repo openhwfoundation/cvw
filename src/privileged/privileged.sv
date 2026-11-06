@@ -61,7 +61,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic              ICacheAccess,                                   // instruction cache access
   input  logic              DivBusyE,                                       // integer divide busy
   input  logic              FDivBusyE,                                      // floating point divide busy
-  input  logic              PointerMaskApplicable, PMLength,
+  input  logic              PointerMaskApplicable, PMLen16Sel,
   // fault sources
   input  logic              InstrAccessFaultF,                              // instruction access fault
   input  logic              LoadAccessFaultM, StoreAmoAccessFaultM,         // load or store access fault
@@ -143,7 +143,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .MTIME_CLINT, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
-    .PointerMaskApplicable, .PMLength,
+    .PointerMaskApplicable, .PMLen16Sel,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
     .NextPrivilegeModeM, .PrivilegeModeW, .CauseM, .SelHPTW,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,

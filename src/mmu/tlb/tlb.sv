@@ -57,7 +57,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic                     TLBWrite,
   input  logic                     TLBFlush,
   input  logic                     TLBFlushAll,      // Flush global (G=1) entries too
-  input  logic                     PointerMaskApplicable, PMLength,
+  input  logic                     PointerMaskApplicable, PMLen16Sel,
   output logic [P.PA_BITS-1:0]     TLBPAdr,
   output logic                     TLBMiss,
   output logic                     Translate,
@@ -105,7 +105,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
     .PTEAccessBits, .CAMHit, .Misaligned, .NAPOT4,
-    .PointerMaskApplicable, .PMLength,
+    .PointerMaskApplicable, .PMLen16Sel,
     .TLBMiss, .TLBHit, .TLBPageFault,
     .UpdateDA, .SV39Mode, .SV48Mode, .Translate, .PTE_N, .PBMemoryType);
 

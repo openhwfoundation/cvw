@@ -58,7 +58,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InvalidateICacheM,
   input  logic                     DivBusyE,                  // integer divide busy
   input  logic                     FDivBusyE,                 // floating point divide busy
-  input logic                      PointerMaskApplicable, PMLength,
+  input logic                      PointerMaskApplicable, PMLen16Sel,
   // outputs from CSRs
   output logic [1:0]               STATUS_MPP,
   output logic                     STATUS_SPP, STATUS_TSR, STATUS_TVM,
@@ -129,7 +129,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
   if (P.ZPM_SUPPORTED) begin //If pointer masking is supported, hardware writes to CSRs can be subject to pointer masking
-    if (P.PMLEN16_SUPPORTED) assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLength ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLength ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
+    if (P.PMLEN16_SUPPORTED) assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLen16Sel ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLen16Sel ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
     else                     assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
   end else assign MaskedIEUAdrxTvalM = IEUAdrxTvalM;
   always_comb

@@ -53,7 +53,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
   input var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
   input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],                  // PMP addresses
-  output logic                 PointerMaskApplicable, PMLength                            // Pointer Masking signals
+  output logic                 PointerMaskApplicable, PMLen16Sel                            // Pointer Masking signals
 );
 
   logic [P.PA_BITS-1:0]        TLBPAdr;                  // physical address for TLB
@@ -77,13 +77,13 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode
   assign EffectivePrivilegeModeW = IMMU ? PrivilegeModeW : (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW);
-  // only instantiate pointer masking module if pointer masking is supported
-  if (P.ZPM_SUPPORTED) begin : pm
+  // only instantiate pointer masking module if pointer masking is supported and dmmu
+  if (P.ZPM_SUPPORTED & ~IMMU) begin : pm
     pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
-                                .STATUS_MXR, .MemRWM, .CMOpMUngated, .PointerMaskApplicable, .PMLength);
+                                .STATUS_MXR, .MemRWM, .CMOpMUngated, .PointerMaskApplicable, .PMLen16Sel);
   end else begin
     assign PointerMaskApplicable = 1'b0;
-    assign PMLength              = 1'b0;
+    assign PMLen16Sel              = 1'b0;
   end
 
   // only instantiate TLB if Virtual Memory is supported
@@ -99,7 +99,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
           .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM,
           .DisableTranslation, .PTE, .PageTypeWriteVal,
           .TLBWrite, .TLBFlush, .TLBFlushAll, .PointerMaskApplicable,
-          .PMLength, .TLBPAdr, .TLBMiss,
+          .PMLen16Sel, .TLBPAdr, .TLBMiss,
           .Translate, .TLBPageFault, .UpdateDA, .PBMemoryType);
   end else begin : notlb // just pass address through as physical
     assign Translate    = 1'b0;
@@ -117,7 +117,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // and a full zero extension must be applied if the mask is applied. If pmlen16 is not supported,
   // then the physical address does not have to be zero extended to check validity
   if (P.XLEN == 64 & P.ZPM_SUPPORTED & P.PMLEN16_SUPPORTED) begin
-    assign MaskedVAdr = PointerMaskApplicable ? (PMLength ? {18'b0, VAdr[47:0]} : {9'b0,VAdr[56:0]}) : VAdr;
+    assign MaskedVAdr = PointerMaskApplicable ? (PMLen16Sel ? {18'b0, VAdr[47:0]} : {9'b0,VAdr[56:0]}) : VAdr;
     mux2 #(P.PA_BITS-12) addressmux(MaskedVAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
     assign PhysicalAddress[11:0] = VAdr[11:0];
   end else begin
@@ -132,7 +132,7 @@ module mmu import cvw::*;  #(parameter cvw_t P,
   // If RV64, pointer masking may be applicable. If PMLEN16_SUPPORTED, then MaskedVAdr has already been optionally sign extended
   // If !PMLEN16_SUPPORTED, validity checks must be turned off if the mask is applicable.
   if (P.XLEN > P.PA_BITS) begin
-    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED) assign PAOutOfRange = PointerMaskApplicable ? ~Translate & (|VAdr[56:P.PA_BITS]) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
+    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED & ~IMMU) assign PAOutOfRange = PointerMaskApplicable ? ~Translate & (|VAdr[56:P.PA_BITS]) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
     else assign PAOutOfRange = ~Translate & (|MaskedVAdr[P.XLEN-1:P.PA_BITS]);
   end else                    assign PAOutOfRange = 1'b0;
   ///////////////////////////////////////////

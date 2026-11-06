@@ -137,7 +137,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        ITLBMissOrUpdateRawF;                     // ITLB miss or A update needed, before masking by a held walk fault
   logic                        ITLBWalkFaultF;                           // The walk for the current fetch faulted (held or this cycle)
   logic                        InstrPageFaultRawF, InstrAccessFaultRawF; // Faults on the half of the fetch currently being translated
-  logic                        PointerMaskApplicable, PMLength;          // Pointer Masking mmu signals hardwired to 0/not used in immu
+  logic                        PointerMaskApplicable, PMLen16Sel;          // Pointer Masking mmu signals hardwired to 0/not used in immu
 
   assign PCFExt = {2'b00, PCSpillF};
 
@@ -207,8 +207,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .InstrPageFaultF(InstrPageFaultRawF), .LoadPageFaultM(), .StoreAmoPageFaultM(),
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
-         .AtomicAccessM(1'b0),.ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
-         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLength);
+         .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
+         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLen16Sel);
 
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 

@@ -6,9 +6,9 @@
 //
 // Purpose: Pointer Masking Module v1.0
 // Module inside of LSU that currently determines whether pointer masking should be applied based on privilege level and instruction.
-// Pointer Masking length (PMLength) currently limited so that masked bits do not apply to address bits.
+// Pointer Masking length (PMLen16Sel) currently limited so that masked bits do not apply to address bits.
 // (PMLen = 7 when Sv57 is supported, 16 or 7 when Sv57 not supported. In addition, physical addresses are
-// limited to 48 bits when PMLength = 16) Hypervisor guest physical addresses are 2 bits longer and therefore have
+// limited to 48 bits when PMLen16Sel = 16) Hypervisor guest physical addresses are 2 bits longer and therefore have
 // additional configurations where addressable bits are masked, for future work.
 // Since addressable bits are never masked in current version, the module itself only sends a signal to disable top bit
 // validity checks to vm64check.sv
@@ -38,7 +38,7 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
     input logic                      STATUS_MXR,
     input logic [1:0]                MemRWM,
     input logic [3:0]                CMOpMUngated,
-    output logic                     PointerMaskApplicable, PMLength
+    output logic                     PointerMaskApplicable, PMLen16Sel
 );
 
   logic MaskApplicableInstr;
@@ -50,19 +50,19 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
     case(EffectivePrivilegeModeW)
       2'b00:    begin
                   PointerMaskApplicable = ~STATUS_MXR & MaskApplicableInstr & ((|(MENVCFG_PMM) & !P.S_SUPPORTED) | |(SENVCFG_PMM));
-                  PMLength = P.S_SUPPORTED ? SENVCFG_PMM[0]: MENVCFG_PMM[0];
+                  PMLen16Sel = P.S_SUPPORTED ? SENVCFG_PMM[0]: MENVCFG_PMM[0];
                 end
       2'b01:       begin
                   PointerMaskApplicable = ~STATUS_MXR & MaskApplicableInstr & (|(MENVCFG_PMM) & P.S_SUPPORTED);
-                  PMLength = MENVCFG_PMM[0];
+                  PMLen16Sel = MENVCFG_PMM[0];
                 end
       2'b11:       begin
                   PointerMaskApplicable = MaskApplicableInstr & (|(MSECCFG_PMM));
-                  PMLength = MSECCFG_PMM[0];
+                  PMLen16Sel = MSECCFG_PMM[0];
                 end
       default:  begin
                   PointerMaskApplicable = 1'b0;
-                  PMLength = 1'b0;
+                  PMLen16Sel = 1'b0;
                 end
     endcase
 endmodule

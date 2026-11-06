@@ -82,7 +82,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic                    SelHPTW,                              // During a HPTW walk the effective privilege mode becomes S_MODE
   input var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP configuration from privileged unit
   input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
-  output logic                    PointerMaskApplicable, PMLength       // Pointer Mask signals
+  output logic                    PointerMaskApplicable, PMLen16Sel       // Pointer Mask signals
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
   localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses
@@ -272,7 +272,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .UpdateDA(DataUpdateDAM), .CMOpM(LSUCMOpM),
       .AtomicAccessM(|LSUAtomicM), .ExecuteAccessF(1'b0),
       .WriteAccessM, .ReadAccessM(PreLSURWM[1]),
-      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLength);
+      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLen16Sel);
 
     assign DTLBMissOrUpdateDAM = DTLBMissM | (P.SVADU_SUPPORTED & DataUpdateDAM);
   end else begin  // No MMU, so no PMA/page faults and no address translation
@@ -284,7 +284,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign SelDTIM = P.DTIM_SUPPORTED & ~P.BUS_SUPPORTED; // if no PMA then select dtim if there is a DTIM.  If there is
     // a bus then this is always 0. Cannot have both without PMA.
     assign PointerMaskApplicable = 1'b0;
-    assign PMLength = 1'b0;
+    assign PMLen16Sel = 1'b0;
   end
 
   /////////////////////////////////////////////////////////////////////////////////////////////

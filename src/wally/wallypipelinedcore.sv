@@ -104,7 +104,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [2:0]                    PageType;
   logic                          sfencevmaM, sfencevmaAllM;
   logic                          SelHPTW;
-  logic                          PointerMaskApplicable, PMLength;
+  logic                          PointerMaskApplicable, PMLen16Sel;
 
   // PMA checker signals
   /* verilator lint_off UNDRIVEN */ // these signals are undriven in configurations without a privileged unit
@@ -250,7 +250,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .StoreAmoAccessFaultM,        // connects to privilege
     .PCSpillF, .ITLBMissOrUpdateAF, .PTE, .PageType, .ITLBWriteF, .SelHPTW,
     .LSUStallM,
-    .PointerMaskApplicable, .PMLength // connects to privilege
+    .PointerMaskApplicable, .PMLen16Sel // connects to privilege
     );
 
   if (P.BUS_SUPPORTED) begin : ebu
@@ -294,7 +294,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .FRegWriteM, .LoadStallD, .StoreStallD,
       .BPDirWrongM, .BTAWrongM, .BPWrongM,
       .RASPredPCWrongM, .IClassWrongM, .DivBusyE, .FDivBusyE,
-      .PointerMaskApplicable, .PMLength,
+      .PointerMaskApplicable, .PMLen16Sel,
       .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .PrivilegedM,
       .InstrPageFaultF, .LoadPageFaultM, .StoreAmoPageFaultM,
       .InstrMisalignedFaultM, .IllegalIEUFPUInstrD,
@@ -313,7 +313,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
             sfencevmaM, sfencevmaAllM, BigEndianM, WaitM,
-            PointerMaskApplicable, PMLength, MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
+            PointerMaskApplicable, PMLen16Sel, MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
   end
 
   // multiply/divide unit
