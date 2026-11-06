@@ -401,23 +401,30 @@ module testbench;
       end
     end
   end else if (P.IROM_SUPPORTED) begin
+    // The memfile holds XLEN-bit words; the IROM is 32 bits wide (irom.sv), so split each into 32-bit words
+    localparam IMAGEWORDS = (P.IROM_RANGE+1) >> $clog2(P.XLEN/8);
+    localparam ROMWORDS = (P.IROM_RANGE+1) >> 2;
+    bit [P.XLEN-1:0] IROMImage [IMAGEWORDS-1:0];
+    function automatic bit [31:0] IROMWord(int i);
+      return IROMImage[i/(P.XLEN/32)][32*(i%(P.XLEN/32)) +: 32];
+    endfunction
     if (P.ZCA_SUPPORTED) begin : iromimage
-      // The IROM is two banks interleaved by word (irom.sv): bank 0 holds the even words and bank 1 the odd words
-      localparam IROMWORDS = (P.IROM_RANGE+1) >> (1+P.XLEN/32);
-      bit [P.XLEN-1:0] IROMImage [IROMWORDS-1:0];
+      // With compressed instructions, the IROM is two banks interleaved by word: bank 0 holds the even words and bank 1 the odd words
       always @(posedge clk) begin
         if (LoadMem) begin
           $readmemh(memfilename, IROMImage);
-          for (int i = 0; i < IROMWORDS/2; i++) begin
-            dut.core.ifu.irom.irom.banks.bank0.ROM[i] = IROMImage[2*i];
-            dut.core.ifu.irom.irom.banks.bank1.ROM[i] = IROMImage[2*i+1];
+          for (int i = 0; i < ROMWORDS/2; i++) begin
+            dut.core.ifu.irom.irom.banks.bank0.ROM[i] = IROMWord(2*i);
+            dut.core.ifu.irom.irom.banks.bank1.ROM[i] = IROMWord(2*i+1);
           end
         end
       end
-    end else begin
+    end else begin : iromimage
       always @(posedge clk) begin
         if (LoadMem) begin
-          $readmemh(memfilename, dut.core.ifu.irom.irom.bank.rom.ROM);
+          $readmemh(memfilename, IROMImage);
+          for (int i = 0; i < ROMWORDS; i++)
+            dut.core.ifu.irom.irom.bank.rom.ROM[i] = IROMWord(i);
         end
       end
     end
