@@ -20,12 +20,14 @@ module atomic import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   input  logic                 StallW,
-  input  logic [P.XLEN-1:0]    ReadDataM,      // LSU ReadData XLEN because FPU does not issue atomic memory operation from FPU registers
+  input  logic [P.LLEN-1:0]    ReadDataWordM,  // Endian-swapped LSU data before load formatting
+  input  logic                 BigEndianM,    // Select the addressed lane within the swapped data
   input  logic [P.XLEN-1:0]    IHWriteDataM,   // LSU WriteData XLEN because FPU does not issue atomic memory operation from FPU registers
   input  logic [P.PA_BITS-1:0] PAdrM,          // Physical memory address
   input  logic [6:0]           LSUFunct7M,     // AMO alu operation gated by HPTW
   input  logic [2:0]           LSUFunct3M,     // IEU or HPTW memory operation size
   input  logic                 CASMatchM,      // amocas comparison succeeded
+  input  logic                 AMOCASPairM,    // amocas on a register pair
   input  logic [1:0]           LSUAtomicM,     // 10: AMO operation, select AMOResultM as the writedata output, 01: LR/SC operation
   input  logic [1:0]           PreLSURWM,      // IEU or HPTW Read/Write signal
   input  logic                 LSUFlushW,      // On FlushM or TLB miss ignore memory operation
@@ -40,7 +42,15 @@ module atomic import cvw::*; #(parameter cvw_t P) (
 
   // AMO ALU
   if (P.ZAAMO_SUPPORTED) begin
-    amoalu #(P) amoalu(.ReadDataM, .IHWriteDataM, .LSUFunct7M, .LSUFunct3M, .CASMatchM, .AMOResultM);
+    logic [P.XLEN-1:0] AMOReadDataM;
+    logic [1:0]        AMOSizeM;
+
+    // A pair amocas operates on 2*XLEN bits; the AMO ALU produces the low XLEN-bit half, and the LSU
+    // chooses the high half, so read the low half at full register width.
+    assign AMOSizeM = (P.ZACAS_SUPPORTED & AMOCASPairM) ? ((P.XLEN == 64) ? 2'b11 : 2'b10) : LSUFunct3M[1:0];
+    amoread #(P, P.ZABHA_SUPPORTED) amoread(.ReadDataWordM, .PAdrM(PAdrM[3:0]), .BigEndianM,
+      .SizeM(AMOSizeM), .AMOReadDataM);
+    amoalu #(P) amoalu(.ReadDataM(AMOReadDataM), .IHWriteDataM, .LSUFunct7M, .LSUFunct3M, .CASMatchM, .AMOResultM);
     mux2 #(P.XLEN) wdmux(IHWriteDataM, AMOResultM, LSUAtomicM[1], IMAWriteDataM);
   end else
     assign IMAWriteDataM = IHWriteDataM;

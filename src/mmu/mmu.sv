@@ -136,10 +136,10 @@ module mmu import cvw::*; #(parameter cvw_t P,
   // Misaligned faults
   always_comb // exclusion-tag: immu-wordaccess
     case (Size)
-      3'b000:  begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // lb, sb, lbu
-      3'b001:  begin DataMisalignedM = VAdr[0];           CrossesGranuleM = &VAdr[3:1];  end // lh, sh, lhu
+      3'b000:  begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // lb, sb, lbu // exclusion-tag: mmu-size-byte
+      3'b001:  begin DataMisalignedM = VAdr[0];           CrossesGranuleM = &VAdr[3:1];  end // lh, sh, lhu // exclusion-tag: mmu-size-half
       3'b010:  begin DataMisalignedM = VAdr[1] | VAdr[0]; CrossesGranuleM = &VAdr[3:2];  end // lw, sw, flw, fsw, lwu
-      3'b011:  begin DataMisalignedM = |VAdr[2:0];        CrossesGranuleM = VAdr[3];     end // ld, sd, fld, fsd
+      3'b011:  begin DataMisalignedM = |VAdr[2:0];        CrossesGranuleM = VAdr[3];     end // ld, sd, fld, fsd // exclusion-tag: mmu-size-double
       3'b100:  begin DataMisalignedM = |VAdr[3:0];        CrossesGranuleM = 1'b1;        end // flq, fsq, amocas.q: a misaligned 16-byte access always crosses
       default: begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // no other sizes exist
     endcase
@@ -164,9 +164,9 @@ module mmu import cvw::*; #(parameter cvw_t P,
 
   // Access faults
   // If TLB miss and translating we want to not have faults from the PMA and PMP checkers.
-  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss;
-  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss;
-  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss;
+  assign InstrAccessFaultF    = (PMAInstrAccessFaultF    | PMPInstrAccessFaultF)    & ~TLBMiss; // exclusion-tag: mmu-instr-fault
+  assign LoadAccessFaultM     = (PMALoadAccessFaultM     | PMPLoadAccessFaultM     | MisalignedCausesAccessFaultM & ReadNoAmoAccessM)     & ~TLBMiss; // exclusion-tag: mmu-load-fault
+  assign StoreAmoAccessFaultM = (PMAStoreAmoAccessFaultM | PMPStoreAmoAccessFaultM | MisalignedCausesAccessFaultM & WriteAccessM) & ~TLBMiss; // exclusion-tag: mmu-store-fault
 
   // Specify which type of page fault is occurring
   assign InstrPageFaultF    = TLBPageFault & ExecuteAccessF;

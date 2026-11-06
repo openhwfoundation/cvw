@@ -90,6 +90,7 @@ BTB_SIZE                32'd5
 # The other syn configurations have the same trimming
 deriv syn_rv32i rv32i syn_rv32e
 deriv syn_rv32imc rv32imc syn_rv32e
+deriv syn_rv32imcb rv32imcb syn_rv32e
 deriv syn_rv32gc rv32gc syn_rv32e
 deriv syn_rv64i rv64i syn_rv32e
 deriv syn_rv64gc rv64gc syn_rv32e
@@ -103,6 +104,7 @@ USE_SRAM            1
 # The other syn configurations have the same trimming
 deriv syn_sram_rv32i rv32i syn_sram_rv32e
 deriv syn_sram_rv32imc rv32imc syn_sram_rv32e
+deriv syn_sram_rv32imcb rv32imcb syn_sram_rv32e
 deriv syn_sram_rv32gc rv32gc syn_sram_rv32e
 deriv syn_sram_rv64i rv64i syn_sram_rv32e
 deriv syn_sram_rv64gc rv64gc syn_sram_rv32e

@@ -30,7 +30,7 @@ module ram_ahb import cvw::*; #(parameter cvw_t P,
   output logic                 HRESPRam, HREADYRam
 );
 
-  localparam                   DEPTH = (RANGE+1)/64'(P.XLEN/8);  // RANGE is a mask (size-1), DEPTH is in XLEN-bit words
+  localparam                   DEPTH = (RANGE+1)/64'(64'(P.XLEN)/8);  // RANGE is a mask (size-1), DEPTH is in XLEN-bit words
   localparam                   ADDR_WIDTH = $clog2(DEPTH);
   localparam OFFSET     = $clog2(P.XLEN/8);
 
