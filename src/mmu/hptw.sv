@@ -105,7 +105,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic                     StartWalk;
   logic                     TLBMissOrUpdateDA;
   logic                     PRegEn;
-  logic [2:0]               NextPageType;
+  logic [2:0]               LevelPageType;          // page size implied by the level of the PTE being read
   logic [P.SVMODE_BITS-1:0] SvMode;
   logic [P.XLEN-1:0]        TranslationVAdr;
   logic [P.XLEN-1:0]        NextPTE, NextPTE2;
@@ -135,7 +135,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic [P.PA_BITS-1:0]     Stage1ReadAdr;          // address of the next VS-stage (or single-stage) PTE read
   logic [P.PA_BITS-1:0]     GHPTWReadAdr;           // address of the next G-stage PTE read
   logic [GPA_BITS-1:0]      GPAReg, NextGPA, FinalGPA;
-  logic [GPA_BITS-13:0]     FinalGPPN;
+  logic [P.PPN_BITS-1:0]     FinalGPPN;
   logic [P.XLEN-1:0]        effSATP;
   logic [P.SVMODE_BITS-1:0] effSATP_MODE, HGATP_MODE;
   localparam logic [P.SVMODE_BITS-1:0] BARE = P.NO_TRANSLATE[P.SVMODE_BITS-1:0]; // MODE = 0 selects Bare in satp, vsatp, and hgatp
@@ -143,7 +143,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   logic                     S1Active, GActive;      // walk the VS/single stage table; walk the G-stage table
   logic                     TwoStage;               // VS-stage and G-stage both active: VS-stage PTEs live at GPAs
   logic                     InGWalk, EnterGWalk;    // walker is in a G-stage state; walker is about to start a G-stage walk
-  logic [2:0]               GPageType, NextGPageType; // page size of the G-stage leaf
+  logic [2:0]               GPageType;              // page size of the G-stage leaf
   logic [P.PPN_BITS-1:0]    SPAPPN;                 // PPN of the supervisor physical address produced by the G-stage
   logic [P.PA_BITS-1:0]     SPA, SPAReg;            // supervisor physical address produced by the G-stage
   logic                     GPAUpperBitsNonzero;    // GPA is wider than the G-stage mode allows: guest-page fault
@@ -267,32 +267,27 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
                       (WalkerState == G3_RD & P.SV48_SUPPORTED) |
                       (WalkerState == G2_RD & P.SV39_SUPPORTED) |
                       (WalkerState == G1_RD) | (WalkerState == G0_RD);
-  assign DTLBWriteM = (WalkerState == LEAF & ~HPTWUpdateDA) & DTLBWalk;
-  assign ITLBWriteF = (WalkerState == LEAF & ~HPTWUpdateDA) & ~DTLBWalk;
 
-  // FSM to track PageType based on the levels of the page table traversed
-  flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
+  logic TLBWriteNow;
+  assign TLBWriteNow = GActive ? (WalkerState == GLEAF & GPurpose == GFINAL & ~HPTWUpdateDA)
+                               : (WalkerState == LEAF  & ~HPTWUpdateDA);
+  assign DTLBWriteM = TLBWriteNow & DTLBWalk;
+  assign ITLBWriteF = TLBWriteNow & ~DTLBWalk;
+
+  // Page size implied by the level of the PTE being read, shared by the VS/single stage and the G-stage
   always_comb
     case (WalkerState)
-      L4_RD:  NextPageType = 3'b100; // petapage
-      L3_RD:  NextPageType = 3'b011; // terapage
-      L2_RD:  NextPageType = 3'b010; // gigapage
-      L1_RD:  NextPageType = 3'b001; // megapage
-      L0_RD:  NextPageType = 3'b000; // kilopage
-      default: NextPageType = PageType;
+      L4_RD, G4_RD: LevelPageType = 3'b100; // petapage
+      L3_RD, G3_RD: LevelPageType = 3'b011; // terapage
+      L2_RD, G2_RD: LevelPageType = 3'b010; // gigapage
+      L1_RD, G1_RD: LevelPageType = 3'b001; // megapage
+      default:      LevelPageType = 3'b000; // kilopage (L0_RD, G0_RD)
     endcase
 
-  // G-stage leaf page size, tracked separately so PageType keeps the VS-stage size for FinalGPPN
-  flopr #(3) GPageTypeReg(clk, reset, NextGPageType, GPageType);
-  always_comb
-    case (WalkerState)
-      G4_RD:  NextGPageType = 3'b100; // petapage
-      G3_RD:  NextGPageType = 3'b011; // terapage
-      G2_RD:  NextGPageType = 3'b010; // gigapage
-      G1_RD:  NextGPageType = 3'b001; // megapage
-      G0_RD:  NextGPageType = 3'b000; // kilopage
-      default: NextGPageType = GPageType;
-    endcase
+  // PageType tracks the VS/single-stage leaf size; GPageType tracks the G-stage leaf size.
+  // HPTWRW[1] is high only in the _RD states, so each register loads only on reads at its own stage.
+  flopenr #(3) PageTypeReg(clk, reset, HPTWRW[1] & ~InGWalk, LevelPageType, PageType);
+  flopenr #(3) GPageTypeReg(clk, reset, HPTWRW[1] & InGWalk, LevelPageType, GPageType);
 
   // HPTWAdr muxing
   if (P.XLEN==32) begin // RV32
@@ -326,7 +321,6 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.PA_BITS) SPARegReg(clk, reset, (WalkerState == GLEAF), SPA, SPAReg);
 
   // G stage Muxing
-   // G stage Muxing
   if (P.XLEN == 32) begin
     logic                  GRootLevel;
     logic [P.PPN_BITS-1:0] GBasePageTablePPN;
@@ -388,9 +382,8 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
     assign InitialWalkerState = (P.SV57_SUPPORTED & SvMode == P.SV57) ? L4_ADR :
                                 (P.SV48_SUPPORTED & SvMode == P.SV48) ? L3_ADR :
                                                                         L2_ADR ;
-    assign GInitialWalkerState = (GActive & HGATP_MODE == P.SV57) ? G4_ADR :
-                                 (GActive & HGATP_MODE == P.SV48) ? G3_ADR :
-                                 (GActive & HGATP_MODE == P.SV39) ? G2_ADR : IDLE;
+    assign GInitialWalkerState = (HGATP_MODE == P.SV57) ? G4_ADR :
+                   (HGATP_MODE == P.SV48) ? G3_ADR : G2_ADR;
     // The "x4" modes widen the GPA by 2 bits beyond the VA width; all higher GPA bits must be zero
     always_comb
       case (HGATP_MODE)
@@ -408,11 +401,6 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
                                            ((WalkerState == L1_ADR) & GigapageMisaligned) |
                                            ((WalkerState == L0_ADR) & MegapageMisaligned);
   end
-
-  /*
-  New signals that I am adding for Two stage translation
-  */
-
 
   // Effective translation controls for this walk. Data walks are virtualized when V=1,
   // when mstatus.MPRV=1 with MPV=1, or for HLV/HLVX/HSV; instruction walks follow V.
@@ -475,12 +463,6 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
   flopenr #(GPA_BITS) GPARegReg(clk, reset, EnterGWalk, NextGPA, GPAReg);
   flopenl #(.TYPE(gpurposetype)) GPurposeReg(clk, reset, EnterGWalk, NextGPurpose, GFINAL, GPurpose);
   flopenl #(.TYPE(statetype)) ReturnStateReg(clk, reset, EnterGWalk, ReturnStateVal, L0_RD, ReturnState);
-
-
-
-  // consider a way to eliminate ReturnState by having the FSM always calculating NextWalkerState and then having a separate register to hold the state to return to after G stage is done.  This would eliminate the need for a separate ReturnState signal and would simplify the FSM.
-  // Factor out the G active mux from the FSM NextWalkerState
-  // Check if there is an equivlanet upper bits = 0 condition for regular walk. If so, is it accounted for, can we handle G stage the same way. If not should it be added.
 
   // Page Table Walker FSM
   flopenl #(.TYPE(statetype)) WalkerStateReg(clk, reset | FlushW, 1'b1, NextWalkerState, IDLE, WalkerState);
@@ -554,7 +536,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
       GLEAF:      if (P.SVADU_SUPPORTED & HPTWUpdateDA)               NextWalkerState = GUPDATE_PTE;
                   else if (GPurpose == GIMPLICIT_RD)                  NextWalkerState = ReturnState;   // Lx_RD
                   else if (GPurpose == GIMPLICIT_WR)                  NextWalkerState = UPDATE_PTE;
-                  else                                                NextWalkerState = IDLE;
+                  else                                                NextWalkerState = IDLE; // GPurpose == GFINAL
       GUPDATE_PTE: if (HPTWFaultM)                                    NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                           NextWalkerState = GUPDATE_PTE;
                   else                                                NextWalkerState = GLEAF;

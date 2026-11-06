@@ -264,7 +264,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
     end
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
-    dmmu(.clk, .reset, .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVLegalM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    dmmu(.clk, .reset, .SATP_REGW, .VSATP_REGW, .HGATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .VirtModeW, .MSTATUS_MPV, .HLVHSVLegalM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUFunct3M[1:0]),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM),
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),

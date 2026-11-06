@@ -29,6 +29,8 @@
 
 module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,
+  input  logic                     EffVirtMode,        // access is virtualized (V=1, MPRV with MPV=1, or HLV/HLVX/HSV)
+  input  logic [P.SVMODE_BITS-1:0] HGATP_MODE,         // G-stage translation mode
   input  logic [P.XLEN-1:0]        VAdr,
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]               STATUS_MPP,
@@ -65,8 +67,14 @@ module tlbcontrol import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
   logic                           PreUpdateDA, PrePageFault;
 
   // Grab the sv mode from SATP and determine whether translation should occur
-  assign Translate = (SATP_MODE != P.NO_TRANSLATE[P.SVMODE_BITS-1:0]) & (EffectivePrivilegeModeW != P.M_MODE) & ~DisableTranslation;
-
+  if (P.H_SUPPORTED) begin: two_stage
+    logic S1On, GOn;
+    assign S1On = SATP_MODE != P.NO_TRANSLATE[P.SVMODE_BITS-1:0];
+    assign GOn  = EffVirtMode & (HGATP_MODE != P.NO_TRANSLATE[P.SVMODE_BITS-1:0]);
+    assign Translate = (S1On | GOn) & (EffectivePrivilegeModeW != P.M_MODE) & ~DisableTranslation;
+  end else begin: one_stage
+    assign Translate = (SATP_MODE != P.NO_TRANSLATE[P.SVMODE_BITS-1:0]) & (EffectivePrivilegeModeW != P.M_MODE) & ~DisableTranslation;
+  end
   // Determine whether TLB is being used
   assign TLBAccess = ReadAccess | WriteAccess | (|CMOpM);
 

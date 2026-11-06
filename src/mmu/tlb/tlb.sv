@@ -56,6 +56,8 @@ module tlb import cvw::*;  #(parameter cvw_t P,
   input logic                      clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
+  input  logic                     EffVirtMode,      // access is virtualized (V=1, MPRV with MPV=1, or HLV/HLVX/HSV)
+  input  logic [P.SVMODE_BITS-1:0] HGATP_MODE,       // G-stage translation mode
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
@@ -113,7 +115,7 @@ module tlb import cvw::*;  #(parameter cvw_t P,
   assign VPN = VAdr[P.VPN_BITS+11:12];
   assign NAPOT4 = (PPN[3:0] == 4'b1000); // 64 KiB contiguous region with pte.napot_bits = 4
 
-  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .EffVirtMode, .HGATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
     .PTEAccessBits, .CAMHit, .Misaligned, .NAPOT4,
     .TLBMiss, .TLBHit, .TLBPageFault,
