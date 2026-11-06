@@ -88,8 +88,8 @@ record_trigger:
   ret
 
 .data
-.align 3
-// record_trigger stores instret one word after cycles
+.balign REGBYTES
+// XLEN-aligned for LREG/SREG; record_trigger stores instret one word after cycles
 startcycle: XWORD 0
 startinst: XWORD 0
 stopcycle: XWORD 0
