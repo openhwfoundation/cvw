@@ -15,7 +15,7 @@ NAMES     := $(notdir $(basename $(sort $(wildcard src/*.S))))
 ELFS      := $(addprefix rv32/,$(addsuffix .elf,$(NAMES))) $(addprefix rv64/,$(addsuffix .elf,$(NAMES))) rv32/WALLY-periph-m-01.elf
 OBJDUMPS  := $(addsuffix .objdump, $(ELFS))
 MEMFILES  := $(addsuffix .memfile, $(ELFS))
-HEADERS   := WALLY-TEST-LIB.h WALLY-env.h WALLY-uart.h link.ld
+HEADERS   := $(wildcard *.h) link.ld
 CFLAGS    := -static -mcmodel=medany -nostdlib -nostartfiles -g -T link.ld -Wl,--no-warn-rwx-segments -I .
 # make SELFCHECK_ALL=1 reports every mismatching signature entry on the console instead of halting at
 # the first one (see WALLY-TEST-LIB.h).  Rebuild with make clean when switching.
