@@ -904,13 +904,14 @@ SVPBMT_SUPPORTED  0
 SVNAPOT_SUPPORTED 0
 SVINVAL_SUPPORTED 0
 SVADU_SUPPORTED   0
+SSNPM_SUPPORTED   0
 
 deriv noU_rv32gc noS_rv32gc
 U_SUPPORTED    0
 
 deriv noU_rv64gc noS_rv64gc
-U_SUPPORTED    0
-
+U_SUPPORTED     0
+SMNPM_SUPPORTED 0
 # Floating-point modes supported
 
 deriv f_rv32gc rv32gc

@@ -212,9 +212,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR_RO(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
     `CONNECT_CSR_RO(MCONFIGPTR, 12'hF15, 0); //mconfigptr
     if (P.MSECCFG_SUPPORTED) begin
-      `CONNECT_CSR(MSECCFG, 12'h747, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_WE(MSECCFG, 12'h747, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[P.XLEN-1:0], CSRMWriteM & (CSRAdrM == 12'h747));
       if (P.XLEN == 32) begin
-        `CONNECT_CSR(MSECCFGH, 12'h757, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[63:32]);
+        `CONNECT_CSR_WE(MSECCFGH, 12'h757, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[63:32], CSRMWriteM & (CSRAdrM == 12'h757));
       end
     end
 
