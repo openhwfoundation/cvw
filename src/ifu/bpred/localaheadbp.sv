@@ -1,29 +1,17 @@
 ///////////////////////////////////////////
-// localaheadbp
+// localaheadbp.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 16 March 2021
+// Written:  Rose Thompson rose@rosethompson.net 16 March 2021
+// Modified:
 //
-// Purpose: local history branch predictor with ahead pipelining and SRAM memories.
+// Purpose: Ahead-pipelined local-history direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module localaheadbp import cvw::*; #(parameter cvw_t P,
@@ -41,19 +29,16 @@ module localaheadbp import cvw::*; #(parameter cvw_t P,
   input  logic            BranchE, BranchM, PCSrcE
 );
 
-  logic [k-1:0]           IndexNextF, IndexM;
+  logic [k-1:0]           IndexM;
   logic [1:0]             BPDirE;
   logic [1:0]             BPDirM;
-  logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+  logic [1:0]             NewBPDirM, NewBPDirW;
 
-  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW, LHRNextF;
+  logic [k-1:0]           LHRF, LHRD, LHRE, LHRM, LHRW;
   logic [k-1:0]           LHRNextW;
   logic                   PCSrcM;
-  logic [2**m-1:0][k-1:0] LHRArray;
   logic [m-1:0]           IndexLHRNextF, IndexLHRM;
   logic [XLEN-1:0]        PCW;
-
-  logic                   UpdateM;
 
   assign IndexM = LHRW;
 

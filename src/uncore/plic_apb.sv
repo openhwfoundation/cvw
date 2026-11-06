@@ -1,44 +1,26 @@
 ///////////////////////////////////////////
 // plic_apb.sv
 //
-// Written: bbracker@hmc.edu 18 January 2021
-// Modified:
+// Written:  Ben Bracker bbracker@hmc.edu 18 January 2021
+// Modified: David Harris, Rose Thompson, Jacob Pease, Juan Schroeder
 //
-// Purpose: Platform-Level Interrupt Controller
-//   Based on RISC-V spec (https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc)
-//   With clarifications from ROA's existing implementation (https://roalogic.github.io/plic/docs/AHB-Lite_PLIC_Datasheet.pdf)
-//   Supports only 1 target core and only a global threshold.
-//   This PLIC implementation serves as both the PLIC Gateways and PLIC Core.
-//   It assumes interrupt sources are level-triggered wires.
+// Purpose: Platform-level interrupt controller (PLIC) on APB.
+//          Based on https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc.
+//          Supports 1 target and a global threshold only; sources are level-triggered.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // number of interrupt sources
 // does not include source 0, which does not connect to anything according to spec
 // up to 63 sources supported; in the future, allow up to 1023 sources
-
-// number of contexts
-// hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
-`define C 2
 
 module plic_apb import cvw::*; #(parameter cvw_t P) (
   input  logic                PCLK, PRESETn,
@@ -55,6 +37,10 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   output logic                MExtInt, SExtInt
 );
 
+  // number of contexts
+  // hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
+  localparam C = 2;
+
   // register map
   localparam PLIC_INTPRIORITY0   = 24'h000000;
   localparam PLIC_INTPENDING0    = 24'h001000;
@@ -68,34 +54,34 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   localparam PLIC_THRESHOLD1     = 24'h201000;
   localparam PLIC_CLAIMCOMPLETE1 = 24'h201004;
 
-  logic                       memwrite, memread;
-  logic [23:0]                entry;
-  logic [31:0]                Din, Dout;
+  logic                                 memwrite, memread;
+  logic [23:0]                          entry;
+  logic [31:0]                          Din, Dout;
 
   // context-independent signals
-  logic [P.PLIC_NUM_SRC:1]               requests;
-  logic [P.PLIC_NUM_SRC:1][2:0]          intPriority;
-  logic [P.PLIC_NUM_SRC:1]               intInProgress, intPending, nextIntPending;
+  logic [P.PLIC_NUM_SRC:1]              requests;
+  logic [P.PLIC_NUM_SRC:1][2:0]         intPriority;
+  logic [P.PLIC_NUM_SRC:1]              intInProgress, intPending, nextIntPending;
 
   // context-dependent signals
-  logic [`C-1:0][2:0]                    intThreshold;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       intEn;
-  logic [`C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
-  logic [`C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
-  logic [`C-1:0][7:1]                    priorities_with_irqs;
-  logic [`C-1:0][7:1]                    max_priority_with_irqs;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
-  logic [`C-1:0][7:1]                    threshMask;
-  logic [P.PLIC_NUM_SRC-1:0]             One;
+  logic [C-1:0][2:0]                    intThreshold;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       intEn;
+  logic [C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
+  logic [C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
+  logic [C-1:0][7:1]                    priorities_with_irqs;
+  logic [C-1:0][7:1]                    max_priority_with_irqs;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
+  logic [C-1:0][7:1]                    threshMask;
+  logic [P.PLIC_NUM_SRC-1:0]            One;
 
   // hacks to handle gracefully PLIC_NUM_SRC being smaller than 32
   // Otherwise Questa and other simulators produce part-select out of bounds even
   // though sources >=32 are never used
 
-  localparam PLIC_SRC_TOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
-  localparam PLIC_SRC_BOT = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
+  localparam PLIC_SRC_TOP    = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
+  localparam PLIC_SRC_BOT    = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
   localparam PLIC_SRC_DINTOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC - 32 : 0;
-  localparam PLIC_SRC_EXT = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
+  localparam PLIC_SRC_EXT    = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
 
   // =======
   // APB I/O
@@ -191,7 +177,7 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
 
   // context-dependent signals
   genvar ctx;
-  for (ctx = 0; ctx < `C; ctx++) begin
+  for (ctx = 0; ctx < C; ctx++) begin
     // request matrix
     //   priority level (rows) X source ID (columns)
     //

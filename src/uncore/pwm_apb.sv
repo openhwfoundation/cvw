@@ -1,31 +1,21 @@
 ///////////////////////////////////////////
 // pwm_apb.sv
 //
-// Written: naichewa@gmail.com 4/29/2026
-// Modified:
+// Written:  Naiche Whyte-Aguayo 29 April 2026
+// Modified: David Harris
 //
-// Purpose: PWM module
+// Purpose: PWM on APB.
 //
 // Documentation:
 // Based on PWM design from SiFive FU540-C000 manual version 1.0
 // https://pdos.csail.mit.edu/6.828/2025/readings/FU540-C000-v1.0.pdf
+//
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2026 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module pwm_apb import cvw::*; #(parameter cvw_t P) (
@@ -43,13 +33,13 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
 );
 
   // register map
-  localparam PWM_CFG        = 8'h00;
-  localparam PWM_COUNT      = 8'h08;
-  localparam PWM_S          = 8'h10;
-  localparam PWM_CMP0       = 8'h20;
-  localparam PWM_CMP1       = 8'h24;
-  localparam PWM_CMP2       = 8'h28;
-  localparam PWM_CMP3       = 8'h2C;
+  localparam PWM_CFG   = 8'h00;
+  localparam PWM_COUNT = 8'h08;
+  localparam PWM_S     = 8'h10;
+  localparam PWM_CMP0  = 8'h20;
+  localparam PWM_CMP1  = 8'h24;
+  localparam PWM_CMP2  = 8'h28;
+  localparam PWM_CMP3  = 8'h2C;
 
   // PWM control registers
   logic [16:0]             PWMConfig; // scale, sticky, zerocmp, deglitch, enalways, enoneshot, center, gang (pending bits live in PWMCompareIP)
@@ -120,8 +110,7 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
 
   // Deglitch Circuit logic
   assign PWMHoldIn = (~PWMCycleEnd & PWMDeglitch) | PWMSticky;
-  flop #(1) pwmholdreg(PCLK,
-                       PWMHoldIn, PWMHoldOut);
+  flop #(1) pwmholdreg(PCLK, PWMHoldIn, PWMHoldOut);
 
   // Bus logic
   assign Entry = {PADDR[7:2], 2'b00};  // 32-bit word-aligned accesses

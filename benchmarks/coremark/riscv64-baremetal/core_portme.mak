@@ -34,7 +34,9 @@ CC = $(RISCVTOOLS)/bin/$(RISCVTYPE)-gcc
 # Use this flag to define compiler options. Note, you can add compiler options from the command line using XCFLAGS="other flags"
 #PORT_CFLAGS = -O2 -static -std=gnu99
 PORT_CFLAGS = -mcmodel=medany -fno-tree-loop-distribute-patterns -fno-common -lm -lgcc -T $(PORT_DIR)/link.ld
-FLAGS_STR = "$(PORT_CFLAGS) $(XCFLAGS) $(XLFLAGS) $(LFLAGS_END)"
+# The printed flags leave out the port directory, so that the binary, and the counts compared with
+# expected_coremark_results.csv, do not depend on where the repository is checked out
+FLAGS_STR = "$(subst $(PORT_DIR)/,,$(PORT_CFLAGS)) $(XCFLAGS) $(XLFLAGS) $(LFLAGS_END)"
 CFLAGS = $(PORT_CFLAGS) -I$(PORT_DIR) -I. -DFLAGS_STR=\"$(FLAGS_STR)\"
 # Flag: LFLAGS_END
 # Define any libraries needed for linking or other flags that should come at the end of the link line (e.g. linker scripts).

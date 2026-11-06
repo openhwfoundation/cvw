@@ -8,17 +8,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `define STD_LOG 0
@@ -39,6 +28,7 @@
   assign rvvi.csr[0][0][addr] = valid ? val : prev_csr_``name;
 
 module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
+  /* verilator lint_off WIDTHEXPAND */ // CSRs narrower than 64 bits zero-extend into the RVVI CSR array
 
   localparam NUM_REGS = P.E_SUPPORTED ? 16 : 32;
   localparam NUM_CSRS = 4096;
@@ -48,13 +38,12 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic                  clk;
   logic                  InstrValidD, InstrValidE;
   logic                  StallF, StallD;
-  logic                  STATUS_SXL, STATUS_UXL;
+  logic [1:0]            STATUS_SXL, STATUS_UXL;
   logic [P.XLEN-1:0]     PCNextF, PCF, PCD, PCE, PCM, PCW;
   logic [31:0]           InstrRawD, InstrRawE, InstrRawM, InstrRawW;
   logic                  InstrValidM, InstrValidW;
   logic                  StallE, StallM, StallW;
   logic                  GatedStallW;
-  logic                  SelHPTW;
   logic                  FlushD, FlushE, FlushM, FlushW;
   logic                  TrapM, TrapW;
   logic                  HaltM, HaltW;
@@ -74,33 +63,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [11:0]           CSRAdrM, CSRAdrW;
   logic                  InterruptM, InterruptW;
   logic                  valid;
-  logic                  HPTWUpdateDA, DA_updated, capture_PTE;
-
-  //For VM Verification
-  logic [(P.XLEN-1):0]     IVAdrF,IVAdrD,IVAdrE,IVAdrM,IVAdrW,DVAdrM,DVAdrW;
-  logic [(P.XLEN-1):0]     IPTEF,IPTED,IPTEE,IPTEM,IPTEW,DPTEM,DPTEW;
-  logic [(P.PA_BITS-1):0]  IPAF,IPAD,IPAE,IPAM,IPAW,DPAM,DPAW;
-  logic [1:0]              IPageTypeF, IPageTypeD, IPageTypeE, IPageTypeM, IPageTypeW, DPageTypeM, DPageTypeW;
-  logic                    ReadAccessM,WriteAccessM,ReadAccessW,WriteAccessW;
-  logic                    ExecuteAccessF,ExecuteAccessD,ExecuteAccessE,ExecuteAccessM,ExecuteAccessW;
-  logic [P.XLEN-1:0]       order;
-  logic [P.XLEN-1:0]       IPTEHPTWF;
-  logic [P.XLEN-1:0]       DPTEHPTWM;
-  logic [1:0]              IPageTypeHPTWF, DPageTypeHPTWM;     // page type of the last walk for each TLB
-  logic                    HPTWWalkDone;                       // last cycle of a walk
-  logic                    DTLBWalk;                           // the walk under way serves the DTLB, else the ITLB
-  logic                    ITLBHitF, DTLBHitM;                 // access hit its TLB while translating
-  logic [P.XLEN-1:0]       ITLBPTEF, DTLBPTEM;                 // page table entry the TLB hit on
-  logic [2:0]              IHitPageTypeF, DHitPageTypeM;       // page type of the entry the TLB hit on
-  logic                    IWalkedF, DWalkedM;                 // this access ran its own page table walk
-  logic [P.XLEN-1:0]       IPTEAccessF, DPTEAccessM;           // page table entry this access used
-  logic [1:0]              IPageTypeAccessF, DPageTypeAccessM; // page type this access used
-  logic                    SpillSaveF, SelSpillF;              // first half of a spilled fetch is done / second half is being fetched
-  logic                    ISecondHalfFaultF;                  // the second half of a spilled fetch faulted, so report it
-  logic [P.XLEN-1:0]       IVAdrFirstHalfF, IVAdrRptF;         // fetch virtual address: first half saved / reported
-  logic [P.PA_BITS-1:0]    IPAFirstHalfF, IPARptF;             // fetch physical address: first half saved / reported
-  logic [P.XLEN-1:0]       IPTEFirstHalfF, IPTERptF;           // fetch page table entry: first half saved / reported
-  logic [1:0]              IPageTypeFirstHalfF, IPageTypeRptF; // fetch page type: first half saved / reported
+  logic [P.XLEN-1:0]     order;
 
   assign clk = testbench.dut.clk;
   //  assign InstrValidF = testbench.dut.core.ieu.InstrValidF;  // not needed yet
@@ -125,7 +88,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign FlushM         = testbench.dut.core.FlushM;
   assign FlushW         = testbench.dut.core.FlushW;
   assign TrapM          = testbench.dut.core.TrapM;
-  assign HaltM          = testbench.DCacheFlushStart;
+  assign HaltM          = testbench.EndTest;
   if (P.ZICSR_SUPPORTED) begin
     assign PrivilegeModeW = testbench.dut.core.priv.priv.privmode.PrivilegeModeW;
     assign STATUS_SXL     = testbench.dut.core.priv.priv.csr.csrsr.STATUS_SXL;
@@ -136,59 +99,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign STATUS_SXL     = 0;
     assign STATUS_UXL     = 0;
     assign InterruptM     = 0;
-  end
-
-  //For VM Verification
-  if (P.VIRTMEM_SUPPORTED) begin
-    assign SelHPTW        = testbench.dut.core.lsu.hptw.hptw.SelHPTW;
-    assign HPTWUpdateDA   = testbench.dut.core.lsu.hptw.hptw.HPTWUpdateDA;
-    assign HPTWWalkDone   = testbench.dut.core.lsu.hptw.hptw.WalkDone;
-    assign IVAdrF         = testbench.dut.core.ifu.immu.immu.tlb.tlb.VAdr;
-    // Take the data access's own address and type from ahead of the walker's multiplexers.  While the
-    // walker owns the LSU (a DTLB walk chains straight into a pending ITLB walk, and the fault the DTLB
-    // walk found traps the access during the ITLB walk), the DMMU sees the walker's reads.  In that
-    // case report the virtual address as the physical one, as a walk that ends in FAULT does.
-    assign DVAdrM         = testbench.dut.core.lsu.IEUAdrExtM[P.XLEN-1:0];
-    assign IPAF           = testbench.dut.core.ifu.immu.immu.PhysicalAddress;
-    assign DPAM           = SelHPTW ? testbench.dut.core.lsu.IEUAdrExtM[P.PA_BITS-1:0] : testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
-    assign ReadAccessM    = testbench.dut.core.lsu.MemRWM[1];
-    assign WriteAccessM   = testbench.dut.core.lsu.MemRWM[0];
-    assign ExecuteAccessF = testbench.dut.core.ifu.immu.immu.ExecuteAccessF;
-    assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
-    assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
-    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal;
-    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal;
-    assign DTLBWalk       = testbench.dut.core.lsu.hptw.hptw.DTLBWalk;
-    // The entry each TLB hit on, for an access that did not have to walk.  TLBHit alone is not
-    // qualified by translation being on, so pair it with Translate the way tlbcontrol does.
-    assign ITLBHitF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.TLBHit & testbench.dut.core.ifu.immu.immu.tlb.tlb.Translate;
-    assign DTLBHitM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.TLBHit & testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.Translate;
-    assign ITLBPTEF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.tlbram.PageTableEntry;
-    assign DTLBPTEM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.tlbram.PageTableEntry;
-    assign IHitPageTypeF  = testbench.dut.core.ifu.immu.immu.tlb.tlb.HitPageType;
-    assign DHitPageTypeM  = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.HitPageType;
-  end else begin
-    assign SelHPTW        = 1'b0;
-    assign HPTWUpdateDA   = 1'b0;
-    assign HPTWWalkDone   = 1'b0;
-    assign IVAdrF         = 0;
-    assign DVAdrM         = 0;
-    assign IPAF           = 0;
-    assign DPAM           = 0;
-    assign ReadAccessM    = 0;
-    assign WriteAccessM   = 0;
-    assign ExecuteAccessF = 0;
-    assign IPTEF          = 0;
-    assign DPTEM          = 0;
-    assign IPageTypeF     = 0;
-    assign DPageTypeM     = 0;
-    assign DTLBWalk       = 1'b0;
-    assign ITLBHitF       = 1'b0;
-    assign DTLBHitM       = 1'b0;
-    assign ITLBPTEF       = 0;
-    assign DTLBPTEM       = 0;
-    assign IHitPageTypeF  = 0;
-    assign DHitPageTypeM  = 0;
   end
 
 
@@ -322,9 +232,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rf_we3 = testbench.dut.core.ieu.dp.regf.we3;
 
   always_comb begin
-    rf_wb <= 0;
+    rf_wb = 0;
     if(rf_we3)
-      rf_wb[rf_a3] <= 1'b1;
+      rf_wb[rf_a3] = 1'b1;
   end
 
   // Floating-point register file
@@ -341,9 +251,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   end
 
   always_comb begin
-    frf_wb <= 0;
+    frf_wb = 0;
     if(frf_we4)
-      frf_wb[frf_a4] <= 1'b1;
+      frf_wb[frf_a4] = 1'b1;
   end
 
   // CSR writes
@@ -392,97 +302,176 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     end
   end
 
-  // For VM Verification
-  // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts, so a walk reports the PTE as it
-  // was read rather than with the A and D bits the walker then sets.  It clears at the end of each walk,
-  // because a DTLB walk can chain straight into a pending ITLB walk without the walker going idle.
-  flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW | HPTWWalkDone, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
-  // Capture the PTE and page type the walker reaches, separately for each TLB, since one DTLB walk
-  // can be followed by an ITLB walk before the access it served leaves the Memory stage.
-  assign capture_PTE = SelHPTW & ~DA_updated;
-  flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE & ~DTLBWalk, IPTEF, IPTEHPTWF);           //PTE for IMMU
-  flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE & DTLBWalk, DPTEM, DPTEHPTWM);            //PTE for DMMU
-  flopenr #(2)          IPageTypeFReg (clk, reset, capture_PTE & ~DTLBWalk, IPageTypeF, IPageTypeHPTWF); //PageType for IMMU
-  flopenr #(2)          DPageTypeMReg (clk, reset, capture_PTE & DTLBWalk, DPageTypeM, DPageTypeHPTWM);  //PageType for DMMU
+`ifdef FCOV
+  // For VM Verification.  Only functional coverage samples these signals, and only a core with virtual
+  // memory has the walker and TLBs they come from, so build them only then.
+  logic [P.XLEN-1:0]       IVAdrW, DVAdrW;                       // virtual address of the fetch / data access
+  logic [P.PA_BITS-1:0]    IPAW, DPAW;                           // physical address of the fetch / data access
+  logic [P.XLEN-1:0]       IPTEW, DPTEW;                         // page table entry the fetch / data access used
+  logic [1:0]              IPageTypeW, DPageTypeW;               // page type the fetch / data access used
+  logic                    ReadAccessW, WriteAccessW, ExecuteAccessW;
 
-  // A walk serves the access that missed its TLB, and the walker's port carries that PTE only
-  // while the walk runs.  Remember which stage each walk served, so that access keeps reporting
-  // the PTE the walker fetched: with Svadu the walker sets the A and D bits on the way, and the
-  // entry it then writes to the TLB no longer matches what the test put in the page table.  The
-  // stage holds until the access leaves it, which is the same edge the registers below sample on.
-  // The second half of a spilled fetch translates on its own, so it starts afresh.
-  always @(posedge clk)
-    if (reset)                     DWalkedM <= 1'b0;
-    else if (SelHPTW & DTLBWalk)   DWalkedM <= 1'b1;
-    else if (~StallW)              DWalkedM <= 1'b0;
-  always @(posedge clk)
-    if (reset)                     IWalkedF <= 1'b0;
-    else if (SelHPTW & ~DTLBWalk)  IWalkedF <= 1'b1;
-    else if (~StallD | SpillSaveF) IWalkedF <= 1'b0;
+  if (P.VIRTMEM_SUPPORTED) begin : vm
+    logic                    SelHPTW, HPTWUpdateDA, DA_updated, capture_PTE;
+    logic                    HPTWWalkDone;                       // last cycle of a walk
+    logic                    DTLBWalk;                           // the walk under way serves the DTLB, else the ITLB
+    logic                    InstrFaultM;                        // the fetch of the instruction in Memory faulted
+    logic [P.XLEN-1:0]       IVAdrM, DVAdrM;
+    logic [P.PA_BITS-1:0]    IPAF, IPAD, IPAE, IPAM, DPAM;
+    logic [P.XLEN-1:0]       IPTEF, IPTED, IPTEE, IPTEM, DPTEM;
+    logic [1:0]              IPageTypeF, IPageTypeD, IPageTypeE, IPageTypeM, DPageTypeM;
+    logic                    ReadAccessM, WriteAccessM;
+    logic [P.XLEN-1:0]       IPTEHPTWF, DPTEHPTWM;               // PTE of the last walk for each TLB
+    logic [1:0]              IPageTypeHPTWF, DPageTypeHPTWM;     // page type of the last walk for each TLB
+    logic                    ITLBHitF, DTLBHitM;                 // access hit its TLB while translating
+    logic [P.XLEN-1:0]       ITLBPTEF, DTLBPTEM;                 // page table entry the TLB hit on
+    logic [2:0]              IHitPageTypeF, DHitPageTypeM;       // page type of the entry the TLB hit on
+    logic                    IWalkedF, DWalkedM;                 // this access ran its own page table walk
+    logic [P.XLEN-1:0]       IPTEAccessF, DPTEAccessM;           // page table entry this access used
+    logic [1:0]              IPageTypeAccessF, DPageTypeAccessM; // page type this access used
+    logic                    SpillSaveF;                         // first half of a spilled fetch is done
+    logic [P.PA_BITS-1:0]    IPARptF;                            // fetch physical address reported
+    logic [P.XLEN-1:0]       IPTERptF;                           // fetch page table entry reported
+    logic [1:0]              IPageTypeRptF;                      // fetch page type reported
 
-  // Report the page table entry and page type the access actually used: those of its own walk, else
-  // those of the TLB entry it hit.  An access that hits the TLB never touches the walker, so it must
-  // not carry whatever page was walked last.  An access that used no translation (translation off, a
-  // prefetch hint that does not look up the TLB, or a trap raised before translation, such as a
-  // misaligned access when misaligned faults take priority) reports zero: no PTE was read.  An RV64
-  // TLB entry keeps only the OR of PTE[60:54], in bit 60 (see tlbramline).
-  assign IPTEAccessF = IWalkedF ? IPTEHPTWF : ITLBHitF ? ITLBPTEF : '0;
-  assign DPTEAccessM = DWalkedM ? DPTEHPTWM : DTLBHitM ? DTLBPTEM : '0;
-  // A walk that faults traps the data access in the walk's last cycle, before the register above has
-  // captured that cycle's page type, so pass it through: it is the level whose PTE the walk was reading.
-  assign IPageTypeAccessF = IWalkedF ? IPageTypeHPTWF : ITLBHitF ? IHitPageTypeF[1:0] : '0;
-  assign DPageTypeAccessM = DWalkedM ? ((SelHPTW & DTLBWalk) ? DPageTypeM : DPageTypeHPTWM) : DTLBHitM ? DHitPageTypeM[1:0] : '0;
+    assign SelHPTW        = testbench.dut.core.lsu.hptw.hptw.SelHPTW;
+    assign HPTWUpdateDA   = testbench.dut.core.lsu.hptw.hptw.HPTWUpdateDA;
+    assign HPTWWalkDone   = testbench.dut.core.lsu.hptw.hptw.WalkDone;
+    // Take the data access's own address and type from ahead of the walker's multiplexers.  While the
+    // walker owns the LSU (a DTLB walk chains straight into a pending ITLB walk, and the fault the DTLB
+    // walk found traps the access during the ITLB walk), the DMMU sees the walker's reads.  In that
+    // case report the virtual address as the physical one, as a walk that ends in FAULT does.
+    assign DVAdrM         = testbench.dut.core.lsu.IEUAdrExtM[P.XLEN-1:0];
+    assign IPAF           = testbench.dut.core.ifu.immu.immu.PhysicalAddress;
+    assign DPAM           = SelHPTW ? testbench.dut.core.lsu.IEUAdrExtM[P.PA_BITS-1:0] : testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
+    assign ReadAccessM    = testbench.dut.core.lsu.MemRWM[1];
+    assign WriteAccessM   = testbench.dut.core.lsu.MemRWM[0];
+    assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
+    assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
+    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal[1:0]; // RVVI page types are 2 bits
+    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal[1:0];
+    assign DTLBWalk       = testbench.dut.core.lsu.hptw.hptw.DTLBWalk;
+    // The entry each TLB hit on, for an access that did not have to walk.  TLBHit alone is not
+    // qualified by translation being on, so pair it with Translate the way tlbcontrol does.
+    assign ITLBHitF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.TLBHit & testbench.dut.core.ifu.immu.immu.tlb.tlb.Translate;
+    assign DTLBHitM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.TLBHit & testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.Translate;
+    assign ITLBPTEF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.tlbram.PageTableEntry;
+    assign DTLBPTEM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.tlbram.PageTableEntry;
+    assign IHitPageTypeF  = testbench.dut.core.ifu.immu.immu.tlb.tlb.HitPageType;
+    assign DHitPageTypeM  = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.HitPageType;
 
-  // A 32-bit instruction that crosses a fetch boundary is fetched and translated in two halves, and
-  // the second half's fetch is the one in flight when the instruction leaves Fetch.  Report the
-  // instruction's own address, PC, with its translation, unless the second half faulted; then report
-  // the second half, as xtval does.  The IFU takes a spill only when the first half fetches cleanly,
-  // so a fault during a spill is always on the second half.
-  if (P.ZCA_SUPPORTED) begin : spill
-    assign SpillSaveF = testbench.dut.core.ifu.Spill.spill.SpillSaveF;
-    assign SelSpillF  = testbench.dut.core.ifu.Spill.SelSpillF;
-  end else begin : nospill
-    assign {SpillSaveF, SelSpillF} = '0;
+    // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts, so a walk reports the PTE as it
+    // was read rather than with the A and D bits the walker then sets.  It clears at the end of each walk,
+    // because a DTLB walk can chain straight into a pending ITLB walk without the walker going idle.
+    flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW | HPTWWalkDone, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
+    // Capture the PTE and page type the walker reaches, separately for each TLB, since one DTLB walk
+    // can be followed by an ITLB walk before the access it served leaves the Memory stage.
+    assign capture_PTE = SelHPTW & ~DA_updated;
+    flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE & ~DTLBWalk, IPTEF, IPTEHPTWF);           //PTE for IMMU
+    flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE & DTLBWalk, DPTEM, DPTEHPTWM);            //PTE for DMMU
+    flopenr #(2)          IPageTypeFReg (clk, reset, capture_PTE & ~DTLBWalk, IPageTypeF, IPageTypeHPTWF); //PageType for IMMU
+    flopenr #(2)          DPageTypeMReg (clk, reset, capture_PTE & DTLBWalk, DPageTypeM, DPageTypeHPTWM);  //PageType for DMMU
+
+    // A walk serves the access that missed its TLB, and the walker's port carries that PTE only
+    // while the walk runs.  Remember which stage each walk served, so that access keeps reporting
+    // the PTE the walker fetched: with Svadu the walker sets the A and D bits on the way, and the
+    // entry it then writes to the TLB no longer matches what the test put in the page table.  The
+    // stage holds until the access leaves it, which is the same edge the registers below sample on.
+    // The second half of a spilled fetch translates on its own, so it starts afresh.
+    always @(posedge clk)
+      if (reset)                     DWalkedM <= 1'b0;
+      else if (SelHPTW & DTLBWalk)   DWalkedM <= 1'b1;
+      else if (~StallW)              DWalkedM <= 1'b0;
+    always @(posedge clk)
+      if (reset)                     IWalkedF <= 1'b0;
+      else if (SelHPTW & ~DTLBWalk)  IWalkedF <= 1'b1;
+      else if (~StallD | SpillSaveF) IWalkedF <= 1'b0;
+
+    // Report the page table entry and page type the access actually used: those of its own walk, else
+    // those of the TLB entry it hit.  An access that hits the TLB never touches the walker, so it must
+    // not carry whatever page was walked last.  An access that used no translation (translation off, a
+    // prefetch hint that does not look up the TLB, or a trap raised before translation, such as a
+    // misaligned access when misaligned faults take priority) reports zero: no PTE was read.  An RV64
+    // TLB entry keeps only the OR of PTE[60:54], in bit 60 (see tlbramline).
+    assign IPTEAccessF = IWalkedF ? IPTEHPTWF : ITLBHitF ? ITLBPTEF : '0;
+    assign DPTEAccessM = DWalkedM ? DPTEHPTWM : DTLBHitM ? DTLBPTEM : '0;
+    // A walk that faults traps the data access in the walk's last cycle, before the register above has
+    // captured that cycle's page type, so pass it through: it is the level whose PTE the walk was reading.
+    assign IPageTypeAccessF = IWalkedF ? IPageTypeHPTWF : ITLBHitF ? IHitPageTypeF[1:0] : '0;
+    assign DPageTypeAccessM = DWalkedM ? ((SelHPTW & DTLBWalk) ? DPageTypeM : DPageTypeHPTWM) : DTLBHitM ? DHitPageTypeM[1:0] : '0;
+
+    // A 32-bit instruction that crosses a fetch boundary is fetched and translated in two halves, and
+    // the second half's fetch is the one in flight when the instruction leaves Fetch.  Report the
+    // instruction's own address, PC, with its translation, unless the second half faulted; then report
+    // the second half, as xtval does.  The IFU takes a spill only when the first half fetches cleanly,
+    // so a fault during a spill is always on the second half.  Only compressed instructions spill.
+    if (P.ZCA_SUPPORTED) begin : spill
+      logic                    SelSpillF;                          // second half of a spilled fetch is being fetched
+      logic                    ISecondHalfFaultF;                  // the second half of a spilled fetch faulted, so report it
+      logic [P.PA_BITS-1:0]    IPAFirstHalfF;                      // first half's physical address
+      logic [P.XLEN-1:0]       IPTEFirstHalfF;                     // first half's page table entry
+      logic [1:0]              IPageTypeFirstHalfF;                // first half's page type
+      assign SpillSaveF = testbench.dut.core.ifu.Spill.spill.SpillSaveF;
+      assign SelSpillF  = testbench.dut.core.ifu.Spill.SelSpillF;
+      assign ISecondHalfFaultF = SelSpillF & testbench.dut.core.ifu.IFUFaultF;
+      flopenr #(P.PA_BITS)  IPAFirstHalfReg (clk, reset, SpillSaveF, IPAF, IPAFirstHalfF);
+      flopenr #(P.XLEN)     IPTEFirstHalfReg (clk, reset, SpillSaveF, IPTEAccessF, IPTEFirstHalfF);
+      flopenr #(2)          IPageTypeFirstHalfReg (clk, reset, SpillSaveF, IPageTypeAccessF, IPageTypeFirstHalfF);
+      assign {IPARptF, IPTERptF, IPageTypeRptF} = (SelSpillF & ~ISecondHalfFaultF) ?
+             {IPAFirstHalfF, IPTEFirstHalfF, IPageTypeFirstHalfF} : {IPAF, IPTEAccessF, IPageTypeAccessF};
+    end else begin : nospill
+      assign SpillSaveF = 1'b0;
+      assign {IPARptF, IPTERptF, IPageTypeRptF} = {IPAF, IPTEAccessF, IPageTypeAccessF};
+    end
+
+    // The fetch's virtual address is the PC, or PCSpillM (PC+2 after a spill) when the second half
+    // faulted, which is the address xtval reports.  The IFU already pipelines both.
+    assign InstrFaultM = testbench.dut.core.priv.priv.InstrPageFaultM | testbench.dut.core.priv.priv.InstrAccessFaultM |
+                         testbench.dut.core.priv.priv.HPTWInstrPageFaultM | testbench.dut.core.priv.priv.HPTWInstrAccessFaultM;
+    assign IVAdrM = InstrFaultM ? testbench.dut.core.ifu.PCSpillM : PCM;
+    flopenr #(P.XLEN)     IVAdrWReg (clk, reset, ~StallW, IVAdrM, IVAdrW); //Virtual Address for IMMU
+    flopenr #(P.XLEN)     DVAdrWReg (clk, reset, ~StallW, DVAdrM, DVAdrW); //Virtual Address for DMMU
+
+    flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPARptF, IPAD); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAEReg (clk, reset, ~StallE, IPAD, IPAE); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAMReg (clk, reset, ~StallM, IPAE, IPAM); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAWReg (clk, reset, ~StallW, IPAM, IPAW); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  DPAWReg (clk, reset, ~StallW, DPAM, DPAW); //Physical Address for DMMU
+
+    flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTERptF, IPTED);      //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEEReg (clk, reset, ~StallE, IPTED, IPTEE);         //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEMReg (clk, reset, ~StallM, IPTEE, IPTEM);         //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEWReg (clk, reset, ~StallW, IPTEM, IPTEW);         //PTE for IMMU
+    flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEAccessM, DPTEW);   //PTE for DMMU
+
+    flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeRptF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeEReg (clk, reset, ~StallE, IPageTypeD, IPageTypeE); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeMReg (clk, reset, ~StallM, IPageTypeE, IPageTypeM); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeWReg (clk, reset, ~StallW, IPageTypeM, IPageTypeW); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeAccessM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
+
+    flopenr #(1)  ReadAccessWReg    (clk, reset, ~StallW, ReadAccessM, ReadAccessW);   //LoadAccess
+    flopenr #(1)  WriteAccessWReg   (clk, reset, ~StallW, WriteAccessM, WriteAccessW); //StoreAccess
+    assign ExecuteAccessW = 1'b1; // every instruction is fetched, and the IMMU checks each fetch for execute permission
+  end else begin : novm
+    assign {IVAdrW, DVAdrW, IPAW, DPAW, IPTEW, DPTEW, IPageTypeW, DPageTypeW} = '0;
+    assign {ReadAccessW, WriteAccessW, ExecuteAccessW} = '0;
   end
-  assign ISecondHalfFaultF = SelSpillF & testbench.dut.core.ifu.IFUFaultF;
-  flopenr #(P.XLEN)     IVAdrFirstHalfReg (clk, reset, SpillSaveF, IVAdrF, IVAdrFirstHalfF);
-  flopenr #(P.PA_BITS)  IPAFirstHalfReg (clk, reset, SpillSaveF, IPAF, IPAFirstHalfF);
-  flopenr #(P.XLEN)     IPTEFirstHalfReg (clk, reset, SpillSaveF, IPTEAccessF, IPTEFirstHalfF);
-  flopenr #(2)          IPageTypeFirstHalfReg (clk, reset, SpillSaveF, IPageTypeAccessF, IPageTypeFirstHalfF);
-  assign {IVAdrRptF, IPARptF, IPTERptF, IPageTypeRptF} = (SelSpillF & ~ISecondHalfFaultF) ?
-         {IVAdrFirstHalfF, IPAFirstHalfF, IPTEFirstHalfF, IPageTypeFirstHalfF} : {IVAdrF, IPAF, IPTEAccessF, IPageTypeAccessF};
 
-  flopenr #(P.XLEN)     IVAdrDReg (clk, reset, ~StallD, IVAdrRptF, IVAdrD); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrEReg (clk, reset, ~StallE, IVAdrD, IVAdrE); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrMReg (clk, reset, ~StallM, IVAdrE, IVAdrM); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrWReg (clk, reset, ~StallW, IVAdrM, IVAdrW); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     DVAdrWReg (clk, reset, ~StallW, DVAdrM, DVAdrW); //Virtual Address for DMMU
-
-  flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPARptF, IPAD); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAEReg (clk, reset, ~StallE, IPAD, IPAE); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAMReg (clk, reset, ~StallM, IPAE, IPAM); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAWReg (clk, reset, ~StallW, IPAM, IPAW); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  DPAWReg (clk, reset, ~StallW, DPAM, DPAW); //Physical Address for DMMU
-
-  flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTERptF, IPTED);      //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEEReg (clk, reset, ~StallE, IPTED, IPTEE);         //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEMReg (clk, reset, ~StallM, IPTEE, IPTEM);         //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEWReg (clk, reset, ~StallW, IPTEM, IPTEW);         //PTE for IMMU
-  flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEAccessM, DPTEW);   //PTE for DMMU
-
-  flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeRptF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeEReg (clk, reset, ~StallE, IPageTypeD, IPageTypeE); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeMReg (clk, reset, ~StallM, IPageTypeE, IPageTypeM); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeWReg (clk, reset, ~StallW, IPageTypeM, IPageTypeW); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeAccessM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
-
-  flopenr #(1)  ReadAccessWReg    (clk, reset, ~StallW, ReadAccessM, ReadAccessW);   //LoadAccess
-  flopenr #(1)  WriteAccessWReg   (clk, reset, ~StallW, WriteAccessM, WriteAccessW); //StoreAccess
-
-  flopenr #(1)  ExecuteAccessDReg (clk, reset, ~StallD, ExecuteAccessF, ExecuteAccessD); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessEReg (clk, reset, ~StallE, ExecuteAccessD, ExecuteAccessE); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessMReg (clk, reset, ~StallM, ExecuteAccessE, ExecuteAccessM); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessWReg (clk, reset, ~StallW, ExecuteAccessM, ExecuteAccessW); //Instruction Fetch Access
+  assign rvvi.virt_adr_i[0][0]     = IVAdrW;
+  assign rvvi.virt_adr_d[0][0]     = DVAdrW;
+  assign rvvi.phys_adr_i[0][0]     = IPAW;
+  assign rvvi.phys_adr_d[0][0]     = DPAW;
+  assign rvvi.read_access[0][0]    = ReadAccessW;
+  assign rvvi.write_access[0][0]   = WriteAccessW;
+  assign rvvi.execute_access[0][0] = ExecuteAccessW;
+  assign rvvi.pte_i[0][0]          = IPTEW;
+  assign rvvi.pte_d[0][0]          = DPTEW;
+  assign rvvi.ppn_i[0][0]          = IPTEW[P.PPN_BITS+9:10]; // the PPN field of the PTE reported
+  assign rvvi.ppn_d[0][0]          = DPTEW[P.PPN_BITS+9:10];
+  assign rvvi.page_type_i[0][0]    = IPageTypeW;
+  assign rvvi.page_type_d[0][0]    = DPageTypeW;
+`endif
 
   // Initially connecting the writeback stage signals, but may need to use M stage
   // and gate on ~FlushW.
@@ -523,23 +512,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
-
-`ifdef FCOV
-  // Virtual Memory signals for verification
-  assign rvvi.virt_adr_i[0][0]     = IVAdrW;
-  assign rvvi.virt_adr_d[0][0]     = DVAdrW;
-  assign rvvi.phys_adr_i[0][0]     = IPAW;
-  assign rvvi.phys_adr_d[0][0]     = DPAW;
-  assign rvvi.read_access[0][0]    = ReadAccessW;
-  assign rvvi.write_access[0][0]   = WriteAccessW;
-  assign rvvi.execute_access[0][0] = ExecuteAccessW;
-  assign rvvi.pte_i[0][0]          = IPTEW;
-  assign rvvi.pte_d[0][0]          = DPTEW;
-  assign rvvi.ppn_i[0][0]          = IPTEW[P.PPN_BITS+9:10]; // the PPN field of the PTE reported
-  assign rvvi.ppn_d[0][0]          = DPTEW[P.PPN_BITS+9:10];
-  assign rvvi.page_type_i[0][0]    = IPageTypeW;
-  assign rvvi.page_type_d[0][0]    = DPageTypeW;
-`endif
 
   integer index2;
 
@@ -600,4 +572,5 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       // end
     end
   end
+  /* verilator lint_on WIDTHEXPAND */
 endmodule

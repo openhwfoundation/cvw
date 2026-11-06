@@ -1,32 +1,19 @@
 ///////////////////////////////////////////
 // csr.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 7 April 2021
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Ben Bracker, Domenico Ottolia dottolia@hmc.edu, Udeema Shakya, Katherine Parry, Jordan Carlin
 //
-// Purpose: Counter Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Control and status registers.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module csr import cvw::*; #(parameter cvw_t P) (
@@ -140,10 +127,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   always_comb
     if (InterruptM)           NextFaultXtvalM = '0;
     else case (CauseM)
-      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch
+      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 
@@ -184,9 +171,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
-    CSRRWM =   CSRSrcM;
-    CSRRSM =   CSRReadVal2M | CSRSrcM;
-    CSRRCM =   CSRReadVal2M & ~CSRSrcM;
+    CSRRWM = CSRSrcM;
+    CSRRSM = CSRReadVal2M | CSRSrcM;
+    CSRRCM = CSRReadVal2M & ~CSRSrcM;
     case (InstrM[13:12]) // funct3[1:0]: 01 = csrrw(i), 10 = csrrs(i), 11 = csrrc(i)
       2'b01:   CSRWriteValM = CSRRWM;
       2'b10:   CSRWriteValM = CSRRSM;
@@ -289,16 +276,16 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .MTIME_CLINT, .CSRCReadValM, .IllegalCSRCAccessM);
 
   // Broadcast appropriate environment configuration based on privilege mode
-  assign ENVCFG_STCE =  MENVCFG_REGW[63]; // supervisor timer counter enable
+  assign ENVCFG_STCE  = MENVCFG_REGW[63]; // supervisor timer counter enable
   assign ENVCFG_PBMTE = MENVCFG_REGW[62]; // page-based memory types enable
   assign ENVCFG_ADUE  = MENVCFG_REGW[61]; // Hardware A/D Update enable
-  assign ENVCFG_CBE =   (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
+  assign ENVCFG_CBE   = (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[7:4] :
-                                                                       (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
+                                                                        (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
   // FIOM presently doesn't do anything because Wally fences don't do anything
-  assign ENVCFG_FIOM =  (PrivilegeModeW == P.M_MODE) ? 1'b1 :
+  assign ENVCFG_FIOM  = (PrivilegeModeW == P.M_MODE) ? 1'b1 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[0] :
-                                                                       (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
+                                                                        (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
 
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM;
