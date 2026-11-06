@@ -471,7 +471,7 @@ module hptw import cvw::*;  #(parameter cvw_t P) (
         default: FinalGPPN = CurrentPPN;                                            // kilopage
       endcase
   end
-  assign FinalGPA = {FinalGPPN, TranslationVAdr[11:0]};
+  assign FinalGPA = GPA_BITS'({FinalGPPN, TranslationVAdr[11:0]}); // zero-extend to the GPA width
 
   always_comb begin
     if (WalkerState == IDLE) begin
