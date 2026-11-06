@@ -58,7 +58,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
   output logic        VsetivliD,                // vsetivli: AVL is the uimm5 in the rs1 field
-  output logic [10:0] VTYPEImmD                 // zero-extended vtype immediate for vsetvli / vsetivli
+  output logic [10:0] VTYPEImmD,                 // zero-extended vtype immediate for vsetvli / vsetivli
+  output logic [1:0]  VMemRWD                  // vector memory read/write: [1] = read, [0] = write
 );
 
 
@@ -94,13 +95,17 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   logic       MewD;                      // element width extension (mew=1 reserved)
   logic       SupportedEEWD;             // element width is defined and fits in ELEN
   logic [2:0] VLSEEWD;                   // log2(EEW) named by the width field
+  logic       VLoadD, VStoreD;            // is a vector load or store instruction
   logic       VLoadStoreD;               // is vector load/store
 
   assign NfD     = InstrD[31:29];
   assign MewD    = InstrD[28];
   assign MopD    = InstrD[27:26];
   assign LSumopD = InstrD[24:20];
-  assign VLoadStoreD = (OpD == 7'b0000111) | (OpD == 7'b0100111);
+  assign VLoadD = (OpD == 7'b0000111);
+  assign VStoreD = (OpD == 7'b0100111);
+  assign VMemRWD = {VLoadD, VStoreD};
+  assign VLoadStoreD = VLoadD | VStoreD;
 
   // vtype element width
   logic [2:0] SewD;                      // log2(SEW)

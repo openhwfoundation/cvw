@@ -51,9 +51,11 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
-  output logic [P.VPU_LSU_BLEN-1:0] VWriteDataM,                                // Data to be written to memory (to LSU)
-  output logic [P.XLEN-1:0]         VEUAdrM ,                                   // Data to be written to memory (to LSU)
-  input logic [P.VPU_LSU_BLEN-1:0]  VReadDataM ,                                // Read data (from LSU)
+  output logic [1:0]                VMemRWM,                                    // Memory read/write (to LSU): [1] = read, [0] = write
+  output logic [2:0]                VSizeM,
+  output logic [P.VLEN-1:0]         VWriteDataM,                                // Data to be written to memory (to LSU)
+  output logic [P.XLEN-1:0]         VEUAdrE, VEUAdrM,                           // Address to be written to memory (to LSU)
+  input logic [P.VLEN-1:0]          VReadDataM,                                // Read data (from LSU)
   output logic [P.XLEN-1:0]         VIntResM,                                   // vl for rd (to IEU)
   output logic                      IllegalVPUInstrD,                           // Is the instruction an illegal fpu instruction (to IFU)
   // Writeback stage
@@ -85,13 +87,14 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic        VsetvlD;                       // vsetvl (vtype from rs2)
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
   logic [10:0] VTYPEImmD;                     // vtype immediate
+  logic [1:0]  VMemRWD;                       // vector memory read/write: [1] = read, [0] = write
   logic [P.XLEN-1:0] VTYPED;                  // vtype seen by Decode, forwarded from an older vset
   logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
   logic [P.VLEN-1:0] VResultFinalW;
 
-  logic [P.VLEN-1:0] VIEUResultW [P.VPU_INT_EU-1:0];
+  logic [P.VLEN-1:0] VResultW [P.VPU_INT_EU + P.VPU_LSU_EU -1:0];
   logic [P.XLEN-1:0] VIEUResultToScalarW [P.VPU_INT_EU-1:0];
 
   //logic       IllegalVPUInstrD;
@@ -108,7 +111,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   genvar i;
 
   logic [P.VPU_EU-1:0] VIEURegWriteW, VIEUVRegWriteW;
-  logic [4:0]              VIEUVdFinalW [P.VPU_EU-1:0];
+  logic [4:0]              VVdFinalW [P.VPU_EU-1:0];
 
   // divide into control and data path
 
@@ -129,7 +132,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
                                .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultSrcD, .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
+                               .VALUResultSrcD, .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
                                .VPUFrontEndBusyD);
@@ -147,23 +150,22 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
-                   .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
-                   .VIEUVdFinalW(VIEUVdFinalW[i]));
+                   .VIEUResultW(VResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
+                   .VIEUVdFinalW(VVdFinalW[i]));
   end
 
-  for(i = 0; i < P.VPU_LSU_EU; i++) begin : vlsuif
+  // vector load/store interface: exactly one (P.VPU_LSU_EU == 1), at EU index P.VPU_INT_EU
+  begin : vlsuif
     // *** add LSU IF
-    assign ExecutionUnitReadyD[i+P.VPU_INT_EU] = '1;
-    assign VWriteDataM = '0;
-    assign VEUAdrM = '0;
-    assign ExecutionUnitResultValidW[i+P.VPU_INT_EU] = '0;
 
+    vlsuif #(P) vlsuif(.clk, .reset, .ForwardedSrcAE, .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
+                        .ReadyW(ControllerWBReadyW[P.VPU_INT_EU]), .ValidD(ControllerValidD[P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[P.VPU_INT_EU]),
+                        .VMemRWD, .Vs3D(VRD3D), .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM, .VReadDataW(VResultW[P.VPU_INT_EU]));
 
     //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
     //assign VIEUResultW[i+P.VPU_INT_EU] = '0;
-    assign VIEURegWriteW[i+P.VPU_INT_EU] = '0;
-    assign VIEUVRegWriteW[i+P.VPU_INT_EU] = '0;
-    assign VIEUVdFinalW[i+P.VPU_INT_EU] =  '0;
+    assign VIEURegWriteW[P.VPU_INT_EU] = '0;
+    assign VIEUVRegWriteW[P.VPU_INT_EU] = '0;
   end
 
   for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
@@ -176,7 +178,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
     //assign VIEUResultW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
     assign VIEURegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
     assign VIEUVRegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    assign VIEUVdFinalW[i+P.VPU_INT_EU+P.VPU_LSU_EU] =  '0;
+    assign VVdFinalW[i+P.VPU_INT_EU+P.VPU_LSU_EU] =  '0;
 
   end
 
@@ -184,9 +186,9 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   // the controller must select the correct EU to write back into the VRF so that instructions commit inorder.
 
-  or_rows #(P.VPU_INT_EU, P.VLEN) VEUResultAOMux(.a(VIEUResultW), .y(VResultFinalW));
+  or_rows #(P.VPU_INT_EU + P.VPU_LSU_EU, P.VLEN) VEUResultAOMux(.a(VResultW), .y(VResultFinalW)); // *** TODO: should eventually be VPU_EU
   or_rows #(P.VPU_INT_EU, P.XLEN) VIEUFPResultAOMux(.a(VIEUResultToScalarW), .y(VIEUFPResultFinalW));
-  or_rows #(P.VPU_EU, 5) VdAOMux(.a(VIEUVdFinalW), .y(VdFinalW));
+  or_rows #(P.VPU_EU, 5) VdAOMux(.a(VVdFinalW), .y(VdFinalW));
   //or_rows #(P.VPU_INT_EU, 5) RdAOMux(.a(VIEURegWriteW), .y(VRdFinalW));
   assign VRegWriteW = | VIEUVRegWriteW;
   assign RegWriteW = | VIEURegWriteW;
