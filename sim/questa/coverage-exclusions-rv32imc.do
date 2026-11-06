@@ -291,8 +291,8 @@ ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 WriteAccessM_0 Write
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-rx]
 ExcludeRows $IMMU/pmachecker e {AccessRWXC_0 AtomicAccessM_1 AtomicAllowed_0 AtomicAllowed_1}
 ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-instr-fault]
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMAAccessFault_0 PMAAccessFault_1}
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMAAccessFault_0 PMAAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMADataAccessFault_0 PMADataAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMADataAccessFault_0 PMADataAccessFault_1}
 ExcludeRows $IMMU e {ReadAccessM_1 WriteAccessM_0 WriteAccessM_1}
 ExcludeRows $IMMU e [list {VAdr\[0\]_1}]
 ExcludeRows $IMMU e {DataMisalignedM_0 DataMisalignedM_1 ReadNoAmoAccessM_1}
