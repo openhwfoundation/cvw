@@ -26,16 +26,14 @@
 package cvw;
 
   // Branch direction predictor selected by BPRED_TYPE
-  typedef enum logic [3:0] {
-    BP_TWOBIT       = 4'd0,
-    BP_GSHARE       = 4'd1,
-    BP_GLOBAL       = 4'd2,
-    BP_GSHARE_BASIC = 4'd3,
-    BP_GLOBAL_BASIC = 4'd4,
-    BP_LOCAL_BASIC  = 4'd5,
-    BP_LOCAL_AHEAD  = 4'd6,
-    BP_LOCAL_REPAIR = 4'd7,
-    BP_STATIC       = 4'd8   // no BTB; Decode predicts JAL and backward branches taken
+  typedef enum logic [2:0] {
+    BP_TWOBIT       = 3'd0,
+    BP_GSHARE       = 3'd1,
+    BP_GLOBAL       = 3'd2,
+    BP_GSHARE_BASIC = 3'd3,
+    BP_GLOBAL_BASIC = 3'd4,
+    BP_LOCAL_BASIC  = 3'd5,
+    BP_STATIC       = 3'd6   // no BTB; Decode predicts JAL and backward branches taken
   } bpred_type_t;
 
   // Shared constants; some are unused in configurations that omit the hardware using them
