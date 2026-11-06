@@ -43,11 +43,12 @@ module cacheLRU
 
   genvar                               row;
 
-  /* verilator lint_off UNOPTFLAT */
-  // Rose: For some reason verilator does not like this.  I checked and it is not a circular path.
-  logic [NUMWAYS-2:0]                  LRUUpdate;
-  logic [LOGNUMWAYS-1:0]               Intermediate [NUMWAYS-2:0];
-  /* verilator lint_on UNOPTFLAT */
+  // split_var: bits of these depend on other bits, which Verilator otherwise treats as a combinational loop.
+  // A 2-way cache has a 1-bit LRUUpdate, which has no such loop and which Verilator warns it cannot split.
+  /* verilator lint_off SPLITVAR */
+  logic [NUMWAYS-2:0]                  LRUUpdate /* verilator split_var */;
+  /* verilator lint_on SPLITVAR */
+  logic [LOGNUMWAYS-1:0]               Intermediate [NUMWAYS-2:0] /* verilator split_var */;
 
   logic [NUMWAYS-1:0]                  FirstZero;
   logic [LOGNUMWAYS-1:0]               FirstZeroWay;
