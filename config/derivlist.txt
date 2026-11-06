@@ -149,6 +149,7 @@ SVADU_SUPPORTED     0
 
 deriv syn_rv64gc_noFPU syn_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
@@ -157,6 +158,7 @@ ZFA_SUPPORTED       0
 
 deriv syn_sram_rv64gc_noFPU syn_sram_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0

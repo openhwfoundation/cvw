@@ -196,7 +196,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
     assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
                               ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
     assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
-                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
+                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & (P.ZFH_SUPPORTED | P.ZFBFMIN_SUPPORTED)));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
     // cbo.zero (imm 4) needs xenvcfg.CBZE (ENVCFG_CBE[3]); cbo.inval (imm 0) needs CBIE (ENVCFG_CBE[1:0]) = 01 or 11;
     // cbo.clean (imm 1) and cbo.flush (imm 2) need CBCFE (ENVCFG_CBE[2])
