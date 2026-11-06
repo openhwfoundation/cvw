@@ -236,8 +236,8 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
     // extra M mode CSRs for RV32
     if (P.XLEN == 32) begin
-      `CONNECT_CSR_WE(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW);
-      `CONNECT_CSR_WE(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW);
+      `CONNECT_CSR_WE(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW, testbench.dut.core.priv.priv.csr.WriteMSTATUSHM);
+      `CONNECT_CSR_WE(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW, CSRMWriteM & (CSRAdrM == 12'h31A));
     end
   end
 

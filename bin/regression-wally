@@ -187,8 +187,8 @@ derivconfigtests = [
 
         # pm16 variant
         ["pm16", "rv64gc", ["priv/Smmpm", "priv/Smnpm/Smnpm_SSm*", "priv/Ssnpm/Ssnpm_Sm*",
-        "priv/Smnpm/bare", "priv/Smnpm/sv39", "priv/Smnpm/sv48",
-        "priv/Ssnpm/bare", "priv/Ssnpm/sv39", "priv/Ssnpm/sv48"]],
+        "priv/Smnpm/Smnpm_S_bare*", "priv/Smnpm/Smnpm_S_sv39*", "priv/Smnpm/Smnpm_S_sv48*",
+        "priv/Ssnpm/Ssnpm_bare*", "priv/Ssnpm/Ssnpm_sv39*", "priv/Ssnpm/Ssnpm_sv48*"]],
     ]
 
 bpredtests = [
