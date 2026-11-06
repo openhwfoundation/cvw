@@ -54,41 +54,24 @@ module bpred import cvw::*; #(parameter cvw_t P) (
   output logic              IClassWrongM               // Class prediction is wrong
 );
 
+  // Instruction class of each stage, shared by the static and dynamic predictors
+  logic                    BranchM, BranchW, JumpM, JumpW;
+  logic                    CallD, CallE, CallM, CallW;
+  logic                    ReturnD, ReturnE, ReturnM, ReturnW;
+  logic                    BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF;
+  logic                    BPBranchF, BPJumpF, BPReturnF, BPCallF;
+  logic                    BPCallD, BPReturnD, BPReturnWrongD;
+
   if (P.BPRED_TYPE == BP_STATIC) begin : staticbp
-    // Static prediction in the Decode stage, with no BTB.  JAL and backward conditional branches (negative offset)
-    // are predicted taken and redirect fetch to PCD + offset, costing one bubble instead of two.
-    // The Execute stage corrects a wrong prediction as it would with no predictor.
-    logic              BranchInstrD, JalD, PredTakenD, PredTakenE;
-    logic [P.XLEN-1:0] OffsetD, PredPCD, CorrectPCE, PCDecodeF;
-    logic              BranchM, JumpM, BranchW, JumpW;
-    logic              CallD, CallE, CallM, CallW;
-    logic              ReturnD, ReturnE, ReturnM, ReturnW;
+    staticbp #(P) StaticPredictor(.clk, .reset, .StallD, .StallE, .FlushE,
+      .InstrD, .PCD, .PCPlus2or4F, .PCSrcE, .IEUAdrE, .PCLinkE,
+      .PC1NextF, .BPWrongE, .BPRedirectD);
 
-    assign BranchInstrD = InstrD[6:0] == 7'b1100011;
-    assign JalD = InstrD[6:0] == 7'b1101111;
-    assign OffsetD = JalD ? {{(P.XLEN-20){InstrD[31]}}, InstrD[19:12], InstrD[20], InstrD[30:21], 1'b0}
-                          : {{(P.XLEN-12){InstrD[31]}}, InstrD[7], InstrD[30:25], InstrD[11:8], 1'b0};
-    assign PredTakenD = JalD | BranchInstrD & InstrD[31];
-    assign PredPCD = PCD + OffsetD;
-    // a branch or JAL predicted taken is wrong only if not taken; anything else is wrong if taken
-    assign BPWrongE = PCSrcE ^ PredTakenE;
-    assign BPRedirectD = PredTakenD & ~StallD;
-    flopenrc #(1) PredTakenEReg(clk, reset, FlushE, ~StallE, PredTakenD, PredTakenE);
-    mux2 #(P.XLEN) correctmux(.d0(IEUAdrE), .d1(PCLinkE), .s(PredTakenE), .y(CorrectPCE));
-    mux2 #(P.XLEN) decodemux(.d0(PCPlus2or4F), .d1(PredPCD), .s(PredTakenD), .y(PCDecodeF));
-    mux2 #(P.XLEN) pcmux1(.d0(PCDecodeF), .d1(CorrectPCE), .s(BPWrongE), .y(PC1NextF));
-
-    icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
-      .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
-      .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
-      .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),
-      .BTBBranchF(1'b0), .BPCallF(), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
-      .BPReturnWrongD(), .BPReturnD(), .BPCallD());
-    flopenrc #(1) BPWrongMReg(clk, reset, FlushM, ~StallM, BPWrongE, BPWrongM);
+    // no BTB, so the instruction class comes from decoding the fetched instruction
+    assign {BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF} = '0;
     assign RASPredPCWrongM = 1'b0;
     assign BPDirWrongM = BPWrongM;
     assign BTAWrongM = BPWrongM;
-    assign IClassM = {CallM, ReturnM, JumpM, BranchM};
     assign NextValidPCE = PCE;
 
   end else begin : dynamicbp
@@ -102,15 +85,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     logic [P.XLEN-1:0]       PC0NextF;
     logic [P.XLEN-1:0]       PCCorrectE;
 
-    logic                    BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF;
-    logic                    BPBranchF, BPJumpF, BPReturnF, BPCallF;
-    logic                    BPCallD;
-    logic                    BPReturnD;
-    logic                    ReturnD, CallD;
-    logic                    ReturnE, CallE;
-    logic                    BranchM, JumpM, ReturnM, CallM;
-    logic                    BranchW, JumpW, ReturnW, CallW;
-    logic                    BPReturnWrongD;
     logic                    BPBTAWrongM;
     logic                    PCSrcM;
 
@@ -178,11 +152,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
         .IClassM({CallM, ReturnM, JumpM, BranchM}),
         .IClassW({CallW, ReturnW, JumpW, BranchW}));
 
-    icpred #(P, P.INSTR_CLASS_PRED) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
-      .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
-      .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW, .BTBCallF, .BTBReturnF, .BTBJumpF,
-      .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
-
     // Part 3 RAS
     logic [P.XLEN-1:0] PCLinkD;
     flopenr #(P.XLEN) PCLinkDReg(clk, reset, ~StallD, PCPlus2or4F, PCLinkD); // link address of the instruction in D
@@ -198,7 +167,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     // also flush the branch.  This will change in a superscalar cpu.
     // branch is wrong only if the PC does not match and both the Decode and Fetch stages have valid instructions.
     assign BPWrongE = (PCCorrectE != PCD) & InstrValidE & InstrValidD;
-    flopenrc #(1) BPWrongMReg(clk, reset, FlushM, ~StallM, BPWrongE, BPWrongM);
 
     // Output the predicted PC or corrected PC on misprediction.
     assign BPPCSrcF = (BPBranchF & BPDirF[1]) | BPJumpF;
@@ -242,9 +210,17 @@ module bpred import cvw::*; #(parameter cvw_t P) (
       assign {BTAWrongM, RASPredPCWrongM, BPDirWrongM} = 0;
     end
 
-    assign IClassM = {CallM, ReturnM, JumpM, BranchM};
-
     assign BPRedirectD = 1'b0;
   end
+
+  // Instruction class prediction (with a BTB) or decode (without one)
+  icpred #(P, P.INSTR_CLASS_PRED & P.BPRED_TYPE != BP_STATIC) icpred(.clk, .reset,
+    .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
+    .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
+    .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW, .BTBCallF, .BTBReturnF, .BTBJumpF,
+    .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
+
+  flopenrc #(1) BPWrongMReg(clk, reset, FlushM, ~StallM, BPWrongE, BPWrongM);
+  assign IClassM = {CallM, ReturnM, JumpM, BranchM};
 
 endmodule
