@@ -1,0 +1,125 @@
+///////////////////////////////////////////
+// WALLY-selfcheck.h
+//
+// Written: david_harris@hmc.edu 15 September 2026; RV32 port 27 October 2026
+//
+// Purpose: Self-check helpers for directed tests built with WALLY-init-lib.h.  A failing check records the
+//          details in selfcheck_record for debugging (status 2 = value mismatch; fields: index, address,
+//          expected, actual) and reports the failure to the testbench by storing (2 << 1) | 1 = 5 to tohost.
+//          A test that reaches done without failing reports 1 (pass) to tohost.
+//          Include after WALLY-init-lib.h.  The macros clobber t0 and t1.  RV32 version of
+//          tests/coverage64gc/WALLY-selfcheck.h (same as tests/coverage32gc's): the record fields are 32-bit words.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SC_REPORT_FAIL: store the failure code to tohost.  The testbench ends the test at the first tohost store,
+// so this takes precedence over the pass code that done would otherwise write.
+.macro SC_REPORT_FAIL
+    la t0, tohost
+    li t1, (2 << 1) | 1
+    sw t1, 0(t0)
+.endm
+
+// SC_CHECK_EQ actual, expected, index: fail the test (status 2) if the registers differ.
+.macro SC_CHECK_EQ actual, expected, index
+    beq \actual, \expected, 9f
+    la t0, selfcheck_record
+    li t1, 2
+    sw t1, 0(t0)
+    li t1, \index
+    sw t1, 4(t0)
+    sw zero, 8(t0)
+    sw \expected, 12(t0)
+    sw \actual, 16(t0)
+    SC_REPORT_FAIL
+    j done
+9:
+.endm
+
+// SC_CHECK_EQ_ADR actual, expected, adr, index: as SC_CHECK_EQ, also recording the address in a register.
+.macro SC_CHECK_EQ_ADR actual, expected, adr, index
+    beq \actual, \expected, 9f
+    la t0, selfcheck_record
+    li t1, 2
+    sw t1, 0(t0)
+    li t1, \index
+    sw t1, 4(t0)
+    sw \adr, 8(t0)
+    sw \expected, 12(t0)
+    sw \actual, 16(t0)
+    SC_REPORT_FAIL
+    j done
+9:
+.endm
+
+// SC_FAIL index: unconditionally fail the test (e.g., reached an unexpected trap or path).
+.macro SC_FAIL index
+    la t0, selfcheck_record
+    li t1, 2
+    sw t1, 0(t0)
+    li t1, \index
+    sw t1, 4(t0)
+    SC_REPORT_FAIL
+    j done
+.endm
+
+// SC_PASS: record success.  Call right before `j done`, which reports the pass through tohost.
+.macro SC_PASS
+    la t0, selfcheck_record
+    li t1, 1
+    sw t1, 0(t0)
+.endm
+
+// SC_STRICT_TRAPS: route traps through sc_trap_handler, which forwards ecalls (privilege changes and test
+// termination) to the WALLY-init-lib.h handler but fails the test on any other exception, recording
+// index 0xF0, address = mepc, expected = 0, actual = mcause.  The default handler would silently skip a
+// faulting instruction, hiding a leaked page fault from a wrong-path page table walk.
+.macro SC_STRICT_TRAPS
+    la t0, sc_trap_handler
+    csrw mtvec, t0
+.endm
+
+.section .text.main
+.align 4
+sc_trap_handler:
+    csrrw t0, mscratch, t0      # t0 = trap stack pointer, mscratch = saved t0
+    sw t1, -8(t0)
+    csrr t1, mcause
+    addi t1, t1, -8             # ecall from U (8), S (9), M (11)?
+    beqz t1, sc_trap_ecall
+    addi t1, t1, -1
+    beqz t1, sc_trap_ecall
+    addi t1, t1, -2
+    beqz t1, sc_trap_ecall
+    # unexpected exception or interrupt: fail
+    la t0, selfcheck_record
+    li t1, 2
+    sw t1, 0(t0)
+    li t1, 0xF0
+    sw t1, 4(t0)
+    csrr t1, mepc
+    sw t1, 8(t0)
+    sw zero, 12(t0)
+    csrr t1, mcause
+    sw t1, 16(t0)
+    SC_REPORT_FAIL
+    j done
+sc_trap_ecall:
+    lw t1, -8(t0)
+    csrrw t0, mscratch, t0      # restore t0 and the trap stack pointer
+    j trap_handler
+
+.section .data
+.align 3
+    .word 0, 0                  # pad so selfcheck_record has its own address for the objdump label map
+.globl selfcheck_record
+selfcheck_record:
+    .fill 8, 4, 0
+
+.section .text.main

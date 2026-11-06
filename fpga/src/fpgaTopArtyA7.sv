@@ -256,7 +256,7 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
                     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
                     .HCLK(HCLKOpen), .HRESETn(HRESETnOpen),
                     .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-                    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0),
+                    .HTRANS, .HMASTLOCK, .HREADY,
                     .GPIOIN, .GPIOOUT, .GPIOEN,
                     .UARTSin, .UARTSout, .SDCIn, .SDCCmd, .SDCCS(SDCCSin), .SDCCLK, .ExternalStall(RVVIStall));
 
@@ -513,8 +513,8 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
     assign InstrValidM    = fpgaTop.wallypipelinedsoc.core.ieu.InstrValidM;
     assign InstrRawD      = fpgaTop.wallypipelinedsoc.core.ifu.InstrRawD;
     assign PCM            = fpgaTop.wallypipelinedsoc.core.ifu.PCM;
-    assign Mcycle         = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[0];
-    assign Minstret       = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2];
+    assign Mcycle         = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0];
+    assign Minstret       = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
     assign TrapM          = fpgaTop.wallypipelinedsoc.core.TrapM;
     assign PrivilegeModeW = fpgaTop.wallypipelinedsoc.core.priv.priv.privmode.PrivilegeModeW;
     assign GPRAddr        = fpgaTop.wallypipelinedsoc.core.ieu.dp.regf.a3;

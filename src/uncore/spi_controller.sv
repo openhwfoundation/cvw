@@ -1,114 +1,99 @@
 ///////////////////////////////////////////
 // spi_controller.sv
 //
-// Written: Jacob Pease jacobpease@protonmail.com
-// Created: October 28th, 2024
+// Written:  Jacob Pease jacobpease@protonmail.com 28 October 2024
+// Modified: Naiche Whyte-Aguayo
 //
-// Purpose: Controller logic for SPI
+// Purpose: SPI clock, chip select, and shift timing.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_controller (
-  input logic        PCLK,
-  input logic        PRESETn,
+  input  logic        PCLK,
+  input  logic        PRESETn,
 
   // Start Transmission
-  input logic        TransmitStart,
-  input logic        TransmitRegLoaded,
-  input logic        ResetSCLKenable,
+  input  logic        TransmitStart,
+  input  logic        TransmitRegLoaded,
+  input  logic        ResetSCLKenable,
 
   // Registers
-  input logic [11:0] SckDiv,
-  input logic [1:0]  SckMode,
-  input logic [1:0]  CSMode,
-  input logic [15:0] Delay0,
-  input logic [15:0] Delay1,
-  input logic [3:0]  FrameLength,
+  input  logic [11:0] SckDiv,
+  input  logic [1:0]  SckMode,
+  input  logic [1:0]  CSMode,
+  input  logic [15:0] Delay0,
+  input  logic [15:0] Delay1,
+  input  logic [3:0]  FrameLength,
 
   // Is the Transmit FIFO Empty?
-  input logic        TransmitFIFOEmpty,
+  input  logic        TransmitFIFOEmpty,
 
   // Control signals
-  output logic       SCLKenable,
-  output logic       ShiftEdge,
-  output logic       SampleEdge,
-  output logic       EndOfFrame,
-  output logic       Transmitting,
-  output logic       InactiveState,
-  output logic       SPICLK
+  output logic        SCLKenable,
+  output logic        ShiftEdge,
+  output logic        SampleEdge,
+  output logic        EndOfFrame,
+  output logic        Transmitting,
+  output logic        InactiveState,
+  output logic        SPICLK
 );
 
   // CSMode Stuff
-  localparam         HOLDMODE = 2'b10;
-  localparam         AUTOMODE = 2'b00;
-  localparam         OFFMODE = 2'b11;
+  localparam HOLDMODE = 2'b10;
+  localparam AUTOMODE = 2'b00;
+  localparam OFFMODE  = 2'b11;
 
   // FSM States
-  typedef enum       logic [2:0] {INACTIVE, CSSCK, TRANSMIT, SCKCS, HOLD, INTERCS, INTERXFR} statetype;
-  statetype CurrState, NextState;
+  typedef enum logic [2:0] {INACTIVE, CSSCK, TRANSMIT, SCKCS, HOLD, INTERCS, INTERXFR} statetype;
+  statetype    CurrState, NextState;
 
   // SCLKenable stuff
-  logic [11:0]       DivCounter;
-  logic              SCK;
+  logic [11:0] DivCounter;
+  logic        SCK;
 
   // Shift and Sample Edges
-  logic EdgePulse;
-  logic ShiftEdgePulse;
-  logic SampleEdgePulse;
-  logic EndOfFramePulse;
-  logic InvertClock;
+  logic        EdgePulse;
+  logic        ShiftEdgePulse;
+  logic        SampleEdgePulse;
+  logic        EndOfFramePulse;
+  logic        InvertClock;
 
   // Frame stuff
-  logic [3:0] BitNum;
-  logic       LastBit;
+  logic [3:0]  BitNum;
+  logic        LastBit;
 
   // Transmit Stuff
-  logic       ContinueTransmit;
-  logic       EndTransmission;
-  // logic       TransmitRegLoaded; // TODO: Could be replaced by TransmitRegLoaded?
-  logic       NextEndDelay;
-  logic       CurrentEndDelay;
+  logic        ContinueTransmit;
+  logic        EndTransmission;
 
   // Delay Stuff
-  logic [7:0] cssck;
-  logic [7:0] sckcs;
-  logic [7:0] intercs;
-  logic [7:0] interxfr;
-  logic       Phase;
+  logic [7:0]  cssck;
+  logic [7:0]  sckcs;
+  logic [7:0]  intercs;
+  logic [7:0]  interxfr;
+  logic        Phase;
 
-  logic       HasCSSCK;
-  logic       HasSCKCS;
-  logic       HasINTERCS;
-  logic       HasINTERXFR;
+  logic        HasCSSCK;
+  logic        HasSCKCS;
+  logic        HasINTERXFR;
 
-  logic       EndOfCSSCK;
-  logic       EndOfSCKCS;
-  logic       EndOfINTERCS;
-  logic       EndOfINTERXFR;
-  logic       EndOfDelay;
+  logic        EndOfCSSCK;
+  logic        EndOfSCKCS;
+  logic        EndOfINTERCS;
+  logic        EndOfINTERXFR;
+  logic        EndOfDelay;
 
-  logic [7:0] DelayCounter;
+  logic [7:0]  DelayCounter;
 
-  logic       DelayState;
+  logic        DelayState;
 
   // Convenient Delay Reg Names
   assign cssck = Delay0[7:0];
@@ -119,7 +104,6 @@ module spi_controller (
   // Do we have delay for anything?
   assign HasCSSCK = cssck > 8'b0;
   assign HasSCKCS = sckcs > 8'b0;
-  assign HasINTERCS = intercs > 8'b0;
   assign HasINTERXFR = interxfr > 8'b0;
 
   // Have we hit full delay for any of the delays?
@@ -169,7 +153,7 @@ module spi_controller (
       // We never want to trigger the clock if the NextState is NOT TRANSMIT
       if (TransmitStart & ~DelayState) begin
         SPICLK <= SckMode[1];
-        end else if (SCLKenable) begin
+      end else if (SCLKenable) begin
         SPICLK <= (NextState == TRANSMIT) & (~Phase & Transmitting | Phase) ? ~SPICLK : SckMode[1];
       end
 
@@ -206,6 +190,7 @@ module spi_controller (
   // Delay ShiftEdge and SampleEdge by a half PCLK period
   // Aligned EXACTLY ON THE MIDDLE of the leading and trailing edges.
   // Sweeeeeeeeeet...
+  // SckMode = {pol, pha}; when pol ^ pha, shift and sample on the opposite SPICLK level
   assign InvertClock = ^SckMode;
   always_ff @(negedge PCLK) begin
     if (~PRESETn | TransmitStart) begin
@@ -238,7 +223,7 @@ module spi_controller (
       CSSCK: if (EndOfCSSCK) NextState = TRANSMIT;
              else NextState = CSSCK;
       TRANSMIT: begin // TRANSMIT case --------------------------------
-        case(CSMode)
+        case (CSMode)
           AUTOMODE: begin
             if (EndTransmission & ~HasSCKCS) NextState = INACTIVE;
             else if (EndOfFrame & HasSCKCS) NextState = SCKCS;
@@ -284,7 +269,7 @@ module spi_controller (
       end
       INTERXFR: begin // INTERXFR case --------------------------------
         if (EndOfINTERXFR) begin
-          if (TransmitRegLoaded)  NextState = TRANSMIT;
+          if (TransmitRegLoaded) NextState = TRANSMIT;
           else NextState = HOLD;
         end else begin
           NextState = INTERXFR;

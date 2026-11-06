@@ -91,8 +91,14 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
+  // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
+  // Decode must not reach an EU or the order queue: its result would arrive in Writeback with a cleared order tag that
+  // never matches the queue head, so the EU waits forever for writeback and VPUBackEndBusyE stalls the pipeline.
+  logic        DispatchVectorD;
+  assign DispatchVectorD = VectorD & ~VectorFlushD & ~IllegalVPUInstrD;
+
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
-                               .VectorD, .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .lmulDecodedD,
                                .MicroOpNotLastD);
