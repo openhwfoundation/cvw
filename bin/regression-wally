@@ -52,17 +52,15 @@ rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 # ELFs are built into addins/riscv-arch-test/work/<name>/elfs and run one leaf directory per simulation.
 standard_configs = ["rv32i", "rv64i", "rv32imc", "rv32imcb", "rv32gc", "rv64gc"]
 
-# Self-checking peripheral tests (tests/periph), run as one group per configuration.
-# rv32imc and rv32imcb lack supervisor mode and PMP, so they only run the machine-mode peripheral test.
+# Self-checking peripheral tests (tests/periph), run as one group per configuration.  rv32gc and rv64gc
+# run every test in tests/periph/src.  rv32imc and rv32imcb lack supervisor mode and PMP, so they only
+# run the machine-mode peripheral test.
+periph_names = sorted(os.path.splitext(f)[0] for f in os.listdir(f"{periphDir}/src") if f.endswith(".S"))
 periph_tests = {
     "rv32imc": ["rv32/WALLY-periph-m-01"],
     "rv32imcb": ["rv32/WALLY-periph-m-01"],
-    "rv32gc":  ["rv32/WALLY-periph-01", "rv32/WALLY-gpio-01", "rv32/WALLY-clint-01", "rv32/WALLY-uart-01",
-                "rv32/WALLY-plic-01", "rv32/WALLY-plic-s-01", "rv32/WALLY-spi-01", "rv32/WALLY-pwm-01",
-                "rv32/WALLY-uart-timeout-01"],
-    "rv64gc":  ["rv64/WALLY-periph-01", "rv64/WALLY-clint-01", "rv64/WALLY-gpio-01", "rv64/WALLY-plic-01",
-                "rv64/WALLY-plic-s-01", "rv64/WALLY-uart-01", "rv64/WALLY-spi-01", "rv64/WALLY-pwm-01",
-                "rv64/WALLY-uart-timeout-01"],
+    "rv32gc":  [f"rv32/{n}" for n in periph_names],
+    "rv64gc":  [f"rv64/{n}" for n in periph_names],
 }
 
 # Coverage-targeted tests (tests/coverage64gc) that need a derivative configuration, run as one group per
@@ -71,8 +69,8 @@ deriv_coverage_tests = {
     # A/D updates on single-precision FP loads and stores with FLEN < XLEN
     "f_rv64gc":  ["fpADUpdate32"],
     "fh_rv64gc": ["fpADUpdate32"],
-    # misaligned flq/fsq that cross a D$ line
-    "fdq_rv64gc": ["misalignedQuadSpill"],
+    # misaligned flq/fsq that cross a D$ line, and flq/fsq through an uncached (Svpbmt NC) page
+    "fdq_rv64gc": ["misalignedQuadSpill", "uncachedQuad"],
     # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
     "extio_rv64gc": ["extIOWindow"],
 }

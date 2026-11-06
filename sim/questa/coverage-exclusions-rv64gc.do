@@ -404,7 +404,7 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM \\| ExecuteAccessF"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1-3
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ExecuteAccessF & PMAAccessFault"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1
-set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM & ~WriteAccessM & PMAAccessFault"]
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM & ~WriteAccessM & PMADataAccessFault"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1 2 4-6
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "PMAStoreAmoAccessFaultM ="]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4-6
@@ -440,10 +440,10 @@ coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line
 
 # IMMU only makes word-sized accesses (Size = 2'b10), so the byte, halfword and doubleword arms of the
 # misalignment case never run, and the fetch address bit 0 is always 0 (row 4, VAdr[0]_1, of the word arm).
-foreach arm {"2'b00:  DataMisalignedM" "2'b01:  DataMisalignedM" "2'b11:  DataMisalignedM"} {
+foreach arm {"2'b00:  SizeMisalignedM" "2'b01:  SizeMisalignedM" "2'b11:  SizeMisalignedM"} {
   coverage exclude -scope /core/ifu/immu/immu -linerange [GetLineNum ${SRC}/mmu/mmu.sv $arm] -item bs 1
 }
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "2'b10:  DataMisalignedM"] 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "2'b10:  SizeMisalignedM"] 4
 
 # IMMU never disables translations (DisableTranslation_1).
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign Translate"] 2

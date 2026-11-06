@@ -27,6 +27,7 @@ module spill import cvw::*; #(parameter cvw_t P) (
   input  logic              IFUCacheBusStallF, // I$ or bus are stalled. Transition to second fetch of spill after the first is fetched
   input  logic              ITLBMissOrUpdateRawF, // ITLB miss or A update; not masked by a walk fault, so it blocks the spill when the first half's walk faults
   input  logic              CacheableF,        // Is the instruction from the cache?
+  input  logic              SelIROMF,          // Is the instruction from the IROM?
   input  logic              InstrPageFaultF,   // Page fault on the first half; the spill is not taken if it faults
   input  logic              InstrAccessFaultF, // Access fault on the first half; the spill is not taken if it faults
   output logic [P.XLEN-1:0] PCSpillNextF,      // The next PCF for one of the two memory addresses of the spill
@@ -65,13 +66,13 @@ module spill import cvw::*; #(parameter cvw_t P) (
   // Detect spill
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  if (P.ICACHE_SUPPORTED) begin
-    logic SpillCachedF, SpillUncachedF;
-    assign SpillCachedF = &PCF[$clog2(P.ICACHE_LINELENINBITS/32)+1:1];
-    assign SpillUncachedF = PCF[1];
-    assign SpillF = (CacheableF ? SpillCachedF : SpillUncachedF);
-  end else
-    assign SpillF = PCF[1];
+  // A 32-bit instruction spills when it starts in the last halfword of what one fetch reads: a bus word, an I$ line,
+  // or the whole IROM, which returns a whole instruction from any other halfword (irom.sv)
+  logic SpillBusF;
+  if (P.ICACHE_SUPPORTED) assign SpillBusF = CacheableF ? &PCF[$clog2(P.ICACHE_LINELENINBITS/32)+1:1] : PCF[1];
+  else                    assign SpillBusF = PCF[1];
+  if (P.IROM_SUPPORTED)   assign SpillF = SelIROMF ? &PCF[$clog2(P.IROM_RANGE[P.PA_BITS-1:0]+1)-1:1] : SpillBusF;
+  else                    assign SpillF = SpillBusF;
   // Don't take the spill if there is a stall, TLB miss, or hardware update to the D/A bits.
   // Nor if the first half faults: its bits are not the instruction, so the instruction length is
   // unknown, and the fault on the first half is reported alone at PCF.  A page table walk fault on the

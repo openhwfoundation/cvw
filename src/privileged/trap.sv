@@ -79,6 +79,13 @@ module trap import cvw::*; #(parameter cvw_t P) (
                       BreakpointFaultM | EcallFaultM |
                       LoadAccessFaultM | StoreAmoAccessFaultM;
   // coverage on
+  // An exception waits, like an interrupt, while the IFU has a committed I$ fill or bus fetch (CommittedF):
+  // trapping would flush the fetch partway through its AHB transaction (issues #412, #845).  Only the LSU
+  // can raise an exception after the fetch commits (a page table walk fault, a fault found once the walk
+  // fills the DTLB, or a fault on the second half of a misaligned access); any other exception is present
+  // before the fetch commits and traps then.  The wait is safe: CommittedF implies IFUStallF, so the instruction stays in M;
+  // its own access is squashed (lsu.sv SelfFaultM), a misaligned access does not start its spill (align.sv
+  // DataFaultM), and the walker holds its fault (hptw.sv FAULT) until the trap is taken.
   assign TrapM = (ExceptionM & ~CommittedF) | InterruptM; // exclusion-tag: trap-trapm
 
   ///////////////////////////////////////////
