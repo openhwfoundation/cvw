@@ -49,7 +49,10 @@ Key options: `--sim {questa,verilator,vcs}`, `--gui`, `--ccov` (code coverage), 
 ```bash
 regression-wally                        # rv32imc, rv32gc, rv64gc ACT + periph tests, Verilator by default
 regression-wally --nightly              # extended nightly suite
+regression-wally --ci --config rv64gc   # one configuration's standard tests, as each CI job runs them
+regression-wally --ci --nightly         # the nightly's Verilator part, as the weekly CI run does
 ```
+`--ci` drops what a GitHub-hosted runner cannot run (Questa, VCS, ImperasDV lockstep, testfloat, the buildroot boot). CI (`.github/workflows/regression.yml`) runs `prek`, `lint-wally`, and `regression-wally --ci --config <cfg>` for each standard configuration on every pull request; `.github/workflows/nightly.yml` runs `regression-wally --ci --nightly` weekly and opens a `nightly-failure` issue when it fails.
 `regression-wally` first builds the tests it needs with the root Makefile (`make -C $WALLY act zsbl periph coverage`, incremental; `make act` discards a configuration's ELFs when its `config/<cfg>/act` files change), then runs each leaf directory of ACT ELFs as one `wsim` session, in parallel across directories. Compiled designs in `sim/<sim>/wkdir` are kept between regressions and recompiled only when a source file is newer. Set `ACTDIR` to use a different riscv-arch-test checkout.
 
 ### Run code coverage

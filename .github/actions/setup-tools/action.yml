@@ -1,0 +1,201 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Shared CI job setup: uv, and optionally Verilator, the RISC-V GCC toolchain, Sail, and the tools
+# riscv-arch-test needs to build its tests (mise: Ruby, uv, UDB gems).
+#
+# Verilator and Sail are installed with cvw's own installer scripts, and uv at the version
+# bin/installation/uv-install.sh pins, so CI uses the versions a local installation does.  Each cache
+# key is the hash of the script that installs the tool, so changing a version there rebuilds it.
+#
+# Caches are saved only from main.  Pull-request and merge-queue refs cannot share caches with each
+# other, so saving there would only fill the repository's cache limit.
+
+name: Set up tools
+description: Set up uv, Verilator, RISC-V GCC, Sail, and riscv-arch-test tools for cvw CI
+
+inputs:
+  verilator:
+    description: Install Verilator
+    required: false
+    default: "false"
+  act:
+    description: Install RISC-V GCC, Sail, and riscv-arch-test's tools to build the ACT tests
+    required: false
+    default: "false"
+  multilib:
+    description: >-
+      With act, use cvw's multilib GCC (built by the toolchain job of nightly.yml) instead of the
+      riscv-collab release, which has only rv64gc/lp64d libraries and cannot link C programs for rv32
+    required: false
+    default: "false"
+  riscv-toolchain-version:
+    description: riscv-collab/riscv-gnu-toolchain release (the single-library rv64gc toolchain)
+    required: false
+    default: "2026.08.27"
+
+runs:
+  using: composite
+  steps:
+    - name: Read tool versions
+      id: versions
+      shell: bash
+      run: |
+        echo "uv=$(sed -n 's/^UV_VERSION=\([^ ]*\).*/\1/p' bin/installation/uv-install.sh)" >> "$GITHUB_OUTPUT"
+        sudo mkdir -p /opt/cvw-tools
+        sudo chown "$USER:$USER" /opt/cvw-tools
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      with:
+        version: ${{ steps.versions.outputs.uv }}
+        enable-cache: true
+        save-cache: ${{ github.ref == 'refs/heads/main' }}
+        ignore-nothing-to-cache: true
+
+    - name: Add cvw scripts to PATH
+      shell: bash
+      run: echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- Verilator ---
+    - name: Restore Verilator
+      if: inputs.verilator == 'true'
+      id: verilator-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/verilator
+        key: verilator-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/verilator-install.sh') }}
+
+    - name: Install Verilator
+      if: inputs.verilator == 'true' && steps.verilator-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf bison flex help2man libfl-dev
+        bash bin/installation/verilator-install.sh --clean /opt/cvw-tools/verilator
+
+    - name: Save Verilator
+      if: inputs.verilator == 'true' && github.ref == 'refs/heads/main' && steps.verilator-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/verilator
+        key: verilator-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/verilator-install.sh') }}
+
+    - name: Add Verilator to PATH
+      if: inputs.verilator == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/verilator/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- RISC-V GCC ---
+    - name: Restore RISC-V GCC
+      if: inputs.act == 'true' && inputs.multilib != 'true'
+      id: gcc-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/gcc
+        key: gcc-${{ runner.os }}-${{ runner.arch }}-${{ inputs.riscv-toolchain-version }}
+
+    - name: Install RISC-V GCC
+      if: inputs.act == 'true' && inputs.multilib != 'true' && steps.gcc-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.riscv-toolchain-version }}
+      run: |
+        mkdir -p /opt/cvw-tools/gcc
+        curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
+          "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/${VERSION}/riscv64-elf-ubuntu-24.04-gcc.tar.xz" |
+          tar xJ --directory=/opt/cvw-tools/gcc --strip-components=1
+
+    - name: Save RISC-V GCC
+      if: inputs.act == 'true' && inputs.multilib != 'true' && github.ref == 'refs/heads/main' && steps.gcc-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/gcc
+        key: gcc-${{ runner.os }}-${{ runner.arch }}-${{ inputs.riscv-toolchain-version }}
+
+    - name: Restore multilib RISC-V GCC
+      if: inputs.act == 'true' && inputs.multilib == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/gcc
+        key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+        fail-on-cache-miss: true
+
+    - name: Add RISC-V GCC to PATH
+      if: inputs.act == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/gcc/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- Sail (riscv-arch-test generates the expected results with it) ---
+    - name: Restore Sail
+      if: inputs.act == 'true'
+      id: sail-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/sail
+        key: sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/sail-install.sh') }}
+
+    - name: Install Sail
+      if: inputs.act == 'true' && steps.sail-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bash bin/installation/sail-install.sh --clean /opt/cvw-tools/sail
+
+    - name: Save Sail
+      if: inputs.act == 'true' && github.ref == 'refs/heads/main' && steps.sail-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/sail
+        key: sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/sail-install.sh') }}
+
+    - name: Add Sail to PATH
+      if: inputs.act == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/sail/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- riscv-arch-test's own tools, from its .mise.toml ---
+    - name: Set up mise for riscv-arch-test
+      if: inputs.act == 'true'
+      uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5
+      with:
+        working_directory: addins/riscv-arch-test
+        cache_save: ${{ github.ref == 'refs/heads/main' }}
+
+    # Install the UDB gems into a directory of their own so that they can be cached apart from Ruby.
+    # ~/.cache/udb holds the z3/espresso binaries the udb gem downloads when it is installed; a
+    # restored gem cache skips `bundle install`, so they are cached with the gems.
+    - name: Configure Bundler path
+      if: inputs.act == 'true'
+      shell: bash
+      working-directory: addins/riscv-arch-test
+      run: bundle config set --global path "${GITHUB_WORKSPACE}/.bundle-gems"
+
+    - name: Restore UDB gems
+      if: inputs.act == 'true'
+      id: udb-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          .bundle-gems
+          ~/.cache/udb
+        key: udb-gems-${{ runner.os }}-${{ hashFiles('addins/riscv-arch-test/.mise.toml', 'addins/riscv-arch-test/framework/src/act/data/Gemfile.lock') }}
+
+    - name: Install riscv-arch-test dependencies
+      if: inputs.act == 'true'
+      shell: bash
+      working-directory: addins/riscv-arch-test
+      run: |
+        # Only the providers its Makefile needs, not its prek hooks
+        for attempt in 1 2 3; do
+          mise deps uv && mise deps bundler && exit 0
+          [[ $attempt -eq 3 ]] && exit 1
+          echo "mise deps failed; retrying in $((attempt * 10))s"
+          sleep $((attempt * 10))
+        done
+
+    - name: Save UDB gems
+      if: inputs.act == 'true' && github.ref == 'refs/heads/main' && steps.udb-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          .bundle-gems
+          ~/.cache/udb
+        key: udb-gems-${{ runner.os }}-${{ hashFiles('addins/riscv-arch-test/.mise.toml', 'addins/riscv-arch-test/framework/src/act/data/Gemfile.lock') }}
