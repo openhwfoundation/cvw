@@ -195,7 +195,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
-         .Size(2'b10),
+         .Size(3'b010),
          .PTE(PTE),
          .PageTypeWriteVal(PageType),
          .TLBWrite(ITLBWriteF),
