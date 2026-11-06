@@ -66,7 +66,7 @@ module spill import cvw::*; #(parameter cvw_t P) (
   // Detect spill
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // The I$ and the IROM read a whole line, so an instruction spills only from the last halfword of the line
+  // The I$ reads a whole line, so a cacheable instruction spills only from the last halfword of the line
   logic SpillBusF;
   if (P.ICACHE_SUPPORTED) begin
     logic SpillCachedF, SpillUncachedF;
@@ -75,9 +75,11 @@ module spill import cvw::*; #(parameter cvw_t P) (
     assign SpillBusF = (CacheableF ? SpillCachedF : SpillUncachedF);
   end else
     assign SpillBusF = PCF[1];
+  // The IROM returns a whole instruction from any halfword (irom.sv), so an IROM fetch spills only from the
+  // last halfword of the IROM, when the second half is outside the IROM
   if (P.IROM_SUPPORTED) begin
     logic SpillIROMF;
-    assign SpillIROMF = &PCF[$clog2(P.IROM_LINELEN/32)+1:1];
+    assign SpillIROMF = &PCF[$clog2(P.IROM_RANGE[P.PA_BITS-1:0]+1)-1:1];
     assign SpillF = SelIROMF ? SpillIROMF : SpillBusF;
   end else
     assign SpillF = SpillBusF;

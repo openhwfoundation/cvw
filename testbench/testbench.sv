@@ -401,9 +401,24 @@ module testbench;
       end
     end
   end else if (P.IROM_SUPPORTED) begin
-    always @(posedge clk) begin
-      if (LoadMem) begin
-        $readmemh(memfilename, dut.core.ifu.irom.irom.rom.ROM);
+    if (P.ZCA_SUPPORTED) begin : iromimage
+      // The IROM is two banks interleaved by word (irom.sv): bank 0 holds the even words and bank 1 the odd words
+      localparam IROMWORDS = (P.IROM_RANGE+1) >> (1+P.XLEN/32);
+      bit [P.XLEN-1:0] IROMImage [IROMWORDS-1:0];
+      always @(posedge clk) begin
+        if (LoadMem) begin
+          $readmemh(memfilename, IROMImage);
+          for (int i = 0; i < IROMWORDS/2; i++) begin
+            dut.core.ifu.irom.irom.banks.bank0.ROM[i] = IROMImage[2*i];
+            dut.core.ifu.irom.irom.banks.bank1.ROM[i] = IROMImage[2*i+1];
+          end
+        end
+      end
+    end else begin
+      always @(posedge clk) begin
+        if (LoadMem) begin
+          $readmemh(memfilename, dut.core.ifu.irom.irom.bank.rom.ROM);
+        end
       end
     end
   end else if (P.BUS_SUPPORTED) begin : bus_supported
