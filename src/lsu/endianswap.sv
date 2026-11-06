@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // endianswap.sv
 //
-// Written: David_Harris@hmc.edu
-// Created: 7 May 2022
-// Modified: 18 January 2023
+// Written:  David Harris David_Harris@hmc.edu 7 May 2022
+// Modified:
 //
-// Purpose: Swap byte order for Big-Endian accesses
+// Purpose: Big-endian byte swap.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

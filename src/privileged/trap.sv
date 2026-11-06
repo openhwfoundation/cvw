@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // trap.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: dottolia@hmc.edu 14 April 2021: Add support for vectored interrupts
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Domenico Ottolia dottolia@hmc.edu, Rose Thompson, Ben Bracker, Jinghe Yu, Kip Macsai-Goren, Thomas Fleming
 //
-// Purpose: Handle Traps: Exceptions and Interrupts
+// Purpose: Exception and interrupt prioritization.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
   assign MIntGlobalEnM  = (PrivilegeModeW != P.M_MODE) | STATUS_MIE; // if M ints enabled or lower priv 3.1.9
   assign PendingIntsM = MIP_REGW & MIE_REGW;
   assign IntPendingM   = |PendingIntsM;
-  assign Committed     = CommittedM | CommittedF;
+  assign Committed     = CommittedM | CommittedF; // exclusion-tag: trap-committed
   if (P.H_SUPPORTED) begin: enabledints_h
     // HS traps use sstatus.SIE only in HS; VS traps use vsstatus.SIE only in VS.
     assign HSIntGlobalEnM = (PrivilegeModeW == P.U_MODE) |
@@ -142,7 +142,14 @@ module trap import cvw::*; #(parameter cvw_t P) (
                         LoadAccessFaultM | StoreAmoAccessFaultM;
   end
   // coverage on
-  assign TrapM = (ExceptionM & ~CommittedF) | InterruptM;
+  // An exception waits, like an interrupt, while the IFU has a committed I$ fill or bus fetch (CommittedF):
+  // trapping would flush the fetch partway through its AHB transaction (issues #412, #845).  Only the LSU
+  // can raise an exception after the fetch commits (a page table walk fault, a fault found once the walk
+  // fills the DTLB, or a fault on the second half of a misaligned access); any other exception is present
+  // before the fetch commits and traps then.  The wait is safe: CommittedF implies IFUStallF, so the instruction stays in M;
+  // its own access is squashed (lsu.sv SelfFaultM), a misaligned access does not start its spill (align.sv
+  // DataFaultM), and the walker holds its fault (hptw.sv FAULT) until the trap is taken.
+  assign TrapM = (ExceptionM & ~CommittedF) | InterruptM; // exclusion-tag: trap-trapm
 
   ///////////////////////////////////////////
   // Cause priority defined in privileged spec
@@ -154,12 +161,12 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (ValidIntsM[3])                                       CauseM = 5'd3;  // Machine Sw Int
     else if (ValidIntsM[7])                                       CauseM = 5'd7;  // Machine Timer Int
     // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
-    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                    CauseM = 5'd9;  // not delegated Supervisor External Int
+    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                    CauseM = 5'd9;  // not delegated Supervisor External Int // exclusion-tag: trap-sint-start
     else if (~MIDELEG_REGW[1] & ValidIntsM[1])                    CauseM = 5'd1;  // not delegated Supervisor Sw Int
     else if (~MIDELEG_REGW[5] & ValidIntsM[5])                    CauseM = 5'd5;  // not delegated Supervisor Timer Int
     else if (ValidIntsM[9])                                       CauseM = 5'd9;  // delegated Supervisor External Int
     else if (ValidIntsM[1])                                       CauseM = 5'd1;  // delegated Supervisor Sw Int
-    else if (ValidIntsM[5])                                       CauseM = 5'd5;  // delegated Supervisor Timer Int
+    else if (ValidIntsM[5])                                       CauseM = 5'd5;  // delegated Supervisor Timer Int // exclusion-tag: trap-sint-end
     else if (P.H_SUPPORTED & ValidIntsM[12])                      CauseM = 5'd12; // Supervisor Guest External Int must be taken in HS
     // if any of the VS mode interrupts are delegated to VS mode they would have lower priority
     else if (P.H_SUPPORTED & ValidIntsM[10] & ~HIDELEG_REGW[10])  CauseM = 5'd10; // undelegated Virtual Supervisor External Int
@@ -168,7 +175,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (P.H_SUPPORTED & ValidIntsM[10])                      CauseM = 5'd10; // delegated Virtual Supervisor External Int
     else if (P.H_SUPPORTED & ValidIntsM[2])                       CauseM = 5'd2;  // delegated Virtual Supervisor Software Int
     else if (P.H_SUPPORTED & ValidIntsM[6])                       CauseM = 5'd6;  // delegated Virtual Supervisor Timer Int
-    else if (BothInstrPageFaultM)                                 CauseM = 5'd12; // Instruction page fault
+    else if (BothInstrPageFaultM)                                 CauseM = 5'd12; // Instruction page fault // exclusion-tag: trap-instr-page-fault
     else if (P.H_SUPPORTED & VirtualInstrFaultM)                  CauseM = 5'd22; // Virtual Instruction Fault
     else if (BothInstrAccessFaultM)                               CauseM = 5'd1;  // Instruction access fault
     else if (IllegalInstrFaultM)                                  CauseM = 5'd2;  // Illegal instruction
@@ -182,8 +189,8 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)     CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken
     else if (LoadMisalignedFaultM & ~P.ZICCLSM_SUPPORTED)         CauseM = 5'd4;  // Load address misaligned
     // TODO: Add guest-page-fault cause generation (20/21/23) when two-stage translation fault signals are integrated.
-    else if (StoreAmoPageFaultM)                                  CauseM = 5'd15; // Store/AMO page fault
-    else if (LoadPageFaultM)                                      CauseM = 5'd13; // Load page fault
+    else if (StoreAmoPageFaultM)                                  CauseM = 5'd15; // Store/AMO page fault // exclusion-tag: trap-store-page-fault
+    else if (LoadPageFaultM)                                      CauseM = 5'd13; // Load page fault // exclusion-tag: trap-load-page-fault
     else if (StoreAmoAccessFaultM)                                CauseM = 5'd7;  // Store/AMO access fault
     else if (LoadAccessFaultM)                                    CauseM = 5'd5;  // Load access fault
     else if (StoreAmoMisalignedFaultM & P.ZICCLSM_SUPPORTED)      CauseM = 5'd6; // See priority in Privileged Spec 3.1.15

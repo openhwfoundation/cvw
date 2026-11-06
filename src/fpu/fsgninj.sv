@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fsgninj.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 6/23/2021
+// Written:  Katherine Parry me@KatherineParry.com
+// Modified: David Harris
 //
-// Purpose: FPU Sign Injection instructions
+// Purpose: Floating-point sign injection.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fsgninj import cvw::*;  #(parameter cvw_t P) (
+module fsgninj import cvw::*; #(parameter cvw_t P) (
   input  logic                 Xs, Ys, // X and Y sign bits
   input  logic [P.FLEN-1:0]    X,      // X
   input  logic [P.FMTBITS-1:0] Fmt,    // format

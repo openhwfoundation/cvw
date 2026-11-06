@@ -1,23 +1,22 @@
 ///////////////////////////////////////////
 // extend.sv
 //
-// Written: David_Harris@hmc.edu, Sarah.Harris@unlv.edu
-// Created: 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu, Sarah Harris Sarah.Harris@unlv.edu 9 January 2021
+// Modified: Rose Thompson
 //
-// Purpose: Produce sign-extended immediates from various formats
+// Purpose: Immediate sign extension.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module extend import cvw::*;  #(parameter cvw_t P) (
+module extend import cvw::*; #(parameter cvw_t P) (
   input  logic [31:7]       InstrD,       // All instruction bits except opcode (lower 7 bits)
   input  logic [2:0]        ImmSrcD,      // Select what kind of extension to perform
   output logic [P.XLEN-1:0] ImmExtD);     // Extended immediate
@@ -37,9 +36,9 @@ module extend import cvw::*;  #(parameter cvw_t P) (
       // U-type (lui, auipc)
       3'b100:   ImmExtD = {{(P.XLEN-31){InstrD[31]}}, InstrD[30:12], 12'b0};
       // Atomics (sc, AMOs), CMOs, and HLV/HLVX/HSV: zero offset
-      3'b101:  if (P.ZALRSC_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED | P.H_SUPPORTED) ImmExtD = '0;
-               else             ImmExtD = undefined;
-      default: ImmExtD = undefined; // undefined
+      3'b101:   if (P.ZALRSC_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED | P.H_SUPPORTED) ImmExtD = '0; // exclusion-tag: imm-atomic-case
+                else ImmExtD = undefined; // exclusion-tag: imm-atomic-undefined
+      default:  ImmExtD = undefined; // undefined
     endcase
 
 endmodule

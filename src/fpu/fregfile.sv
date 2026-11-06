@@ -1,27 +1,27 @@
 ///////////////////////////////////////////
 // fregfile.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: James Stine
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Katherine Parry, James Stine
 //
-// Purpose: 3R1W 4-port register file for FPU
+// Purpose: Floating-point register file.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fregfile #(parameter FLEN) (
-  input logic              clk, reset,
-  input logic              we4,             // write enable
-  input logic [4:0]        a1, a2, a3, a4,  // addresses
-  input logic [FLEN-1:0]   wd4,             // write data
-  output logic [FLEN-1:0]  rd1, rd2, rd3    // read data
+  input  logic            clk, reset,
+  input  logic            we4,            // write enable
+  input  logic [4:0]      a1, a2, a3, a4, // addresses
+  input  logic [FLEN-1:0] wd4,            // write data
+  output logic [FLEN-1:0] rd1, rd2, rd3   // read data
 );
 
   logic [FLEN-1:0] rf[31:0];

@@ -1,96 +1,102 @@
 ///////////////////////////////////////////
 // csrindextoaddr.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 24 January 2024
-// Modified: 24 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 24 January 2024
+// Modified:
 //
-// Purpose: Converts the rvvi CSR index into the CSR address
+// Purpose: Converts a one-hot RVVI CSR index to an address.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module csrindextoaddr #(parameter TOTAL_CSRS = 65) (
   input  logic [TOTAL_CSRS-1:0] CSRWen,
-  output logic [11:0]            CSRAddr);
+  output logic [11:0]           CSRAddr);
 
-  // CSRWen is one-hot: bit i selects CSRArray[i] as assigned in testbench/common/rvvitbwrapper.sv
-  // and the FPGA top levels.  Return the address of that CSR (0 if none).
+  // Address of CSRArray[i] as assigned in testbench/common/rvvitbwrapper.sv and the FPGA top levels
+  localparam logic [11:0] CSR_ADDR [65] = '{
+    12'h300, //  0 mstatus
+    12'h310, //  1 mstatush
+    12'h305, //  2 mtvec
+    12'h341, //  3 mepc
+    12'h306, //  4 mcounteren
+    12'h320, //  5 mcountinhibit
+    12'h302, //  6 medeleg
+    12'h303, //  7 mideleg
+    12'h344, //  8 mip
+    12'h304, //  9 mie
+    12'h301, // 10 misa
+    12'h30A, // 11 menvcfg
+    12'hF14, // 12 mhartid
+    12'h340, // 13 mscratch
+    12'h342, // 14 mcause
+    12'h343, // 15 mtval
+    12'hF11, // 16 mvendorid
+    12'hF12, // 17 marchid
+    12'hF13, // 18 mimpid
+    12'hF15, // 19 mconfigptr
+    12'h34A, // 20 mtinst
+    12'h100, // 21 sstatus
+    12'h104, // 22 sie
+    12'h105, // 23 stvec
+    12'h141, // 24 sepc
+    12'h106, // 25 scounteren
+    12'h10A, // 26 senvcfg
+    12'h180, // 27 satp
+    12'h140, // 28 sscratch
+    12'h143, // 29 stval
+    12'h142, // 30 scause
+    12'h144, // 31 sip
+    12'h14D, // 32 stimecmp
+    12'h001, // 33 fflags
+    12'h002, // 34 frm
+    12'h003, // 35 fcsr
+    12'h34B, // 36 mtval2
+    12'h600, // 37 hstatus
+    12'h200, // 38 vsstatus
+    12'h602, // 39 hedeleg
+    12'h612, // 40 hedelegh
+    12'h603, // 41 hideleg
+    12'h604, // 42 hie
+    12'h204, // 43 vsie
+    12'h605, // 44 htimedelta
+    12'h615, // 45 htimedeltah
+    12'h606, // 46 hcounteren
+    12'h607, // 47 hgeie
+    12'h60A, // 48 henvcfg
+    12'h61A, // 49 henvcfgh
+    12'h643, // 50 htval
+    12'h644, // 51 hip
+    12'h645, // 52 hvip
+    12'h64A, // 53 htinst
+    12'h680, // 54 hgatp
+    12'hE12, // 55 hgeip
+    12'h205, // 56 vstvec
+    12'h240, // 57 vsscratch
+    12'h241, // 58 vsepc
+    12'h242, // 59 vscause
+    12'h243, // 60 vstval
+    12'h244, // 61 vsip
+    12'h280, // 62 vsatp
+    12'h24D, // 63 vstimecmp
+    12'h25D  // 64 vstimecmph
+  };
+
+  if (TOTAL_CSRS > $size(CSR_ADDR)) begin : toomanycsrs
+    $error("csrindextoaddr: TOTAL_CSRS = %0d, but CSR_ADDR lists only %0d CSR addresses", TOTAL_CSRS, $size(CSR_ADDR));
+  end
+
+  // CSRWen is one-hot: bit i selects CSRArray[i].  Return the address of that CSR (0 if none).
   always_comb begin
-    case (CSRWen)
-      65'h0_0000_0000_0000_0000: CSRAddr = 12'h000;
-      65'h0_0000_0000_0000_0001: CSRAddr = 12'h300;
-      65'h0_0000_0000_0000_0002: CSRAddr = 12'h310;
-      65'h0_0000_0000_0000_0004: CSRAddr = 12'h305;
-      65'h0_0000_0000_0000_0008: CSRAddr = 12'h341;
-      65'h0_0000_0000_0000_0010: CSRAddr = 12'h306;
-      65'h0_0000_0000_0000_0020: CSRAddr = 12'h320;
-      65'h0_0000_0000_0000_0040: CSRAddr = 12'h302;
-      65'h0_0000_0000_0000_0080: CSRAddr = 12'h303;
-      65'h0_0000_0000_0000_0100: CSRAddr = 12'h344;
-      65'h0_0000_0000_0000_0200: CSRAddr = 12'h304;
-      65'h0_0000_0000_0000_0400: CSRAddr = 12'h301;
-      65'h0_0000_0000_0000_0800: CSRAddr = 12'h30A;
-      65'h0_0000_0000_0000_1000: CSRAddr = 12'hF14;
-      65'h0_0000_0000_0000_2000: CSRAddr = 12'h340;
-      65'h0_0000_0000_0000_4000: CSRAddr = 12'h342;
-      65'h0_0000_0000_0000_8000: CSRAddr = 12'h343;
-      65'h0_0000_0000_0001_0000: CSRAddr = 12'hF11;
-      65'h0_0000_0000_0002_0000: CSRAddr = 12'hF12;
-      65'h0_0000_0000_0004_0000: CSRAddr = 12'hF13;
-      65'h0_0000_0000_0008_0000: CSRAddr = 12'hF15;
-      65'h0_0000_0000_0010_0000: CSRAddr = 12'h34A;
-      65'h0_0000_0000_0020_0000: CSRAddr = 12'h100;
-      65'h0_0000_0000_0040_0000: CSRAddr = 12'h104;
-      65'h0_0000_0000_0080_0000: CSRAddr = 12'h105;
-      65'h0_0000_0000_0100_0000: CSRAddr = 12'h141;
-      65'h0_0000_0000_0200_0000: CSRAddr = 12'h106;
-      65'h0_0000_0000_0400_0000: CSRAddr = 12'h10A;
-      65'h0_0000_0000_0800_0000: CSRAddr = 12'h180;
-      65'h0_0000_0000_1000_0000: CSRAddr = 12'h140;
-      65'h0_0000_0000_2000_0000: CSRAddr = 12'h143;
-      65'h0_0000_0000_4000_0000: CSRAddr = 12'h142;
-      65'h0_0000_0000_8000_0000: CSRAddr = 12'h144;
-      65'h0_0000_0001_0000_0000: CSRAddr = 12'h14D;
-      65'h0_0000_0002_0000_0000: CSRAddr = 12'h001;
-      65'h0_0000_0004_0000_0000: CSRAddr = 12'h002;
-      65'h0_0000_0008_0000_0000: CSRAddr = 12'h003;
-      65'h0_0000_0010_0000_0000: CSRAddr = 12'h34B;
-      65'h0_0000_0020_0000_0000: CSRAddr = 12'h600;
-      65'h0_0000_0040_0000_0000: CSRAddr = 12'h200;
-      65'h0_0000_0080_0000_0000: CSRAddr = 12'h602;
-      65'h0_0000_0100_0000_0000: CSRAddr = 12'h612;
-      65'h0_0000_0200_0000_0000: CSRAddr = 12'h603;
-      65'h0_0000_0400_0000_0000: CSRAddr = 12'h604;
-      65'h0_0000_0800_0000_0000: CSRAddr = 12'h204;
-      65'h0_0000_1000_0000_0000: CSRAddr = 12'h605;
-      65'h0_0000_2000_0000_0000: CSRAddr = 12'h615;
-      65'h0_0000_4000_0000_0000: CSRAddr = 12'h606;
-      65'h0_0000_8000_0000_0000: CSRAddr = 12'h607;
-      65'h0_0001_0000_0000_0000: CSRAddr = 12'h60A;
-      65'h0_0002_0000_0000_0000: CSRAddr = 12'h61A;
-      65'h0_0004_0000_0000_0000: CSRAddr = 12'h643;
-      65'h0_0008_0000_0000_0000: CSRAddr = 12'h644;
-      65'h0_0010_0000_0000_0000: CSRAddr = 12'h645;
-      65'h0_0020_0000_0000_0000: CSRAddr = 12'h64A;
-      65'h0_0040_0000_0000_0000: CSRAddr = 12'h680;
-      65'h0_0080_0000_0000_0000: CSRAddr = 12'hE12;
-      65'h0_0100_0000_0000_0000: CSRAddr = 12'h205;
-      65'h0_0200_0000_0000_0000: CSRAddr = 12'h240;
-      65'h0_0400_0000_0000_0000: CSRAddr = 12'h241;
-      65'h0_0800_0000_0000_0000: CSRAddr = 12'h242;
-      65'h0_1000_0000_0000_0000: CSRAddr = 12'h243;
-      65'h0_2000_0000_0000_0000: CSRAddr = 12'h244;
-      65'h0_4000_0000_0000_0000: CSRAddr = 12'h280;
-      65'h0_8000_0000_0000_0000: CSRAddr = 12'h24D;
-      65'h1_0000_0000_0000_0000: CSRAddr = 12'h25D;
-      default                  : CSRAddr = 12'h000;
-    endcase
+    CSRAddr = 12'h000;
+    for (int i = 0; i < TOTAL_CSRS; i++)
+      if (CSRWen == (TOTAL_CSRS'(1) << i)) CSRAddr = CSR_ADDR[i];
   end
 endmodule

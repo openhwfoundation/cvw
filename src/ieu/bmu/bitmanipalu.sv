@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // bitmanipalu.sv
 //
-// Written: Kevin Kim <kekim@hmc.edu>, kelvin.tran@okstate.edu
-// Created: 23 March 2023
-// Modified: 9 March 2024
+// Written:  Kevin Kim kekim@hmc.edu, Kelvin Tran kelvin.tran@okstate.edu 23 March 2023
+// Modified: David Harris, James Stine
 //
-// Purpose: RISC-V Arithmetic/Logic Unit Bit-Manipulation Extension and K extension
+// Purpose: Bit-manipulation and scalar crypto ALU.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,10 +88,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   if (P.ZBB_SUPPORTED) begin : zbb
     zbb #(P.XLEN) ZBB(.A(ABMU), .RevA, .B(BBMU), .W64, .LT, .LTU, .BUnsigned(Funct3[0]), .ZBBSelect(ZBBSelect[2:0]), .ZBBResult);
   end else if (P.ZBKB_SUPPORTED) begin : zbkbonly // only needs rev8 portion
-    genvar i;
-    for (i=0; i<P.XLEN; i+=8) begin : byteloop
-      assign ZBBResult[P.XLEN-i-1:P.XLEN-i-8] = ABMU[i+7:i]; // Rev8
-    end
+    byteop #(P.XLEN) rev8(.A(ABMU), .ByteSelect(1'b0), .ByteResult(ZBBResult)); // ByteSelect = 0 selects rev8
   end else assign ZBBResult = '0;
 
   // ZBKB Unit
@@ -107,8 +103,8 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
 
   // ZKND and ZKNE AES decryption and encryption
   if (P.ZKND_SUPPORTED | P.ZKNE_SUPPORTED) begin : zknde
-    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
-    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU),                   .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    if (P.XLEN == 32) zknde32 #(P) ZKN32(.A(ABMU), .B(BBMU), .bs(Funct7[6:5]),  .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
+    else              zknde64 #(P) ZKN64(.A(ABMU), .B(BBMU), .round(Rs2E[3:0]), .ZKNSelect(ZBBSelect[3:0]), .ZKNDEResult);
   end else assign ZKNDEResult = '0;
 
   // ZKNH Unit

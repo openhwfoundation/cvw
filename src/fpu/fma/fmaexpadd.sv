@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fmaexpadd.sv
 //
-// Written:  6/23/2021 me@KatherineParry.com, David_Harris@hmc.edu
+// Written:  Katherine Parry me@KatherineParry.com, David Harris David_Harris@hmc.edu 23 June 2021
 // Modified:
 //
-// Purpose: FMA exponent addition
+// Purpose: FMA product exponent.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaexpadd import cvw::*;  #(parameter cvw_t P) (
+module fmaexpadd import cvw::*; #(parameter cvw_t P) (
   input  logic [P.NE-1:0]      Xe, Ye,         // input's exponents
   input  logic                 XZero, YZero,   // are the inputs zero
   output logic [P.NE+1:0]      Pe              // product's biased exponent in B(NE+2.0) format

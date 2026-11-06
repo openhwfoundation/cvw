@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fmaadd.sv
 //
-// Written:  6/23/2021 me@KatherineParry.com, David_Harris@hmc.edu
+// Written:  Katherine Parry me@KatherineParry.com, David Harris David_Harris@hmc.edu 23 June 2021
 // Modified:
 //
-// Purpose: FMA significand adder
+// Purpose: FMA significand addition.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaadd import cvw::*;  #(parameter cvw_t P) (
+module fmaadd import cvw::*; #(parameter cvw_t P) (
   input  logic [3*P.NF+5:0]    Am,         // aligned addend's mantissa for addition in U(NF+5.2NF+1)
   input  logic [P.NE-1:0]      Ze,         // exponent of Z
   input  logic                 Ps,         // the product's sign

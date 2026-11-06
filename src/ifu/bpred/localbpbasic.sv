@@ -1,17 +1,15 @@
 ///////////////////////////////////////////
-// localbpbasic
+// localbpbasic.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 16 March 2021
+// Written:  Rose Thompson rose@rosethompson.net, Shreya Sanghai 16 March 2021
+// Modified: Jarred Allen
 //
-// Purpose: Local history branch predictor. Basic implementation without any repair and flop memories.
-
+// Purpose: Basic local-history direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

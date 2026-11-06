@@ -1,10 +1,10 @@
 ///////////////////////////////////////////
 // fmalza.sv
 //
-// Written:  6/23/2021 me@KatherineParry.com, David_Harris@hmc.edu
+// Written:  Katherine Parry me@KatherineParry.com, David Harris David_Harris@hmc.edu 23 June 2021
 // Modified:
 //
-// Purpose: Leading Zero Anticipator
+// Purpose: FMA leading zero anticipator.
 //
 // Documentation: RISC-V System on Chip Design
 //    See also [Schmookler & Nowka, Leading zero anticipation and detection, IEEE Sym. Computer Arithmetic, 2001]
@@ -12,17 +12,17 @@
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fmalza #(WIDTH, NF) (
-  input logic [WIDTH-1:0]             A,              // addend
-  input logic [2*NF+1:0]              Pm,             // product
-  input logic                         Cin,            // carry in
-  input logic                         sub,            // subtraction
-  output logic [$clog2(WIDTH+1)-1:0]  SCnt            // normalization shift count for the positive result
+  input  logic [WIDTH-1:0]           A,   // addend
+  input  logic [2*NF+1:0]            Pm,  // product
+  input  logic                       Cin, // carry in
+  input  logic                       sub, // subtraction
+  output logic [$clog2(WIDTH+1)-1:0] SCnt // normalization shift count for the positive result
 );
 
   logic [WIDTH:0]                     F;              // most significant bit of F indicates leading digit

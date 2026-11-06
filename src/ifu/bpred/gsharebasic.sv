@@ -1,26 +1,23 @@
 ///////////////////////////////////////////
 // gsharebasic.sv
 //
-// Written: Rose Thompson
-// Email: rose@rosethompson.net
-// Created: 16 March 2021
-// Adapted from ssanghai@hmc.edu (Shreya Sanghai) global history predictor implementation.
-// Modified: 20 February 2023
+// Written:  Rose Thompson rose@rosethompson.net, Shreya Sanghai ssanghai@hmc.edu 16 March 2021
+// Modified:
 //
-// Purpose: Global History Branch predictor with parameterized global history register
+// Purpose: Basic gshare / global-history direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module gsharebasic import cvw::*; #(parameter cvw_t P,
-                     parameter XLEN,
-                     parameter k = 10,
-                     parameter TYPE = 1) (
+                                    parameter XLEN,
+                                    parameter k = 10,
+                                    parameter TYPE = 1) (
   input  logic            clk,
   input  logic            reset,
   input  logic            StallF, StallD, StallE, StallM, StallW,

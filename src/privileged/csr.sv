@@ -1,19 +1,17 @@
 ///////////////////////////////////////////
 // csr.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 7 April 2021
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Ben Bracker, Domenico Ottolia dottolia@hmc.edu, Udeema Shakya, Katherine Parry, Jordan Carlin
 //
-// Purpose: Counter Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Control and status registers.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -167,10 +165,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   always_comb
     if (InterruptM)           NextFaultXtvalM = '0;
     else case (CauseM)
-      12, 1, 20:              NextFaultXtvalM = PCSpillM;  // Instruction page/access/guest-page faults report the faulting half of a spilled fetch
+      12, 1, 20:              NextFaultXtvalM = PCSpillM;  // Instruction page/access/guest-page faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2, 22:                  NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal/virtual instruction fault
-      0, 4, 6, 13, 15, 5, 7, 21, 23: NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access/guest-page faults
+      0, 4, 6, 13, 15, 5, 7, 21, 23: NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access/guest-page faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 
@@ -260,9 +258,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
-    CSRRWM =   CSRSrcM;
-    CSRRSM =   CSRReadVal2M | CSRSrcM;
-    CSRRCM =   CSRReadVal2M & ~CSRSrcM;
+    CSRRWM = CSRSrcM;
+    CSRRSM = CSRReadVal2M | CSRSrcM;
+    CSRRCM = CSRReadVal2M & ~CSRSrcM;
     case (InstrM[13:12]) // funct3[1:0]: 01 = csrrw(i), 10 = csrrs(i), 11 = csrrc(i)
       2'b01:   CSRWriteValM = CSRRWM;
       2'b10:   CSRWriteValM = CSRRSM;

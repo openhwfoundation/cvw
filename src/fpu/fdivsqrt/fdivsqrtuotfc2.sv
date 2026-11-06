@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // fdivsqrtuotfc2.sv
 //
-// Written: me@KatherineParry.com, cturek@hmc.edu
-// Modified:7/14/2022
+// Written:  Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 15 July 2022
+// Modified: David Harris
 //
-// Purpose: Radix 2 unified on-the-fly converter
+// Purpose: Radix-2 on-the-fly quotient/root converter.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +19,7 @@
 ///////////////////////////////
 // Unified OTFC, Radix 2 //
 ///////////////////////////////
-module fdivsqrtuotfc2 import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtuotfc2 import cvw::*; #(parameter cvw_t P) (
   input  logic              up, un,
   input  logic [P.DIVb+1:0] C,                // Q2.DIVb
   input  logic [P.DIVb:0]   U, UM,            // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer

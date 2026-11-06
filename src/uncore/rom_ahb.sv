@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // rom_ahb.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson
 //
-// Purpose: On-chip ROM, external to core
+// Purpose: On-chip ROM on AHB.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +27,7 @@ module rom_ahb import cvw::*; #(parameter cvw_t P,
   output logic                 HRESPRom, HREADYRom
 );
 
-  localparam ADDR_WIDTH = $clog2((RANGE+1)/64'(P.XLEN/8)); // RANGE is a mask (size-1); depth is in XLEN-bit words
+  localparam ADDR_WIDTH = $clog2((RANGE+1)/64'(64'(P.XLEN)/8)); // RANGE is a mask (size-1); depth is in XLEN-bit words
   localparam OFFSET     = $clog2(P.XLEN/8);
 
   // Never stalls

@@ -1,17 +1,15 @@
 ///////////////////////////////////////////
 // twoBitPredictor.sv
 //
-// Written: Rose Thomposn
-// Email: rose@rosethompson.net
-// Created: February 14, 2021
+// Written:  Rose Thompson rose@rosethompson.net 14 February 2021
 // Modified:
 //
-// Purpose: 2 bit saturating counter predictor with parameterized table depth.
+// Purpose: Bimodal direction predictor.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,8 +28,6 @@ module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
 );
 
   logic [k-1:0]            IndexNextF, IndexM;
-  logic [1:0]              PredictionMemory;
-  logic                    DoForwarding, DoForwardingF;
   logic [1:0]              BPDirD, BPDirE;
   logic [1:0]              NewBPDirE, NewBPDirM;
 

@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // triggergen.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: June 26, 2024
-// Modified: June 26, 2024
+// Written:  Rose Thompson rose@rosethompson.net 26 June 2024
+// Modified:
 //
-// Purpose: Scans for specific ethernet frame to generate an ila trigger.
+// Purpose: ILA trigger on a specific Ethernet frame.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +25,7 @@ module triggergen import cvw::*; (
   output logic        IlaTrigger);
 
   typedef enum logic [2:0] {STATE_RST, STATE_COMPARE, STATE_MISMATCH, STATE_TRIGGER, STATE_TRIGGER_DONE} statetype;
-(* mark_debug = "true" *)  statetype CurrState, NextState;
+  (* mark_debug = "true" *) statetype CurrState, NextState;
 
   logic [31:0] mem [4:0];
   logic [2:0]  Counter;
@@ -50,7 +50,7 @@ module triggergen import cvw::*; (
 
   always_ff @(posedge clk) begin
     if (reset) CurrState <= STATE_RST;
-    else      CurrState <= NextState;
+    else       CurrState <= NextState;
   end
 
   always_comb begin

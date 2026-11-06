@@ -47,9 +47,6 @@
 --override cpu/unaligned=T
 --override cpu/unaligned_low_pri=T
 
-# Timeout
-#--override cpu/TW_time_limit=65536  # *** attempted adding this summer 2025 for interrupt tests, but it breaks WALLY-status-tw-01.elf test and tests/coverage/priv.elf.  Not in rv32gc either
-
 # PMP Configuration
 --override cpu/PMP_registers=16
 --override cpu/PMP_grain=4   # 64-byte grains to match cache line width

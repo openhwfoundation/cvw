@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fdivsqrtpreproc.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 7 July 2022
+// Modified: Kevin Kim, Alessandro Maiuolo
 //
-// Purpose: Divide/Square root preprocessing: integer absolute value and W64, normalization shift
+// Purpose: Divide and square root operand normalization.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtpreproc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 IFDivStartE,
   input  logic [P.NF:0]        Xm, Ym,      // Floating-point significands
@@ -47,7 +47,7 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
   logic [P.DIVb:0]             IFX, IFD;                            // Correctly-sized inputs for iterator, selected from int or fp input
   logic [P.DIVBLEN-1:0]        mE, ell;                             // Leading zeros of inputs
   logic [P.DIVBLEN-1:0]        IntResultBitsE;                      // bits in integer result
-  logic                        AZeroE, BZeroE;                      // A or B is Zero for integer division
+  logic                        BZeroE;                              // B is Zero for integer division
   logic                        SignedDivE;                          // signed division
   logic                        AsE, BsE;                            // Signs of integer inputs
   logic [P.XLEN-1:0]           AE;                                  // input A after W64 adjustment
@@ -73,7 +73,6 @@ module fdivsqrtpreproc import cvw::*;  #(parameter cvw_t P) (
       assign AE = ForwardedSrcAE;
       assign BE = ForwardedSrcBE;
     end
-    assign AZeroE = ~(|AE);
     assign BZeroE = ~(|BE);
     assign AsE = AE[P.XLEN-1] & SignedDivE;
     assign BsE = BE[P.XLEN-1] & SignedDivE;

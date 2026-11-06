@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // privdec.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Jinghe Yu, Domenico Ottolia, Katherine Parry
 //
-// Purpose: Decode Privileged & related instructions
-//          See RISC-V Privileged Mode Specification 20190608 3.1.10-11
+// Purpose: Privileged instruction decoder.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +137,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
     flopr #(P.WFI_TIMEOUT_BIT+1) waitcountreg(clk, reset, WaitCountNext, WaitCount);
     // With H, the limit also applies in VS-mode when hstatus.VTW=1; at V=1 with mstatus.TW=0
     // it raises a virtual instruction exception instead (see virtinstr below).
-    assign TWTimeoutM = wfiM & ((STATUS_TW & PrivilegeModeW != P.M_MODE) |
+    assign TWTimeoutM = wfiM & ((STATUS_TW & PrivilegeModeW != P.M_MODE) | // exclusion-tag: pmd-tw-timeout
                                 (P.H_SUPPORTED & VirtModeW & PrivilegeModeW == P.S_MODE & HSTATUS_VTW) |
                                 (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) &
                         WaitCount[P.WFI_TIMEOUT_BIT];

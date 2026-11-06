@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fdivsqrtuotfc4.sv
 //
-// Written: me@KatherineParry.com, cturek@hmc.edu
-// Modified:7/14/2022
+// Written:  Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 15 July 2022
+// Modified: David Harris
 //
-// Purpose: Radix 4 unified on-the-fly converter
+// Purpose: Radix-4 on-the-fly quotient/root converter.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtuotfc4 import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtuotfc4 import cvw::*; #(parameter cvw_t P) (
   input  logic [3:0]      udigit,
   input  logic [P.DIVb:0] U, UM,          // U1.DIVb  UM is actually U - 1 ulp and starts negative, but this representation still produces the right answer
   input  logic [P.DIVb:0] C,              // Q1.DIVb

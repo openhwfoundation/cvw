@@ -1,22 +1,18 @@
 ///////////////////////////////////////////
 // csrm.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 7 April 2021
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Ben Bracker, Thomas Fleming, Domenico Ottolia dottolia@hmc.edu, Rose Thompson, Noah Boorstin, Kip Macsai-Goren, James Stine, Syed Moeed Ali, Abe
 //
-// Purpose: Machine-Mode Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
-// Note: the CSRs do not support the following optional features
-//   - Disabling portions of the instruction set with bits of the MISA register
-//   - Changing from RV64 to RV32 by writing the SXL/UXL bits of the STATUS register
+// Purpose: Machine-mode CSRs.
+//          Unsupported: disabling extensions with MISA bits, and changing XLEN with SXL/UXL.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,10 +96,10 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   localparam [15:0] MIDELEG_MASK = 16'h0222; // we choose to not make machine interrupts delegable; only S-level bits are writable
   localparam [15:0] MIDELEG_RO1  = P.H_SUPPORTED ? (16'h0444 | ((P.GEILEN > 0) ? 16'h1000 : 16'h0000)) : 16'h0000; // VS-level and guest external interrupts are always delegated past M
   // only nonzero counters can be inhibited; TM (bit 1) is read-only 0 because the time counter lives in the CLINT
-  localparam COUNTERINHIBIT_MASK = ((1 << P.COUNTERS) - 1) & 32'hFFFFFFFD;
+  localparam COUNTERINHIBIT_MASK = (32'hFFFFFFFF >> (32 - P.COUNTERS)) & 32'hFFFFFFFD;
   // mcounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
   localparam COUNTEREN_MASK = (P.ZICNTR_SUPPORTED ? 32'h00000007 : 32'h0) |
-                              (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
+                              (P.ZIHPM_SUPPORTED  ? (32'hFFFFFFFF >> (32 - P.COUNTERS)) : 32'h0);
   localparam Gm1 = P.PMP_G > 0 ? P.PMP_G - 1 : 0; // max(G-1, 0)
 
   // There are PMP_ENTRIES = 0, 16, or 64 PMPADDR registers, each of which has its own flop
@@ -253,7 +249,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     entry = '0;
     CSRMReadValM = '0;
     IllegalCSRMAccessM = ~P.S_SUPPORTED & ((CSRAdrM == MEDELEG) | (CSRAdrM == MEDELEGH) | (CSRAdrM == MIDELEG)); // trap on DELEG register access when no S-mode
-    if ($unsigned(CSRAdrM) >= PMPADDR0 & $unsigned(CSRAdrM) < PMPADDR0 + P.PMP_ENTRIES)
+    if ($unsigned(CSRAdrM) >= PMPADDR0 & $unsigned(CSRAdrM) < PMPADDR0 + P.PMP_ENTRIES) // exclusion-tag: csrm-pmp-read-start
       CSRMReadValM = {{(P.XLEN-(P.PA_BITS-2)){1'b0}}, PMPADDR_ARRAY_REGW[CSRAdrM - PMPADDR0]}; // read PMPADDR entry with lsbs aligned to grain based on NAPOT vs. TOR
     else if ($unsigned(CSRAdrM) >= PMPCFG0 & $unsigned(CSRAdrM) < PMPCFG0 + P.PMP_ENTRIES/4 & (P.XLEN == 32 | CSRAdrM[0] == 0)) begin
       // only even-numbered PMPCFG registers exist in RV64
@@ -263,7 +259,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
                         PMPCFG_ARRAY_REGW[entry+3], PMPCFG_ARRAY_REGW[entry+2], PMPCFG_ARRAY_REGW[entry+1], PMPCFG_ARRAY_REGW[entry]};
       end else begin
         entry = (CSRAdrM - PMPCFG0)*4;
-        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+3], PMPCFG_ARRAY_REGW[entry+2], PMPCFG_ARRAY_REGW[entry+1], PMPCFG_ARRAY_REGW[entry]};
+        CSRMReadValM = {PMPCFG_ARRAY_REGW[entry+3], PMPCFG_ARRAY_REGW[entry+2], PMPCFG_ARRAY_REGW[entry+1], PMPCFG_ARRAY_REGW[entry]}; // exclusion-tag: csrm-pmp-read-end
       end
     end
     else case (CSRAdrM)

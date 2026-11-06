@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // cache.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 7 July 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 7 July 2021
+// Modified: David Harris, Alec Vercruysse, Katherine Parry, Limnanthes Serafini
 //
-// Purpose: Implements the I$ and D$. Interfaces with requests from IEU and HPTW and ahbcacheinterface
+// Purpose: Configurable set-associative cache for the I$ and D$.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -130,7 +129,7 @@ module cache import cvw::*; #(parameter cvw_t P,
 
   // Data cache needs to choose word offset from PAdr or BeatCount to writeback dirty lines
   if (!READ_ONLY_CACHE)
-    mux2 #(LOGBWPL) WordAdrrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
+    mux2 #(LOGBWPL) WordAdrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
       .d1(BeatCount), .s(SelBusBeat),
       .y(WordOffsetAddr));
   else
@@ -165,10 +164,10 @@ module cache import cvw::*; #(parameter cvw_t P,
     assign FetchBufferByteSel = SetDirty ? ~DemuxedByteMask : '1;  // If load miss set all muxes to 1.
 
     // Merge write data into fetched cache line for store miss
-    // cbo.zero (CMOpM[3]) takes every byte from WriteData, which the LSU forces to zero
+    // cbo.zero takes every byte from WriteData, which the LSU forces to zero
     for (index = 0; index < LINELEN/8; index++) begin
       mux2 #(8) WriteDataMux(.d0(WriteData[(8*index)%WORDLEN+7:(8*index)%WORDLEN]),
-        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[3]), .y(LineWriteData[8*index+7:8*index]));
+        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[CMO_ZERO]), .y(LineWriteData[8*index+7:8*index]));
     end
     assign LineByteMask = SetDirty ? DemuxedByteMask : '1;
   end else begin : WriteSelLogic
@@ -197,8 +196,7 @@ module cache import cvw::*; #(parameter cvw_t P,
     if (NUMWAYS > 1) assign NextFlushWay = {FlushWay[NUMWAYS-2:0], FlushWay[NUMWAYS-1]};
     else             assign NextFlushWay = FlushWay[NUMWAYS-1];
     assign FlushWayFlag = FlushWay[NUMWAYS-1];
-  end // block: flushlogic
-  else begin : flushlogic // I$ is never flushed because it is never dirty
+  end else begin : flushlogic // I$ is never flushed because it is never dirty
     assign FlushWay = '0;
     assign FlushWayFlag = 1'b0;
     assign FlushAdrFlag = 1'b0;

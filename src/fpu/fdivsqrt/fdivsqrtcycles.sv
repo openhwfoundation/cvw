@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fdivsqrtcycles.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu, amaiuolo@hmc.edu
-// Modified: 18 April 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu, Alessandro Maiuolo amaiuolo@hmc.edu 18 April 2023
+// Modified: Kevin Kim
 //
-// Purpose: Determine number of cycles for divsqrt
+// Purpose: Cycle count for divide and square root.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtcycles import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtcycles import cvw::*; #(parameter cvw_t P) (
   input  logic [P.LOGFLEN-1:0] Nf,          // Number of fractional bits in selected format
   input  logic                 IntDivE,
   input  logic [P.DIVBLEN-1:0] IntResultBitsE,

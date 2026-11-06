@@ -1,26 +1,23 @@
 ///////////////////////////////////////////
 // tlbcam.sv
 //
-// Written: jtorrey@hmc.edu 16 February 2021
-// Modified: kmacsaigoren@hmc.edu 1 June 2021
-//            Implemented SV48 on top of SV39. This included adding the SvMode signal input and wally constants
-//            Mostly this was to make the cam_lines work.
+// Written:  Jessica Torrey jtorrey@hmc.edu 16 February 2021
+// Modified: David Harris, Kip Macsai-Goren kmacsaigoren@hmc.edu, Thomas Fleming, Ayesha Anwaar
 //
-// Purpose: Stores virtual page numbers with cached translations.
-//          Determines whether a given virtual page number is in the TLB.
+// Purpose: TLB virtual page number CAM.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module tlbcam import cvw::*;  #(parameter cvw_t P,
-                                 parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
+module tlbcam import cvw::*; #(parameter cvw_t P,
+                               parameter TLB_ENTRIES = 8, KEY_BITS = 20, SEGMENT_BITS = 10) (
   input  logic                    clk, reset,
   input  logic [P.VPN_BITS-1:0]   VPN,
   input  logic [2:0]              PageTypeWriteVal,

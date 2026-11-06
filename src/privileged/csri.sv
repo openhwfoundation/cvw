@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // csri.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Ben Bracker, Rose Thompson, Kip Macsai-Goren, Harshini Srinath
 //
-// Purpose: Interrupt Control & Status Registers (IP, EI)
-//          See RISC-V Privileged Mode Specification 20190608 & 20210108 draft
+// Purpose: Interrupt pending and enable CSRs.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwgroup/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +70,7 @@ module csri import cvw::*; #(parameter cvw_t P) (
   always_ff @(posedge clk)
     if (reset)          MIP_REGW_writeable <= 16'b0;
     else if (WriteMIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & MIP_WRITE_MASK);
-    else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK);
+    else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK); // exclusion-tag: csri-write-sip
 
   // mie owns all implemented enable state.  hie and vsie are aliases that
   // update/view the H-added bits in mie, matching the existing sie aliasing.
@@ -97,10 +96,8 @@ module csri import cvw::*; #(parameter cvw_t P) (
     assign WriteMIEMasked = WriteMIEM | WriteSIEM;
     always_comb begin
       NextMIE_REGW = MIE_REGW;
-      if (WriteMIEM)
-        NextMIE_REGW = CSRWriteValM[15:0] & MIE_WRITE_MASK;
-      else if (WriteSIEM)
-        NextMIE_REGW = (MIE_REGW & ~SIE_WRITE_MASK) | (CSRWriteValM[15:0] & SIE_WRITE_MASK);
+      if (WriteMIEM) NextMIE_REGW = CSRWriteValM[15:0] & MIE_WRITE_MASK; // MIE controls M and S fields
+      else if (WriteSIEM) NextMIE_REGW = (MIE_REGW & ~SIE_WRITE_MASK) | (CSRWriteValM[15:0] & SIE_WRITE_MASK); // only S fields // exclusion-tag: csri-write-sie
     end
   end
   always_ff @(posedge clk)

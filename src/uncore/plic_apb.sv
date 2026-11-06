@@ -1,22 +1,19 @@
 ///////////////////////////////////////////
 // plic_apb.sv
 //
-// Written: bbracker@hmc.edu 18 January 2021
-// Modified:
+// Written:  Ben Bracker bbracker@hmc.edu 18 January 2021
+// Modified: David Harris, Rose Thompson, Jacob Pease, Juan Schroeder
 //
-// Purpose: Platform-Level Interrupt Controller
-//   Based on RISC-V spec (https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc)
-//   With clarifications from ROA's existing implementation (https://roalogic.github.io/plic/docs/AHB-Lite_PLIC_Datasheet.pdf)
-//   Supports only 1 target core and only a global threshold.
-//   This PLIC implementation serves as both the PLIC Gateways and PLIC Core.
-//   It assumes interrupt sources are level-triggered wires.
+// Purpose: Platform-level interrupt controller (PLIC) on APB.
+//          Based on https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc.
+//          Supports 1 target and a global threshold only; sources are level-triggered.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,10 +21,6 @@
 // number of interrupt sources
 // does not include source 0, which does not connect to anything according to spec
 // up to 63 sources supported; in the future, allow up to 1023 sources
-
-// number of contexts
-// hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
-`define C 2
 
 module plic_apb import cvw::*; #(parameter cvw_t P) (
   input  logic                PCLK, PRESETn,
@@ -44,6 +37,10 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   output logic                MExtInt, SExtInt
 );
 
+  // number of contexts
+  // hardcoded to 2 contexts for now; later upgrade to arbitrary (up to 15872) contexts
+  localparam C = 2;
+
   // register map
   localparam PLIC_INTPRIORITY0   = 24'h000000;
   localparam PLIC_INTPENDING0    = 24'h001000;
@@ -57,43 +54,46 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
   localparam PLIC_THRESHOLD1     = 24'h201000;
   localparam PLIC_CLAIMCOMPLETE1 = 24'h201004;
 
-  logic                       memwrite, memread;
-  logic [23:0]                entry;
-  logic [31:0]                Din, Dout;
+  logic                                 memwrite, memread, decoded;
+  logic [23:0]                          entry;
+  logic [31:0]                          Din, Dout;
+  logic                                 PriorityExists;
 
   // context-independent signals
-  logic [P.PLIC_NUM_SRC:1]               requests;
-  logic [P.PLIC_NUM_SRC:1][2:0]          intPriority;
-  logic [P.PLIC_NUM_SRC:1]               intInProgress, intPending, nextIntPending;
+  logic [P.PLIC_NUM_SRC:1]              requests;
+  logic [P.PLIC_NUM_SRC:1][2:0]         intPriority;
+  logic [P.PLIC_NUM_SRC:1]              intInProgress, intPending, nextIntPending;
 
   // context-dependent signals
-  logic [`C-1:0][2:0]                    intThreshold;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       intEn;
-  logic [`C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
-  logic [`C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
-  logic [`C-1:0][7:1]                    priorities_with_irqs;
-  logic [`C-1:0][7:1]                    max_priority_with_irqs;
-  logic [`C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
-  logic [`C-1:0][7:1]                    threshMask;
-  logic [P.PLIC_NUM_SRC-1:0]             One;
+  logic [C-1:0][2:0]                    intThreshold;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       intEn;
+  logic [C-1:0][5:0]                    intClaim; // IDs are 6 bits if we stay within 63 sources
+  logic [C-1:0][7:1][P.PLIC_NUM_SRC:1]  irqMatrix;
+  logic [C-1:0][7:1]                    priorities_with_irqs;
+  logic [C-1:0][7:1]                    max_priority_with_irqs;
+  logic [C-1:0][P.PLIC_NUM_SRC:1]       irqs_at_max_priority;
+  logic [C-1:0][7:1]                    threshMask;
+  logic [P.PLIC_NUM_SRC-1:0]            One;
 
   // hacks to handle gracefully PLIC_NUM_SRC being smaller than 32
   // Otherwise Questa and other simulators produce part-select out of bounds even
   // though sources >=32 are never used
 
-  localparam PLIC_SRC_TOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
-  localparam PLIC_SRC_BOT = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
+  localparam PLIC_SRC_TOP    = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC : 1;
+  localparam PLIC_SRC_BOT    = (P.PLIC_NUM_SRC >= 32) ? 32 : 1;
   localparam PLIC_SRC_DINTOP = (P.PLIC_NUM_SRC >= 32) ? P.PLIC_NUM_SRC - 32 : 0;
-  localparam PLIC_SRC_EXT = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
+  localparam PLIC_SRC_EXT    = (P.PLIC_NUM_SRC >= 32) ? 63 - P.PLIC_NUM_SRC : 31;
 
   // =======
   // APB I/O
   // =======
 
-  assign memwrite = PWRITE & PENABLE & PSEL;  // only write in access phase
-  assign memread  = ~PWRITE & PSEL & ~PENABLE; // read once, in APB setup phase
+  assign decoded  = (PADDR[25:24] == 2'b00);  // registers are below offset 0x1000000; above are nonexistent contexts / reserved
+  assign memwrite = PWRITE & PENABLE & PSEL & decoded;  // only write in access phase
+  assign memread  = ~PWRITE & PSEL & ~PENABLE & decoded; // read once, in APB setup phase
   assign PREADY   = 1'b1;                     // PLIC never takes >1 cycle to respond
   assign entry    = {PADDR[23:2], 2'b0};
+  assign PriorityExists = (entry[7:2] != 6'd0) & ({26'b0, entry[7:2]} <= P.PLIC_NUM_SRC); // priority word of source 1..PLIC_NUM_SRC
   assign One[P.PLIC_NUM_SRC-1:1] = '0; assign One[0] = 1'b1; // Vivado does not like this as a single assignment.
 
   // account for subword read/write circuitry
@@ -118,26 +118,26 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
     end else begin
       if (memwrite)
         casez (entry)
-          24'h0000??:          intPriority[entry[7:2]] <= Din[2:0];
+          24'h0000??:          if (PriorityExists) intPriority[entry[7:2]] <= Din[2:0];
           PLIC_INTEN00:        intEn[0][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
           PLIC_INTEN10:        intEn[1][PLIC_NUM_SRC_MIN_32:1] <= Din[PLIC_NUM_SRC_MIN_32:1];
           PLIC_INTEN01:        if (P.PLIC_NUM_SRC >= 32) intEn[0][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_INTEN11:        if (P.PLIC_NUM_SRC >= 32) intEn[1][PLIC_SRC_TOP:PLIC_SRC_BOT]         <= Din[PLIC_SRC_DINTOP:0];
           PLIC_THRESHOLD0:     intThreshold[0]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE0:
-            if (Din[5:0] != 6'd0)
-              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE0: // a completion ID that is not a source enabled for this context is ignored
+            if (Din[31:6] == '0 & Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(intEn[0] & (One << (Din[5:0]-1))); // lower "InProgress" to signify completion
           PLIC_THRESHOLD1:     intThreshold[1]         <= Din[2:0];
-          PLIC_CLAIMCOMPLETE1:
-            if (Din[5:0] != 6'd0)
-              intInProgress <= intInProgress & ~(One << (Din[5:0]-1)); // lower "InProgress" to signify completion
+          PLIC_CLAIMCOMPLETE1: // a completion ID that is not a source enabled for this context is ignored
+            if (Din[31:6] == '0 & Din[5:0] != 6'd0)
+              intInProgress <= intInProgress & ~(intEn[1] & (One << (Din[5:0]-1))); // lower "InProgress" to signify completion
         endcase
 
       // Read synchronously because a read can have side effect of changing intInProgress
       if (memread) begin
         casez (entry)
           PLIC_INTPRIORITY0: Dout <= 32'b0;  // there is no intPriority[0]
-          24'h0000??:        Dout <= {29'b0, intPriority[entry[7:2]]};
+          24'h0000??:        Dout <= PriorityExists ? {29'b0, intPriority[entry[7:2]]} : 32'b0; // nonexistent sources read 0
           PLIC_INTPENDING0:  Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intPending[PLIC_NUM_SRC_MIN_32:1], 1'b0};
           PLIC_INTEN00:      Dout <= {{(31-PLIC_NUM_SRC_MIN_32){1'b0}}, intEn[0][PLIC_NUM_SRC_MIN_32:1], 1'b0};
           PLIC_INTPENDING1:  if (P.PLIC_NUM_SRC >= 32) Dout <= {{(PLIC_SRC_EXT){1'b0}}, intPending[PLIC_SRC_TOP:PLIC_SRC_BOT]};
@@ -180,7 +180,7 @@ module plic_apb import cvw::*; #(parameter cvw_t P) (
 
   // context-dependent signals
   genvar ctx;
-  for (ctx = 0; ctx < `C; ctx++) begin
+  for (ctx = 0; ctx < C; ctx++) begin
     // request matrix
     //   priority level (rows) X source ID (columns)
     //

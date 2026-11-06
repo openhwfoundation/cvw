@@ -1,24 +1,22 @@
 ///////////////////////////////////////////
 // lrsc.sv
 //
-// Written: David_Harris@hmc.edu
-// Created: 17 July 2021
-// Modified: 18 January 2023
+// Written:  David Harris David_Harris@hmc.edu 17 July 2021
+// Modified: Rose Thompson
 //
-// Purpose: Load Reserved / Store Conditional unit
-//          Track the reservation and squash the store if it fails
+// Purpose: LR/SC reservation.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module lrsc import cvw::*;  #(parameter cvw_t P) (
+module lrsc import cvw::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   input  logic                 StallW,

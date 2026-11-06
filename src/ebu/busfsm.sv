@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // busfsm.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: December 29, 2021
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 December 2021
+// Modified:
 //
-// Purpose: Simple NON_SEQ (no burst) AHB controller.
+// Purpose: AHB bus state machine for single transfers.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,15 +48,15 @@ module busfsm #(
 
   always_comb begin
     case (CurrState)
-      ADR_PHASE:  if (HREADY & |BusRW)          NextState = DATA_PHASE;
+      ADR_PHASE:  if (HREADY & |BusRW)          NextState = DATA_PHASE; // exclusion-tag: busfsm-adr-request
                   else                          NextState = ADR_PHASE;
-      DATA_PHASE: if (HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE;
-                  else if (HREADY & ~BusAtomic) NextState = MEM3;
+      DATA_PHASE: if (HREADY & BusAtomic)       NextState = ATOMIC_READ_DATA_PHASE; // exclusion-tag: busfsm-data-atomic
+                  else if (HREADY & ~BusAtomic) NextState = MEM3; // exclusion-tag: busfsm-data-done
                   else                          NextState = DATA_PHASE;
-      ATOMIC_READ_DATA_PHASE: if (HREADY)       NextState = ATOMIC_PHASE;
+      ATOMIC_READ_DATA_PHASE: if (HREADY)       NextState = ATOMIC_PHASE; // exclusion-tag: busfsm-atomic-start
                   else                          NextState = ATOMIC_READ_DATA_PHASE;
       ATOMIC_PHASE: if (HREADY)                 NextState = MEM3;
-                    else                        NextState = ATOMIC_PHASE;
+                    else                        NextState = ATOMIC_PHASE; // exclusion-tag: busfsm-atomic-end
       MEM3:       if (Stall)                    NextState = MEM3;
                   else                          NextState = ADR_PHASE;
       default:                                  NextState = ADR_PHASE;

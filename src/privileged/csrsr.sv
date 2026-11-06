@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
-// crsr.sv
+// csrsr.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Ben Bracker, Noah Boorstin, Katherine Parry, Kip Macsai-Goren, Rose Thompson, Jordan Carlin, Haiqua Ghaffar
 //
-// Purpose: Status register (and environment configuration register and others shared across modes)
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Status CSRs (mstatus, mstatush, sstatus).
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,11 +38,11 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
   output logic              BigEndianM
 );
 
-  logic STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
-  logic STATUS_MPV, STATUS_GVA;
+  logic       STATUS_SD, STATUS_TW_INT, STATUS_TSR_INT, STATUS_TVM_INT, STATUS_MXR_INT, STATUS_SUM_INT, STATUS_MPRV_INT;
+  logic       STATUS_MPV, STATUS_GVA;
   logic [1:0] STATUS_SXL, STATUS_UXL, STATUS_XS, STATUS_FS_INT, STATUS_MPP_NEXT;
-  logic STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
-  logic nextMBE, nextSBE;
+  logic       STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
+  logic       nextMBE, nextSBE;
 
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6
@@ -157,7 +156,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_MPIE <= STATUS_MIE;
         STATUS_MIE  <= 1'b0;
         STATUS_MPP  <= PrivilegeModeW;
-      end else if (P.S_SUPPORTED & TrapToHSM) begin
+      end else if (P.S_SUPPORTED & TrapToHSM) begin // supervisor mode // exclusion-tag: csrsr-trap-to-s
         STATUS_SPIE <= STATUS_SIE;
         STATUS_SIE  <= 1'b0;
         STATUS_SPP  <= PrivilegeModeW[0];
@@ -200,7 +199,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_SPIE     <= P.S_SUPPORTED & CSRWriteValM[5];
         STATUS_SIE      <= P.S_SUPPORTED & CSRWriteValM[1];
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
-      end else if (~VirtModeW & (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM)) STATUS_FS_INT <= 2'b11;
+      end else if (~VirtModeW & (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM)) STATUS_FS_INT <= 2'b11; // exclusion-tag: csrsr-fs-dirty
     end
 
   if (P.H_SUPPORTED) begin: mpv_gva

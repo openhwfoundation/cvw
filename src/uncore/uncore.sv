@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // uncore.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: Ben Bracker 6 Mar 2021 to better fit AMBA 3 AHB-Lite spec
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Jacob Pease, Ben Bracker, Noah Boorstin, Naiche Whyte-Aguayo, Thomas Fleming
 //
-// Purpose: System-on-Chip components outside the core
-//          Memories, peripherals, external bus control
+// Purpose: Memories and peripherals outside the core.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +19,6 @@
 module uncore import cvw::*; #(parameter cvw_t P) (
   // AHB Bus Interface
   input  logic                 HCLK, HRESETn,
-  input  logic                 TIMECLK,
   input  logic [P.PA_BITS-1:0] HADDR,
   input  logic [P.AHBW-1:0]    HWDATA,
   input  logic [P.XLEN/8-1:0]  HWSTRB,
@@ -55,19 +53,17 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]           PWMGPIO
 );
 
-  logic [P.XLEN-1:0]           HREADRam, HREADSDC;
+  logic [P.XLEN-1:0]           HREADRam;
 
   logic [12:0]                 HSELRegions;
   logic                        HSELDTIM, HSELIROM, HSELRam, HSELCLINT, HSELPLIC, HSELGPIO, HSELUART, HSELSDC, HSELSPI, HSELPWM;
   logic                        HSELDTIMD, HSELIROMD, HSELEXTD, HSELRamD, HSELCLINTD, HSELPLICD, HSELGPIOD, HSELUARTD, HSELSDCD, HSELSPID, HSELPWMD;
-  logic                        HRESPRam, HRESPSDC;
-  logic                        HREADYRam, HRESPSDCD;
+  logic                        HRESPRam, HREADYRam;
   logic [P.XLEN-1:0]           HREADBootRom;
-  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom, HREADYSDC;
+  logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom;
   logic                        HSELNoneD;
   logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
-  logic                        SDCIntM;
 
   logic                        PCLK, PRESETn, PWRITE, PENABLE;
   logic [6:0]                  PSEL;
@@ -147,15 +143,16 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   end
 
   if (P.GPIO_SUPPORTED == 1) begin : gpio
-    gpio_apb #(P) gpio(
+    // IOF0 of pins 3:0 is the PWM; no pin has an IOF1
+    gpio_apb #(.P(P), .IOF0_PINS(P.PWM_SUPPORTED ? 32'h0000000F : 32'h0)) gpio(
       .PCLK, .PRESETn, .PSEL(PSEL[0]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[0]), .PREADY(PREADY[0]),
-      .iof0({28'b0, PWMGPIO[3:0]}), .iof1(), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
+      .iof0({28'b0, PWMGPIO[3:0]}), .iof1('0), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
   end else begin : gpio
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end
 
-  if (P.UART_SUPPORTED == 1) begin : uartgen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
+  if (P.UART_SUPPORTED == 1) begin : uartgen
     uart_apb #(P) uart(
       .PCLK, .PRESETn, .PSEL(PSEL[3]), .PADDR(PADDR[2:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[3]), .PREADY(PREADY[3]),

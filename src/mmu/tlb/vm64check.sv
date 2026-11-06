@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // vm64check.sv
 //
-// Written: David_Harris@hmc.edu 4 November 2022
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 4 November 2022
+// Modified: Ayesha Anwaar, Muhammad Zain
 //
-// Purpose: Check for good upper address bits in RV64 mode
+// Purpose: RV64 virtual address sign-extension check.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vm64check import cvw::*;  #(parameter cvw_t P) (
+module vm64check import cvw::*; #(parameter cvw_t P) (
   input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,
   input  logic [P.XLEN-1:0]         VAdr,
   output logic                      SV39Mode,

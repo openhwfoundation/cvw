@@ -1,22 +1,22 @@
 ///////////////////////////////////////////
 // fli.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 1/16/2024
+// Written:  David Harris David_Harris@hmc.edu 16 January 2024
+// Modified:
 //
-// Purpose: Floating-point float immediate
+// Purpose: Zfa fli immediate lookup.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fli import cvw::*;  #(parameter cvw_t P) (
+module fli import cvw::*; #(parameter cvw_t P) (
   input  logic [4:0]        Rs1,           // Index of immediate to select
   input  logic [1:0]        Fmt,           // 00 = single, 01 = double, 10 = half, 11 = quad
   output logic [P.FLEN-1:0] Imm            // Immediate output

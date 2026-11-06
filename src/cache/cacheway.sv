@@ -1,25 +1,24 @@
 ///////////////////////////////////////////
-// cacheway
+// cacheway.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 7 July 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 7 July 2021
+// Modified: David Harris, Alec Vercruysse, Katherine Parry
 //
-// Purpose: Storage and read/write access to data cache data, tag valid, dirty, and replacement.
+// Purpose: One cache way: tag, valid, dirty, and data arrays with hit detection.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module cacheway import cvw::*; #(parameter cvw_t P,
-                  parameter PA_BITS, NUMSETS = 512, LINELEN = 256, TAGLEN = 26,
-                  OFFSETLEN = 5, INDEXLEN = 9, READ_ONLY_CACHE = 0) (
+                                 parameter PA_BITS, NUMSETS = 512, LINELEN = 256, TAGLEN = 26,
+                                           OFFSETLEN = 5, INDEXLEN = 9, READ_ONLY_CACHE = 0) (
   input  logic                        clk,
   input  logic                        reset,
   input  logic                        FlushStage,     // Pipeline flush of second stage (prevent writes and bus operations)
@@ -52,7 +51,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   logic [LINELEN-1:0]                 ReadDataLine;
   logic [TAGLEN-1:0]                  ReadTag;
   logic                               Dirty;
-  logic                               SelecteDirty;
+  logic                               SelectedDirty;
   logic                               SelectedWriteWordEn;
   logic [LINELEN/8-1:0]               FinalByteMask;
   logic                               SetValidEN, ClearValidEN;
@@ -64,14 +63,14 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   logic                               InvalidateCacheDelay;
 
   if (!READ_ONLY_CACHE) begin : flushlogic
-    mux2 #(1) seltagmux(VictimWay, FlushWay, FlushCache, SelecteDirty);
+    mux2 #(1) seltagmux(VictimWay, FlushWay, FlushCache, SelectedDirty);
     mux3 #(1) selectedmux(HitWay, FlushWay, VictimWay, {SelVictim, FlushCache}, SelectedWay);
     // FlushWay is part of a one hot way selection. Must clear it if FlushWay not selected.
     // coverage off -item e 1 -fecexprrow 3
     // nonzero ways will never see FlushCache=0 while FlushWay=1 since FlushWay only advances on a subset of FlushCache assertion cases.
   end else begin : flushlogic // no flush operation for read-only caches.
-    assign SelecteDirty = VictimWay;
-    mux2 #(1) selectedwaymux(HitWay, SelecteDirty, SelVictim, SelectedWay);
+    assign SelectedDirty = VictimWay;
+    mux2 #(1) selectedwaymux(HitWay, SelectedDirty, SelVictim, SelectedWay);
   end
 
   /////////////////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +81,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   assign ClearValidWay = ClearValid & SelectedWay;                             // exclusion-tag: icache ClearValidWay
   assign SetDirtyWay = SetDirty & SelectedWay;                                 // exclusion-tag: icache SetDirtyWay
   assign ClearDirtyWay = ClearDirty & SelectedWay;
-  assign SelectedWriteWordEn = (SetValidWay | SetDirtyWay) & ~FlushStage;  // exclusion-tag: icache SelectedWiteWordEn
+  assign SelectedWriteWordEn = (SetValidWay | SetDirtyWay) & ~FlushStage;  // exclusion-tag: icache SelectedWriteWordEn
   assign SetValidEN = SetValidWay & ~FlushStage;                           // exclusion-tag: cache SetValidEN
   assign ClearValidEN = ClearValidWay & ~FlushStage;                       // exclusion-tag: cache ClearValidEN
 
@@ -100,7 +99,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   // AND portion of distributed tag multiplexer
   assign TagWay = SelectedWay ? ReadTag : 0; // AND part of AOMux
   assign HitDirtyWay = Dirty & ValidWay;
-  assign DirtyWay = SelecteDirty & HitDirtyWay;                               // exclusion-tag: icache DirtyWay
+  assign DirtyWay = SelectedDirty & HitDirtyWay;                               // exclusion-tag: icache DirtyWay
   assign HitWay = ValidWay & (ReadTag == PAdr[PA_BITS-1:OFFSETLEN+INDEXLEN]) & ~InvalidateCacheDelay; // exclusion-tag: dcache HitWay
 
   flopenrc #(1) InvalidateCacheReg(clk, 1'b0, InvalidateFlushStage, 1'b1, InvalidateCache, InvalidateCacheDelay);

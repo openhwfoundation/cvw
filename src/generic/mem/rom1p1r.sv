@@ -1,29 +1,30 @@
 ///////////////////////////////////////////
-// rom1p1r
+// rom1p1r.sv
 //
-// Written: David_Harris@hmc.edu 8/24/22
+// Written:  David Harris David_Harris@hmc.edu 24 August 2022
+// Modified: Jacob Pease, Rose Thompson, James Stine, Kunlin Han, Lucio
 //
-// Purpose: Single-ported ROM
+// Purpose: Single-port ROM.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // This model actually works correctly with vivado.
 
-module rom1p1r #(parameter ADDR_WIDTH = 8, DATA_WIDTH = 32, PRELOAD_ENABLED = 0)
-  (input  logic                  clk,
-   input  logic                  ce,
-   input  logic [ADDR_WIDTH-1:0] addr,
-   output logic [DATA_WIDTH-1:0] dout
+module rom1p1r #(parameter ADDR_WIDTH = 8, DATA_WIDTH = 32, PRELOAD_ENABLED = 0) (
+  input  logic                  clk,
+  input  logic                  ce,
+  input  logic [ADDR_WIDTH-1:0] addr,
+  output logic [DATA_WIDTH-1:0] dout
 );
 
   // Core Memory
-  bit [DATA_WIDTH-1:0]    ROM [(2**ADDR_WIDTH)-1:0];
+  bit [DATA_WIDTH-1:0] ROM [(2**ADDR_WIDTH)-1:0];
 
   // dh 10/30/23 ROM macros are presently commented out
   // because they don't point to a generated ROM

@@ -1,4 +1,3 @@
-///////////////////////////////////////////
 // wallypipelinedsocwrapper.sv
 //
 // Written: Rose Thompson rose@rosethompson.net 16 June 2023
@@ -41,7 +40,6 @@ module wallypipelinedsocwrapper (
   output logic                HMASTLOCK,
   output logic                HREADY,
   // I/O Interface
-  input  logic                TIMECLK,          // optional for CLINT MTIME counter
   input  logic [31:0]         GPIOIN,           // inputs from GPIO
   output logic [31:0]         GPIOOUT,          // output values for GPIO
   output logic [31:0]         GPIOEN,           // output enables for GPIO
@@ -53,7 +51,7 @@ module wallypipelinedsocwrapper (
 
   wallypipelinedsoc  #(P) wallypipelinedsoc(.clk, .reset_ext, .reset, .HRDATAEXT,.HREADYEXT, .HRESPEXT, .HSELEXT,
     .HSELEXTSDC, .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
+    .HTRANS, .HMASTLOCK, .HREADY, .GPIOIN, .GPIOOUT, .GPIOEN,
     .UARTSin, .UARTSout, .SDCIntr);
 
 endmodule

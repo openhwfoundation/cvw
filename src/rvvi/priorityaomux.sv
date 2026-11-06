@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // priorityaomux.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 24 January 2024
-// Modified: 24 January 2024
+// Written:  Rose Thompson rose@rosethompson.net 24 January 2024
+// Modified:
 //
-// Purpose: priority AND-OR MUX.
+// Purpose: Priority AND-OR multiplexer.
 //
 // Documentation:
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -22,8 +22,8 @@ module priorityaomux #(parameter ROWS = 8, COLS = 64) (
   output logic [COLS-1:0]     Y,
   output logic [ROWS-1:0]     SelPriority);
 
-  logic [COLS-1:0]           AMasked [ROWS-1:0];
-  genvar                     index;
+  logic [COLS-1:0] AMasked [ROWS-1:0];
+  genvar           index;
 
   priorityonehot #(ROWS) priorityonehot(Sel, SelPriority);
   for (index = 0; index < ROWS; index = index + 1) begin

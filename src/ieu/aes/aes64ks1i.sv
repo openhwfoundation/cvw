@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // aes64ks1i.sv
 //
-// Written: ryan.swann@okstate.edu, james.stine@okstate.edu
-// Created: 20 February 2024
+// Written:  Ryan Swann ryan.swann@okstate.edu, James Stine james.stine@okstate.edu 20 February 2024
+// Modified: David Harris, Kelvin Tran
 //
-// Purpose: aes64ks1i instruction: part of AES keyschedule with involving sbox
+// Purpose: AES key schedule step aes64ks1i.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +33,5 @@ module aes64ks1i(
   // Share sbox with encryption in zknde64.  This module just sends value to shared sbox and gets result back
   // send out value as SboxKIn, get back substituted result as Sbox0Out
 
-  assign result[31:0]  = Sbox0Out ^ rcon;
-  assign result[63:32] = Sbox0Out ^ rcon;
+  assign result = {2{Sbox0Out ^ rcon}};                  // Both words of the result are the same
 endmodule

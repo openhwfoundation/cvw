@@ -1,22 +1,21 @@
 ///////////////////////////////////////////
 // decompress.sv
 //
-// Written: David_Harris@hmc.edu
-// Created: 9 January 2021
-// Modified: 18 January 2023
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Jordan Carlin, Kevin Thomas
 //
-// Purpose: Expand 16-bit compressed instructions to 32 bits
+// Purpose: Compressed instruction expander.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-module decompress import cvw::*;  #(parameter cvw_t P) (
+module decompress import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0] InstrRawD,         // 32-bit instruction or raw compressed 16-bit instruction in bottom half
   output logic [31:0] InstrD,            // Decompressed instruction
   output logic        IllegalCompInstrD  // Invalid decompressed instruction

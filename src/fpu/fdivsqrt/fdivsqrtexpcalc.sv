@@ -1,28 +1,28 @@
 ///////////////////////////////////////////
 // fdivsqrtexpcalc.sv
 //
-// Written: David_Harris@hmc.edu, me@KatherineParry.com, cturek@hmc.edu
-// Modified:13 January 2022
+// Written:  David Harris David_Harris@hmc.edu, Katherine Parry me@KatherineParry.com, Cedar Turek cturek@hmc.edu 26 December 2022
+// Modified:
 //
-// Purpose: Exponent calculation for divide and square root
+// Purpose: Result exponent for divide and square root.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtexpcalc import cvw::*;  #(parameter cvw_t P) (
+module fdivsqrtexpcalc import cvw::*; #(parameter cvw_t P) (
   input  logic [P.NE-2:0]      Bias,      // Bias of exponent
   input  logic [P.NE-1:0]      Xe, Ye,    // input exponents
   input  logic                 Sqrt,
   input  logic [P.DIVBLEN-1:0] ell, m,    // number of leading 0s in Xm and Ym
   output logic [P.NE+1:0]      Ue         // result exponent
-  );
+);
 
   logic [P.NE+1:0] SXExp;
   logic [P.NE+1:0] SExp;

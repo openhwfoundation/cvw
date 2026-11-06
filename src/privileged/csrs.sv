@@ -1,19 +1,17 @@
 ///////////////////////////////////////////
 // csrs.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 3 May 2021 - fix bug with stvec getting wrong value
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Ben Bracker, Noah Boorstin, Domenico Ottolia dottolia@hmc.edu, Kip Macsai-Goren, Jacob Pease, Ayesha Anwaar
 //
-// Purpose: Supervisor-Mode Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Supervisor-mode CSRs.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,9 +53,10 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   localparam STIMECMPH  = 12'h15D;
   localparam SATP       = 12'h180;
   // Constants
+  localparam SINT_MASK  = 16'h0222; // supervisor interrupt fields: SEI, STI, SSI
   // scounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
   localparam COUNTEREN_MASK = (P.ZICNTR_SUPPORTED ? 32'h00000007 : 32'h0) |
-                              (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
+                              (P.ZIHPM_SUPPORTED  ? (32'hFFFFFFFF >> (32 - P.COUNTERS)) : 32'h0);
 
   logic                    WriteSTVECM;
   logic                    WriteSSCRATCHM, WriteSEPCM;
@@ -143,8 +142,8 @@ module csrs import cvw::*; #(parameter cvw_t P) (
     case (CSRAdrM)
       SSTATUS:    CSRSReadValM = SSTATUS_REGW;
       STVEC:      CSRSReadValM = STVEC_REGW;
-      SIP:        CSRSReadValM = {{(P.XLEN-16){1'b0}}, MIP_REGW & 16'h0222 & MIDELEG_REGW}; // only read supervisor fields
-      SIE:        CSRSReadValM = {{(P.XLEN-16){1'b0}}, MIE_REGW & 16'h0222 & MIDELEG_REGW}; // only read supervisor fields
+      SIP:        CSRSReadValM = {{(P.XLEN-16){1'b0}}, MIP_REGW & SINT_MASK & MIDELEG_REGW}; // only read supervisor fields
+      SIE:        CSRSReadValM = {{(P.XLEN-16){1'b0}}, MIE_REGW & SINT_MASK & MIDELEG_REGW}; // only read supervisor fields
       SSCRATCH:   CSRSReadValM = SSCRATCH_REGW;
       SEPC:       CSRSReadValM = SEPC_REGW;
       SCAUSE:     CSRSReadValM = SCAUSE_REGW;

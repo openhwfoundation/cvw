@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // wallypipelinedcore.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Katherine Parry, Ben Bracker, Thomas Fleming, Kip Macsai-Goren, Lucio
 //
-// Purpose: Pipelined RISC-V Processor
+// Purpose: Five-stage pipelined RISC-V core.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +142,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          LSUHWRITE;
   logic                          LSUHREADY;
 
-  logic                          BPWrongE, BPWrongM;
+  logic                          BPWrongE, BPWrongM, BPRedirectD;
   logic                          BPDirWrongM;
   logic                          BTAWrongM;
   logic                          RASPredPCWrongM;
@@ -175,7 +175,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .IFUStallF, .IFUHBURST, .IFUHTRANS, .IFUHSIZE, .IFUHREADY, .IFUHWRITE,
     .ICacheAccess, .ICacheMiss,
     // Execute
-    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
+    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPRedirectD, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
     .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
@@ -215,7 +215,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM, .HLVHSVInstrM);
 
   lsu #(P) lsu(
-    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW,
+    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .CommittedF,
     // CPU interface
     .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM, .HLVHSVInstrM, .HLVHSVLegalM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
@@ -270,7 +270,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
 
   // global stall and flush control
   hazard hzu(
-    .BPWrongE, .CSRWriteFenceM, .RetM, .TrapM,
+    .BPWrongE, .BPRedirectD, .CSRWriteFenceM, .RetM, .TrapM,
     .StructuralStallD,
     .LSUStallM, .IFUStallF,
     .FPUStallD, .ExternalStall,

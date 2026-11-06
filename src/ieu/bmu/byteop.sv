@@ -1,18 +1,17 @@
 ///////////////////////////////////////////
 // byteop.sv
 //
-// Written: Kevin Kim <kekim@hmc.edu>, kelvin.tran@okstate.edu
-// Created: 1 February 2023
-// Modified: 29 February 2024
+// Written:  Kevin Kim kekim@hmc.edu, Kelvin Tran kelvin.tran@okstate.edu 1 February 2023
+// Modified: David Harris
 //
-// Purpose: RISCV bitmanip byte-wise operation unit
+// Purpose: rev8 and orc.b.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////

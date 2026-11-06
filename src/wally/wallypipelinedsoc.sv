@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
-// wally-pipelinedsoc.sv
+// wallypipelinedsoc.sv
 //
-// Written: David_Harris@hmc.edu 6 November 2020
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 6 November 2020
+// Modified: Rose Thompson, Jacob Pease, Ben Bracker, Naiche Whyte-Aguayo
 //
-// Purpose: System on chip including pipelined processor and uncore memories/peripherals
+// Purpose: System on chip: core and uncore.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2020-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,6 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   output logic                 HMASTLOCK,
   output logic                 HREADY,
   // I/O Interface
-  input  logic                 TIMECLK,         // optional for CLINT MTIME counter
   input  logic [31:0]          GPIOIN,          // inputs from GPIO
   output logic [31:0]          GPIOOUT,         // output values for GPIO
   output logic [31:0]          GPIOEN,          // output enables for GPIO
@@ -75,8 +74,8 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   );
 
   // instantiate uncore if a bus interface exists
-  if (P.BUS_SUPPORTED) begin : uncoregen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
-    uncore #(P) uncore(.HCLK, .HRESETn, .TIMECLK,
+  if (P.BUS_SUPPORTED) begin : uncoregen
+    uncore #(P) uncore(.HCLK, .HRESETn,
       .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .HRDATAEXT,
       .HREADYEXT, .HRESPEXT, .HRDATA, .HREADY, .HRESP, .HSELEXT,
       .MTimerInt, .MSwInt, .MExtInt, .SExtInt, .HGEIPIn, .GPIOIN, .GPIOOUT, .GPIOEN, .UARTSin,

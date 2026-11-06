@@ -16,17 +16,36 @@
 `define PRINT_ALL 0
 `define PRINT_CSRS 0
 
-// Since we are detecting the CSR change by comparing the old value, we need to
-// ensure the CSR is detected when the pipeline's Writeback stage is not
-// stalled.  If it is stalled we want to hold the old value.
-`define CONNECT_CSR(name, addr, val) \
+// RVVI's csr_wb says the instruction in Writeback wrote a CSR, even when the value did not change.  A
+// CSR is written as its instruction leaves the Memory stage, so carry the CSR's Memory-stage write
+// enable to Writeback with the instruction.
+`define CONNECT_CSR_WE(name, addr, val, we) \
+  logic Write``name``W; \
+  flopenr #(1) Write``name``WReg (clk, reset, ~StallW, we, Write``name``W); \
+  assign rvvi.csr[0][0][addr]    = val; \
+  assign rvvi.csr_wb[0][0][addr] = valid & Write``name``W;
+
+// Most CSRs follow a regular naming scheme: the register is <unit>.<name>_REGW, written when
+// <unit>.Write<name>M is asserted
+`define CONNECT_CSR(name, addr, unit) \
+  `CONNECT_CSR_WE(name, addr, testbench.dut.core.priv.priv.csr.unit.name``_REGW, testbench.dut.core.priv.priv.csr.unit.Write``name``M)
+
+// CSRs no instruction can write
+// The hypervisor CSRs do not yet have write enables here, so they are reported written when their
+// value changes, as all CSRs were before.
+`define CONNECT_CSR_CHG(name, addr, val) \
   logic [P.XLEN-1:0] prev_csr_``name; \
   always_ff @(posedge clk) \
     prev_csr_``name <= rvvi.csr[0][0][addr]; \
   assign rvvi.csr_wb[0][0][addr] = (rvvi.csr[0][0][addr] != prev_csr_``name); \
   assign rvvi.csr[0][0][addr] = valid ? val : prev_csr_``name;
 
+`define CONNECT_CSR_RO(name, addr, val) \
+  assign rvvi.csr[0][0][addr]    = val; \
+  assign rvvi.csr_wb[0][0][addr] = 1'b0;
+
 module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
+  /* verilator lint_off WIDTHEXPAND */ // CSRs narrower than 64 bits zero-extend into the RVVI CSR array
 
   localparam NUM_REGS = P.E_SUPPORTED ? 16 : 32;
   localparam NUM_CSRS = 4096;
@@ -36,13 +55,12 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic                  clk;
   logic                  InstrValidD, InstrValidE;
   logic                  StallF, StallD;
-  logic                  STATUS_SXL, STATUS_UXL;
+  logic [1:0]            STATUS_SXL, STATUS_UXL;
   logic [P.XLEN-1:0]     PCNextF, PCF, PCD, PCE, PCM, PCW;
   logic [31:0]           InstrRawD, InstrRawE, InstrRawM, InstrRawW;
   logic                  InstrValidM, InstrValidW;
   logic                  StallE, StallM, StallW;
   logic                  GatedStallW;
-  logic                  SelHPTW;
   logic                  FlushD, FlushE, FlushM, FlushW;
   logic                  TrapM, TrapW;
   logic                  HaltM, HaltW;
@@ -59,19 +77,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [11:0]           CSRAdrM, CSRAdrW;
   logic                  InterruptM, InterruptW;
   logic                  valid;
-  logic                  HPTWUpdateDA, DA_updated, capture_PTE;
-
-  //For VM Verification
-  logic [(P.XLEN-1):0]     IVAdrF,IVAdrD,IVAdrE,IVAdrM,IVAdrW,DVAdrM,DVAdrW;
-  logic [(P.XLEN-1):0]     IPTEF,IPTED,IPTEE,IPTEM,IPTEW,DPTEM,DPTEW;
-  logic [(P.PA_BITS-1):0]  IPAF,IPAD,IPAE,IPAM,IPAW,DPAM,DPAW;
-  logic [(P.PPN_BITS-1):0] IPPNF,IPPND,IPPNE,IPPNM,IPPNW,DPPNM,DPPNW;
-  logic [1:0]              IPageTypeF, IPageTypeD, IPageTypeE, IPageTypeM, IPageTypeW, DPageTypeM, DPageTypeW;
-  logic                    ReadAccessM,WriteAccessM,ReadAccessW,WriteAccessW;
-  logic                    ExecuteAccessF,ExecuteAccessD,ExecuteAccessE,ExecuteAccessM,ExecuteAccessW;
-  logic [P.XLEN-1:0]       order;
-  logic [P.XLEN-1:0]       IPTEHPTWF;
-  logic [P.XLEN-1:0]       DPTEHPTWM;
+  logic [P.XLEN-1:0]     order;
 
   assign clk = testbench.dut.clk;
   //  assign InstrValidF = testbench.dut.core.ieu.InstrValidF;  // not needed yet
@@ -96,7 +102,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign FlushM         = testbench.dut.core.FlushM;
   assign FlushW         = testbench.dut.core.FlushW;
   assign TrapM          = testbench.dut.core.TrapM;
-  assign HaltM          = testbench.DCacheFlushStart;
+  assign HaltM          = testbench.EndTest;
   if (P.ZICSR_SUPPORTED) begin
     assign PrivilegeModeW = testbench.dut.core.priv.priv.privmode.PrivilegeModeW;
     assign STATUS_SXL     = testbench.dut.core.priv.priv.csr.csrsr.STATUS_SXL;
@@ -109,152 +115,159 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign InterruptM     = 0;
   end
 
-  //For VM Verification
-  if (P.VIRTMEM_SUPPORTED) begin
-    assign SelHPTW        = testbench.dut.core.lsu.hptw.hptw.SelHPTW;
-    assign HPTWUpdateDA   = testbench.dut.core.lsu.hptw.hptw.HPTWUpdateDA;
-    assign IVAdrF         = testbench.dut.core.ifu.immu.immu.tlb.tlb.VAdr;
-    assign DVAdrM         = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.VAdr;
-    assign IPAF           = testbench.dut.core.ifu.immu.immu.PhysicalAddress;
-    assign DPAM           = testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
-    assign ReadAccessM    = testbench.dut.core.lsu.dmmu.dmmu.ReadAccessM;
-    assign WriteAccessM   = testbench.dut.core.lsu.dmmu.dmmu.WriteAccessM;
-    assign ExecuteAccessF = testbench.dut.core.ifu.immu.immu.ExecuteAccessF;
-    assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
-    assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
-    assign IPPNF          = testbench.dut.core.ifu.immu.immu.tlb.tlb.PPN;
-    assign DPPNM          = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.PPN;
-    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal;
-    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal;
-  end else begin
-    assign SelHPTW        = 1'b0;
-    assign IVAdrF         = 0;
-    assign DVAdrM         = 0;
-    assign IPAF           = 0;
-    assign DPAM           = 0;
-    assign ReadAccessM    = 0;
-    assign WriteAccessM   = 0;
-    assign ExecuteAccessF = 0;
-    assign IPTEF          = 0;
-    assign DPTEM          = 0;
-    assign IPPNF          = 0;
-    assign DPPNM          = 0;
-    assign IPageTypeF     = 0;
-    assign DPageTypeM     = 0;
-  end
-
 
   // CSR connections
   if (P.ZICSR_SUPPORTED) begin
+    // The CSRs below that do not follow the regular naming scheme have their write enables spelled out.
+    // mstatus has several: a CSR write to mstatus or sstatus, a trap, an mret or sret, and floating-point
+    // state setting FS to Dirty.  sstatus is a view of mstatus, written by all of these except a trap to
+    // M-mode and an mret, which change only M-mode fields.
+    logic CSRMWriteM, CSRSWriteM;                  // the instruction in Memory writes CSRAdrM as an M / S-mode CSR
+    logic SSTATUSWriteM, MSTATUSWriteM;
+    assign CSRMWriteM    = testbench.dut.core.priv.priv.csr.CSRMWriteM;
+    assign CSRSWriteM    = testbench.dut.core.priv.priv.csr.CSRSWriteM;
+    assign SSTATUSWriteM = testbench.dut.core.priv.priv.csr.WriteMSTATUSM | testbench.dut.core.priv.priv.csr.WriteSSTATUSM |
+                           testbench.dut.core.priv.priv.csr.STrapM | testbench.dut.core.priv.priv.csr.sretM |
+                           testbench.dut.core.priv.priv.csr.FRegWriteM | testbench.dut.core.priv.priv.csr.WriteFRMM |
+                           testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM;
+    assign MSTATUSWriteM = SSTATUSWriteM | testbench.dut.core.priv.priv.csr.MTrapM | testbench.dut.core.priv.priv.csr.mretM;
+
     // M-mode trap CSRs
-    `CONNECT_CSR(MSTATUS, 12'h300, testbench.dut.core.priv.priv.csr.csrm.MSTATUS_REGW);
-    `CONNECT_CSR(MEDELEG, 12'h302, testbench.dut.core.priv.priv.csr.csrm.MEDELEG_REGW);
-    `CONNECT_CSR(MIDELEG, 12'h303, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW});
-    `CONNECT_CSR(MIE, 12'h304, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW});
-    `CONNECT_CSR(MTVEC, 12'h305, testbench.dut.core.priv.priv.csr.csrm.MTVEC_REGW);
-    `CONNECT_CSR(MSCRATCH, 12'h340, testbench.dut.core.priv.priv.csr.csrm.MSCRATCH_REGW);
-    `CONNECT_CSR(MEPC, 12'h341, testbench.dut.core.priv.priv.csr.csrm.MEPC_REGW);
-    `CONNECT_CSR(MCAUSE, 12'h342, testbench.dut.core.priv.priv.csr.csrm.MCAUSE_REGW);
-    `CONNECT_CSR(MTVAL, 12'h343, testbench.dut.core.priv.priv.csr.csrm.MTVAL_REGW);
-    `CONNECT_CSR(MIP, 12'h344, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MIP_REGW});
+    `CONNECT_CSR_WE(MSTATUS, 12'h300, testbench.dut.core.priv.priv.csr.csrm.MSTATUS_REGW, MSTATUSWriteM);
+    `CONNECT_CSR(MEDELEG, 12'h302, csrm);
+    `CONNECT_CSR(MIDELEG, 12'h303, csrm);
+    // sie and sip are mie and mip seen through mideleg, so a write to sie also writes mie
+    `CONNECT_CSR_WE(MIE, 12'h304, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW,
+                    testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM);
+    `CONNECT_CSR(MTVEC, 12'h305, csrm);
+    `CONNECT_CSR(MSCRATCH, 12'h340, csrm);
+    `CONNECT_CSR(MEPC, 12'h341, csrm);
+    `CONNECT_CSR(MCAUSE, 12'h342, csrm);
+    `CONNECT_CSR(MTVAL, 12'h343, csrm);
+
+    // mip and sip also follow the interrupt inputs, which have no write enable, so they are reported
+    // written when an instruction writes them or when their value changes.
+    logic [P.XLEN-1:0] MIP, SIP, MIPReportedW, SIPReportedW;
+    logic              WriteMIPW, WriteSIPW;
+    assign MIP = testbench.dut.core.priv.priv.csr.csrm.MIP_REGW;
+    assign SIP = MIP & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW;
+    flopenr #(1)      WriteMIPWReg (clk, reset, ~StallW, testbench.dut.core.priv.priv.csr.csri.WriteMIPM |
+                                    testbench.dut.core.priv.priv.csr.csri.WriteSIPM, WriteMIPW);
+    flopenr #(1)      WriteSIPWReg (clk, reset, ~StallW, testbench.dut.core.priv.priv.csr.csri.WriteMIPM |
+                                    testbench.dut.core.priv.priv.csr.csri.WriteSIPM | testbench.dut.core.priv.priv.csr.csrm.WriteMIDELEGM, WriteSIPW);
+    flopenr #(P.XLEN) MIPReportedReg (clk, reset, valid, MIP, MIPReportedW);
+    flopenr #(P.XLEN) SIPReportedReg (clk, reset, valid, SIP, SIPReportedW);
+    assign rvvi.csr[0][0][12'h344]    = MIP;
+    assign rvvi.csr_wb[0][0][12'h344] = valid & (WriteMIPW | (MIP != MIPReportedW));
 
     // S-mode trap CSRs
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SSTATUS, 12'h100, testbench.dut.core.priv.priv.csr.csrs.csrs.SSTATUS_REGW);
-      `CONNECT_CSR(SIE, 12'h104, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW & 16'h0222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW});
-      `CONNECT_CSR(STVEC, 12'h105, testbench.dut.core.priv.priv.csr.csrs.csrs.STVEC_REGW);
-      `CONNECT_CSR(SSCRATCH, 12'h140, testbench.dut.core.priv.priv.csr.csrs.csrs.SSCRATCH_REGW);
-      `CONNECT_CSR(SEPC, 12'h141, testbench.dut.core.priv.priv.csr.csrs.csrs.SEPC_REGW);
-      `CONNECT_CSR(SCAUSE, 12'h142, testbench.dut.core.priv.priv.csr.csrs.csrs.SCAUSE_REGW);
-      `CONNECT_CSR(STVAL, 12'h143, testbench.dut.core.priv.priv.csr.csrs.csrs.STVAL_REGW);
-      `CONNECT_CSR(SIP, 12'h144, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MIP_REGW & 16'h0222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW});
+      `CONNECT_CSR_WE(SSTATUS, 12'h100, testbench.dut.core.priv.priv.csr.csrs.csrs.SSTATUS_REGW, SSTATUSWriteM);
+      `CONNECT_CSR_WE(SIE, 12'h104, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW,
+                      testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM |
+                      testbench.dut.core.priv.priv.csr.csrm.WriteMIDELEGM);
+      `CONNECT_CSR(STVEC, 12'h105, csrs.csrs);
+      `CONNECT_CSR(SSCRATCH, 12'h140, csrs.csrs);
+      `CONNECT_CSR(SEPC, 12'h141, csrs.csrs);
+      `CONNECT_CSR(SCAUSE, 12'h142, csrs.csrs);
+      `CONNECT_CSR(STVAL, 12'h143, csrs.csrs);
+      assign rvvi.csr[0][0][12'h144]    = SIP;
+      assign rvvi.csr_wb[0][0][12'h144] = valid & (WriteSIPW | (SIP != SIPReportedW));
     end
 
     // Virtual Memory CSRs
+    // WriteSATPM leaves out a write of an unsupported MODE, which has no effect but is still a write
     if (P.VIRTMEM_SUPPORTED) begin
-      `CONNECT_CSR(SATP, 12'h180, testbench.dut.core.priv.priv.csr.csrs.csrs.SATP_REGW);
+      `CONNECT_CSR_WE(SATP, 12'h180, testbench.dut.core.priv.priv.csr.csrs.csrs.SATP_REGW, CSRSWriteM & (CSRAdrM == 12'h180));
     end
 
     // Floating-Point CSRs
+    // An instruction that accrues exception flags also writes fflags.  fcsr is frm and fflags together.
     if (P.F_SUPPORTED) begin
-      `CONNECT_CSR(FFLAGS, 12'h001, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW);
-      `CONNECT_CSR(FRM, 12'h002, testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW);
-      `CONNECT_CSR(FCSR, 12'h003, {testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW});
+      `CONNECT_CSR_WE(FFLAGS, 12'h001, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW, testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM);
+      `CONNECT_CSR(FRM, 12'h002, csru.csru);
+      `CONNECT_CSR_WE(FCSR, 12'h003, {testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW},
+                      testbench.dut.core.priv.priv.csr.WriteFRMM | testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM);
     end
 
     // Counters / Performance Monitoring CSRs
     if (P.U_SUPPORTED) begin
-      `CONNECT_CSR(MCOUNTEREN, 12'h306, testbench.dut.core.priv.priv.csr.csrm.MCOUNTEREN_REGW);
+      `CONNECT_CSR(MCOUNTEREN, 12'h306, csrm);
     end
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SCOUNTEREN, 12'h106, testbench.dut.core.priv.priv.csr.csrs.csrs.SCOUNTEREN_REGW);
+      `CONNECT_CSR(SCOUNTEREN, 12'h106, csrs.csrs);
     end
-    `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, testbench.dut.core.priv.priv.csr.csrm.MCOUNTINHIBIT_REGW);
+    `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, csrm);
     // mhpmevent3-31 not connected (232-33F)
     if (P.ZICNTR_SUPPORTED) begin
-      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0]); // MCYCLE
-      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2]); // MINSTRET
+      // mcycle and minstret are written when they count as well as by an instruction
+      `CONNECT_CSR_WE(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0],
+                      testbench.dut.core.priv.priv.csr.counters.WriteHPMCOUNTERM[0] | testbench.dut.core.priv.priv.csr.counters.CounterInc[0]);
+      `CONNECT_CSR_WE(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2],
+                      testbench.dut.core.priv.priv.csr.counters.WriteHPMCOUNTERM[2] | testbench.dut.core.priv.priv.csr.counters.CounterInc[2]);
       // mhpmcounter3-31 not connected (B03-B1F)
       // cycle, time, instret not connected (C00-C02)
       // hpmcounter3-31 not connected (C03-C1F)
     end
 
     // Machine Information Registers and Configuration CSRs
-    `CONNECT_CSR(MISA, 12'h301, testbench.dut.core.priv.priv.csr.csrm.MISA_REGW);
-    `CONNECT_CSR(MENVCFG, 12'h30A, testbench.dut.core.priv.priv.csr.csrm.MENVCFG_REGW);
-    `CONNECT_CSR(MSECCFG, 12'h747, 0); // mseccfg
-    `CONNECT_CSR(MVENDORID, 12'hF11, 0); //mvendorid
-    `CONNECT_CSR(MARCHID, 12'hF12, 0); // marchid
-    `CONNECT_CSR(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
-    `CONNECT_CSR(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
-    `CONNECT_CSR(MCONFIGPTR, 12'hF15, 0); //mconfigptr
+    // misa is hardwired, so writing it has no effect and it has no write enable.  menvcfg's write enable
+    // is in an unnamed generate block, so decode it here.
+    `CONNECT_CSR_WE(MISA, 12'h301, testbench.dut.core.priv.priv.csr.csrm.MISA_REGW, CSRMWriteM & (CSRAdrM == 12'h301));
+    `CONNECT_CSR_WE(MENVCFG, 12'h30A, testbench.dut.core.priv.priv.csr.csrm.MENVCFG_REGW[P.XLEN-1:0], CSRMWriteM & (CSRAdrM == 12'h30A));
+    `CONNECT_CSR_RO(MSECCFG, 12'h747, 0); // mseccfg
+    `CONNECT_CSR_RO(MVENDORID, 12'hF11, 0); //mvendorid
+    `CONNECT_CSR_RO(MARCHID, 12'hF12, 0); // marchid
+    `CONNECT_CSR_RO(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
+    `CONNECT_CSR_RO(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
+    `CONNECT_CSR_RO(MCONFIGPTR, 12'hF15, 0); //mconfigptr
 
     // Supervisor Information Registers and Configuration CSRs
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SENVCFG, 12'h10A, testbench.dut.core.priv.priv.csr.csrs.csrs.SENVCFG_REGW);
+      `CONNECT_CSR(SENVCFG, 12'h10A, csrs.csrs);
     end
 
     // Sstc CSRs
     if (P.SSTC_SUPPORTED) begin
-      `CONNECT_CSR(STIMECMP, 12'h14D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_WE(STIMECMP, 12'h14D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[P.XLEN-1:0], testbench.dut.core.priv.priv.csr.csrs.csrs.WriteSTIMECMPM);
       if (P.XLEN == 32) begin
-        `CONNECT_CSR(STIMECMPH, 12'h15D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[63:32]);
+        `CONNECT_CSR_WE(STIMECMPH, 12'h15D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[63:32], testbench.dut.core.priv.priv.csr.csrs.csrs.WriteSTIMECMPHM);
       end
     end
 
     if (P.H_SUPPORTED) begin
       // Hypervisor and VS-visible CSRs used by lockstep and coverage.
-      `CONNECT_CSR(MTINST, 12'h34A, testbench.dut.core.priv.priv.csr.csrh.csrh.MTINST_REGW);
-      `CONNECT_CSR(MTVAL2, 12'h34B, testbench.dut.core.priv.priv.csr.csrh.csrh.MTVAL2_REGW);
-      `CONNECT_CSR(HSTATUS, 12'h600, testbench.dut.core.priv.priv.csr.csrh.csrh.HSTATUS_REGW);
-      `CONNECT_CSR(VSSTATUS, 12'h200, testbench.dut.core.priv.priv.csr.csrh.csrh.VSSTATUS_REGW);
-      `CONNECT_CSR(HEDELEG, 12'h602, testbench.dut.core.priv.priv.csr.csrh.csrh.HEDELEG_REGW);
-      `CONNECT_CSR(HIDELEG, 12'h603, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIDELEG_REGW});
-      `CONNECT_CSR(HIE, 12'h604, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIE_REGW});
-      `CONNECT_CSR(VSIE, 12'h204, testbench.dut.core.priv.priv.csr.csrh.csrh.VSIE_REGW);
-      `CONNECT_CSR(HTIMEDELTA, 12'h605, testbench.dut.core.priv.priv.csr.csrh.csrh.HTIMEDELTA_REGW[P.XLEN-1:0]);
-      `CONNECT_CSR(HCOUNTEREN, 12'h606, testbench.dut.core.priv.priv.csr.csrh.csrh.HCOUNTEREN_REGW);
-      `CONNECT_CSR(HGEIE, 12'h607, testbench.dut.core.priv.priv.csr.csrh.csrh.HGEIE_REGW);
-      `CONNECT_CSR(HENVCFG, 12'h60A, testbench.dut.core.priv.priv.csr.csrh.csrh.HENVCFG_REGW[P.XLEN-1:0]);
-      `CONNECT_CSR(HTVAL, 12'h643, testbench.dut.core.priv.priv.csr.csrh.csrh.HTVAL_REGW);
-      `CONNECT_CSR(HIP, 12'h644, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIP_PENDING});
-      `CONNECT_CSR(HVIP, 12'h645, testbench.dut.core.priv.priv.csr.csrh.csrh.HVIP_REGW);
-      `CONNECT_CSR(HTINST, 12'h64A, testbench.dut.core.priv.priv.csr.csrh.csrh.HTINST_REGW);
-      `CONNECT_CSR(HGATP, 12'h680, testbench.dut.core.priv.priv.csr.csrh.csrh.HGATPReadVal);
-      `CONNECT_CSR(HGEIP, 12'hE12, testbench.dut.core.priv.priv.csr.csrh.csrh.HGEIP_REGW);
-      `CONNECT_CSR(VSTVEC, 12'h205, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTVEC_REGW);
-      `CONNECT_CSR(VSSCRATCH, 12'h240, testbench.dut.core.priv.priv.csr.csrh.csrh.VSSCRATCH_REGW);
-      `CONNECT_CSR(VSEPC, 12'h241, testbench.dut.core.priv.priv.csr.csrh.csrh.VSEPC_REGW);
-      `CONNECT_CSR(VSCAUSE, 12'h242, testbench.dut.core.priv.priv.csr.csrh.csrh.VSCAUSE_REGW);
-      `CONNECT_CSR(VSTVAL, 12'h243, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTVAL_REGW);
-      `CONNECT_CSR(VSIP, 12'h244, testbench.dut.core.priv.priv.csr.csrh.csrh.VSIP_REGW);
-      `CONNECT_CSR(VSATP, 12'h280, testbench.dut.core.priv.priv.csr.csrh.csrh.VSATP_REGW);
-      `CONNECT_CSR(VSTIMECMP, 12'h24D, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTIMECMP_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_CHG(MTINST, 12'h34A, testbench.dut.core.priv.priv.csr.csrh.csrh.MTINST_REGW);
+      `CONNECT_CSR_CHG(MTVAL2, 12'h34B, testbench.dut.core.priv.priv.csr.csrh.csrh.MTVAL2_REGW);
+      `CONNECT_CSR_CHG(HSTATUS, 12'h600, testbench.dut.core.priv.priv.csr.csrh.csrh.HSTATUS_REGW);
+      `CONNECT_CSR_CHG(VSSTATUS, 12'h200, testbench.dut.core.priv.priv.csr.csrh.csrh.VSSTATUS_REGW);
+      `CONNECT_CSR_CHG(HEDELEG, 12'h602, testbench.dut.core.priv.priv.csr.csrh.csrh.HEDELEG_REGW);
+      `CONNECT_CSR_CHG(HIDELEG, 12'h603, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIDELEG_REGW});
+      `CONNECT_CSR_CHG(HIE, 12'h604, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIE_REGW});
+      `CONNECT_CSR_CHG(VSIE, 12'h204, testbench.dut.core.priv.priv.csr.csrh.csrh.VSIE_REGW);
+      `CONNECT_CSR_CHG(HTIMEDELTA, 12'h605, testbench.dut.core.priv.priv.csr.csrh.csrh.HTIMEDELTA_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_CHG(HCOUNTEREN, 12'h606, testbench.dut.core.priv.priv.csr.csrh.csrh.HCOUNTEREN_REGW);
+      `CONNECT_CSR_CHG(HGEIE, 12'h607, testbench.dut.core.priv.priv.csr.csrh.csrh.HGEIE_REGW);
+      `CONNECT_CSR_CHG(HENVCFG, 12'h60A, testbench.dut.core.priv.priv.csr.csrh.csrh.HENVCFG_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_CHG(HTVAL, 12'h643, testbench.dut.core.priv.priv.csr.csrh.csrh.HTVAL_REGW);
+      `CONNECT_CSR_CHG(HIP, 12'h644, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIP_PENDING});
+      `CONNECT_CSR_CHG(HVIP, 12'h645, testbench.dut.core.priv.priv.csr.csrh.csrh.HVIP_REGW);
+      `CONNECT_CSR_CHG(HTINST, 12'h64A, testbench.dut.core.priv.priv.csr.csrh.csrh.HTINST_REGW);
+      `CONNECT_CSR_CHG(HGATP, 12'h680, testbench.dut.core.priv.priv.csr.csrh.csrh.HGATPReadVal);
+      `CONNECT_CSR_CHG(HGEIP, 12'hE12, testbench.dut.core.priv.priv.csr.csrh.csrh.HGEIP_REGW);
+      `CONNECT_CSR_CHG(VSTVEC, 12'h205, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTVEC_REGW);
+      `CONNECT_CSR_CHG(VSSCRATCH, 12'h240, testbench.dut.core.priv.priv.csr.csrh.csrh.VSSCRATCH_REGW);
+      `CONNECT_CSR_CHG(VSEPC, 12'h241, testbench.dut.core.priv.priv.csr.csrh.csrh.VSEPC_REGW);
+      `CONNECT_CSR_CHG(VSCAUSE, 12'h242, testbench.dut.core.priv.priv.csr.csrh.csrh.VSCAUSE_REGW);
+      `CONNECT_CSR_CHG(VSTVAL, 12'h243, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTVAL_REGW);
+      `CONNECT_CSR_CHG(VSIP, 12'h244, testbench.dut.core.priv.priv.csr.csrh.csrh.VSIP_REGW);
+      `CONNECT_CSR_CHG(VSATP, 12'h280, testbench.dut.core.priv.priv.csr.csrh.csrh.VSATP_REGW);
+      `CONNECT_CSR_CHG(VSTIMECMP, 12'h24D, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTIMECMP_REGW[P.XLEN-1:0]);
       if (P.XLEN == 32) begin
-        `CONNECT_CSR(HEDELEGH, 12'h612, testbench.dut.core.priv.priv.csr.csrh.csrh.HEDELEG_REGW[63:32]);
-        `CONNECT_CSR(HTIMEDELTAH, 12'h615, testbench.dut.core.priv.priv.csr.csrh.csrh.HTIMEDELTA_REGW[63:32]);
-        `CONNECT_CSR(HENVCFGH, 12'h61A, testbench.dut.core.priv.priv.csr.csrh.csrh.HENVCFG_REGW[63:32]);
-        `CONNECT_CSR(VSTIMECMPH, 12'h25D, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTIMECMP_REGW[63:32]);
+        `CONNECT_CSR_CHG(HEDELEGH, 12'h612, testbench.dut.core.priv.priv.csr.csrh.csrh.HEDELEG_REGW[63:32]);
+        `CONNECT_CSR_CHG(HTIMEDELTAH, 12'h615, testbench.dut.core.priv.priv.csr.csrh.csrh.HTIMEDELTA_REGW[63:32]);
+        `CONNECT_CSR_CHG(HENVCFGH, 12'h61A, testbench.dut.core.priv.priv.csr.csrh.csrh.HENVCFG_REGW[63:32]);
+        `CONNECT_CSR_CHG(VSTIMECMPH, 12'h25D, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTIMECMP_REGW[63:32]);
       end
     end
 
@@ -263,12 +276,14 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
     // extra M mode CSRs for RV32
     if (P.XLEN == 32) begin
-      `CONNECT_CSR(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW);
-      `CONNECT_CSR(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW);
-      `CONNECT_CSR(MSECCFGH, 12'h757, 0); // mseccfgh
+      `CONNECT_CSR_WE(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW, testbench.dut.core.priv.priv.csr.WriteMSTATUSHM);
+      `CONNECT_CSR_WE(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW, CSRMWriteM & (CSRAdrM == 12'h31A));
+      `CONNECT_CSR_RO(MSECCFGH, 12'h757, 0); // mseccfgh
     end
   end
 
+  // PMP CSRs.  The per-entry write enables leave out a locked entry, which a write leaves unchanged,
+  // so decode the address here.
   if (P.PMP_ENTRIES > 0) begin
     localparam inc = P.XLEN == 32 ? 4 : 8;
     // PMPCFG CSRs (space is 0-15 3a0 - 3af)
@@ -292,12 +307,15 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
                       testbench.dut.core.priv.priv.csr.csrm.PMPCFG_ARRAY_REGW[pmpCfgID+1],
                       testbench.dut.core.priv.priv.csr.csrm.PMPCFG_ARRAY_REGW[pmpCfgID+0]};
       end
-      `CONNECT_CSR(PMPCFG``i4, 12'h3A0 + i4, pmp);
+      `CONNECT_CSR_WE(PMPCFG, 12'h3A0 + i4, pmp, testbench.dut.core.priv.priv.csr.CSRMWriteM & (CSRAdrM == 12'h3A0 + i4));
     end
 
-  // PMPADDR CSRs 3B0 to 3EF
-    for(genvar pmpAddrID = 0; pmpAddrID < P.PMP_ENTRIES; pmpAddrID++) begin
-      `CONNECT_CSR(PMPADDR``pmpAddrID, 12'h3B0 + pmpAddrID, testbench.dut.core.priv.priv.csr.csrm.PMPADDR_ARRAY_REGW[pmpAddrID]); // aligned to grain
+    // PMPADDR CSRs 3B0 to 3EF
+    // pmpaddr reads back aligned to the grain its pmpcfg's A field selects, so writing that pmpcfg writes it too
+    for (genvar pmpAddrID = 0; pmpAddrID < P.PMP_ENTRIES; pmpAddrID++) begin
+      localparam logic [11:0] CfgAdr = P.XLEN == 32 ? 12'h3A0 + pmpAddrID/4 : 12'h3A0 + 2*(pmpAddrID/8);
+      `CONNECT_CSR_WE(PMPADDR, 12'h3B0 + pmpAddrID, testbench.dut.core.priv.priv.csr.csrm.PMPADDR_ARRAY_REGW[pmpAddrID],
+                      testbench.dut.core.priv.priv.csr.CSRMWriteM & (CSRAdrM == 12'h3B0 + pmpAddrID | CSRAdrM == CfgAdr));
     end
   end
 
@@ -310,9 +328,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rf_we3 = testbench.dut.core.ieu.dp.regf.we3;
 
   always_comb begin
-    rf_wb <= 0;
+    rf_wb = 0;
     if(rf_we3)
-      rf_wb[rf_a3] <= 1'b1;
+      rf_wb[rf_a3] = 1'b1;
   end
 
   // Floating-point register file
@@ -329,14 +347,19 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   end
 
   always_comb begin
-    frf_wb <= 0;
+    frf_wb = 0;
     if(frf_we4)
-      frf_wb[frf_a4] <= 1'b1;
+      frf_wb[frf_a4] = 1'b1;
   end
 
   // CSR writes
-  assign CSRAdrM  = testbench.dut.core.priv.priv.csr.CSRAdrM;
-  assign CSRWriteM = testbench.dut.core.priv.priv.csr.CSRWriteM;
+  if (P.ZICSR_SUPPORTED) begin : csrwrites
+    assign CSRAdrM   = testbench.dut.core.priv.priv.csr.CSRAdrM;
+    assign CSRWriteM = testbench.dut.core.priv.priv.csr.CSRWriteM;
+  end else begin : nocsrwrites
+    assign CSRAdrM   = '0;
+    assign CSRWriteM = 1'b0;
+  end
 
   // pipeline to writeback stage
   flopenrc #(32)    InstrRawEReg (clk, reset, FlushE, ~StallE, InstrRawD, InstrRawE);
@@ -351,51 +374,176 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   flopenrc #(12)    CSRAdrWReg (clk, reset, FlushW, ~StallW, CSRAdrM, CSRAdrW);
   flopenrc #(1)     CSRWriteWReg (clk, reset, FlushW, ~StallW, CSRWriteM, CSRWriteW);
 
-  // For VM Verification
-  flopenr #(P.XLEN)     IVAdrDReg (clk, reset, ~StallD, IVAdrF, IVAdrD); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrEReg (clk, reset, ~StallE, IVAdrD, IVAdrE); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrMReg (clk, reset, ~StallM, IVAdrE, IVAdrM); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     IVAdrWReg (clk, reset, ~StallW, IVAdrM, IVAdrW); //Virtual Address for IMMU
-  flopenr #(P.XLEN)     DVAdrWReg (clk, reset, ~StallW, DVAdrM, DVAdrW); //Virtual Address for DMMU
+`ifdef FCOV
+  // For VM Verification.  Only functional coverage samples these signals, and only a core with virtual
+  // memory has the walker and TLBs they come from, so build them only then.
+  logic [P.XLEN-1:0]       IVAdrW, DVAdrW;                       // virtual address of the fetch / data access
+  logic [P.PA_BITS-1:0]    IPAW, DPAW;                           // physical address of the fetch / data access
+  logic [P.XLEN-1:0]       IPTEW, DPTEW;                         // page table entry the fetch / data access used
+  logic [1:0]              IPageTypeW, DPageTypeW;               // page type the fetch / data access used
+  logic                    ReadAccessW, WriteAccessW, ExecuteAccessW;
 
-  flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPAF, IPAD); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAEReg (clk, reset, ~StallE, IPAD, IPAE); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAMReg (clk, reset, ~StallM, IPAE, IPAM); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  IPAWReg (clk, reset, ~StallW, IPAM, IPAW); //Physical Address for IMMU
-  flopenr #(P.PA_BITS)  DPAWReg (clk, reset, ~StallW, DPAM, DPAW); //Physical Address for DMMU
+  if (P.VIRTMEM_SUPPORTED) begin : vm
+    logic                    SelHPTW, HPTWUpdateDA, DA_updated, capture_PTE;
+    logic                    HPTWWalkDone;                       // last cycle of a walk
+    logic                    DTLBWalk;                           // the walk under way serves the DTLB, else the ITLB
+    logic                    InstrFaultM;                        // the fetch of the instruction in Memory faulted
+    logic [P.XLEN-1:0]       IVAdrM, DVAdrM;
+    logic [P.PA_BITS-1:0]    IPAF, IPAD, IPAE, IPAM, DPAM;
+    logic [P.XLEN-1:0]       IPTEF, IPTED, IPTEE, IPTEM, DPTEM;
+    logic [1:0]              IPageTypeF, IPageTypeD, IPageTypeE, IPageTypeM, DPageTypeM;
+    logic                    ReadAccessM, WriteAccessM;
+    logic [P.XLEN-1:0]       IPTEHPTWF, DPTEHPTWM;               // PTE of the last walk for each TLB
+    logic [1:0]              IPageTypeHPTWF, DPageTypeHPTWM;     // page type of the last walk for each TLB
+    logic                    ITLBHitF, DTLBHitM;                 // access hit its TLB while translating
+    logic [P.XLEN-1:0]       ITLBPTEF, DTLBPTEM;                 // page table entry the TLB hit on
+    logic [2:0]              IHitPageTypeF, DHitPageTypeM;       // page type of the entry the TLB hit on
+    logic                    IWalkedF, DWalkedM;                 // this access ran its own page table walk
+    logic [P.XLEN-1:0]       IPTEAccessF, DPTEAccessM;           // page table entry this access used
+    logic [1:0]              IPageTypeAccessF, DPageTypeAccessM; // page type this access used
+    logic                    SpillSaveF;                         // first half of a spilled fetch is done
+    logic [P.PA_BITS-1:0]    IPARptF;                            // fetch physical address reported
+    logic [P.XLEN-1:0]       IPTERptF;                           // fetch page table entry reported
+    logic [1:0]              IPageTypeRptF;                      // fetch page type reported
 
-  // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts. Cleared as the walk finishes.
-  flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
-  // Capture valid PTE during page table walk; no value when SelHPTW is low
-  // Don't capture if hardware has update DA bits of PTE
-  assign capture_PTE = SelHPTW & ~DA_updated;
-  flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE, IPTEF, IPTEHPTWF); //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTEHPTWF, IPTED);     //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEEReg (clk, reset, ~StallE, IPTED, IPTEE);         //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEMReg (clk, reset, ~StallM, IPTEE, IPTEM);         //PTE for IMMU
-  flopenr #(P.XLEN)     IPTEWReg (clk, reset, ~StallW, IPTEM, IPTEW);         //PTE for IMMU
-  flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE, DPTEM, DPTEHPTWM); //PTE for DMMU
-  flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEHPTWM, DPTEW);     //PTE for DMMU
+    assign SelHPTW        = testbench.dut.core.lsu.hptw.hptw.SelHPTW;
+    assign HPTWUpdateDA   = testbench.dut.core.lsu.hptw.hptw.HPTWUpdateDA;
+    assign HPTWWalkDone   = testbench.dut.core.lsu.hptw.hptw.WalkDone;
+    // Take the data access's own address and type from ahead of the walker's multiplexers.  While the
+    // walker owns the LSU (a DTLB walk chains straight into a pending ITLB walk, and the fault the DTLB
+    // walk found traps the access during the ITLB walk), the DMMU sees the walker's reads.  In that
+    // case report the virtual address as the physical one, as a walk that ends in FAULT does.
+    assign DVAdrM         = testbench.dut.core.lsu.IEUAdrExtM[P.XLEN-1:0];
+    assign IPAF           = testbench.dut.core.ifu.immu.immu.PhysicalAddress;
+    assign DPAM           = SelHPTW ? testbench.dut.core.lsu.IEUAdrExtM[P.PA_BITS-1:0] : testbench.dut.core.lsu.dmmu.dmmu.PhysicalAddress;
+    assign ReadAccessM    = testbench.dut.core.lsu.MemRWM[1];
+    assign WriteAccessM   = testbench.dut.core.lsu.MemRWM[0];
+    assign IPTEF          = testbench.dut.core.ifu.immu.immu.PTE;
+    assign DPTEM          = testbench.dut.core.lsu.dmmu.dmmu.PTE;
+    assign IPageTypeF     = testbench.dut.core.ifu.immu.immu.PageTypeWriteVal[1:0]; // RVVI page types are 2 bits
+    assign DPageTypeM     = testbench.dut.core.lsu.dmmu.dmmu.PageTypeWriteVal[1:0];
+    assign DTLBWalk       = testbench.dut.core.lsu.hptw.hptw.DTLBWalk;
+    // The entry each TLB hit on, for an access that did not have to walk.  TLBHit alone is not
+    // qualified by translation being on, so pair it with Translate the way tlbcontrol does.
+    assign ITLBHitF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.TLBHit & testbench.dut.core.ifu.immu.immu.tlb.tlb.Translate;
+    assign DTLBHitM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.TLBHit & testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.Translate;
+    assign ITLBPTEF       = testbench.dut.core.ifu.immu.immu.tlb.tlb.tlbram.PageTableEntry;
+    assign DTLBPTEM       = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.tlbram.PageTableEntry;
+    assign IHitPageTypeF  = testbench.dut.core.ifu.immu.immu.tlb.tlb.HitPageType;
+    assign DHitPageTypeM  = testbench.dut.core.lsu.dmmu.dmmu.tlb.tlb.HitPageType;
 
-  flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeEReg (clk, reset, ~StallE, IPageTypeD, IPageTypeE); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeMReg (clk, reset, ~StallM, IPageTypeE, IPageTypeM); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     IPageTypeWReg (clk, reset, ~StallW, IPageTypeM, IPageTypeW); //PageType (kilo, mega, giga, tera) from IMMU
-  flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
+    // 'DA_updated' is a sticky bit that latches when HPTWUpdateDA asserts, so a walk reports the PTE as it
+    // was read rather than with the A and D bits the walker then sets.  It clears at the end of each walk,
+    // because a DTLB walk can chain straight into a pending ITLB walk without the walker going idle.
+    flopenrc #(1)         UpdDAReg (clk, reset, ~SelHPTW | HPTWWalkDone, 1'b1, (HPTWUpdateDA | DA_updated), DA_updated);
+    // Capture the PTE and page type the walker reaches, separately for each TLB, since one DTLB walk
+    // can be followed by an ITLB walk before the access it served leaves the Memory stage.
+    assign capture_PTE = SelHPTW & ~DA_updated;
+    flopenr #(P.XLEN)     IPTEFReg (clk, reset, capture_PTE & ~DTLBWalk, IPTEF, IPTEHPTWF);           //PTE for IMMU
+    flopenr #(P.XLEN)     DPTEMReg (clk, reset, capture_PTE & DTLBWalk, DPTEM, DPTEHPTWM);            //PTE for DMMU
+    flopenr #(2)          IPageTypeFReg (clk, reset, capture_PTE & ~DTLBWalk, IPageTypeF, IPageTypeHPTWF); //PageType for IMMU
+    flopenr #(2)          DPageTypeMReg (clk, reset, capture_PTE & DTLBWalk, DPageTypeM, DPageTypeHPTWM);  //PageType for DMMU
 
-  flopenr #(P.PPN_BITS) IPPNDReg (clk, reset, ~StallD, IPPNF, IPPND); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNEReg (clk, reset, ~StallE, IPPND, IPPNE); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNMReg (clk, reset, ~StallM, IPPNE, IPPNM); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) IPPNWReg (clk, reset, ~StallW, IPPNM, IPPNW); //Physical Page Number for IMMU
-  flopenr #(P.PPN_BITS) DPPNWReg (clk, reset, ~StallW, DPPNM, DPPNW); //Physical Page Number for DMMU
+    // A walk serves the access that missed its TLB, and the walker's port carries that PTE only
+    // while the walk runs.  Remember which stage each walk served, so that access keeps reporting
+    // the PTE the walker fetched: with Svadu the walker sets the A and D bits on the way, and the
+    // entry it then writes to the TLB no longer matches what the test put in the page table.  The
+    // stage holds until the access leaves it, which is the same edge the registers below sample on.
+    // The second half of a spilled fetch translates on its own, so it starts afresh.
+    always @(posedge clk)
+      if (reset)                     DWalkedM <= 1'b0;
+      else if (SelHPTW & DTLBWalk)   DWalkedM <= 1'b1;
+      else if (~StallW)              DWalkedM <= 1'b0;
+    always @(posedge clk)
+      if (reset)                     IWalkedF <= 1'b0;
+      else if (SelHPTW & ~DTLBWalk)  IWalkedF <= 1'b1;
+      else if (~StallD | SpillSaveF) IWalkedF <= 1'b0;
 
-  flopenr #(1)  ReadAccessWReg    (clk, reset, ~StallW, ReadAccessM, ReadAccessW);   //LoadAccess
-  flopenr #(1)  WriteAccessWReg   (clk, reset, ~StallW, WriteAccessM, WriteAccessW); //StoreAccess
+    // Report the page table entry and page type the access actually used: those of its own walk, else
+    // those of the TLB entry it hit.  An access that hits the TLB never touches the walker, so it must
+    // not carry whatever page was walked last.  An access that used no translation (translation off, a
+    // prefetch hint that does not look up the TLB, or a trap raised before translation, such as a
+    // misaligned access when misaligned faults take priority) reports zero: no PTE was read.  An RV64
+    // TLB entry keeps only the OR of PTE[60:54], in bit 60 (see tlbramline).
+    assign IPTEAccessF = IWalkedF ? IPTEHPTWF : ITLBHitF ? ITLBPTEF : '0;
+    assign DPTEAccessM = DWalkedM ? DPTEHPTWM : DTLBHitM ? DTLBPTEM : '0;
+    // A walk that faults traps the data access in the walk's last cycle, before the register above has
+    // captured that cycle's page type, so pass it through: it is the level whose PTE the walk was reading.
+    assign IPageTypeAccessF = IWalkedF ? IPageTypeHPTWF : ITLBHitF ? IHitPageTypeF[1:0] : '0;
+    assign DPageTypeAccessM = DWalkedM ? ((SelHPTW & DTLBWalk) ? DPageTypeM : DPageTypeHPTWM) : DTLBHitM ? DHitPageTypeM[1:0] : '0;
 
-  flopenr #(1)  ExecuteAccessDReg (clk, reset, ~StallD, ExecuteAccessF, ExecuteAccessD); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessEReg (clk, reset, ~StallE, ExecuteAccessD, ExecuteAccessE); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessMReg (clk, reset, ~StallM, ExecuteAccessE, ExecuteAccessM); //Instruction Fetch Access
-  flopenr #(1)  ExecuteAccessWReg (clk, reset, ~StallW, ExecuteAccessM, ExecuteAccessW); //Instruction Fetch Access
+    // A 32-bit instruction that crosses a fetch boundary is fetched and translated in two halves, and
+    // the second half's fetch is the one in flight when the instruction leaves Fetch.  Report the
+    // instruction's own address, PC, with its translation, unless the second half faulted; then report
+    // the second half, as xtval does.  The IFU takes a spill only when the first half fetches cleanly,
+    // so a fault during a spill is always on the second half.  Only compressed instructions spill.
+    if (P.ZCA_SUPPORTED) begin : spill
+      logic                    SelSpillF;                          // second half of a spilled fetch is being fetched
+      logic                    ISecondHalfFaultF;                  // the second half of a spilled fetch faulted, so report it
+      logic [P.PA_BITS-1:0]    IPAFirstHalfF;                      // first half's physical address
+      logic [P.XLEN-1:0]       IPTEFirstHalfF;                     // first half's page table entry
+      logic [1:0]              IPageTypeFirstHalfF;                // first half's page type
+      assign SpillSaveF = testbench.dut.core.ifu.Spill.spill.SpillSaveF;
+      assign SelSpillF  = testbench.dut.core.ifu.Spill.SelSpillF;
+      assign ISecondHalfFaultF = SelSpillF & testbench.dut.core.ifu.IFUFaultF;
+      flopenr #(P.PA_BITS)  IPAFirstHalfReg (clk, reset, SpillSaveF, IPAF, IPAFirstHalfF);
+      flopenr #(P.XLEN)     IPTEFirstHalfReg (clk, reset, SpillSaveF, IPTEAccessF, IPTEFirstHalfF);
+      flopenr #(2)          IPageTypeFirstHalfReg (clk, reset, SpillSaveF, IPageTypeAccessF, IPageTypeFirstHalfF);
+      assign {IPARptF, IPTERptF, IPageTypeRptF} = (SelSpillF & ~ISecondHalfFaultF) ?
+             {IPAFirstHalfF, IPTEFirstHalfF, IPageTypeFirstHalfF} : {IPAF, IPTEAccessF, IPageTypeAccessF};
+    end else begin : nospill
+      assign SpillSaveF = 1'b0;
+      assign {IPARptF, IPTERptF, IPageTypeRptF} = {IPAF, IPTEAccessF, IPageTypeAccessF};
+    end
+
+    // The fetch's virtual address is the PC, or PCSpillM (PC+2 after a spill) when the second half
+    // faulted, which is the address xtval reports.  The IFU already pipelines both.
+    assign InstrFaultM = testbench.dut.core.priv.priv.InstrPageFaultM | testbench.dut.core.priv.priv.InstrAccessFaultM |
+                         testbench.dut.core.priv.priv.HPTWInstrPageFaultM | testbench.dut.core.priv.priv.HPTWInstrAccessFaultM;
+    assign IVAdrM = InstrFaultM ? testbench.dut.core.ifu.PCSpillM : PCM;
+    flopenr #(P.XLEN)     IVAdrWReg (clk, reset, ~StallW, IVAdrM, IVAdrW); //Virtual Address for IMMU
+    flopenr #(P.XLEN)     DVAdrWReg (clk, reset, ~StallW, DVAdrM, DVAdrW); //Virtual Address for DMMU
+
+    flopenr #(P.PA_BITS)  IPADReg (clk, reset, ~StallD, IPARptF, IPAD); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAEReg (clk, reset, ~StallE, IPAD, IPAE); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAMReg (clk, reset, ~StallM, IPAE, IPAM); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  IPAWReg (clk, reset, ~StallW, IPAM, IPAW); //Physical Address for IMMU
+    flopenr #(P.PA_BITS)  DPAWReg (clk, reset, ~StallW, DPAM, DPAW); //Physical Address for DMMU
+
+    flopenr #(P.XLEN)     IPTEDReg (clk, reset, ~StallD, IPTERptF, IPTED);      //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEEReg (clk, reset, ~StallE, IPTED, IPTEE);         //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEMReg (clk, reset, ~StallM, IPTEE, IPTEM);         //PTE for IMMU
+    flopenr #(P.XLEN)     IPTEWReg (clk, reset, ~StallW, IPTEM, IPTEW);         //PTE for IMMU
+    flopenr #(P.XLEN)     DPTEWReg (clk, reset, ~StallW, DPTEAccessM, DPTEW);   //PTE for DMMU
+
+    flopenr #(2)     IPageTypeDReg (clk, reset, ~StallD, IPageTypeRptF, IPageTypeD); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeEReg (clk, reset, ~StallE, IPageTypeD, IPageTypeE); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeMReg (clk, reset, ~StallM, IPageTypeE, IPageTypeM); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     IPageTypeWReg (clk, reset, ~StallW, IPageTypeM, IPageTypeW); //PageType (kilo, mega, giga, tera) from IMMU
+    flopenr #(2)     DPageTypeWReg (clk, reset, ~StallW, DPageTypeAccessM, DPageTypeW); //PageType (kilo, mega, giga, tera) from DMMU
+
+    flopenr #(1)  ReadAccessWReg    (clk, reset, ~StallW, ReadAccessM, ReadAccessW);   //LoadAccess
+    flopenr #(1)  WriteAccessWReg   (clk, reset, ~StallW, WriteAccessM, WriteAccessW); //StoreAccess
+    assign ExecuteAccessW = 1'b1; // every instruction is fetched, and the IMMU checks each fetch for execute permission
+  end else begin : novm
+    assign {IVAdrW, DVAdrW, IPAW, DPAW, IPTEW, DPTEW, IPageTypeW, DPageTypeW} = '0;
+    assign {ReadAccessW, WriteAccessW, ExecuteAccessW} = '0;
+  end
+
+  assign rvvi.virt_adr_i[0][0]     = IVAdrW;
+  assign rvvi.virt_adr_d[0][0]     = DVAdrW;
+  assign rvvi.phys_adr_i[0][0]     = IPAW;
+  assign rvvi.phys_adr_d[0][0]     = DPAW;
+  assign rvvi.read_access[0][0]    = ReadAccessW;
+  assign rvvi.write_access[0][0]   = WriteAccessW;
+  assign rvvi.execute_access[0][0] = ExecuteAccessW;
+  assign rvvi.pte_i[0][0]          = IPTEW;
+  assign rvvi.pte_d[0][0]          = DPTEW;
+  assign rvvi.ppn_i[0][0]          = IPTEW[P.PPN_BITS+9:10]; // the PPN field of the PTE reported
+  assign rvvi.ppn_d[0][0]          = DPTEW[P.PPN_BITS+9:10];
+  assign rvvi.page_type_i[0][0]    = IPageTypeW;
+  assign rvvi.page_type_d[0][0]    = DPageTypeW;
+`endif
 
   // Initially connecting the writeback stage signals, but may need to use M stage
   // and gate on ~FlushW.
@@ -436,23 +584,6 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
-
-`ifdef FCOV
-  // Virtual Memory signals for verification
-  assign rvvi.virt_adr_i[0][0]     = IVAdrW;
-  assign rvvi.virt_adr_d[0][0]     = DVAdrW;
-  assign rvvi.phys_adr_i[0][0]     = IPAW;
-  assign rvvi.phys_adr_d[0][0]     = DPAW;
-  assign rvvi.read_access[0][0]    = ReadAccessW;
-  assign rvvi.write_access[0][0]   = WriteAccessW;
-  assign rvvi.execute_access[0][0] = ExecuteAccessW;
-  assign rvvi.pte_i[0][0]          = IPTEW;
-  assign rvvi.pte_d[0][0]          = DPTEW;
-  assign rvvi.ppn_i[0][0]          = IPPNW;
-  assign rvvi.ppn_d[0][0]          = DPPNW;
-  assign rvvi.page_type_i[0][0]    = IPageTypeW;
-  assign rvvi.page_type_d[0][0]    = DPageTypeW;
-`endif
 
   integer index2;
 
@@ -513,4 +644,5 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       // end
     end
   end
+  /* verilator lint_on WIDTHEXPAND */
 endmodule

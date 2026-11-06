@@ -1,17 +1,17 @@
 ///////////////////////////////////////////
 // normshift.sv
 //
-// Written: me@KatherineParry.com
-// Modified: 7/5/2022
+// Written:  Katherine Parry me@KatherineParry.com 13 June 2022
+// Modified:
 //
-// Purpose: normalization shifter
+// Purpose: Normalization shifter.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +60,7 @@
     //      | Nf 0's |           Qm           | << calculated shift amount
     //        .
 
-module normshift import cvw::*;  #(parameter cvw_t P) (
+module normshift import cvw::*; #(parameter cvw_t P) (
   input  logic [P.LOGNORMSHIFTSZ-1:0]  ShiftAmt,   // shift amount
   input  logic [P.NORMSHIFTSZ-1:0]     ShiftIn,    // number to be shifted
   output logic [P.NORMSHIFTSZ-1:0]     Shifted     // shifted result
