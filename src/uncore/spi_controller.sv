@@ -24,6 +24,7 @@ module spi_controller (
   input  logic        TransmitStart,
   input  logic        TransmitRegLoaded,
   input  logic        ResetSCLKenable,
+  input  logic        CSRelease,
 
   // Registers
   input  logic [11:0] SckDiv,
@@ -94,6 +95,8 @@ module spi_controller (
   logic [7:0]  DelayCounter;
 
   logic        DelayState;
+  logic        EnterDelay;
+  logic        ReleasePending;
 
   // Convenient Delay Reg Names
   assign cssck = Delay0[7:0];
@@ -133,17 +136,18 @@ module spi_controller (
       DelayCounter <= 0;
     end else begin
       // SCK logic for delay times
+      // Entering a delay state restarts the SCK phase so every delay lasts exactly its count of SCK periods
       if (TransmitStart & ~DelayState) begin
         SCK <= 0;
       end else if (SCLKenable) begin
-        SCK <= ~SCK;
+        SCK <= EnterDelay | ~SCK;
       end
 
-      // Counter for all four delay types
-      if (DelayState & SCK & SCLKenable) begin
-        DelayCounter <= DelayCounter + 8'd1;
-      end else if ((SCLKenable & EndOfDelay) | Transmitting) begin
+      // Counter for all four delay types; the end of a delay clears it so no count carries into the next delay
+      if ((SCLKenable & EndOfDelay) | Transmitting) begin
         DelayCounter <= 8'd0;
+      end else if (DelayState & SCK & SCLKenable) begin
+        DelayCounter <= DelayCounter + 8'd1;
       end
 
       // SPICLK Logic
@@ -204,6 +208,13 @@ module spi_controller (
     end
   end
 
+  // A CS release request (FE310 19.8) deasserts a held CS at once when idle in HOLD, or at the end of the
+  // frame in flight, like an AUTO frame end; it is done once CS is deasserted
+  always_ff @(posedge PCLK)
+    if (~PRESETn)        ReleasePending <= 1'b0;
+    else if (CSRelease)  ReleasePending <= 1'b1;
+    else if (SCLKenable & (CurrState == INACTIVE | CurrState == INTERCS | CurrState == HOLD)) ReleasePending <= 1'b0;
+
   always_ff @(posedge PCLK) begin
     if (~PRESETn) begin
       CurrState <= INACTIVE;
@@ -231,12 +242,14 @@ module spi_controller (
             else NextState = TRANSMIT;
           end
           HOLDMODE: begin
-            if (EndOfFrame & HasINTERXFR) NextState = INTERXFR;
+            if (EndOfFrame & ReleasePending) NextState = HasSCKCS ? SCKCS : INTERCS;
+            else if (EndOfFrame & HasINTERXFR) NextState = INTERXFR;
             else if (EndTransmission) NextState = HOLD;
             else NextState = TRANSMIT;
           end
           OFFMODE: begin
-            if (EndOfFrame & HasINTERXFR) NextState = INTERXFR;
+            if (EndOfFrame & ReleasePending) NextState = HasSCKCS ? SCKCS : INTERCS;
+            else if (EndOfFrame & HasINTERXFR) NextState = INTERXFR;
             else if (EndTransmission) NextState = HOLD;
             else NextState = TRANSMIT;
           end
@@ -251,7 +264,7 @@ module spi_controller (
         end
       end
       HOLD: begin // HOLD mode case -----------------------------------
-        if (CSMode == AUTOMODE) begin
+        if (CSMode == AUTOMODE | ReleasePending) begin
           NextState = INACTIVE;
         end else if (TransmitRegLoaded) begin // If FIFO is written to, start again.
           NextState = TRANSMIT;
@@ -268,7 +281,8 @@ module spi_controller (
         end
       end
       INTERXFR: begin // INTERXFR case --------------------------------
-        if (EndOfINTERXFR) begin
+        if (EndOfINTERXFR & ReleasePending) NextState = INTERCS;
+        else if (EndOfINTERXFR) begin
           if (TransmitRegLoaded) NextState = TRANSMIT;
           else NextState = HOLD;
         end else begin
@@ -282,7 +296,8 @@ module spi_controller (
   end
 
   assign Transmitting = CurrState == TRANSMIT;
+  assign EnterDelay = (NextState != CurrState) & (NextState == CSSCK | NextState == SCKCS | NextState == INTERCS | NextState == INTERXFR);
   assign DelayState = (CurrState == CSSCK | CurrState == SCKCS | CurrState == INTERCS | CurrState == INTERXFR);
-  assign InactiveState = CurrState == INACTIVE | CurrState == INTERCS;
+  assign InactiveState = CurrState == INACTIVE | CurrState == INTERCS | (CurrState == HOLD & ReleasePending);
 
 endmodule
