@@ -6,6 +6,9 @@ configuration uses, and the program boots, halts, and prints like an ACT test.
 
 ## CoreMark (`coremark/`)
 
+The CoreMark port is [benchmarks/coremark](../coremark), the one CORE-V-Wally's own CoreMark runs use;
+`coremark/run_all.sh` builds it for each core with `../coremark/build.sh`.
+
 - `crt.S` boots with the configuration's `RVMODEL_BOOT`, sets the stack from its `link.ld`, clears
   `.bss`, calls CoreMark's `main`, and halts with `RVMODEL_HALT_PASS`. `ee_printf` prints through
   `RVMODEL_IO_WRITE_STR`. Core-specific boot steps are behind flags:
@@ -19,12 +22,13 @@ configuration uses, and the program boots, halts, and prints like an ACT test.
   per "second", so CoreMark's 10-second minimum is always met, and CoreMark/MHz =
   Iterations × 10^6 / Total ticks. `-DUSE_RDCYCLE` reads `rdcycle` (PicoRV32), and
   `-DMTIME_ADDR=<addr>` reads a memory-mapped cycle counter (SERV's `servant_timer` at
-  0xC000_0000). `-DCOUNT_INSTRET` also prints the retired instructions in the timed region.
+  0xC000_0000). `-DCOUNT_INSTRET` also prints the retired instructions in the timed region, and
+  `-DWALLY_HPM` (used by `benchmarks/coremark/Makefile`) also prints CORE-V-Wally's performance counters.
 - `ee_u32` is `signed int` on RV64 and `unsigned int` on RV32, as in CORE-V-Wally's and SiFive's RV64
   ports: the signed type avoids zero extensions after 32-bit operations on RV64. With `unsigned int`,
   RV64 cores execute about 18% more instructions.
 - `build.sh <name> <act-config-dir> <march> <mabi> <iterations> [cflags]` builds with
-  riscv64-unknown-elf-gcc 15.2.0 and the flags of CORE-V-Wally's `benchmarks/coremark` (cvw #2024):
+  riscv64-unknown-elf-gcc 15.2.0 and CORE-V-Wally's CoreMark flags:
   `-O3 -finline-functions -finline-limit=400 -falign-jumps=4 -fno-delete-null-pointer-checks
   -fno-rename-registers --param=loop-max-datarefs-for-datadeps=0 -funroll-all-loops
   --param=uninlined-function-insns=8 -fno-tree-vrp -fipa-pta -falign-functions=16 -mbranch-cost=1
@@ -44,9 +48,9 @@ configuration uses, and the program boots, halts, and prints like an ACT test.
   - `cv32e40x-dv-nostall`: a copy of the cv32e40x-dv install with the fixed Verilator data-bus stalls
     (two cycles of grant and two of rvalid delay) removed from `tb/core/mm_ram.sv`, so that the core
     runs with zero-wait memory like the others.
-  - `cv32e40s-tb`: [cv32e40s-tb](cv32e40s-tb), built with `make CFG=<config> CV32E40S=<checkout>`.
-    riscv-arch-test has CV32E40S configurations but no testbench for them; this one adapts the
-    cv32e40x-dv core testbench.
+  - `cv32e40s-nostall`: the CV32E40S testbenches as `install-cve4.sh` builds them (riscv-arch-test
+    #3166, in cv32e40x-dv's core testbench), compiled with the `mm_ram.sv` of `cv32e40x-dv-nostall`,
+    as `cv32e40s-nostall/<config>/Vtb_top`.
   - `cva6-snapshot-longrun`: a `CVA6_SNAPSHOT` directory whose `Variane_testharness` wrappers pass
     `+time_out=200000000`, because the testharness stops at 2,000,000 cycles by default.
   - `c910-padfix/run-c910.sh`: a copy of `run-c910.sh` that pads the program image to a whole word
@@ -61,7 +65,7 @@ The run commands and limits for each core are in the table at the top of `run_al
 - Each Embench benchmark is built with `build.sh <name> <act-config-dir> <march> <mabi> <benchmark> [cflags]`
   with the flags of CORE-V-Wally's Embench speed build (cvw #2031): `-O3 -flto -funroll-loops`, plus `-fwrapv`
   on RV32, `-fdata-sections -ffunction-sections -Wl,-gc-sections`, and newlib's libm and libc. It links
-  `../coremark/crt.S` (with `-DNO_MEMFUNCS`, so newlib's `memcpy` and `memset` are used) and this directory's
+  `benchmarks/coremark/crt.S` (with `-DNO_MEMFUNCS`, so newlib's `memcpy` and `memset` are used) and this directory's
   `main.c`, a copy of Embench's that also prints whether the benchmark's own check passed.
 - `-march` has no F or D on any core, because with them GCC removes much of the timed work in nbody, st, and
   minver; the floating-point benchmarks therefore use software floating point.

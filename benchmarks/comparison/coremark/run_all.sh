@@ -7,8 +7,8 @@ CORES='
 cv32e20|cv32e20|rv32imc_zicsr|ilp32|10||cve2.env|run-cv32e20.sh --elf
 cv32e40p-imc|cv32e40p-v2-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|run-cve4.sh --cfg rv32imc --elf
 cv32e40p-imcf|cv32e40p-v2-rv32imcf|rv32imfc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|run-cve4.sh --cfg rv32imcf --elf
-cv32e40s-imc|cv32e40s-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|NONE|$T/cv32e40s-tb/bin/run-cv32e40s.sh --cfg rv32imc --maxcycles 400000000 --elf
-cv32e40s-imcb|cv32e40s-rv32imcb-pma-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DCLEAR_MCOUNTINHIBIT|NONE|$T/cv32e40s-tb/bin/run-cv32e40s.sh --cfg rv32imcb-pma-pmp --maxcycles 400000000 --elf
+cv32e40s-imc|cv32e40s-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|CVE40S_TB_ROOT=$T/cv32e40s-nostall CERT_MAXCYCLES=400000000 run-cv32e40s.sh --cfg rv32imc --elf
+cv32e40s-imcb|cv32e40s-rv32imcb-pma-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|CVE40S_TB_ROOT=$T/cv32e40s-nostall CERT_MAXCYCLES=400000000 run-cv32e40s.sh --cfg rv32imcb-pma-pmp --elf
 cv32e40x|cv32e40x-rv32imc|rv32imc_zicsr|ilp32|10|-DCLEAR_MCOUNTINHIBIT|cve4.env|CVE40X_DV_ROOT=$T/cv32e40x-dv-nostall CERT_MAXCYCLES=400000000 run-cv32e40x.sh --cfg rv32imc --elf
 e902|e902-rv32emc-u-pmp|rv32emc_zicsr|ilp32e|10||e902.env|run-e902.sh --timeout 3000 --elf
 e906|e906-rv32imafc-u-pmp|rv32imac_zicsr|ilp32|10||e906.env|run-e906.sh --timeout 3000 --elf
@@ -38,7 +38,7 @@ while IFS='|' read n cfg march mabi it extra env cmd; do
   [ -z "$n" ] && continue
   [ $# -gt 0 ] && [[ " $* " != *" $n "* ]] && continue
   (
-    elf=$($P/build.sh $n $A/$cfg $march $mabi $it $extra 2>$P/logs/$n-$it.build | tail -1)
+    elf=$($P/../../coremark/build.sh $n $A/$cfg $march $mabi $it $extra 2>$P/logs/$n-$it.build | tail -1)
     [ "$env" != NONE ] && source $T/$env
     eval "$cmd $elf" > $P/logs/$n-$it.log 2>&1; echo "rc=$?" >> $P/logs/$n-$it.log
   ) &

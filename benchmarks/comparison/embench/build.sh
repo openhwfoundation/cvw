@@ -7,7 +7,7 @@ set -e
 name=$1 cfg=$2 march=$3 mabi=$4 bench=$5; shift 5
 P=$(cd "$(dirname "$0")" && pwd)
 E=${EMBENCH:-$WALLY/addins/embench-iot}
-CRT=$P/../coremark/crt.S
+CRT=$P/../../coremark/crt.S
 CC=riscv64-unknown-elf-gcc
 [[ $march == rv64* ]] && CC=${RV64_TOOLCHAIN:?set to the bin directory of a medany riscv64-unknown-elf toolchain}/riscv64-unknown-elf-gcc
 OUT=$P/build/$name/$bench; mkdir -p $OUT

@@ -88,6 +88,9 @@ static CORETIMETYPE start_time_val, stop_time_val;
    cycles to 0.
 */
 /* Retired instructions in the timed region, printed by portable_fini when built with -DCOUNT_INSTRET */
+#if defined(WALLY_HPM) && !defined(COUNT_INSTRET)
+#define COUNT_INSTRET
+#endif
 static unsigned long instret_start, instret_stop;
 static inline unsigned long read_instret(void)
 {
@@ -99,9 +102,23 @@ static inline unsigned long read_instret(void)
 #endif
     return t;
 }
+#ifdef WALLY_HPM
+/* CORE-V-Wally's performance counters mhpmcounter3-17 over the timed region, printed by portable_fini.
+   Read outside the mcycle window so that they do not change the score. */
+#define HPM_FIRST 3
+#define HPM_LAST  17
+#define READ_HPM(n, v) __asm__ volatile("csrr %0, mhpmcounter" #n : "=r"(v[n]))
+#define READ_HPMS(v) do { READ_HPM(3, v); READ_HPM(4, v); READ_HPM(5, v); READ_HPM(6, v); READ_HPM(7, v); \
+    READ_HPM(8, v); READ_HPM(9, v); READ_HPM(10, v); READ_HPM(11, v); READ_HPM(12, v); READ_HPM(13, v); \
+    READ_HPM(14, v); READ_HPM(15, v); READ_HPM(16, v); READ_HPM(17, v); } while (0)
+static unsigned long hpm_start[HPM_LAST + 1], hpm_stop[HPM_LAST + 1];
+#endif
 void
 start_time(void)
 {
+#ifdef WALLY_HPM
+    READ_HPMS(hpm_start);
+#endif
     instret_start = read_instret();
     GETMYTIME(&start_time_val);
 }
@@ -118,6 +135,9 @@ stop_time(void)
 {
     GETMYTIME(&stop_time_val);
     instret_stop = read_instret();
+#ifdef WALLY_HPM
+    READ_HPMS(hpm_stop);
+#endif
 }
 /* Function : get_time
         Return an abstract "ticks" number that signifies time on the system.
@@ -172,6 +192,13 @@ portable_init(core_portable *p, int *argc, char *argv[])
     {
         ee_printf("ERROR! Please define ee_u32 to a 32b unsigned type!\n");
     }
+#ifdef WALLY_HPM
+    /* mhpmcounter3-17 count only while their mhpmevent is nonzero */
+    __asm__ volatile("csrw mhpmevent3, 1; csrw mhpmevent4, 1; csrw mhpmevent5, 1; csrw mhpmevent6, 1;"
+                     "csrw mhpmevent7, 1; csrw mhpmevent8, 1; csrw mhpmevent9, 1; csrw mhpmevent10, 1;"
+                     "csrw mhpmevent11, 1; csrw mhpmevent12, 1; csrw mhpmevent13, 1; csrw mhpmevent14, 1;"
+                     "csrw mhpmevent15, 1; csrw mhpmevent16, 1; csrw mhpmevent17, 1");
+#endif
     p->portable_id = 1;
 }
 /* Function : portable_fini
@@ -182,6 +209,35 @@ portable_fini(core_portable *p)
 {
 #ifdef COUNT_INSTRET
     ee_printf("Total instret    : %d\n", (int)(instret_stop - instret_start));
+#endif
+#ifdef WALLY_HPM
+    {
+        unsigned long cycles = (unsigned long)get_time();
+        unsigned long instrs = instret_stop - instret_start;
+        unsigned long c[HPM_LAST + 1];
+        unsigned long cm100 = 1000000000UL / cycles;   /* CoreMark/MHz * 100 at 10 iterations */
+        unsigned long cpi100 = cycles * 100 / instrs;
+        for (int i = HPM_FIRST; i <= HPM_LAST; i++)
+            c[i] = hpm_stop[i] - hpm_start[i];
+        ee_printf("WALLY CoreMark Results\n");
+        ee_printf("Elapsed MCYCLE: %lu\n", cycles);
+        ee_printf("Elapsed MINSTRET: %lu\n", instrs);
+        ee_printf("COREMARK/MHz Score: 10,000,000 / %lu = %lu.%02lu\n", cycles, cm100 / 100, cm100 % 100);
+        ee_printf("CPI: %lu / %lu = %lu.%02lu\n", cycles, instrs, cpi100 / 100, cpi100 % 100);
+        ee_printf("Load Stalls %lu\n", c[11]);
+        ee_printf("Store Stalls %lu\n", c[12]);
+        ee_printf("D-Cache Accesses %lu\n", c[13]);
+        ee_printf("D-Cache Misses %lu\n", c[14]);
+        ee_printf("I-Cache Accesses %lu\n", c[16]);
+        ee_printf("I-Cache Misses %lu\n", c[17]);
+        ee_printf("Branches %lu\n", c[3]);
+        ee_printf("Branches Miss Predictions %lu\n", c[7]);
+        ee_printf("BTB Misses %lu\n", c[8]);
+        ee_printf("Jump and JR %lu\n", c[4]);
+        ee_printf("RAS Wrong %lu\n", c[9]);
+        ee_printf("Returns %lu\n", c[5]);
+        ee_printf("BP Class Wrong %lu\n", c[10]);
+    }
 #endif
     p->portable_id = 0;
 }

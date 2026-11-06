@@ -2,12 +2,12 @@
 # Build CoreMark for a riscv-arch-test configuration.
 # usage: build.sh <name> <act-config-dir> <march> <mabi> <iterations> [extra cflags]
 # <act-config-dir> holds the configuration's link.ld and rvmodel_macros.h.
-# The compiler flags are those of CORE-V-Wally's benchmarks/coremark (cvw #2024), for every core.
+# The compiler flags are CORE-V-Wally's, for every core.  OUT sets the output directory.
 set -e
 name=$1 cfg=$2 march=$3 mabi=$4 iters=$5; shift 5
 P=$(cd "$(dirname "$0")" && pwd)
 C=${COREMARK:-$WALLY/addins/coremark}
-OUT=$P/build/$name-$iters; mkdir -p $OUT
+OUT=${OUT:-$P/build/$name-$iters}; mkdir -p $OUT
 wrap=""; [[ $march == rv32* ]] && wrap="-fwrapv"
 FLAGS="-O3 -finline-functions -finline-limit=400 -falign-jumps=4 -fno-delete-null-pointer-checks -fno-rename-registers \
 --param=loop-max-datarefs-for-datadeps=0 -funroll-all-loops --param=uninlined-function-insns=8 -fno-tree-vrp $wrap -fipa-pta \

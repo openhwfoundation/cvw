@@ -9,8 +9,8 @@ CORES='
 cv32e20|cv32e20|rv32imc_zicsr|ilp32||source '$T'/cve2.env|run-cv32e20.sh --elf
 cv32e40p-imc|cv32e40p-v2-rv32imc|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/cve4.env|run-cve4.sh --cfg rv32imc --elf
 cv32e40p-imcf|cv32e40p-v2-rv32imcf|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/cve4.env|run-cve4.sh --cfg rv32imcf --elf
-cv32e40s-imc|cv32e40s-rv32imc|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|true|'$C'/cv32e40s-tb/bin/run-cv32e40s.sh --cfg rv32imc --maxcycles 400000000 --elf
-cv32e40s-imcb|cv32e40s-rv32imcb-pma-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|-DCLEAR_MCOUNTINHIBIT|true|'$C'/cv32e40s-tb/bin/run-cv32e40s.sh --cfg rv32imcb-pma-pmp --maxcycles 400000000 --elf
+cv32e40s-imc|cv32e40s-rv32imc|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/cve4.env; export CVE40S_TB_ROOT='$C'/cv32e40s-nostall CERT_MAXCYCLES=400000000|run-cv32e40s.sh --cfg rv32imc --elf
+cv32e40s-imcb|cv32e40s-rv32imcb-pma-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/cve4.env; export CVE40S_TB_ROOT='$C'/cv32e40s-nostall CERT_MAXCYCLES=400000000|run-cv32e40s.sh --cfg rv32imcb-pma-pmp --elf
 cv32e40x|cv32e40x-rv32imc|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/cve4.env; export CVE40X_DV_ROOT='$C'/cv32e40x-dv-nostall CERT_MAXCYCLES=400000000|run-cv32e40x.sh --cfg rv32imc --elf
 hazard3|hazard3-rv32imacb-u-pmp|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32||source '$T'/hazard3.env|run-hazard3.sh --cycles 400000000 --timeout 7200 --elf
 ibex|ibex-opentitan|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|-DIBEX_ICACHE|source '$T'/ibex.env|run-ibex.sh --cycles 400000000 --timeout 7200 --elf
