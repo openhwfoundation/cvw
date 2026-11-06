@@ -105,7 +105,10 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   // cycle resets the counter, finishes a one-shot, and releases the deglitch hold; Figure 6 of the FU540
   // manual ORs carryout with the pwmcmp0 match to drive the pwmcount reset, and 14.4 has the counter
   // "reset to zero at the end of every PWM cycle" either way.
-  assign PWMCycleEnd = PWMCountEn & ((PWMComparator[0] & PWMZeroCompare) | Carryout);
+  // As in Figure 11 and SiFive's PWM, the pwmzerocmp reset does not depend on the counter enable, so a count
+  // at or past pwmcmp0 is cleared even while the counter is stopped.  Carryout is only a carry when the
+  // counter is incrementing, so it stays gated by the enable.
+  assign PWMCycleEnd = (PWMComparator[0] & PWMZeroCompare) | (PWMCountEn & Carryout);
   assign PWMCountReset = PWMCycleEnd;
 
   // Deglitch Circuit logic
@@ -142,8 +145,10 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
           PWM_CMP2:  PWMCompare2 <= Din[P.PWM_WIDTH-1:0];
           PWM_CMP3:  PWMCompare3 <= Din[P.PWM_WIDTH-1:0];
         endcase
-      else if (PWMCycleEnd) PWMConfig[8] <= 1'b0; // pwmenoneshot clears itself at the end of the cycle
       /* verilator lint_on CASEINCOMPLETE */
+      // pwmenoneshot clears itself at the end of the cycle, whatever register is written that cycle.  As in
+      // SiFive's PWM, the clear also wins over a simultaneous pwmcfg write that sets pwmenoneshot.
+      if (PWMCycleEnd) PWMConfig[8] <= 1'b0;
       case (Entry) // flop read data
         PWM_CFG:   Dout <= {PWMCompareIP, PWMConfig[16:13], 4'b0, PWMConfig[12:9], 2'b0, PWMConfig[8:7], 1'b0, PWMConfig[6:4], 4'b0, PWMConfig[3:0]};
         PWM_COUNT: Dout <= {{(17-P.PWM_WIDTH){1'b0}}, PWMCount};
@@ -158,9 +163,11 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
 
   // PWMCount register and PWMScaled logic
   always_ff @(posedge PCLK)
-    if (PWMCountReset | ~PRESETn) PWMCount <= '0;
+    if (~PRESETn) PWMCount <= '0;
+    // as in SiFive's PWM, a software write wins over a counter reset on the same cycle
     else if (Memwrite & (Entry == PWM_COUNT)) PWMCount <= Din[P.PWM_WIDTH+14:0];
     else if (Memwrite & (Entry == PWM_S)) PWMCount <= {15'b0, Din[P.PWM_WIDTH-1:0]} << PWMScale; // widen before shifting
+    else if (PWMCountReset) PWMCount <= '0;
     else if (PWMCountEn) PWMCount <= PWMCount + 1;
   assign PWMPrescale = PWMCount >> PWMScale;
   assign PWMScaled = PWMPrescale[P.PWM_WIDTH-1:0];
