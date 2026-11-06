@@ -66,23 +66,13 @@ module spill import cvw::*; #(parameter cvw_t P) (
   // Detect spill
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // The I$ reads a whole line, so a cacheable instruction spills only from the last halfword of the line
+  // A 32-bit instruction spills when it starts in the last halfword of what one fetch reads: a bus word, an I$ line,
+  // or the whole IROM, which returns a whole instruction from any other halfword (irom.sv)
   logic SpillBusF;
-  if (P.ICACHE_SUPPORTED) begin
-    logic SpillCachedF, SpillUncachedF;
-    assign SpillCachedF = &PCF[$clog2(P.ICACHE_LINELENINBITS/32)+1:1];
-    assign SpillUncachedF = PCF[1];
-    assign SpillBusF = (CacheableF ? SpillCachedF : SpillUncachedF);
-  end else
-    assign SpillBusF = PCF[1];
-  // The IROM returns a whole instruction from any halfword (irom.sv), so an IROM fetch spills only from the
-  // last halfword of the IROM, when the second half is outside the IROM
-  if (P.IROM_SUPPORTED) begin
-    logic SpillIROMF;
-    assign SpillIROMF = &PCF[$clog2(P.IROM_RANGE[P.PA_BITS-1:0]+1)-1:1];
-    assign SpillF = SelIROMF ? SpillIROMF : SpillBusF;
-  end else
-    assign SpillF = SpillBusF;
+  if (P.ICACHE_SUPPORTED) assign SpillBusF = CacheableF ? &PCF[$clog2(P.ICACHE_LINELENINBITS/32)+1:1] : PCF[1];
+  else                    assign SpillBusF = PCF[1];
+  if (P.IROM_SUPPORTED)   assign SpillF = SelIROMF ? &PCF[$clog2(P.IROM_RANGE[P.PA_BITS-1:0]+1)-1:1] : SpillBusF;
+  else                    assign SpillF = SpillBusF;
   // Don't take the spill if there is a stall, TLB miss, or hardware update to the D/A bits.
   // Nor if the first half faults: its bits are not the instruction, so the instruction length is
   // unknown, and the fault on the first half is reported alone at PCF.  A page table walk fault on the

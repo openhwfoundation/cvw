@@ -16,15 +16,24 @@
 `define PRINT_ALL 0
 `define PRINT_CSRS 0
 
-// Since we are detecting the CSR change by comparing the old value, we need to
-// ensure the CSR is detected when the pipeline's Writeback stage is not
-// stalled.  If it is stalled we want to hold the old value.
-`define CONNECT_CSR(name, addr, val) \
-  logic [P.XLEN-1:0] prev_csr_``name; \
-  always_ff @(posedge clk) \
-    prev_csr_``name <= rvvi.csr[0][0][addr]; \
-  assign rvvi.csr_wb[0][0][addr] = (rvvi.csr[0][0][addr] != prev_csr_``name); \
-  assign rvvi.csr[0][0][addr] = valid ? val : prev_csr_``name;
+// RVVI's csr_wb says the instruction in Writeback wrote a CSR, even when the value did not change.  A
+// CSR is written as its instruction leaves the Memory stage, so carry the CSR's Memory-stage write
+// enable to Writeback with the instruction.
+`define CONNECT_CSR_WE(name, addr, val, we) \
+  logic Write``name``W; \
+  flopenr #(1) Write``name``WReg (clk, reset, ~StallW, we, Write``name``W); \
+  assign rvvi.csr[0][0][addr]    = val; \
+  assign rvvi.csr_wb[0][0][addr] = valid & Write``name``W;
+
+// Most CSRs follow a regular naming scheme: the register is <unit>.<name>_REGW, written when
+// <unit>.Write<name>M is asserted
+`define CONNECT_CSR(name, addr, unit) \
+  `CONNECT_CSR_WE(name, addr, testbench.dut.core.priv.priv.csr.unit.name``_REGW, testbench.dut.core.priv.priv.csr.unit.Write``name``M)
+
+// CSRs no instruction can write
+`define CONNECT_CSR_RO(name, addr, val) \
+  assign rvvi.csr[0][0][addr]    = val; \
+  assign rvvi.csr_wb[0][0][addr] = 1'b0;
 
 module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   /* verilator lint_off WIDTHEXPAND */ // CSRs narrower than 64 bits zero-extend into the RVVI CSR array
@@ -100,79 +109,120 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   // CSR connections
   if (P.ZICSR_SUPPORTED) begin
+    // The CSRs below that do not follow the regular naming scheme have their write enables spelled out.
+    // mstatus has several: a CSR write to mstatus or sstatus, a trap, an mret or sret, and floating-point
+    // state setting FS to Dirty.  sstatus is a view of mstatus, written by all of these except a trap to
+    // M-mode and an mret, which change only M-mode fields.
+    logic CSRMWriteM, CSRSWriteM;                  // the instruction in Memory writes CSRAdrM as an M / S-mode CSR
+    logic SSTATUSWriteM, MSTATUSWriteM;
+    assign CSRMWriteM    = testbench.dut.core.priv.priv.csr.CSRMWriteM;
+    assign CSRSWriteM    = testbench.dut.core.priv.priv.csr.CSRSWriteM;
+    assign SSTATUSWriteM = testbench.dut.core.priv.priv.csr.WriteMSTATUSM | testbench.dut.core.priv.priv.csr.WriteSSTATUSM |
+                           testbench.dut.core.priv.priv.csr.STrapM | testbench.dut.core.priv.priv.csr.sretM |
+                           testbench.dut.core.priv.priv.csr.FRegWriteM | testbench.dut.core.priv.priv.csr.WriteFRMM |
+                           testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM;
+    assign MSTATUSWriteM = SSTATUSWriteM | testbench.dut.core.priv.priv.csr.MTrapM | testbench.dut.core.priv.priv.csr.mretM;
+
     // M-mode trap CSRs
-    `CONNECT_CSR(MSTATUS, 12'h300, testbench.dut.core.priv.priv.csr.csrm.MSTATUS_REGW);
-    `CONNECT_CSR(MEDELEG, 12'h302, testbench.dut.core.priv.priv.csr.csrm.MEDELEG_REGW);
-    `CONNECT_CSR(MIDELEG, 12'h303, testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW);
-    `CONNECT_CSR(MIE, 12'h304, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW);
-    `CONNECT_CSR(MTVEC, 12'h305, testbench.dut.core.priv.priv.csr.csrm.MTVEC_REGW);
-    `CONNECT_CSR(MSCRATCH, 12'h340, testbench.dut.core.priv.priv.csr.csrm.MSCRATCH_REGW);
-    `CONNECT_CSR(MEPC, 12'h341, testbench.dut.core.priv.priv.csr.csrm.MEPC_REGW);
-    `CONNECT_CSR(MCAUSE, 12'h342, testbench.dut.core.priv.priv.csr.csrm.MCAUSE_REGW);
-    `CONNECT_CSR(MTVAL, 12'h343, testbench.dut.core.priv.priv.csr.csrm.MTVAL_REGW);
-    `CONNECT_CSR(MIP, 12'h344, testbench.dut.core.priv.priv.csr.csrm.MIP_REGW);
+    `CONNECT_CSR_WE(MSTATUS, 12'h300, testbench.dut.core.priv.priv.csr.csrm.MSTATUS_REGW, MSTATUSWriteM);
+    `CONNECT_CSR(MEDELEG, 12'h302, csrm);
+    `CONNECT_CSR(MIDELEG, 12'h303, csrm);
+    // sie and sip are mie and mip seen through mideleg, so a write to sie also writes mie
+    `CONNECT_CSR_WE(MIE, 12'h304, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW,
+                    testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM);
+    `CONNECT_CSR(MTVEC, 12'h305, csrm);
+    `CONNECT_CSR(MSCRATCH, 12'h340, csrm);
+    `CONNECT_CSR(MEPC, 12'h341, csrm);
+    `CONNECT_CSR(MCAUSE, 12'h342, csrm);
+    `CONNECT_CSR(MTVAL, 12'h343, csrm);
+
+    // mip and sip also follow the interrupt inputs, which have no write enable, so they are reported
+    // written when an instruction writes them or when their value changes.
+    logic [P.XLEN-1:0] MIP, SIP, MIPReportedW, SIPReportedW;
+    logic              WriteMIPW, WriteSIPW;
+    assign MIP = testbench.dut.core.priv.priv.csr.csrm.MIP_REGW;
+    assign SIP = MIP & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW;
+    flopenr #(1)      WriteMIPWReg (clk, reset, ~StallW, testbench.dut.core.priv.priv.csr.csri.WriteMIPM |
+                                    testbench.dut.core.priv.priv.csr.csri.WriteSIPM, WriteMIPW);
+    flopenr #(1)      WriteSIPWReg (clk, reset, ~StallW, testbench.dut.core.priv.priv.csr.csri.WriteMIPM |
+                                    testbench.dut.core.priv.priv.csr.csri.WriteSIPM | testbench.dut.core.priv.priv.csr.csrm.WriteMIDELEGM, WriteSIPW);
+    flopenr #(P.XLEN) MIPReportedReg (clk, reset, valid, MIP, MIPReportedW);
+    flopenr #(P.XLEN) SIPReportedReg (clk, reset, valid, SIP, SIPReportedW);
+    assign rvvi.csr[0][0][12'h344]    = MIP;
+    assign rvvi.csr_wb[0][0][12'h344] = valid & (WriteMIPW | (MIP != MIPReportedW));
 
     // S-mode trap CSRs
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SSTATUS, 12'h100, testbench.dut.core.priv.priv.csr.csrs.csrs.SSTATUS_REGW);
-      `CONNECT_CSR(SIE, 12'h104, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW);
-      `CONNECT_CSR(STVEC, 12'h105, testbench.dut.core.priv.priv.csr.csrs.csrs.STVEC_REGW);
-      `CONNECT_CSR(SSCRATCH, 12'h140, testbench.dut.core.priv.priv.csr.csrs.csrs.SSCRATCH_REGW);
-      `CONNECT_CSR(SEPC, 12'h141, testbench.dut.core.priv.priv.csr.csrs.csrs.SEPC_REGW);
-      `CONNECT_CSR(SCAUSE, 12'h142, testbench.dut.core.priv.priv.csr.csrs.csrs.SCAUSE_REGW);
-      `CONNECT_CSR(STVAL, 12'h143, testbench.dut.core.priv.priv.csr.csrs.csrs.STVAL_REGW);
-      `CONNECT_CSR(SIP, 12'h144, testbench.dut.core.priv.priv.csr.csrm.MIP_REGW & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW);
+      `CONNECT_CSR_WE(SSTATUS, 12'h100, testbench.dut.core.priv.priv.csr.csrs.csrs.SSTATUS_REGW, SSTATUSWriteM);
+      `CONNECT_CSR_WE(SIE, 12'h104, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW & 12'h222 & testbench.dut.core.priv.priv.csr.csrm.MIDELEG_REGW,
+                      testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM |
+                      testbench.dut.core.priv.priv.csr.csrm.WriteMIDELEGM);
+      `CONNECT_CSR(STVEC, 12'h105, csrs.csrs);
+      `CONNECT_CSR(SSCRATCH, 12'h140, csrs.csrs);
+      `CONNECT_CSR(SEPC, 12'h141, csrs.csrs);
+      `CONNECT_CSR(SCAUSE, 12'h142, csrs.csrs);
+      `CONNECT_CSR(STVAL, 12'h143, csrs.csrs);
+      assign rvvi.csr[0][0][12'h144]    = SIP;
+      assign rvvi.csr_wb[0][0][12'h144] = valid & (WriteSIPW | (SIP != SIPReportedW));
     end
 
     // Virtual Memory CSRs
+    // WriteSATPM leaves out a write of an unsupported MODE, which has no effect but is still a write
     if (P.VIRTMEM_SUPPORTED) begin
-      `CONNECT_CSR(SATP, 12'h180, testbench.dut.core.priv.priv.csr.csrs.csrs.SATP_REGW);
+      `CONNECT_CSR_WE(SATP, 12'h180, testbench.dut.core.priv.priv.csr.csrs.csrs.SATP_REGW, CSRSWriteM & (CSRAdrM == 12'h180));
     end
 
     // Floating-Point CSRs
+    // An instruction that accrues exception flags also writes fflags.  fcsr is frm and fflags together.
     if (P.F_SUPPORTED) begin
-      `CONNECT_CSR(FFLAGS, 12'h001, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW);
-      `CONNECT_CSR(FRM, 12'h002, testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW);
-      `CONNECT_CSR(FCSR, 12'h003, {testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW});
+      `CONNECT_CSR_WE(FFLAGS, 12'h001, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW, testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM);
+      `CONNECT_CSR(FRM, 12'h002, csru.csru);
+      `CONNECT_CSR_WE(FCSR, 12'h003, {testbench.dut.core.priv.priv.csr.csru.csru.FRM_REGW, testbench.dut.core.priv.priv.csr.csru.csru.FFLAGS_REGW},
+                      testbench.dut.core.priv.priv.csr.WriteFRMM | testbench.dut.core.priv.priv.csr.SetOrWriteFFLAGSM);
     end
 
     // Counters / Performance Monitoring CSRs
     if (P.U_SUPPORTED) begin
-      `CONNECT_CSR(MCOUNTEREN, 12'h306, testbench.dut.core.priv.priv.csr.csrm.MCOUNTEREN_REGW);
+      `CONNECT_CSR(MCOUNTEREN, 12'h306, csrm);
     end
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SCOUNTEREN, 12'h106, testbench.dut.core.priv.priv.csr.csrs.csrs.SCOUNTEREN_REGW);
+      `CONNECT_CSR(SCOUNTEREN, 12'h106, csrs.csrs);
     end
-    `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, testbench.dut.core.priv.priv.csr.csrm.MCOUNTINHIBIT_REGW);
+    `CONNECT_CSR(MCOUNTINHIBIT, 12'h320, csrm);
     // mhpmevent3-31 not connected (232-33F)
     if (P.ZICNTR_SUPPORTED) begin
-      `CONNECT_CSR(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0]); // MCYCLE
-      `CONNECT_CSR(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2]); // MINSTRET
+      // mcycle and minstret are written when they count as well as by an instruction
+      `CONNECT_CSR_WE(MCYCLE, 12'hB00, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0],
+                      testbench.dut.core.priv.priv.csr.counters.WriteHPMCOUNTERM[0] | testbench.dut.core.priv.priv.csr.counters.CounterInc[0]);
+      `CONNECT_CSR_WE(MINSTRET, 12'hB02, testbench.dut.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2],
+                      testbench.dut.core.priv.priv.csr.counters.WriteHPMCOUNTERM[2] | testbench.dut.core.priv.priv.csr.counters.CounterInc[2]);
       // mhpmcounter3-31 not connected (B03-B1F)
       // cycle, time, instret not connected (C00-C02)
       // hpmcounter3-31 not connected (C03-C1F)
     end
 
     // Machine Information Registers and Configuration CSRs
-    `CONNECT_CSR(MISA, 12'h301, testbench.dut.core.priv.priv.csr.csrm.MISA_REGW);
-    `CONNECT_CSR(MENVCFG, 12'h30A, testbench.dut.core.priv.priv.csr.csrm.MENVCFG_REGW);
-    `CONNECT_CSR(MSECCFG, 12'h747, 0); // mseccfg
-    `CONNECT_CSR(MVENDORID, 12'hF11, 0); //mvendorid
-    `CONNECT_CSR(MARCHID, 12'hF12, 0); // marchid
-    `CONNECT_CSR(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
-    `CONNECT_CSR(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
-    `CONNECT_CSR(MCONFIGPTR, 12'hF15, 0); //mconfigptr
+    // misa is hardwired, so writing it has no effect and it has no write enable.  menvcfg's write enable
+    // is in an unnamed generate block, so decode it here.
+    `CONNECT_CSR_WE(MISA, 12'h301, testbench.dut.core.priv.priv.csr.csrm.MISA_REGW, CSRMWriteM & (CSRAdrM == 12'h301));
+    `CONNECT_CSR_WE(MENVCFG, 12'h30A, testbench.dut.core.priv.priv.csr.csrm.MENVCFG_REGW[P.XLEN-1:0], CSRMWriteM & (CSRAdrM == 12'h30A));
+    `CONNECT_CSR_RO(MSECCFG, 12'h747, 0); // mseccfg
+    `CONNECT_CSR_RO(MVENDORID, 12'hF11, 0); //mvendorid
+    `CONNECT_CSR_RO(MARCHID, 12'hF12, 0); // marchid
+    `CONNECT_CSR_RO(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
+    `CONNECT_CSR_RO(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
+    `CONNECT_CSR_RO(MCONFIGPTR, 12'hF15, 0); //mconfigptr
 
     // Supervisor Information Registers and Configuration CSRs
     if (P.S_SUPPORTED) begin
-      `CONNECT_CSR(SENVCFG, 12'h10A, testbench.dut.core.priv.priv.csr.csrs.csrs.SENVCFG_REGW);
+      `CONNECT_CSR(SENVCFG, 12'h10A, csrs.csrs);
     end
 
     // Sstc CSRs
     if (P.SSTC_SUPPORTED) begin
-      `CONNECT_CSR(STIMECMP, 12'h14D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[P.XLEN-1:0]);
+      `CONNECT_CSR_WE(STIMECMP, 12'h14D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[P.XLEN-1:0], testbench.dut.core.priv.priv.csr.csrs.csrs.WriteSTIMECMPM);
       if (P.XLEN == 32) begin
-        `CONNECT_CSR(STIMECMPH, 12'h15D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[63:32]);
+        `CONNECT_CSR_WE(STIMECMPH, 12'h15D, testbench.dut.core.priv.priv.csr.csrs.csrs.STIMECMP_REGW[63:32], testbench.dut.core.priv.priv.csr.csrs.csrs.WriteSTIMECMPHM);
       end
     end
 
@@ -181,12 +231,14 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
     // extra M mode CSRs for RV32
     if (P.XLEN == 32) begin
-      `CONNECT_CSR(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW);
-      `CONNECT_CSR(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW);
-      `CONNECT_CSR(MSECCFGH, 12'h757, 0); // mseccfgh
+      `CONNECT_CSR_WE(MSTATUSH, 12'h310, testbench.dut.core.priv.priv.csr.csrsr.MSTATUSH_REGW, testbench.dut.core.priv.priv.csr.WriteMSTATUSHM);
+      `CONNECT_CSR_WE(MENVCFGH, 12'h31A, testbench.dut.core.priv.priv.csr.csrm.MENVCFGH_REGW, CSRMWriteM & (CSRAdrM == 12'h31A));
+      `CONNECT_CSR_RO(MSECCFGH, 12'h757, 0); // mseccfgh
     end
   end
 
+  // PMP CSRs.  The per-entry write enables leave out a locked entry, which a write leaves unchanged,
+  // so decode the address here.
   if (P.PMP_ENTRIES > 0) begin
     localparam inc = P.XLEN == 32 ? 4 : 8;
     // PMPCFG CSRs (space is 0-15 3a0 - 3af)
@@ -210,12 +262,15 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
                       testbench.dut.core.priv.priv.csr.csrm.PMPCFG_ARRAY_REGW[pmpCfgID+1],
                       testbench.dut.core.priv.priv.csr.csrm.PMPCFG_ARRAY_REGW[pmpCfgID+0]};
       end
-      `CONNECT_CSR(PMPCFG``i4, 12'h3A0 + i4, pmp);
+      `CONNECT_CSR_WE(PMPCFG, 12'h3A0 + i4, pmp, testbench.dut.core.priv.priv.csr.CSRMWriteM & (CSRAdrM == 12'h3A0 + i4));
     end
 
-  // PMPADDR CSRs 3B0 to 3EF
-    for(genvar pmpAddrID = 0; pmpAddrID < P.PMP_ENTRIES; pmpAddrID++) begin
-      `CONNECT_CSR(PMPADDR``pmpAddrID, 12'h3B0 + pmpAddrID, testbench.dut.core.priv.priv.csr.csrm.PMPADDR_ARRAY_REGW[pmpAddrID]); // aligned to grain
+    // PMPADDR CSRs 3B0 to 3EF
+    // pmpaddr reads back aligned to the grain its pmpcfg's A field selects, so writing that pmpcfg writes it too
+    for (genvar pmpAddrID = 0; pmpAddrID < P.PMP_ENTRIES; pmpAddrID++) begin
+      localparam logic [11:0] CfgAdr = P.XLEN == 32 ? 12'h3A0 + pmpAddrID/4 : 12'h3A0 + 2*(pmpAddrID/8);
+      `CONNECT_CSR_WE(PMPADDR, 12'h3B0 + pmpAddrID, testbench.dut.core.priv.priv.csr.csrm.PMPADDR_ARRAY_REGW[pmpAddrID],
+                      testbench.dut.core.priv.priv.csr.CSRMWriteM & (CSRAdrM == 12'h3B0 + pmpAddrID | CSRAdrM == CfgAdr));
     end
   end
 

@@ -14,7 +14,7 @@ NAMES     := $(notdir $(basename $(sort $(wildcard src/*.S))))
 ELFS      := $(addprefix rv32/,$(addsuffix .elf,$(NAMES))) $(addprefix rv64/,$(addsuffix .elf,$(NAMES))) rv32/WALLY-periph-m-01.elf
 OBJDUMPS  := $(addsuffix .objdump, $(ELFS))
 MEMFILES  := $(addsuffix .memfile, $(ELFS))
-HEADERS   := WALLY-TEST-LIB.h WALLY-env.h link.ld
+HEADERS   := $(wildcard *.h) link.ld
 CFLAGS    := -static -mcmodel=medany -nostdlib -nostartfiles -g -T link.ld -Wl,--no-warn-rwx-segments -I .
 
 all: $(ELFS) $(OBJDUMPS) $(MEMFILES)
