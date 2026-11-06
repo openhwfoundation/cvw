@@ -41,13 +41,22 @@
 //      2: address of the failing entry
 //      3: expected value (or number of entries expected)
 //      4: actual value (or number of entries written)
+//
+//   Built with -DSELFCHECK_ALL (make SELFCHECK_ALL=1), a mismatch does not halt the test: it prints
+//   "SELFCHECK MISMATCH entry <index> expected <value> actual <value>" on the testbench console
+//   (HTIF putchar through tohost), and the test runs to the end and then fails with the first
+//   mismatch in selfcheck_record.  This lists every failing entry of a test in one run.
 // ---------------------------------------------------------------------------------------------
 
 .macro SIG_NEXT
     LREG s9, 0(a6)                // value just written to the signature
     LREG s10, 0(s11)              // expected value
     beq s9, s10, 1f
+#ifdef SELFCHECK_ALL
+    jal s9, selfcheck_report      // report the mismatch on the console and keep going
+#else
     j selfcheck_fail
+#endif
 1:
     addi s11, s11, REGBYTES
     addi t1, t1, REGBYTES
@@ -1159,6 +1168,14 @@ terminate_test:
 
     la s9, expected_signature_end
     bne s11, s9, selfcheck_length_fail // fewer or more signature entries were written than expected
+#ifdef SELFCHECK_ALL
+    la s9, selfcheck_mismatches
+    LREG s9, 0(s9)
+    beqz s9, 1f
+    li x1, (2 << 1) | 1  // tohost: fail, exit code 2 = entry mismatch (the first one is in selfcheck_record)
+    j write_tohost
+1:
+#endif
     la s9, selfcheck_record
     li s10, 1
     SREG s10, 0(s9)   // record that all signature entries matched
@@ -1180,6 +1197,119 @@ selfcheck_fail:
     SREG s9, (4*REGBYTES)(t0)  // actual value
     li x1, (2 << 1) | 1  // tohost: fail, exit code 2 = entry mismatch
     j write_tohost      // halt
+
+#ifdef SELFCHECK_ALL
+// Reached from SIG_NEXT (jal s9) when an entry does not match.  Prints the entry index, expected
+// value, and actual value on the console, records the first mismatch in selfcheck_record, and
+// returns.  Only s9 and s10 (reserved for self-checking) may be changed; everything else is saved.
+selfcheck_report:
+    la s10, selfcheck_save
+    SREG t0, 0(s10)
+    SREG t2, (1*REGBYTES)(s10)
+    SREG t3, (2*REGBYTES)(s10)
+    SREG t4, (3*REGBYTES)(s10)
+    SREG t5, (4*REGBYTES)(s10)
+    SREG ra, (5*REGBYTES)(s10)
+    SREG s9, (6*REGBYTES)(s10)       // return address
+    la t0, selfcheck_mismatches
+    LREG t2, 0(t0)
+    addi t3, t2, 1
+    SREG t3, 0(t0)
+    bnez t2, 1f                      // only the first mismatch goes in selfcheck_record
+    la t0, selfcheck_record
+    li t2, 2
+    SREG t2, 0(t0)
+    la t2, test_1_res
+    sub t2, a6, t2
+    srli t2, t2, REGSHIFT
+    SREG t2, REGBYTES(t0)
+    SREG a6, (2*REGBYTES)(t0)
+    LREG t2, 0(s11)
+    SREG t2, (3*REGBYTES)(t0)
+    LREG t2, 0(a6)
+    SREG t2, (4*REGBYTES)(t0)
+1:
+    la t3, selfcheck_msg_entry
+    jal ra, selfcheck_puts
+    la t2, test_1_res
+    sub t2, a6, t2
+    srli t3, t2, REGSHIFT
+    jal ra, selfcheck_puthex
+    la t3, selfcheck_msg_expected
+    jal ra, selfcheck_puts
+    LREG t3, 0(s11)
+    jal ra, selfcheck_puthex
+    la t3, selfcheck_msg_actual
+    jal ra, selfcheck_puts
+    LREG t3, 0(a6)
+    jal ra, selfcheck_puthex
+    li t3, 10                         // newline
+    jal ra, selfcheck_putc
+    la s10, selfcheck_save
+    LREG t0, 0(s10)
+    LREG t2, (1*REGBYTES)(s10)
+    LREG t3, (2*REGBYTES)(s10)
+    LREG t4, (3*REGBYTES)(s10)
+    LREG t5, (4*REGBYTES)(s10)
+    LREG ra, (5*REGBYTES)(s10)
+    LREG s9, (6*REGBYTES)(s10)
+    jr s9
+
+// Print the character in t3 with an HTIF console putchar (device 1, command 1) through tohost.
+// Uses t4 and t5.
+selfcheck_putc:
+    la t4, tohost
+#if __riscv_xlen == 64
+    li t5, 0x0101
+    slli t5, t5, 48
+    or t5, t5, t3
+    sd t5, 0(t4)
+#else
+    li t5, 0x01010000
+    sw t5, 4(t4)                      // upper word first: the testbench acts on the lower-word store
+    sw t3, 0(t4)
+    sw zero, 4(t4)                    // so the final result store to tohost is not taken as a putchar
+#endif
+    ret
+
+// Print the NUL-terminated string at t3.  Uses t2-t5 and t0.
+selfcheck_puts:
+    mv t0, ra
+    mv t2, t3
+2:
+    lbu t3, 0(t2)
+    beqz t3, 3f
+    jal ra, selfcheck_putc
+    addi t2, t2, 1
+    j 2b
+3:
+    mv ra, t0
+    ret
+
+// Print t3 as XLEN/4 hex digits.  Uses t0 and t2-t5.
+selfcheck_puthex:
+    mv t0, ra
+    mv t2, t3
+    li s10, __riscv_xlen - 4          // shift amount of the next digit
+4:
+    srl t3, t2, s10
+    andi t3, t3, 15
+    addi t3, t3, '0'
+    li t4, '9'
+    ble t3, t4, 5f
+    addi t3, t3, 'a' - '9' - 1
+5:
+    jal ra, selfcheck_putc
+    addi s10, s10, -4
+    bgez s10, 4b
+    mv ra, t0
+    ret
+
+selfcheck_msg_entry:    .string "SELFCHECK MISMATCH entry "
+selfcheck_msg_expected: .string " expected "
+selfcheck_msg_actual:   .string " actual "
+.align 2
+#endif
 
 // Reached from terminate_test when the number of signature entries written differs from the number expected.
 // s9 = expected_signature_end, s11 = expected pointer, a6 = signature pointer
@@ -1234,6 +1364,12 @@ rvtest_sig_end:
 .globl selfcheck_record
 selfcheck_record:
     .fill 8, REGBYTES, 0
+#ifdef SELFCHECK_ALL
+selfcheck_mismatches:  // number of mismatching entries
+    .fill 1, REGBYTES, 0
+selfcheck_save:        // registers saved by selfcheck_report
+    .fill 8, REGBYTES, 0
+#endif
 
 
 

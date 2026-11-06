@@ -51,14 +51,14 @@ arch_list = [
 ]
 
 # Define regular expressions to match the desired fields
-mt_regex = r"Elapsed MTIME: (\d+).*?Elapsed MINSTRET: (\d+).*?COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+).*?CPI: \d+ / \d+ = (\d+\.\d+).*?Load Stalls (\d+).*?Store Stalls (\d+).*?D-Cache Accesses (\d+).*?D-Cache Misses (\d+).*?I-Cache Accesses (\d+).*?I-Cache Misses (\d+).*?Branches (\d+).*?Branches Miss Predictions (\d+).*?BTB Misses (\d+).*?Jump and JR (\d+).*?RAS Wrong (\d+).*?Returns (\d+).*?BP Class Wrong (\d+)"
+mt_regex = r"Elapsed MCYCLE: (\d+).*?Elapsed MINSTRET: (\d+).*?COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+).*?CPI: \d+ / \d+ = (\d+\.\d+).*?Load Stalls (\d+).*?Store Stalls (\d+).*?D-Cache Accesses (\d+).*?D-Cache Misses (\d+).*?I-Cache Accesses (\d+).*?I-Cache Misses (\d+).*?Branches (\d+).*?Branches Miss Predictions (\d+).*?BTB Misses (\d+).*?Jump and JR (\d+).*?RAS Wrong (\d+).*?Returns (\d+).*?BP Class Wrong (\d+)"
 #cpi_regex = r"CPI: \d+ / \d+ = (\d+\.\d+)"
 #cmhz_regex = r"COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+)"
 # Open a CSV file to write the results
 resultfile = os.path.join(coremark_dir, 'coremark_results.csv')
 # resultfile = 'coremark_results.csv'
 with open(resultfile, mode='w', newline='') as csvfile:
-    fieldnames = ['Architecture', 'CM / MHz','CPI','MTIME','MINSTRET','Load Stalls','Store Stalls','D$ Accesses',
+    fieldnames = ['Architecture', 'CM / MHz','CPI','MCYCLE','MINSTRET','Load Stalls','Store Stalls','D$ Accesses',
                     'D$ Misses','I$ Accesses','I$ Misses','Branches','Branch Mispredicts','BTB Misses',
                     'Jump/JR','RAS Wrong','Returns','BP Class Pred Wrong']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames, lineterminator='\n')  # LF, like expected_coremark_results.csv
@@ -102,7 +102,7 @@ with open(resultfile, mode='w', newline='') as csvfile:
         ret= mt_match.group(16)
         bpc= mt_match.group(17)
         #minstret = mt_instret_match.group(2)
-        writer.writerow({'Architecture': arch, 'CM / MHz':cmhz,'CPI':cpi, 'MTIME': mtime,'MINSTRET':minstret,
+        writer.writerow({'Architecture': arch, 'CM / MHz':cmhz,'CPI':cpi, 'MCYCLE': mtime,'MINSTRET':minstret,
                             'Load Stalls':lstalls,
                             'Store Stalls':swtalls,'D$ Accesses':dacc,'D$ Misses':dmiss,'I$ Accesses':iacc,'I$ Misses':imiss,
                             'Branches':br,'Branch Mispredicts':brm,'BTB Misses':btb,'Jump/JR':jmp,'RAS Wrong':ras,'Returns':ret,'BP Class Pred Wrong':bpc})

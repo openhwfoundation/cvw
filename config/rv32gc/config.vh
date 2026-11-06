@@ -215,7 +215,6 @@ localparam cvw::bpred_type_t BPRED_TYPE = cvw::BP_GSHARE; // BP_GSHARE_BASIC, BP
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
-localparam BTB_ADDR_BITS = 32'd32;
 localparam RAS_SIZE = 32'd16;
 localparam INSTR_CLASS_PRED = 1;
 

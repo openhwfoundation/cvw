@@ -527,7 +527,7 @@ add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uar
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxdataready
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxdataavailintr
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/RXBR
-add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/squashRXerrIP
+add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/RXerrIP
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxshiftreg
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/SOUTbit
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/SINsync
