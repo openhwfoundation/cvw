@@ -74,10 +74,11 @@ module hazard (
   //    Even if the register gave clear priority over enable, various FSMs still need to disable the stall, so it's best to gate the stall here with flush
   //  The IFU and LSU stall the entire pipeline on a cache miss, bus access, or other long operation.
   //    The IFU stalls the entire pipeline rather than just Fetch to avoid complications with instructions later in the pipeline causing Exceptions
-  //    A trap could be asserted at the start of a IFU/LSU stall, and should flush the memory operation
+  //    A trap could be asserted at the start of an IFU/LSU stall, and should flush the memory operation
+  //  A waiting wfi in M (WaitM) stalls the entire pipeline in the same way, so the instruction in W keeps forwarding
   assign StallFCause = '0;
   assign StallDCause = (StructuralStallD | FPUStallD | VPUFrontEndBusyD) & ~FlushDCause;
-  assign StallECause = (DivBusyE | FDivBusyE | (VPUBackEndBusyE & ~VectorD)) & ~FlushECause;
+  assign StallECause = (DivBusyE | FDivBusyE | (VPUBackEndBusyE & ~VectorD)) & ~FlushECause; // exclusion-tag: hzu-stalle-cause
   assign StallMCause = '0;
 
   assign VectorStallFCause = '0;

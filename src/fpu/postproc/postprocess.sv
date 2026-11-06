@@ -183,7 +183,7 @@ module postprocess import cvw::*;  #(parameter cvw_t P, parameter V) (
   // calculate result sign used in rounding unit
   roundsign roundsign(.FmaOp, .DivOp, .CvtOp, .Sqrt, .FmaSs, .Xs, .Ys, .CvtCs, .Ms);
 
-  round #(P, V) round(.OutFmt, .Frm, .FmaASticky, .Plus1, .PostProcSel, .CvtCe, .Ue,
+  round #(P, V) rounder(.OutFmt, .Frm, .FmaASticky, .Plus1, .PostProcSel, .CvtCe, .Ue,
       .Ms, .FmaMe, .FmaOp, .CvtOp, .CvtResSubnormUf, .Mf, .ToInt,  .CvtResUf,
       .DivSticky, .DivOp, .UfPlus1, .FullRe, .Rf, .Re, .Sticky, .Round, .Guard, .Me);
 
