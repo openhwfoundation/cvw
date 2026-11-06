@@ -92,6 +92,7 @@ typedef struct packed {
   logic         ZFA_SUPPORTED;
   logic         ZFBFMIN_SUPPORTED;
   logic         SSTC_SUPPORTED;
+  logic         MSECCFG_SUPPORTED;
   logic         SMSTATEEN_SUPPORTED;
   logic         SSSTATEEN_SUPPORTED;
   logic         SMP1P13_SUPPORTED;
@@ -268,6 +269,7 @@ typedef struct packed {
 
   // Memory synthesis configuration
   logic         USE_SRAM;
+  logic         LATCH_BASED_REGISTERFILE;
 
   // constants defining different privilege modes
   // defined in Table 1.1 of the privileged spec

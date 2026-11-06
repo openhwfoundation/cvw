@@ -989,7 +989,8 @@
       // extension is disabled at run time.
       "mstateen0": {
         "SE0": "CSRBit_Writable",
-        "ENVCFG": "CSRBit_ReadOnlyZero",
+        // senvcfg always exists because Wally is Sm1p12 compatible (csrm.sv)
+        "ENVCFG": "CSRBit_Writable",
         "CONTEXT": "CSRBit_ReadOnlyZero",
         "P1P13": "CSRBit_ReadOnlyZero",
         "SRMCFG": "CSRBit_ReadOnlyZero",

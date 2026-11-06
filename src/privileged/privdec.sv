@@ -109,7 +109,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
     logic [P.WAIT_TIMEOUT_BIT:0] WaitCount, WaitCountNext;
     assign WaitCountNext = StallM ? WaitCount + {{P.WAIT_TIMEOUT_BIT{1'b0}}, WaitM & ~WaitCount[P.WAIT_TIMEOUT_BIT]} : '0;
     flopr #(P.WAIT_TIMEOUT_BIT+1) waitcountreg(clk, reset, WaitCountNext, WaitCount);
-    assign TWTimeoutM  = wfiM    & ((STATUS_TW & PrivilegeModeW != P.M_MODE) | (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) &
+    assign TWTimeoutM  = wfiM    & ((STATUS_TW & PrivilegeModeW != P.M_MODE) | (P.S_SUPPORTED & PrivilegeModeW == P.U_MODE)) & // exclusion-tag: pmd-tw-timeout
                          WaitCount[P.WFI_TIMEOUT_BIT] |
                          wrsntoM & STATUS_TW & PrivilegeModeW != P.M_MODE & WaitCount[P.WRSNTO_TIMEOUT_BIT];
     assign STOTimeoutM = wrsstoM & WaitCount[P.WRSSTO_TIMEOUT_BIT];

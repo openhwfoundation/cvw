@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module regfile #(parameter XLEN, E_SUPPORTED, ZACAS_SUPPORTED) (
+module regfile #(parameter XLEN, E_SUPPORTED, ZACAS_SUPPORTED, LATCH_BASED) (
   input  logic             clk, reset,
   input  logic             we3, we3p,           // Write enable for normal and pair
   input  logic [4:0]       a1, a2, a3,          // Read a1 and a2 (amocas borrows a2 for its compare operand); write a3
@@ -28,6 +28,8 @@ module regfile #(parameter XLEN, E_SUPPORTED, ZACAS_SUPPORTED) (
   localparam NUMREGS = E_SUPPORTED ? 16 : 32;   // only 16 registers in E mode
 
   if (ZACAS_SUPPORTED) begin : pairedrf
+    // The latch-based option is implemented only for the unpaired register file
+    if (LATCH_BASED) $error("LATCH_BASED_REGISTERFILE is not supported with ZACAS_SUPPORTED");
     // Zacas needs register pairs, so hold the registers as pairs.  It also needs a third operand
     // (rd, the compare value), which the controller obtains by stalling a cycle and reusing a2.
     logic [XLEN*2-1:0] rf[NUMREGS/2-1:0]; // organize as pairs, with half as many entries
@@ -67,15 +69,30 @@ module regfile #(parameter XLEN, E_SUPPORTED, ZACAS_SUPPORTED) (
 
     // Three ported register file
     // Read two ports combinationally (a1/rd1, a2/rd2)
-    // Write third port on falling edge of clock (a3/wd3/we3)
+    // Write third port in the second half of the cycle (a3/wd3/we3), so a read in the same cycle sees the new value
     // Register 0 hardwired to 0
 
     // reset is intended for simulation only, not synthesis
     // can logic be adjusted to not need resettable registers?
 
-    always_ff @(negedge clk)
-      if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;
-      else       if (we3)                  rf[a3] <= wd3;
+    if (LATCH_BASED) begin : regs
+      // Each register is a row of latches, transparent while clk is low and the register is written.
+      // This replaces a flop and a write-enable mux per bit with one latch.  A clock gate per register,
+      // clocked by ~clk, opens the latches; wd3 comes from a Writeback-stage flop, so it is stable while clk is low.
+      logic [NUMREGS-1:1] WriteEn, WriteClk;
+      logic [XLEN-1:0]    WriteData;
+      for (genvar r = 1; r < NUMREGS; r++) begin : rows
+        assign WriteEn[r] = reset | we3 & (a3 == r);
+        clockgate cg(.clk(~clk), .en(WriteEn[r]), .gclk(WriteClk[r]));
+      end
+      assign WriteData = reset ? '0 : wd3;
+      always_latch
+        for (i=1; i<NUMREGS; i++) if (WriteClk[i]) rf[i] = WriteData;
+    end else begin : regs
+      always_ff @(negedge clk)
+        if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;
+        else       if (we3)                  rf[a3] <= wd3;
+    end
 
     assign rd1 = (a1 != 0) ? rf[a1] : 0;
     assign rd2 = (a2 != 0) ? rf[a2] : 0;

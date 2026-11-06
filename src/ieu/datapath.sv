@@ -91,7 +91,7 @@ module datapath import cvw::*; #(parameter cvw_t P) (
 
   // Decode stage
   // A pair amocas writes both halves: rd takes the low word of the loaded pair, rd+1 the high word
-  regfile #(P.XLEN, P.E_SUPPORTED, P.ZACAS_SUPPORTED) regf(clk, reset, RegWriteW, RegWriteW & AMOCASPairW,
+  regfile #(P.XLEN, P.E_SUPPORTED, P.ZACAS_SUPPORTED, P.LATCH_BASED_REGISTERFILE) regf(clk, reset, RegWriteW, RegWriteW & AMOCASPairW,
     Rs1D, A2D, RdW, ResultW, ReadDataHighW, R1D, R2D, R2PD);
 
   if (P.ZACAS_SUPPORTED) begin : cas

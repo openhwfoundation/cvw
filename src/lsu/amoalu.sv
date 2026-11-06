@@ -26,7 +26,7 @@ module amoalu import cvw::*; #(parameter cvw_t P) (
 );
 
   logic [P.XLEN-1:0] a, b, y;
-  logic               lt, cmp, sngd, w64;
+  logic               lt, cmp, sngd;
   logic               eqB0, ltB0, eqB1, ltB1, eqH1, ltH1; // per-lane compares, always unsigned
   logic               ltu16, ltu32;                       // unsigned compares assembled from the lanes
   logic               lt8, lt16, lt32, lt64;              // compare at each access width
@@ -38,10 +38,9 @@ module amoalu import cvw::*; #(parameter cvw_t P) (
 
   // Share hardware among the four amomin/amomax comparators.  Compare each lane unsigned; only the
   // lane holding the sign bit of the operation's width cares about signedness, and that is applied
-  // when the lane results are assembled, so the operands never need extending.
+  // when the lane results are assembled, so the operands never need extending
+  // (ReadDataM comes zero-extended from amoread).
   assign sngd = ~LSUFunct7M[5]; // Funct7[5] = 0 for signed amomin/max
-  // operation is narrower than 64 bits, so sign extend the result; funct3 100 is the 128-bit amocas.q
-  assign w64 = (LSUFunct3M[1:0] != 2'b11) & ~(P.ZACAS_SUPPORTED & LSUFunct3M[2]);
 
   comparator #(8)  cmpb0(a[7:0],   b[7:0],   1'b0, {eqB0, ltB0});
   comparator #(8)  cmpb1(a[15:8],  b[15:8],  1'b0, {eqB1, ltB1});
@@ -99,15 +98,7 @@ module amoalu import cvw::*; #(parameter cvw_t P) (
       default:  y = 'x;          // undefined
     endcase
 
-  // sign extend output if necessary for w64
-  if (P.XLEN == 32) begin : sext
-    assign AMOResultM = y;
-  end else begin : sext // P.XLEN = 64
-    always_comb
-      if (w64) begin // sign-extend word-length operations
-        AMOResultM = {{32{y[31]}}, y[31:0]};
-      end else begin
-        AMOResultM = y;
-      end
-  end
+  // Only the low operand-width bits are stored; subwordwrite replicates those bits.
+  // Register writeback uses the separately formatted OLD memory value in the LSU.
+  assign AMOResultM = y;
 endmodule

@@ -18,6 +18,11 @@ FCOV       ?= 0             # 1 compiles in the riscv-arch-test covergroups (wsi
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
 
+# Verilator compiles the generated C++ with -Os by default.  -O2 makes the rv64gc model 10-15% faster
+# (CoreMark, ACT tests, and Linux boots) for 10-20% more compile CPU time.  -O3, with or without
+# Verilator's own -O3, is slower than -O2.
+VERILATOR_FLAGS += --MAKEFLAGS OPT_FAST=-O2 --MAKEFLAGS OPT_SLOW=-O1 --MAKEFLAGS OPT_GLOBAL=-O2
+
 # Compiling the generated C++ dominates the build, and Verilator does it serially by default.
 JOBS ?= $(shell nproc)
 
