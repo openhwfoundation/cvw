@@ -16,8 +16,18 @@ OBJDUMPS  := $(addsuffix .objdump, $(ELFS))
 MEMFILES  := $(addsuffix .memfile, $(ELFS))
 HEADERS   := $(wildcard *.h) link.ld
 CFLAGS    := -static -mcmodel=medany -nostdlib -nostartfiles -g -T link.ld -Wl,--no-warn-rwx-segments -I .
+RTL_ROOT  := $(abspath ../..)
+RTL_OBJ   := $(abspath rtl/obj_dir)
 
 all: $(ELFS) $(OBJDUMPS) $(MEMFILES)
+
+# Direct bus protocol regression (no processor/toolchain required): make -C tests/periph rtl
+rtl:
+	verilator --binary --timing -j 4 --top-module ahbapbbridge_tb --Mdir $(RTL_OBJ) \
+	  $(RTL_ROOT)/src/cvw.sv $(RTL_ROOT)/src/generic/flop/flopen.sv \
+	  $(RTL_ROOT)/src/generic/flop/flopenr.sv $(RTL_ROOT)/src/generic/flop/flopr.sv \
+	  $(RTL_ROOT)/src/uncore/ahbapbbridge.sv rtl/ahbapbbridge_tb.sv
+	$(RTL_OBJ)/Vahbapbbridge_tb
 
 # Create disassembly
 %.elf.objdump: %.elf
@@ -41,6 +51,6 @@ rv32 rv64:
 	mkdir -p $@
 
 clean:
-	rm -rf rv32 rv64
+	rm -rf rv32 rv64 $(RTL_OBJ)
 
-.PHONY: all clean
+.PHONY: all clean rtl
