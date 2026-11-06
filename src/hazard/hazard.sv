@@ -18,6 +18,7 @@
 
 module hazard (
   input  logic BPWrongE, CSRWriteFenceM, RetM, TrapM,
+  input  logic BPRedirectD,            // Decode-stage branch prediction redirects fetch
   input  logic StructuralStallD,
   input  logic LSUStallM, IFUStallF,
   input  logic FPUStallD, ExternalStall,
@@ -92,7 +93,7 @@ module hazard (
   assign LatestUnstalledM = ~StallM & StallE;
 
   // Each stage flushes if the previous stage is the last one stalled (for cause) or the system has reason to flush
-  assign FlushD = LatestUnstalledD | FlushDCause; // coverage tag: LatestUnstalledD always 0
+  assign FlushD = LatestUnstalledD | FlushDCause | BPRedirectD; // coverage tag: LatestUnstalledD always 0
   assign FlushE = LatestUnstalledE | FlushECause;
   assign FlushM = LatestUnstalledM | FlushMCause;
   assign FlushW = FlushWCause;

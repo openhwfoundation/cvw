@@ -110,6 +110,7 @@ localparam cvw_t P = '{
   BPRED_SIZE :        BPRED_SIZE,
   BPRED_NUM_LHR : BPRED_NUM_LHR,
   BTB_SIZE :        BTB_SIZE,
+  BTB_ADDR_BITS :   BTB_ADDR_BITS,
   RAS_SIZE :        RAS_SIZE,
   INSTR_CLASS_PRED :  INSTR_CLASS_PRED,
   RADIX :        RADIX,
