@@ -136,9 +136,11 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR_WE(MSTATUS, 12'h300, testbench.dut.core.priv.priv.csr.csrm.MSTATUS_REGW, MSTATUSWriteM);
     `CONNECT_CSR(MEDELEG, 12'h302, csrm);
     `CONNECT_CSR(MIDELEG, 12'h303, csrm);
-    // sie and sip are mie and mip seen through mideleg, so a write to sie also writes mie
+    // sie and sip are mie and mip seen through mideleg, and hie and vsie are views of mie, so a write
+    // to any of them also writes mie
     `CONNECT_CSR_WE(MIE, 12'h304, testbench.dut.core.priv.priv.csr.csrm.MIE_REGW,
-                    testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM);
+                    testbench.dut.core.priv.priv.csr.csri.WriteMIEM | testbench.dut.core.priv.priv.csr.csri.WriteSIEM |
+                    testbench.dut.core.priv.priv.csr.csri.WriteHIEM | testbench.dut.core.priv.priv.csr.csri.WriteVSIEM);
     `CONNECT_CSR(MTVEC, 12'h305, csrm);
     `CONNECT_CSR(MSCRATCH, 12'h340, csrm);
     `CONNECT_CSR(MEPC, 12'h341, csrm);
