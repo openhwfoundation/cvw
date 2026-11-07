@@ -93,7 +93,7 @@ static inline void waittx() {
 }
 
 static inline void waitrx() {
-  while(read_reg(SPI_IP) & 2) {}
+  while(!(read_reg(SPI_IP) & 2)) {}
 }
 
 static inline uint8_t spi_readbyte() {
