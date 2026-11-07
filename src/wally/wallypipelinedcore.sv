@@ -67,9 +67,14 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          CSRWriteFenceM;
   logic                          DivBusyE;
   logic                          StructuralStallD;
+  logic [P.XLEN*2-1:0]           ComparePairM;                  // amocas compare operand
+  logic [P.XLEN-1:0]             SwapHighM;                     // amocas swap value for rd+1
+  logic [P.XLEN-1:0]             ReadDataHighW;                 // high half of a loaded pair, for rd+1
+  logic                          AMOCASPairM;                   // register-pair amocas
   logic                          LoadStallD;
   logic                          StoreStallD;
   logic                          SquashSCW;
+  logic                          ReservationValidW;               // a reservation is held; Zawrs wrs only waits while this is set
   logic                          MDUActiveE;                      // Mul/Div instruction being executed
   logic                          ENVCFG_ADUE;                     // HPTW A/D Update enable
   logic                          ENVCFG_PBMTE;                    // Page-based memory type enable
@@ -102,7 +107,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [1:0]                    PrivilegeModeW;
   logic [P.XLEN-1:0]             PTE;
   logic [2:0]                    PageType;
-  logic                          sfencevmaM, sfencevmaAllM;
+  logic                          sfencevmaM, sfencevmaAllM, sfencevmaAdrM;
   logic                          SelHPTW;
   logic                          PointerMaskApplicable, PMLen16Sel;
 
@@ -161,7 +166,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          CommittedF;
   logic                          BranchD, BranchE, JumpD, JumpE;
   logic                          DCacheStallM, ICacheStallF;
-  logic                          WaitM;                           // wfi is waiting for an interrupt
+  logic                          WaitM;                           // wfi or wrs is waiting
 
   // instruction fetch unit: PC, branch prediction, instruction cache
   ifu #(P) ifu(.clk, .reset,
@@ -182,7 +187,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
     // mmu management
     .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
-    .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .sfencevmaAllM, .ITLBMissOrUpdateAF,
+    .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .sfencevmaAllM, .SFenceASIDM(WriteDataM[P.ASID_BITS-1:0]), .ITLBMissOrUpdateAF,
     .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .HPTWInstrAccessFaultHeldF, .HPTWInstrPageFaultHeldF,
     // pmp/pma (inside mmu) signals.
     .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .InstrAccessFaultF);
@@ -205,18 +210,22 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .RdE, .RdM, .FIntResM, .FlushDCacheM,
     .BranchD, .BranchE, .JumpD, .JumpE,
     // Writeback stage
-    .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]),
+    .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]), .ReadDataHighW,
     .InstrValidM, .InstrValidE, .InstrValidD, .FCvtIntResW, .FCvtIntW,
     // hazards
     .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-    .StructuralStallD, .LoadStallD, .StoreStallD, .PCSrcE,
+    .StructuralStallD, .LoadStallD, .StoreStallD, .PCSrcE, .ComparePairM, .SwapHighM, .AMOCASPairM,
     .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM);
+
+  // A pair amocas loads 2*XLEN bits; the high half goes to rd+1
+  if (P.LLEN >= P.XLEN*2) assign ReadDataHighW = ReadDataW[P.XLEN*2-1:P.XLEN];
+  else                    assign ReadDataHighW = '0;
 
   lsu #(P) lsu(
     .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .CommittedF,
     // CPU interface
-    .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM,
-    .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
+    .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM, .ComparePairM, .SwapHighM, .AMOCASPairM,
+    .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW, .ReservationValidW,
     .FpLoadStoreM, .FWriteDataM, .IEUAdrE, .IEUAdrM, .WriteDataM,
     .ReadDataW, .FlushDCacheM, .CMOpM, .LSUPrefetchM,
     // connected to ahb (all stay the same)
@@ -237,7 +246,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .MSECCFG_PMM,                 // from csr
     .MENVCFG_PMM,                 // from csr
     .SENVCFG_PMM,                 // from csr
-    .sfencevmaM, .sfencevmaAllM,  // connects to privilege
+    .sfencevmaM, .sfencevmaAllM, .sfencevmaAdrM,  // connects to privilege
     .DCacheStallM,                // connects to privilege
     .IEUAdrxTvalM,                // connects to privilege
     .LoadPageFaultM,              // connects to privilege
@@ -289,7 +298,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .FlushD, .FlushE, .FlushM, .FlushW, .StallD, .StallE, .StallM, .StallW,
       .CSRReadM, .CSRWriteM, .SrcAM, .PCM, .PCSpillM,
       .InstrM, .InstrOrigM, .CSRReadValW, .EPCM, .TrapVectorM,
-      .RetM, .TrapM, .sfencevmaM, .sfencevmaAllM, .InvalidateICacheM, .DCacheStallM, .ICacheStallF,
+      .RetM, .TrapM, .sfencevmaM, .sfencevmaAllM, .sfencevmaAdrM, .InvalidateICacheM, .DCacheStallM, .ICacheStallF,
       .InstrValidM, .CommittedM, .CommittedF,
       .FRegWriteM, .LoadStallD, .StoreStallD,
       .BPDirWrongM, .BTAWrongM, .BPWrongM,
@@ -305,14 +314,14 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .WaitM, .BigEndianM);
+      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .ReservationValidW, .WaitM, .BigEndianM);
   end else begin
     assign {CSRReadValW, PrivilegeModeW,
             SATP_REGW, STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_MPP, STATUS_FS, FRM_REGW,
             // PMPCFG_ARRAY_REGW, PMPADDR_ARRAY_REGW,
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
-            sfencevmaM, sfencevmaAllM, BigEndianM, WaitM,
+            sfencevmaM, sfencevmaAllM, sfencevmaAdrM, BigEndianM, WaitM,
             PointerMaskApplicable, PMLen16Sel, MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
   end
 

@@ -149,6 +149,7 @@ SVADU_SUPPORTED     0
 
 deriv syn_rv64gc_noFPU syn_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
@@ -157,6 +158,7 @@ ZFA_SUPPORTED       0
 
 deriv syn_sram_rv64gc_noFPU syn_sram_rv64gc_noPriv
 F_SUPPORTED         0
+ZFBFMIN_SUPPORTED   0
 ZCF_SUPPORTED       0
 D_SUPPORTED         0
 ZCD_SUPPORTED       0
@@ -172,10 +174,16 @@ ZMMUL_SUPPORTED     0
 
 deriv syn_rv64gc_noAtomic syn_rv64gc_noMulDiv
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 deriv syn_sram_rv64gc_noAtomic syn_sram_rv64gc_noMulDiv
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 
 # Divider variants to check logical correctness
 
@@ -451,6 +459,8 @@ D_SUPPORTED         0
 ZCD_SUPPORTED       0
 ZALRSC_SUPPORTED    0
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZICBOM_SUPPORTED    0
 ZICBOZ_SUPPORTED    0
 SV32_SUPPORTED      0
@@ -465,6 +475,8 @@ D_SUPPORTED         0
 ZCD_SUPPORTED       0
 ZALRSC_SUPPORTED    0
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZICBOM_SUPPORTED    0
 ZICBOZ_SUPPORTED    0
 SV32_SUPPORTED      0
@@ -493,7 +505,10 @@ SVPBMT_SUPPORTED    0
 SVNAPOT_SUPPORTED   0
 SVINVAL_SUPPORTED   0
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 SVADU_SUPPORTED     0
 
 deriv nocache_rv64gc rv64gc
@@ -509,7 +524,10 @@ SVPBMT_SUPPORTED    0
 SVNAPOT_SUPPORTED   0
 SVINVAL_SUPPORTED   0
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 SVADU_SUPPORTED     0
 
 deriv way_1_4096_512_rv32gc rv32gc
@@ -564,9 +582,11 @@ deriv way_4_2048_512_rv64gc way_4_4096_512_rv64gc
 DCACHE_WAYSIZEINBYTES 32'd2048
 ICACHE_WAYSIZEINBYTES 32'd2048
 
+# With Zacas, LLEN is 128, so the misaligned-capable D$ word (2*LLEN) would fill a whole 256-bit line
 deriv way_4_4096_256_rv64gc way_4_4096_512_rv64gc
 DCACHE_LINELENINBITS 32'd256
 ICACHE_LINELENINBITS 32'd256
+ZACAS_SUPPORTED     0
 
 # TLB Size variants
 
@@ -585,6 +605,13 @@ DTLB_ENTRIES 32'd2
 deriv tlb16_rv64gc rv64gc
 ITLB_ENTRIES 32'd16
 DTLB_ENTRIES 32'd16
+
+# sfence.vma and sinval.vma invalidate more TLB entries than they name
+deriv tlbinexact_rv32gc rv32gc
+TLB_EXACT_FENCE_INVAL 0
+
+deriv tlbinexact_rv64gc rv64gc
+TLB_EXACT_FENCE_INVAL 0
 
 # Feature variants
 
@@ -605,12 +632,17 @@ ZALRSC_SUPPORTED    0
 
 deriv zalrsc_rv32gc rv32gc
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 
 deriv zaamo_rv64gc rv64gc
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 
 deriv zalrsc_rv64gc rv64gc
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 
 # Zicbom and Zicboz are independent extensions, so cover each one without the other.
 # zicbom_* also covers Zaamo without Zicboz, because ZAAMO_SUPPORTED stays on.
@@ -1521,7 +1553,10 @@ SV48_SUPPORTED      0
 SV57_SUPPORTED      0
 ZICCLSM_SUPPORTED   0
 ZAAMO_SUPPORTED     0
+ZABHA_SUPPORTED     0
+ZACAS_SUPPORTED     0
 ZALRSC_SUPPORTED    0
+ZAWRS_SUPPORTED     0
 ZICBOM_SUPPORTED    0
 ZICBOZ_SUPPORTED    0
 SVPBMT_SUPPORTED    0
@@ -1693,3 +1728,17 @@ ICACHE_LINELENINBITS   32'd256
 derive rv32gc_novm_cache_4way_64KB_512Bline  rv32gc_novm_cache_4way_64KB_256Bline
 DCACHE_LINELENINBITS   32'd512
 ICACHE_LINELENINBITS   32'd512
+
+# FMA_LZA = 0: the FMA normalizes with a leading zero counter on the sum instead of the leading zero anticipator.
+# fdqh_lzc_* run the testfloat FMA vectors; rv64gc_lzc and syn_sram_rv64gc_lzc are for synthesis comparisons.
+deriv fdqh_lzc_rv64gc fdqh_rv64gc
+FMA_LZA 0
+
+deriv fdqh_lzc_rv32gc fdqh_rv32gc
+FMA_LZA 0
+
+deriv rv64gc_lzc rv64gc
+FMA_LZA 0
+
+deriv syn_sram_rv64gc_lzc syn_sram_rv64gc
+FMA_LZA 0

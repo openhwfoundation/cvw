@@ -35,7 +35,11 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   output logic              WriteSSTATUSM,
   output logic              IllegalCSRSAccessM,
   output logic              STimerInt,
-  output logic [P.XLEN-1:0] SENVCFG_REGW
+  output logic [P.XLEN-1:0] SENVCFG_REGW,
+  input  logic              SE0AccessM,    // Smstateen mstateen0.SE0 permits access to sstateen0 below machine mode
+  input  logic [3:1]        SE123AccessM,  // Smstateen mstateen1-3.SE1-SE3 permit access to sstateen1-3 below machine mode
+  input  logic              ENVCFGAccessM, // Smstateen mstateen0.ENVCFG permits access to senvcfg below machine mode
+  input  logic [2:0]        SSTATEEN0_MASK // mstateen0 bits that permit the matching sstateen0 bits to be nonzero
 );
 
   // Supervisor CSRs
@@ -52,6 +56,10 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   localparam STIMECMP   = 12'h14D;
   localparam STIMECMPH  = 12'h15D;
   localparam SATP       = 12'h180;
+  localparam SSTATEEN0  = 12'h10C;
+  localparam SSTATEEN1  = 12'h10D;
+  localparam SSTATEEN2  = 12'h10E;
+  localparam SSTATEEN3  = 12'h10F;
   // Constants
   localparam SINT_MASK  = 12'h222; // supervisor interrupt fields: SEI, STI, SSI
   // scounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
@@ -63,6 +71,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   logic                    WriteSCAUSEM, WriteSTVALM, WriteSATPM, WriteSCOUNTERENM;
   logic                    WriteSTIMECMPM, WriteSTIMECMPHM;
   logic                    WriteSENVCFGM;
+  logic [P.XLEN-1:0]       SSTATEEN0_REGW;
 
   logic [P.XLEN-1:0]       SSCRATCH_REGW, STVAL_REGW, SCAUSE_REGW;
   logic [P.XLEN-1:0]       SENVCFG_WriteValM;
@@ -87,7 +96,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   end else  // RV32
     assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM);
   assign WriteSCOUNTERENM = CSRSWriteM & (CSRAdrM == SCOUNTEREN);
-  assign WriteSENVCFGM    = CSRSWriteM & (CSRAdrM == SENVCFG);
+  assign WriteSENVCFGM    = CSRSWriteM & (CSRAdrM == SENVCFG) & ENVCFGAccessM;
   assign WriteSTIMECMPM   = CSRSWriteM & (CSRAdrM == STIMECMP) & STCE;
   assign WriteSTIMECMPHM  = CSRSWriteM & (CSRAdrM == STIMECMPH) & STCE & (P.XLEN == 32);
 
@@ -154,6 +163,19 @@ module csrs import cvw::*; #(parameter cvw_t P) (
 
   flopenr #(P.XLEN) SENVCFGreg(clk, reset, WriteSENVCFGM, SENVCFG_WriteValM, SENVCFG_REGW);
 
+  if (P.SSSTATEEN_SUPPORTED) begin : sstateen
+    logic WriteSSTATEEN0M;
+    logic [P.XLEN-1:0] SSTATEEN0_WriteValM;
+    assign WriteSSTATEEN0M = CSRSWriteM & (CSRAdrM == SSTATEEN0) & SE0AccessM;
+    assign SSTATEEN0_WriteValM = {
+      {(P.XLEN-3){1'b0}},
+      CSRWriteValM[2] & P.ZCMT_SUPPORTED  & SSTATEEN0_MASK[2], // JVT
+      CSRWriteValM[1] & P.ZFINX_SUPPORTED & SSTATEEN0_MASK[1], // FCSR
+      1'b0                                                     // C: Wally has no custom state
+    };
+    flopenr #(P.XLEN) SSTATEEN0reg(clk, reset, WriteSSTATEEN0M, SSTATEEN0_WriteValM, SSTATEEN0_REGW);
+  end else assign SSTATEEN0_REGW = '0;
+
   // CSR Reads
   always_comb begin : csrr
     CSRSReadValM = '0;
@@ -170,7 +192,14 @@ module csrs import cvw::*; #(parameter cvw_t P) (
       SATP:       if (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) CSRSReadValM = SATP_REGW;
                   else IllegalCSRSAccessM = 1'b1;
       SCOUNTEREN: CSRSReadValM = {{(P.XLEN-32){1'b0}}, SCOUNTEREN_REGW};
-      SENVCFG:    CSRSReadValM = SENVCFG_REGW;
+      SENVCFG:    if (ENVCFGAccessM) CSRSReadValM = SENVCFG_REGW;
+                  else IllegalCSRSAccessM = 1'b1;
+      SSTATEEN0:  if (P.SSSTATEEN_SUPPORTED & SE0AccessM) CSRSReadValM = SSTATEEN0_REGW & {{(P.XLEN-3){1'b0}}, SSTATEEN0_MASK}; // a bit reads as zero once the matching mstateen0 bit is cleared
+                  else IllegalCSRSAccessM = 1'b1;
+      SSTATEEN1,
+      SSTATEEN2,
+      SSTATEEN3:  if (P.SSSTATEEN_SUPPORTED & SE123AccessM[CSRAdrM[1:0]]) CSRSReadValM = '0; // read-only zero: Wally has no state for sstateen1-3 to control
+                  else IllegalCSRSAccessM = 1'b1;
       STIMECMP:   if (STCE) CSRSReadValM = STIMECMP_REGW[P.XLEN-1:0];
                   else IllegalCSRSAccessM = 1'b1;
       STIMECMPH:  if (STCE & P.XLEN == 32) CSRSReadValM = {{(P.XLEN-32){1'b0}}, STIMECMP_REGW[63:32]};

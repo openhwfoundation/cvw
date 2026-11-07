@@ -176,26 +176,31 @@ module pwm_apb import cvw::*; #(parameter cvw_t P) (
   assign PWMDeglitchMuxSelect[0] = PWMScaled[P.PWM_WIDTH-1] & PWMCompareCenter[0];
   assign PWMCompareXNOR0[P.PWM_WIDTH-1:0] = PWMDeglitchMuxSelect[0] ? ~PWMScaled : PWMScaled;
   assign PWMComparator[0] = PWMCompareXNOR0[P.PWM_WIDTH-1:0] >= PWMCompare0;
-  assign PWMDeglitchMux[0] = PWMDeglitchMuxSelect[0] ? PWMComparator[0] : (PWMComparator[0] | (PWMHoldOut & PWMCompareIP[0]));
   assign PWMGPIO[0] = PWMCompareIP[0] & ~(PWMCompareGang[0] & PWMCompareIP[1]);
 
   assign PWMDeglitchMuxSelect[1] = PWMScaled[P.PWM_WIDTH-1] & PWMCompareCenter[1];
   assign PWMCompareXNOR1[P.PWM_WIDTH-1:0] = PWMDeglitchMuxSelect[1] ? ~PWMScaled : PWMScaled;
   assign PWMComparator[1] = PWMCompareXNOR1[P.PWM_WIDTH-1:0] >= PWMCompare1;
-  assign PWMDeglitchMux[1] = PWMDeglitchMuxSelect[1] ? PWMComparator[1] : (PWMComparator[1] | (PWMHoldOut & PWMCompareIP[1]));
   assign PWMGPIO[1] = PWMCompareIP[1] & ~(PWMCompareGang[1] & PWMCompareIP[2]);
 
   assign PWMDeglitchMuxSelect[2] = PWMScaled[P.PWM_WIDTH-1] & PWMCompareCenter[2];
   assign PWMCompareXNOR2[P.PWM_WIDTH-1:0] = PWMDeglitchMuxSelect[2] ? ~PWMScaled : PWMScaled;
   assign PWMComparator[2] = PWMCompareXNOR2[P.PWM_WIDTH-1:0] >= PWMCompare2;
-  assign PWMDeglitchMux[2] = PWMDeglitchMuxSelect[2] ? PWMComparator[2] : (PWMComparator[2] | (PWMHoldOut & PWMCompareIP[2]));
   assign PWMGPIO[2] = PWMCompareIP[2] & ~(PWMCompareGang[2] & PWMCompareIP[3]);
 
   assign PWMDeglitchMuxSelect[3] = PWMScaled[P.PWM_WIDTH-1] & PWMCompareCenter[3];
   assign PWMCompareXNOR3[P.PWM_WIDTH-1:0] = PWMDeglitchMuxSelect[3] ? ~PWMScaled : PWMScaled;
   assign PWMComparator[3] = PWMCompareXNOR3[P.PWM_WIDTH-1:0] >= PWMCompare3;
-  assign PWMDeglitchMux[3] = PWMDeglitchMuxSelect[3] ? PWMComparator[3] : (PWMComparator[3] | (PWMHoldOut & PWMCompareIP[3]));
   assign PWMGPIO[3] = PWMCompareIP[3] & ~(PWMCompareGang[3] & PWMCompareIP[0]);
+
+  // FU540 14.10: centered deglitch permits only a rising edge in the first half and a falling edge
+  // in the second half.  Hold a low pending bit in the descending half even if software lowers
+  // pwmcmpX.  Sticky takes precedence in either half (14.8); pwmcfg writes below can still clear IP.
+  for (genvar i = 0; i < 4; i++) begin: deglitch
+    assign PWMDeglitchMux[i] = PWMDeglitchMuxSelect[i] ?
+      ((PWMComparator[i] & (~PWMDeglitch | PWMCompareIP[i])) | (PWMSticky & PWMCompareIP[i])) :
+      (PWMComparator[i] | (PWMHoldOut & PWMCompareIP[i]));
+  end
 
   // pwmcmpXip flops: a pwmcfg write sets them to the written value, otherwise the comparator and deglitch/sticky logic drives them
   assign PWMCompareIPNext = PWMConfigWrite ? Din[31:28] : PWMDeglitchMux;

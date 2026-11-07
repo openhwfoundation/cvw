@@ -325,10 +325,12 @@ set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
 coverage exclude -scope /core/lsu/dmmu/dmmu -fecexprrow $line 4
 coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
 
-# The instruction side ties AtomicAccessM low, so every row that needs an atomic access is
-# unreachable in the instruction MMU.
+# The instruction side ties AtomicAccessM, ReadAccessM and WriteAccessM low, so every row that needs an
+# atomic access is unreachable in the instruction MMU: AtomicAccessM_1 (row 4), and the Cacheable (5, 6),
+# CrossesGranuleM (7, 8), ReadAccessM (9, 10) and WriteAccessM (11, 12) rows, whose non-masking condition
+# includes AtomicAccessM.  In MisalignedFaultAllowedM, AtomicAccessM is row 6.
 set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedCausesAccessFaultM"]
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4-12
 set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
 coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 6
 
@@ -438,12 +440,15 @@ coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line
 set line [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "~CAMHit & TLBAccess"]
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line 5
 
-# IMMU only makes word-sized accesses (Size = 2'b10), so the byte, halfword and doubleword arms of the
-# misalignment case never run, and the fetch address bit 0 is always 0 (row 4, VAdr[0]_1, of the word arm).
-foreach arm {"2'b00:  SizeMisalignedM" "2'b01:  SizeMisalignedM" "2'b11:  SizeMisalignedM"} {
-  coverage exclude -scope /core/ifu/immu/immu -linerange [GetLineNum ${SRC}/mmu/mmu.sv $arm] -item bs 1
+# IMMU only makes word-sized accesses (Size = 3'b010), so the other arms of the misalignment case never
+# run (neither of the two statements on each arm line), and the fetch address bit 0 is always 0 (row 4,
+# VAdr[0]_1, of the word arm).
+foreach arm {"3'b000:  begin DataMisalignedM" "3'b001:  begin DataMisalignedM" "3'b011:  begin DataMisalignedM" "3'b100:  begin DataMisalignedM" "default: begin DataMisalignedM"} {
+  set line [GetLineNum ${SRC}/mmu/mmu.sv $arm]
+  coverage exclude -scope /core/ifu/immu/immu -linerange $line -item b 1
+  coverage exclude -scope /core/ifu/immu/immu -linerange $line -item s 1-2
 }
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "2'b10:  SizeMisalignedM"] 4
+coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "3'b010:  begin DataMisalignedM"] 4
 
 # IMMU never disables translations (DisableTranslation_1).
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign Translate"] 2

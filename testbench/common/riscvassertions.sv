@@ -17,6 +17,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert (P.D_SUPPORTED | !P.Q_SUPPORTED) else $fatal(1, "Can't support quad fp (Q) without supporting double (D)");
     assert (P.F_SUPPORTED | !P.ZFH_SUPPORTED) else $fatal(1, "Can't support half-precision fp (ZFH) without supporting float (F)");
     assert (P.F_SUPPORTED | !P.ZFA_SUPPORTED) else $fatal(1, "Can't support additional fp instructions (ZFA) without supporting float (F)");
+    assert (P.F_SUPPORTED | !P.ZFBFMIN_SUPPORTED) else $fatal(1, "Can't support BF16 (Zfbfmin) without supporting float (F)");
 
     assert (P.I_SUPPORTED ^ P.E_SUPPORTED) else $fatal(1, "Exactly one of I and E must be supported");
 
@@ -47,5 +48,12 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.XLEN == 64) | ((P.SMMPM_SUPPORTED == 0) & (P.SSNPM_SUPPORTED == 0) & (P.SMNPM_SUPPORTED == 0))) else $fatal(1, "Pointer masking requires XLEN = 64");
     assert ((P.SSNPM_SUPPORTED == 0) | (P.S_SUPPORTED == 1)) else $fatal(1, "Ssnpm requires S_SUPPORTED");
     assert ((P.SMNPM_SUPPORTED == 0) | (P.U_SUPPORTED == 1)) else $fatal(1, "Smnpm requires U_SUPPORTED");
+    assert ((P.ZCMOP_SUPPORTED == 0) | (P.ZCA_SUPPORTED == 1)) else $fatal(1, "ZCMOP requires ZCA");
+    assert ((P.ZABHA_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZABHA requires ZAAMO");
+    assert ((P.ZAMA16B_SUPPORTED == 0) | (P.ZICCLSM_SUPPORTED == 1)) else $fatal(1, "ZAMA16B requires ZICCLSM to handle the misaligned access in hardware");
+    assert ((P.SMSTATEEN_SUPPORTED == 0) | ((P.ZICSR_SUPPORTED == 1) & (P.U_SUPPORTED == 1))) else $fatal(1, "SMSTATEEN requires ZICSR and U");
+    assert ((P.SSSTATEEN_SUPPORTED == 0) | ((P.SMSTATEEN_SUPPORTED == 1) & (P.S_SUPPORTED == 1))) else $fatal(1, "SSSTATEEN requires SMSTATEEN and S");
+    assert ((P.ZACAS_SUPPORTED == 0) | (P.ZAAMO_SUPPORTED == 1)) else $fatal(1, "ZACAS requires ZAAMO");
+    assert ((P.ZAWRS_SUPPORTED == 0) | (P.ZALRSC_SUPPORTED == 1)) else $fatal(1, "ZAWRS requires ZALRSC");
   end
 endmodule

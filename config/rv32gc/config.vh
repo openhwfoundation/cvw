@@ -28,7 +28,12 @@ localparam logic E_SUPPORTED = 0;
 localparam logic ZIFENCEI_SUPPORTED = 1; // Instruction-Fetch fence
 localparam logic ZICSR_SUPPORTED    = 1; // CSR Instructions
 localparam logic ZICCLSM_SUPPORTED  = 0; // Misaligned loads/stores
+localparam logic ZAMA16B_SUPPORTED  = 0; // Misaligned loads/stores/AMOs within a 16 byte granule are atomic
 localparam logic ZICOND_SUPPORTED   = 1; // Integer conditional operations
+localparam logic ZCMT_SUPPORTED = 0; // Table jump; jvt CSR
+localparam logic ZFINX_SUPPORTED = 0; // Floating point in x registers; fcsr CSR
+localparam logic ZIMOP_SUPPORTED    = 1; // May-be-operations
+localparam logic ZCMOP_SUPPORTED    = 1; // Compressed may-be-operations
 
 // Multiplication & division extensions
 // M implies (and in the configuration file requires) Zmmul
@@ -39,6 +44,9 @@ localparam logic ZMMUL_SUPPORTED = 1;
 // A extension is Zaamo + Zalrsc
 localparam logic ZAAMO_SUPPORTED  = 1;
 localparam logic ZALRSC_SUPPORTED = 1;
+localparam logic ZABHA_SUPPORTED  = 1; // Byte and halfword AMOs
+localparam logic ZACAS_SUPPORTED  = 1; // Compare-and-swap AMOs
+localparam logic ZAWRS_SUPPORTED  = 0; // Wait on reservation set
 
 // Bit manipulation extensions
 // B extension is Zba + Zbb + Zbs
@@ -70,6 +78,7 @@ localparam logic D_SUPPORTED   = 1;
 localparam logic Q_SUPPORTED   = 0;
 localparam logic ZFH_SUPPORTED = 1;
 localparam logic ZFA_SUPPORTED = 1;
+localparam logic ZFBFMIN_SUPPORTED = 1; // BF16 converts, requires F
 
 // privilege modes
 localparam logic S_SUPPORTED = 1; // Supervisor mode
@@ -77,6 +86,14 @@ localparam logic U_SUPPORTED = 1; // User mode
 
 // Supervisor level extensions
 localparam logic SSTC_SUPPORTED = 1; // Supervisor-mode timer interrupts
+localparam logic SMSTATEEN_SUPPORTED = 1; // Machine-level state enable registers
+localparam logic SSSTATEEN_SUPPORTED = 1; // Supervisor-level state enable registers
+localparam logic SMP1P13_SUPPORTED = 0; // Privileged Spec 1.13 state controlled by mstateen0.P1P13
+localparam logic SMCTR_SUPPORTED = 0; // Control transfer records
+localparam logic SSCSRIND_SUPPORTED = 0; // Indirect CSR access (siselect/sireg*)
+localparam logic SSAIA_SUPPORTED = 0; // Advanced Interrupt Architecture
+localparam logic SDTRIG_SUPPORTED = 0; // Debug triggers (scontext)
+localparam logic SSQOSID_SUPPORTED = 0; // Quality of Service identifiers (srmcfg)
 
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 1;
@@ -113,6 +130,9 @@ localparam logic BIGENDIAN_SUPPORTED = 1;
 // TLB configuration.  Entries should be a power of 2
 localparam ITLB_ENTRIES = 32'd32;
 localparam DTLB_ENTRIES = 32'd32;
+// 1: sfence.vma and sinval.vma invalidate only the TLB entries that rs1 and rs2 name.
+// 0: they also invalidate entries for other addresses and ASIDs, which is legal and saves hardware.
+localparam logic TLB_EXACT_FENCE_INVAL = 1;
 
 // Cache configuration.  Sizes should be a power of two
 // typical configuration 4 ways, 4096 bytes per way, 256 bit or more lines
@@ -139,7 +159,9 @@ localparam PMP_G = 32'd4; // 64 bytes for 512-bit cache line
 localparam logic [63:0] RESET_VECTOR = 64'h80000000;
 
 // WFI Timeout Wait
-localparam WFI_TIMEOUT_BIT = 32'd16;
+localparam WFI_TIMEOUT_BIT = 32'd14;
+localparam WRSNTO_TIMEOUT_BIT = 32'd13; // Zawrs wrs.nto wait
+localparam WRSSTO_TIMEOUT_BIT = 32'd12; // Zawrs wrs.sto wait
 
 // Peripheral Physical Addresses
 // Peripheral memory space extends from BASE to BASE+RANGE
@@ -221,6 +243,9 @@ localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
 localparam RAS_SIZE = 32'd16;
 localparam INSTR_CLASS_PRED = 1;
+
+// FMA normalization: 1 = leading zero anticipator in parallel with the adder, 0 = leading zero counter on the sum
+localparam logic FMA_LZA = 1;
 
 // FPU division architecture
 localparam RADIX = 32'd4;

@@ -105,6 +105,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [11:0]             CSRAdrM;
   logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM;
   logic                    InsufficientCSRPrivilegeM;
+  logic [63:0]             MSTATEEN0_REGW;
+  logic [3:1]              MSTATEENSE_REGW;
+  logic                    SE0AccessM, ENVCFGAccessM;
+  logic [3:1]              SE123AccessM;
   logic                    IllegalCSRMWriteReadonlyM;
   logic [P.XLEN-1:0]       CSRReadVal2M;
   logic [11:0]             MIP_REGW_writeable;
@@ -232,7 +236,14 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .MEDELEG_REGW, .MIDELEG_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .MIP_REGW, .MIE_REGW, .WriteMSTATUSM, .WriteMSTATUSHM,
     .IllegalCSRMAccessM, .IllegalCSRMWriteReadonlyM,
-    .MENVCFG_REGW, .MSECCFG_REGW);
+    .MENVCFG_REGW, .MSECCFG_REGW, .MSTATEEN0_REGW, .MSTATEENSE_REGW);
+
+  // Smstateen: mstateen0 controls access from less-privileged modes to the state named by each bit,
+  // but never restricts machine mode itself.  Without Smstateen the state is accessible as its own
+  // extension defines.
+  assign SE0AccessM    = ~P.SMSTATEEN_SUPPORTED | (PrivilegeModeW == P.M_MODE) | MSTATEEN0_REGW[63];
+  assign ENVCFGAccessM = ~P.SMSTATEEN_SUPPORTED | (PrivilegeModeW == P.M_MODE) | MSTATEEN0_REGW[62];
+  assign SE123AccessM  = {3{~P.SMSTATEEN_SUPPORTED | (PrivilegeModeW == P.M_MODE)}} | MSTATEENSE_REGW; // mstateen1-3 SE1-SE3 gate sstateen1-3
 
   if (P.S_SUPPORTED) begin : csrs
     logic STCE;
@@ -245,7 +256,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
       .SCOUNTEREN_REGW,
       .SATP_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MTIME_CLINT, .STCE,
-      .WriteSSTATUSM, .IllegalCSRSAccessM, .STimerInt, .SENVCFG_REGW);
+      .WriteSSTATUSM, .IllegalCSRSAccessM, .STimerInt, .SENVCFG_REGW,
+      .SE0AccessM, .SE123AccessM, .ENVCFGAccessM, .SSTATEEN0_MASK(MSTATEEN0_REGW[2:0]));
   end else begin
     assign WriteSSTATUSM = 1'b0;
     assign CSRSReadValM = '0;

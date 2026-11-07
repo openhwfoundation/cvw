@@ -37,7 +37,9 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   output logic                     WriteMSTATUSM, WriteMSTATUSHM,
   output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
   output logic [63:0]              MENVCFG_REGW,
-  output logic [63:0]              MSECCFG_REGW
+  output logic [63:0]              MSECCFG_REGW,
+  output logic [63:0]              MSTATEEN0_REGW,
+  output logic [3:1]               MSTATEENSE_REGW  // bit 63 (SE1-SE3) of mstateen1-3
 );
 
   logic [P.PA_BITS-3:0]            PMPADDR_ARRAY_PREGRAIN_REGW[P.PMP_ENTRIES-1:0];
@@ -65,6 +67,14 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   localparam MENVCFG       = 12'h30A;
   localparam MSTATUSH      = 12'h310;
   localparam MENVCFGH      = 12'h31A;
+  localparam MSTATEEN0     = 12'h30C;
+  localparam MSTATEEN1     = 12'h30D;
+  localparam MSTATEEN2     = 12'h30E;
+  localparam MSTATEEN3     = 12'h30F;
+  localparam MSTATEEN0H    = 12'h31C;
+  localparam MSTATEEN1H    = 12'h31D;
+  localparam MSTATEEN2H    = 12'h31E;
+  localparam MSTATEEN3H    = 12'h31F;
   localparam MCOUNTINHIBIT = 12'h320;
   localparam MSCRATCH      = 12'h340;
   localparam MEPC          = 12'h341;
@@ -220,35 +230,38 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     assign MENVCFG_REGW = '0;
     assign MENVCFGH_REGW = '0;
   end
+
+  // MSECCFG register
+  // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh.
+  // It exists only if an extension defining one of its fields is implemented (P.MSECCFG_SUPPORTED);
+  // otherwise mseccfg and mseccfgh are illegal.  Only PMM (Smmpm) is implemented; uncomment the other
+  // terms below as each extension is added.
+  // Note that the Smepmp fields also need sticky/locking behavior: MML and MMWP cannot be
+  // cleared once set, and RLB cannot be set once any pmpcfg entry has its L bit set, both
+  // until a PMP reset.
   if (P.MSECCFG_SUPPORTED) begin:mseccfg
-    // MSECCFG register
-    // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh. Uncomment the terms below as each extension is added.
-    // Note that the Smepmp fields also need sticky/locking behavior: MML and MMWP cannot be
-    // cleared once set, and RLB cannot be set once any pmpcfg entry has its L bit set, both
-    // until a PMP reset.
     logic        WriteMSECCFGM;
     logic [63:0] MSECCFG_WriteValM;
     logic [63:0] MSECCFG_PreWriteValM;
-    logic [1:0]  LegalizedMSECCFGPMM;
+    logic [1:0]  LegalizedPMM;
 
     assign WriteMSECCFGM = CSRMWriteM & (CSRAdrM == MSECCFG);
     // PMM is a WARL field: 00 = disabled, 10 = PMLEN 7, 11 = PMLEN 16, and 01 is reserved.
-    // Smmpm requires the largest supported address to fit in XLEN-PMLEN bits, so PMLEN 16 is
-    // unavailable with Sv57 or PA_BITS > 48.  Illegal writes keep the old value, as menvcfg.CBIE does.
-    assign LegalizedMSECCFGPMM = ((MSECCFG_PreWriteValM[33:32] == 2'b01) |                 // reserved encoding
-                          (MSECCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ?  // PMLEN 16 too wide
+    // PMLEN 16 is available only in PMLEN16_SUPPORTED configurations.  Illegal writes keep the old value, as menvcfg.CBIE does.
+    assign LegalizedPMM = ((MSECCFG_PreWriteValM[33:32] == 2'b01) |                         // reserved encoding
+                           (MSECCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // PMLEN 16 unsupported
                           MSECCFG_REGW[33:32] : MSECCFG_PreWriteValM[33:32];
     assign MSECCFG_WriteValM = {
       30'b0,                                                       // 63:34 WPRI
-      LegalizedMSECCFGPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}},        // 33:32 PMM (Smmpm); read-only 0 on RV32
+      LegalizedPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}},       // 33:32 PMM (Smmpm); read-only 0 on RV32
       21'b0,                                                       // 31:11 WPRI
-      1'b0,  // MSECCFG_PreWriteValM[10] & P.ZICFILP_SUPPORTED,   //    10 MLPE (Zicfilp)
-      1'b0,  // MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)
-      1'b0,  // MSECCFG_PreWriteValM[8]  & P.ZKR_SUPPORTED & P.U_SUPPORTED, // 8 USEED (Zkr)
-      5'b0,                                                       //   7:3 WPRI
-      1'b0,  // MSECCFG_PreWriteValM[2]  & P.SMEPMP_SUPPORTED,    //     2 RLB  (Smepmp)
-      1'b0,  // MSECCFG_PreWriteValM[1]  & P.SMEPMP_SUPPORTED,    //     1 MMWP (Smepmp)
-      1'b0   // MSECCFG_PreWriteValM[0]  & P.SMEPMP_SUPPORTED     //     0 MML  (Smepmp)
+       1'b0,  // MSECCFG_PreWriteValM[10] & P.ZICFILP_SUPPORTED,   //    10 MLPE (Zicfilp)
+       1'b0,  // MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)
+       1'b0,  // MSECCFG_PreWriteValM[8]  & P.ZKR_SUPPORTED & P.U_SUPPORTED, // 8 USEED (Zkr)
+       5'b0,                                                       //   7:3 WPRI
+       1'b0,  // MSECCFG_PreWriteValM[2]  & P.SMEPMP_SUPPORTED,    //     2 RLB  (Smepmp)
+       1'b0,  // MSECCFG_PreWriteValM[1]  & P.SMEPMP_SUPPORTED,    //     1 MMWP (Smepmp)
+       1'b0   // MSECCFG_PreWriteValM[0]  & P.SMEPMP_SUPPORTED     //     0 MML  (Smepmp)
     };
     if (P.XLEN == 64) begin
       assign MSECCFG_PreWriteValM = CSRWriteValM;
@@ -262,6 +275,53 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     end
   end else begin
     assign MSECCFG_REGW = '0;
+  end
+
+  // MSTATEEN0 register
+  // Each bit controls access from less-privileged modes to the state named by the bit; a bit is
+  // read-only zero when Wally does not implement that state.  Bit 63 of each mstateen controls
+  // access to the matching sstateen.  mstateen1-3 implement only bit 63 (SE1-SE3): sstateen1-3 hold
+  // no state, so it is the only bit of mstateen1-3 with anything to control.
+  if (P.SMSTATEEN_SUPPORTED) begin : mstateen // stateen registers only exist if there is a lower privilege to control
+    logic WriteMSTATEEN0M;
+    logic [63:0] MSTATEEN0_PreWriteValM, MSTATEEN0_WriteValM;
+    assign WriteMSTATEEN0M = CSRMWriteM & (CSRAdrM == MSTATEEN0);
+    // MSTATEEN0 is always 64 bits even for RV32
+    assign MSTATEEN0_WriteValM = {
+      MSTATEEN0_PreWriteValM[63] & P.SSSTATEEN_SUPPORTED, // SE0: access to sstateen0
+      MSTATEEN0_PreWriteValM[62],                        // ENVCFG: access to senvcfg; senvcfg always exists because Wally is Sm1p12 compatible
+      1'b0,                                              // 61: reserved
+      MSTATEEN0_PreWriteValM[60] & P.SSCSRIND_SUPPORTED, // CSRIND: access to siselect and sireg*
+      MSTATEEN0_PreWriteValM[59] & P.SSAIA_SUPPORTED,    // AIA: access to other Ssaia state
+      MSTATEEN0_PreWriteValM[58] & P.SSAIA_SUPPORTED,    // IMSIC: access to stopei and other IMSIC state
+      MSTATEEN0_PreWriteValM[57] & P.SDTRIG_SUPPORTED,   // CONTEXT: access to scontext
+      MSTATEEN0_PreWriteValM[56] & P.SMP1P13_SUPPORTED,  // P1P13: access to hedelegh
+      MSTATEEN0_PreWriteValM[55] & P.SSQOSID_SUPPORTED,  // SRMCFG: access to srmcfg
+      MSTATEEN0_PreWriteValM[54] & P.SMCTR_SUPPORTED,    // CTR: access to control transfer records
+      51'b0,                                             // 53:3 reserved
+      MSTATEEN0_PreWriteValM[2] & P.ZCMT_SUPPORTED,      // JVT: access to jvt
+      MSTATEEN0_PreWriteValM[1] & P.ZFINX_SUPPORTED & ~MISA_26[5], // FCSR: access to fcsr when floating point uses x registers; read-only zero without Zfinx to control, and whenever misa.F = 1
+      1'b0                                               // C: Wally has no custom state
+    };
+    if (P.XLEN == 64) begin
+      assign MSTATEEN0_PreWriteValM = CSRWriteValM;
+      flopenr #(P.XLEN) MSTATEEN0reg(clk, reset, WriteMSTATEEN0M, MSTATEEN0_WriteValM, MSTATEEN0_REGW);
+    end else begin // RV32 has high and low halves
+      logic WriteMSTATEEN0HM;
+      assign MSTATEEN0_PreWriteValM = {CSRWriteValM, CSRWriteValM};
+      assign WriteMSTATEEN0HM = CSRMWriteM & (CSRAdrM == MSTATEEN0H) & (P.XLEN==32);
+      flopenr #(P.XLEN) MSTATEEN0reg(clk, reset, WriteMSTATEEN0M, MSTATEEN0_WriteValM[31:0], MSTATEEN0_REGW[31:0]);
+      flopenr #(P.XLEN) MSTATEEN0Hreg(clk, reset, WriteMSTATEEN0HM, MSTATEEN0_WriteValM[63:32], MSTATEEN0_REGW[63:32]);
+    end
+    // SE1-SE3: bit 63 of mstateen1-3, which is bit 31 of mstateen1h-3h on RV32
+    for (i = 1; i < 4; i++) begin : mstateense
+      logic WriteMSTATEENSEM;
+      assign WriteMSTATEENSEM = CSRMWriteM & (CSRAdrM == (P.XLEN == 64 ? MSTATEEN0 : MSTATEEN0H) + 12'(i));
+      flopenr #(1) MSTATEENSEreg(clk, reset, WriteMSTATEENSEM, CSRWriteValM[P.XLEN-1] & P.SSSTATEEN_SUPPORTED, MSTATEENSE_REGW[i]);
+    end
+  end else begin
+    assign MSTATEEN0_REGW = '0;
+    assign MSTATEENSE_REGW = '0;
   end
 
   // Grain alignment for PMPADDR read values.
@@ -322,6 +382,18 @@ module csrm import cvw::*; #(parameter cvw_t P) (
       MSECCFG:       if (P.MSECCFG_SUPPORTED) CSRMReadValM = MSECCFG_REGW[P.XLEN-1:0];
                      else IllegalCSRMAccessM = 1'b1;
       MSECCFGH:      if (P.MSECCFG_SUPPORTED & P.XLEN==32) CSRMReadValM = MSECCFG_REGW[63:32];
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN0:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = MSTATEEN0_REGW[P.XLEN-1:0];
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN1,
+      MSTATEEN2,
+      MSTATEEN3:     if (P.SMSTATEEN_SUPPORTED) CSRMReadValM = {MSTATEENSE_REGW[CSRAdrM[1:0]] & (P.XLEN == 64), {(P.XLEN-1){1'b0}}}; // only SE1-SE3 (bit 63) is writable
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN0H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = MSTATEEN0_REGW[63:32];
+                     else IllegalCSRMAccessM = 1'b1;
+      MSTATEEN1H,
+      MSTATEEN2H,
+      MSTATEEN3H:    if (P.SMSTATEEN_SUPPORTED & P.XLEN==32) CSRMReadValM = {MSTATEENSE_REGW[CSRAdrM[1:0]], {(P.XLEN-1){1'b0}}}; // only SE1-SE3 (bit 63) is writable
                      else IllegalCSRMAccessM = 1'b1;
       default:       IllegalCSRMAccessM = 1'b1;
     endcase
