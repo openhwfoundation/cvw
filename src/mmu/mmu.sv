@@ -53,8 +53,8 @@ module mmu import cvw::*; #(parameter cvw_t P,
   // PMA checker signals
   input  logic [3:0]           CMOpM,                                                     // Cache management instructions
   input  logic                 AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
-  input var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
-  input var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],                  // PMP addresses
+  input  var logic [7:0]        PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],                  // PMP addresses
   output logic                 PointerMaskApplicable, PMLen16Sel                            // Pointer Masking signals
 );
 
@@ -132,7 +132,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
   // An untranslated address is a physical address, so bits XLEN-1:PA_BITS must be zero.  Otherwise it is outside
   // the physical address space rather than an alias of a lower address, and the PMA checker raises an access fault.
   // Translated addresses come from the PPN and always fit; RV32 addresses are narrower than PA_BITS.
-  // If RV64, pointer masking may be applicable. If PMLEN16_SUPPORTED, then MaskedVAdr has already been optionally sign extended
+  // If RV64, pointer masking may be applicable. If PMLEN16_SUPPORTED, then MaskedVAdr has already been zero extended
   // If !PMLEN16_SUPPORTED, validity checks must be turned off if the mask is applicable.
   if (P.XLEN > P.PA_BITS) begin
     if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED & ~IMMU) assign PAOutOfRange = PointerMaskApplicable ? ~Translate & (|VAdr[56:P.PA_BITS]) : ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);

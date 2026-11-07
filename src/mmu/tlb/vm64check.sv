@@ -46,8 +46,8 @@ module vm64check import cvw::*;  #(parameter cvw_t P, ITLB = 0) (
 
     if (ITLB == 1) begin : itlb // Instruction tlb isn't subject to pointer masking
       assign UpperBitsUnequal =
-          SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56 ) ) :  // SV39 Mode
-          (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 ))) :                             // SV48 Mode
+          SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56) | (all1_46_38 & all1_55_47 & all1_63_56)) :  // SV39 Mode
+          (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56))) :                             // SV48 Mode
                       (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56))));
     end else begin : dtlb // Data TLB pointer masking can turn off validity checks
       if (P.PMLEN16_SUPPORTED) begin
