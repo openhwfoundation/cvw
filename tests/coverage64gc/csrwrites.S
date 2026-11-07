@@ -16,7 +16,8 @@
 // Checks: stimecmp, satp, stvec and sscratch read back what was written; menvcfg and senvcfg
 // legalize an all-ones-but-FIOM write to the fields rv64gc implements (STCE, PBMTE, ADUE, CBZE,
 // CBCFE, CBIE); each FIOM set and clear reads back (failure indices 1-10).  Writing the read-only
-// time CSR is an illegal instruction, and each ecall reports the privilege mode the previous one
+// time CSR is an illegal instruction, as are S-mode accesses to senvcfg and sstateen0 while mstateen0 blocks
+// them, and each ecall reports the privilege mode the previous one
 // switched to (8 = U, 9 = S, 11 = M), checked in a trap log (indices 0x100-0x1FF).  FIOM itself has
 // no visible effect on Wally because its fences do nothing.
 
@@ -68,6 +69,22 @@ ill_time:
     CHECK_CSR menvcfg, MENVCFG_LEGAL | 1, 8
     li a0, 1
 ecall_m1:
+    ecall               # enter supervisor mode
+
+    # Smstateen: with mstateen0.ENVCFG (bit 62) and mstateen0.SE0 (bit 63) clear, as they are after reset,
+    # S mode cannot access senvcfg or sstateen0
+ill_senvcfg:
+    csrsi senvcfg, 1
+ill_sstateen0:
+    csrw sstateen0, zero
+    li a0, 3
+ecall_s0:
+    ecall               # enter machine mode
+    li t0, 1
+    slli t0, t0, 62
+    csrs mstateen0, t0  # let S mode access senvcfg
+    li a0, 1
+ecall_m0:
     ecall               # enter supervisor mode
 
     li a0, 0
@@ -181,6 +198,10 @@ expected_traps:                     # number of traps, then mcause, mepc and mtv
     .dword (2f - 1f) / 24
 1:  .dword 2, ill_time, 0xc0101073          # illegal instruction: time is read-only
     .dword 11, ecall_m1, 0                  # ecall from M
+    .dword 2, ill_senvcfg, 0x10a0e073       # illegal instruction: mstateen0.ENVCFG = 0
+    .dword 2, ill_sstateen0, 0x10c01073     # illegal instruction: mstateen0.SE0 = 0
+    .dword 9, ecall_s0, 0
+    .dword 11, ecall_m0, 0
     .dword 9, ecall_s1, 0                   # ecall from S
     .dword 8, ecall_u1, 0                   # ecall from U
     .dword 9, ecall_s2, 0

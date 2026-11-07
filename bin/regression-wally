@@ -331,6 +331,11 @@ lockstepwaivers = [
     # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
+    # Zama16b: a misaligned AMO within a 16-byte granule completes.  ImperasDV's Zam=T models that, but also makes
+    # medeleg[4] and [6] (address-misaligned) read-only zero, which Wally keeps writable because it still raises
+    # misaligned exceptions in uncached regions; without Zam the reference takes an access fault instead.
+    "Exceptions_Zaamo-00.elf", "Sv_ExceptionsZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf",
+    "Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf", "Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
