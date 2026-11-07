@@ -47,6 +47,7 @@ module postprocess import cvw::*; #(parameter cvw_t P) (
   input  logic [P.LOGCVTLEN-1:0]           CvtShiftAmt,         // how much to shift by
   input  logic                             ToInt,               // is fp->int (since it's writing to the integer register)
   input  logic                             Zfa,                 // Zfa operation (fcvtmod.w.d)
+  input  logic                             Bf16Dst,             // Zfbfmin: destination is BF16 (fcvt.bf16.s)
   input  logic [P.CVTLEN-1:0]              CvtLzcIn,            // input to the Leading Zero Counter (without msb)
   input  logic                             IntZero,             // is the integer input zero
   // final results
@@ -135,7 +136,7 @@ module postprocess import cvw::*; #(parameter cvw_t P) (
 
   // final calculations before shifting
   cvtshiftcalc #(P) cvtshiftcalc(.ToInt, .CvtCe, .CvtResSubnormUf, .Xm, .CvtLzcIn,
-      .XZero, .IntToFp, .OutFmt, .CvtResUf, .CvtShiftIn);
+      .XZero, .IntToFp, .OutFmt, .Bf16Dst, .CvtResUf, .CvtShiftIn);
 
   fmashiftcalc #(P) fmashiftcalc(.FmaSCnt, .Fmt, .NormSumExp, .FmaSe, .FmaSm,
       .FmaSZero, .FmaPreResultSubnorm, .FmaShiftAmt);
@@ -185,7 +186,7 @@ module postprocess import cvw::*; #(parameter cvw_t P) (
 
   round #(P) rounder(.OutFmt, .Frm, .FmaASticky, .Plus1, .PostProcSel, .CvtCe, .Ue,
       .Ms, .FmaMe, .FmaOp, .CvtOp, .CvtResSubnormUf, .Mf, .ToInt, .CvtResUf,
-      .DivSticky, .DivOp, .UfPlus1, .FullRe, .Rf, .Re, .Sticky, .Round, .Guard, .Me);
+      .DivSticky, .DivOp, .UfPlus1, .FullRe, .Rf, .Re, .Sticky, .Round, .Guard, .Me, .Bf16Dst);
 
   ///////////////////////////////////////////////////////////////////////////////
   // Sign calculation
@@ -211,7 +212,7 @@ module postprocess import cvw::*; #(parameter cvw_t P) (
   negateintres #(P) negateintres(.Xs, .Shifted, .Signed, .Int64, .Plus1, .CvtNegResMsbs, .CvtNegRes);
 
   specialcase #(P) specialcase(.Xs, .Xm, .Ym, .Zm, .XZero, .IntInvalid,
-      .IntZero, .Frm, .OutFmt, .XNaN, .YNaN, .ZNaN, .CvtResUf,
+      .IntZero, .Frm, .OutFmt, .Bf16Dst, .XNaN, .YNaN, .ZNaN, .CvtResUf,
       .NaNIn, .IntToFp, .Int64, .Signed, .Zfa, .CvtOp, .FmaOp, .Plus1, .Invalid, .Overflow, .InfIn, .CvtNegRes,
       .XInf, .YInf, .DivOp, .DivByZero, .FullRe, .CvtCe, .Rs, .Re, .Rf, .PostProcRes, .FCvtIntRes);
 

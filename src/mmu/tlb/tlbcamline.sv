@@ -20,7 +20,8 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
                                    parameter KEY_BITS = 20, SEGMENT_BITS = 10) (
   input  logic                   clk, reset,
   input  logic [P.VPN_BITS-1:0]  VPN,          // The requested page number to compare against the key
-  input  logic [P.ASID_BITS-1:0] SATP_ASID,
+  input  logic [P.ASID_BITS-1:0] SATP_ASID,    // ASID stored with a new entry
+  input  logic [P.ASID_BITS-1:0] CompareASID,  // ASID to match: SATP_ASID, or the sfence.vma rs2 ASID during a flush
   input  logic                   SV39Mode,
   input  logic                   SV48Mode,
   input  logic                   WriteEnable,  // Write a new entry to this line
@@ -28,7 +29,8 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
   input  logic                   PTE_NAPOT,    // entry is in NAPOT mode (N bit set and PPN[3:0] = 1000)
   input  logic [2:0]             PageTypeWriteVal,
   input  logic                   TLBFlush,     // Flush this line (set valid to 0)
-  input  logic                   TLBFlushAll,  // Flush global (G=1) entries too; when 0, G=1 entries are preserved
+  input  logic                   TLBFlushAll,  // sfence.vma rs2 = x0: flush every ASID and global (G=1) entries too
+  input  logic                   TLBFlushVA,   // sfence.vma rs1 != x0: flush only an entry whose page holds VPN
   input  logic                   TLBWrite,     // a PTE is being written into the TLB
   input  logic                   WritePTE_G,   // G bit of the PTE being written
   input  logic                   WritePTE_NAPOT, // the PTE being written is a NAPOT entry
@@ -45,10 +47,11 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
   // Split up key and query into sections for each page table level.
   logic [P.ASID_BITS-1:0] Key_ASID;
   logic [SEGMENT_BITS-1:0] Key0, Key1, Query0, Query1;
-  logic MatchASID, Match0Upper, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
+  logic MatchASID, SameASID, MatchVPN, Match0Upper, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
 
   assign Key_ASID = Key[KEY_BITS-1:KEY_BITS-P.ASID_BITS];
-  assign MatchASID = (SATP_ASID == Key_ASID) | PTE_G;
+  assign SameASID = (CompareASID == Key_ASID);
+  assign MatchASID = SameASID | PTE_G;
 
   // Calculate a match against a segment of the key based on the input vpn and the page type.
   // For example, a petapage in SV57 only cares about VPN[4], so VPN[0], VPN[1], VPN[2], and VPN[3]
@@ -88,7 +91,8 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
     assign Match4 = (Query4 == Key4) | SV39Mode | SV48Mode; // always match in SV39/SV48 mode
   end else assign Match4 = 1'b1;
 
-  assign Match = Match0 & Match1 & Match2 & Match3 & Match4 & MatchASID & Valid;
+  assign MatchVPN = Match0 & Match1 & Match2 & Match3 & Match4;
+  assign Match = MatchVPN & MatchASID & Valid;
 
   // Overlap: this line and the PTE being written cover a common address.  It ignores the VPN segments covered by
   // either page, and a global PTE overlaps lines of every ASID.  A TLB write invalidates every other overlapping
@@ -103,10 +107,12 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
   assign PageTypeRead = PageType & {3{Match}};
 
   // On a write, set the valid bit high and update the stored key.
-  // On a flush, zero the valid bit and leave the key unchanged, unless the entry is global (G=1)
-  // and the flush is ASID-specific (TLBFlushAll=0): global mappings survive an ASID-scoped sfence.vma.
+  // On a flush, zero the valid bit and leave the key unchanged.  Global mappings survive an sfence.vma with
+  // rs2 != x0 (TLBFlushAll = 0).  With exact invalidation, an sfence.vma with rs1 != x0 flushes only an entry
+  // whose page holds the address (TLBFlushVA), and one with rs2 != x0 only an entry of that ASID.
   logic ShouldFlush;
-  assign ShouldFlush = TLBFlush & (~PTE_G | TLBFlushAll);
+  if (P.TLB_EXACT_FENCE_INVAL) assign ShouldFlush = TLBFlush & (~TLBFlushVA | MatchVPN) & (TLBFlushAll | ~PTE_G & SameASID);
+  else                         assign ShouldFlush = TLBFlush & (TLBFlushAll | ~PTE_G);
   logic Invalidate;
   assign Invalidate = ShouldFlush | (TLBWrite & Overlap & ~WriteEnable);
   flopenr #(1) validbitflop(clk, reset, WriteEnable | Invalidate, ~Invalidate, Valid);

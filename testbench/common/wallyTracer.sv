@@ -60,6 +60,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [NUM_REGS-1:0]   rf_wb;
   logic [4:0]            rf_a3;
   logic                  rf_we3;
+  logic                  rf_we3p;
   logic [P.FLEN-1:0]     frf[32];
   logic [31:0]           frf_wb;
   logic [4:0]            frf_a4;
@@ -211,6 +212,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     `CONNECT_CSR_RO(MIMPID, 12'hF13, {{P.XLEN-12{1'b0}}, 12'h100}); // mimpid
     `CONNECT_CSR_RO(MHARTID, 12'hF14, testbench.dut.core.priv.priv.csr.csrm.MHARTID_REGW);
     `CONNECT_CSR_RO(MCONFIGPTR, 12'hF15, 0); //mconfigptr
+    // mseccfg exists only when an extension defining one of its fields is implemented
     if (P.MSECCFG_SUPPORTED) begin
       `CONNECT_CSR_WE(MSECCFG, 12'h747, testbench.dut.core.priv.priv.csr.csrm.MSECCFG_REGW[P.XLEN-1:0], CSRMWriteM & (CSRAdrM == 12'h747));
       if (P.XLEN == 32) begin
@@ -218,9 +220,37 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       end
     end
 
+    // Smstateen CSRs.  The bits of mstateen0 whose state Wally does not implement are read-only zero,
+    // and mstateen1-3 implement only bit 63 (SE1-SE3).  Their write enables are in generate blocks, so decode them here.
+    if (P.SMSTATEEN_SUPPORTED) begin
+      `CONNECT_CSR_WE(MSTATEEN0, 12'h30C, testbench.dut.core.priv.priv.csr.csrm.MSTATEEN0_REGW[P.XLEN-1:0], CSRMWriteM & (CSRAdrM == 12'h30C));
+      if (P.XLEN == 64) begin
+        `CONNECT_CSR_WE(MSTATEEN1, 12'h30D, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[1], 63'b0}, CSRMWriteM & (CSRAdrM == 12'h30D));
+        `CONNECT_CSR_WE(MSTATEEN2, 12'h30E, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[2], 63'b0}, CSRMWriteM & (CSRAdrM == 12'h30E));
+        `CONNECT_CSR_WE(MSTATEEN3, 12'h30F, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[3], 63'b0}, CSRMWriteM & (CSRAdrM == 12'h30F));
+      end else begin
+        `CONNECT_CSR_WE(MSTATEEN1, 12'h30D, 0, CSRMWriteM & (CSRAdrM == 12'h30D));
+        `CONNECT_CSR_WE(MSTATEEN2, 12'h30E, 0, CSRMWriteM & (CSRAdrM == 12'h30E));
+        `CONNECT_CSR_WE(MSTATEEN3, 12'h30F, 0, CSRMWriteM & (CSRAdrM == 12'h30F));
+        `CONNECT_CSR_WE(MSTATEEN0H, 12'h31C, testbench.dut.core.priv.priv.csr.csrm.MSTATEEN0_REGW[63:32], CSRMWriteM & (CSRAdrM == 12'h31C));
+        `CONNECT_CSR_WE(MSTATEEN1H, 12'h31D, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[1], 31'b0}, CSRMWriteM & (CSRAdrM == 12'h31D));
+        `CONNECT_CSR_WE(MSTATEEN2H, 12'h31E, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[2], 31'b0}, CSRMWriteM & (CSRAdrM == 12'h31E));
+        `CONNECT_CSR_WE(MSTATEEN3H, 12'h31F, {testbench.dut.core.priv.priv.csr.csrm.MSTATEENSE_REGW[3], 31'b0}, CSRMWriteM & (CSRAdrM == 12'h31F));
+      end
+    end
+
     // Supervisor Information Registers and Configuration CSRs
     if (P.S_SUPPORTED) begin
       `CONNECT_CSR(SENVCFG, 12'h10A, csrs.csrs);
+    end
+
+    // Ssstateen CSRs.  An sstateen0 bit reads as zero once the matching mstateen0 bit is cleared,
+    // so report the value software sees rather than the raw register.  sstateen1-3 are read-only zero.
+    if (P.SSSTATEEN_SUPPORTED) begin
+      `CONNECT_CSR_WE(SSTATEEN0, 12'h10C, testbench.dut.core.priv.priv.csr.csrs.csrs.SSTATEEN0_REGW & {{(P.XLEN-3){1'b0}}, testbench.dut.core.priv.priv.csr.csrm.MSTATEEN0_REGW[2:0]}, CSRSWriteM & (CSRAdrM == 12'h10C));
+      `CONNECT_CSR_WE(SSTATEEN1, 12'h10D, 0, CSRSWriteM & (CSRAdrM == 12'h10D));
+      `CONNECT_CSR_WE(SSTATEEN2, 12'h10E, 0, CSRSWriteM & (CSRAdrM == 12'h10E));
+      `CONNECT_CSR_WE(SSTATEEN3, 12'h10F, 0, CSRSWriteM & (CSRAdrM == 12'h10F));
     end
 
     // Sstc CSRs
@@ -278,18 +308,29 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     end
   end
 
-  // Integer register file
+  // Integer register file.  Zacas holds the registers as pairs, so reach into the matching half.
   assign rf[0] = 0;
-  for(genvar index = 1; index < NUM_REGS; index += 1)
-    assign rf[index] = testbench.dut.core.ieu.dp.regf.rf[index];
+  if (P.ZACAS_SUPPORTED) begin : tracerf
+    for(genvar index = 1; index < NUM_REGS; index += 1)
+      assign rf[index] = index[0] ? testbench.dut.core.ieu.dp.regf.pairedrf.rf[index/2][P.XLEN*2-1:P.XLEN]
+                                  : testbench.dut.core.ieu.dp.regf.pairedrf.rf[index/2][P.XLEN-1:0];
+  end else begin : tracerf
+    for(genvar index = 1; index < NUM_REGS; index += 1)
+      assign rf[index] = testbench.dut.core.ieu.dp.regf.simplerf.rf[index];
+  end
 
   assign rf_a3  = testbench.dut.core.ieu.dp.regf.a3;
   assign rf_we3 = testbench.dut.core.ieu.dp.regf.we3;
+  // A pair amocas writes rd and rd+1 through the same address port, so report both
+  if (P.ZACAS_SUPPORTED) assign rf_we3p = testbench.dut.core.ieu.dp.regf.we3p;
+  else                   assign rf_we3p = 1'b0;
 
   always_comb begin
     rf_wb = 0;
-    if(rf_we3)
+    if(rf_we3) begin
       rf_wb[rf_a3] = 1'b1;
+      if (rf_we3p) rf_wb[rf_a3 | 5'b1] = 1'b1; // the pair's odd register
+    end
   end
 
   // Floating-point register file

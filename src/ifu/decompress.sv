@@ -100,9 +100,11 @@ module decompress import cvw::*; #(parameter cvw_t P) (
                   else                                  LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.li with rd = 0 is a HINT, treated as nop
         5'b01011: if (rds1 == 5'b00010) begin
                     if (immCIASP[9:4] != 6'b0)          LInstrD = {1'b1, immCIASP, rds1, 3'b000, rds1, 7'b0010011};                       // c.addi16sp
-                  end else if (immCILUI[5:0] != 0)
+                  end else if (immCILUI[5:0] != 0) begin
                     if (rds1 != 5'b0)                   LInstrD = {1'b1, immCILUI, rds1, 7'b0110111};                                     // c.lui
                     else                                LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.lui with rd = 0, imm!=0 is a HINT, treated as nop
+                  end else if (P.ZCMOP_SUPPORTED & ~instr16[11] & instr16[7])
+                                                        LInstrD = {1'b1, 25'b0, 7'b0010011};                                              // c.mop.n writes no register, treated as nop
         5'b01100: if (instr16[11:10] == 2'b00) begin
                     if (P.XLEN > 32 | ~immSH[5])        LInstrD = {1'b1, 6'b000000, immSH, rds1p, 3'b101, rds1p, 7'b0010011};             // c.srli; shamt[5] must be 0 in RV32C
                   end else if (instr16[11:10] == 2'b01) begin

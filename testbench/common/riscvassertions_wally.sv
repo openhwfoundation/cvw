@@ -45,6 +45,7 @@ module riscvassertions_wally import cvw::*; #(parameter cvw_t P);
     assert ((P.ZICBOZ_SUPPORTED == 0) | (P.DTIM_SUPPORTED == 0)) else $fatal(1, "ZICBOZ incompatible with DTIM");
     assert ((P.LLEN == P.XLEN) | (P.DCACHE_SUPPORTED & P.DTIM_SUPPORTED == 0)) else $fatal(1, "LLEN > XLEN (D on RV32 or Q on RV64) requires data cache");
     assert ((P.ZICCLSM_SUPPORTED == 0) | (P.DCACHE_SUPPORTED == 1)) else $fatal(1, "ZICCLSM requires DCACHE_SUPPORTED");
+    assert ((P.ZAMA16B_SUPPORTED == 0) | (P.DCACHE_LINELENINBITS >= 128)) else $fatal(1, "ZAMA16B requires a cache line of at least 128 bits so a 16 byte granule never spans two lines");
     // The EXT_IO window is implemented by the PMA checker, which exists only with Zicsr.  It must be a naturally aligned
     // power-of-two block inside EXT_MEM covering whole lines of every enabled cache; otherwise a line fill or write-back
     // of neighboring memory would read or overwrite I/O registers.

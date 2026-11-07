@@ -81,6 +81,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic                     ENVCFG_ADUE,                              // HPTW A/D Update enable
   input  logic                     sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
   input  logic                     sfencevmaAllM,                            // sfence.vma with rs2=x0: flush all TLB entries including global
+  input  logic [P.ASID_BITS-1:0]   SFenceASIDM,                              // sfence.vma rs2 ASID
   output logic                     ITLBMissOrUpdateAF,                       // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit (masked while a walk fault is held)
   input  logic                     HPTWInstrAccessFaultF,                    // HPTW access fault while walking for the fetch (one-cycle pulse from the walker)
   input  logic                     HPTWInstrPageFaultF,                      // HPTW page fault while walking for the fetch (one-cycle pulse from the walker)
@@ -138,7 +139,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        ITLBMissOrUpdateRawF;                     // ITLB miss or A update needed, before masking by a held walk fault
   logic                        ITLBWalkFaultF;                           // The walk for the current fetch faulted (held or this cycle)
   logic                        InstrPageFaultRawF, InstrAccessFaultRawF; // Faults on the half of the fetch currently being translated
-  logic                        PointerMaskApplicable, PMLen16Sel;          // Pointer Masking mmu signals hardwired to 0/not used in immu
 
   assign PCFExt = {2'b00, PCSpillF};
 
@@ -202,6 +202,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .PageTypeWriteVal(PageType),
          .TLBWrite(ITLBWriteF),
          .TLBFlush, .TLBFlushAll,
+         .TLBFlushVA(1'b0), .TLBFlushASID(SFenceASIDM), // the ITLB looks up PCF, not the sfence.vma address, so it ignores rs1
          .PhysicalAddress(PCPF),
          .TLBMiss(ITLBMissF),
          .Cacheable(CacheableF), .Idempotent(), .SelTIM(SelIROM),
@@ -210,7 +211,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
-         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLen16Sel);
+         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable(), .PMLen16Sel());
 
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 

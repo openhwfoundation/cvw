@@ -96,10 +96,12 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic              RetM, TrapM,                                    // return instruction, or trap
   output logic              sfencevmaM,                                     // sfence.vma instruction
   output logic              sfencevmaAllM,                                  // sfence.vma with rs2=x0: flush all TLB entries including global
+  output logic              sfencevmaAdrM,                                  // sfence.vma with rs1!=x0: flush only entries for the address in rs1
   input  logic              InvalidateICacheM,                              // fence.i instruction
   output logic              BigEndianM,                                     // Use big endian in current privilege mode
   // Fault outputs
-  output logic              WaitM                                           // wfi is waiting for an interrupt: stall the pipeline
+  input  logic              ReservationValidW,                              // a reservation is held; Zawrs wrs only waits while this is set
+  output logic              WaitM                                           // wfi or wrs is waiting: stall the pipeline
 );
 
   logic [4:0]               CauseM;                                         // trap cause
@@ -123,7 +125,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     BreakpointFaultM, EcallFaultM;                  // breakpoint and Ecall traps; they do not retire
 
   logic                     IntPendingM;                                    // a locally enabled interrupt is pending
-  logic                     WaitedM;                                        // wfi in M has waited
+  logic                     WaitedM;                                        // wfi or wrs in M has waited
 
   // track the current privilege level
   privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM, .DelegateM,
@@ -132,8 +134,8 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   // decode privileged instructions
   privdec #(P) pmd(.clk, .reset, .StallM, .InstrM(InstrM[31:7]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM,
-    .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .IntPendingM, .IllegalInstrFaultM,
-    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .WaitM, .WaitedM, .sfencevmaM, .sfencevmaAllM);
+    .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .ReservationValidW, .IntPendingM, .IllegalInstrFaultM,
+    .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .WaitM, .WaitedM, .sfencevmaM, .sfencevmaAllM, .sfencevmaAdrM);
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,

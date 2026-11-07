@@ -35,8 +35,9 @@ module extend import cvw::*; #(parameter cvw_t P) (
       3'b011:   ImmExtD = {{(P.XLEN-20){InstrD[31]}}, InstrD[19:12], InstrD[20], InstrD[30:21], 1'b0};
       // U-type (lui, auipc)
       3'b100:   ImmExtD = {{(P.XLEN-31){InstrD[31]}}, InstrD[30:12], 12'b0};
-      // Atomics (sc, AMOs) and CMOs: zero offset
-      3'b101:   if (P.ZALRSC_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED) ImmExtD = '0; // exclusion-tag: imm-atomic-case
+      // Zero immediate: atomics (sc, AMOs) and CMOs, the value Zimop MOPs write to rd, and privileged
+      // instructions, so that IEUAdr carries the sfence.vma address in rs1
+      3'b101:   if (P.ZALRSC_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZICBOM_SUPPORTED | P.ZICBOZ_SUPPORTED | P.ZIMOP_SUPPORTED | P.ZICSR_SUPPORTED) ImmExtD = '0; // exclusion-tag: imm-atomic-case
                 else ImmExtD = undefined; // exclusion-tag: imm-atomic-undefined
       default:  ImmExtD = undefined; // undefined
     endcase

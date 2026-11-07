@@ -20,7 +20,6 @@ localparam SVMODE_BITS = (XLEN==32 ? 32'd1  : 32'd4);
 localparam ASID_BASE   = (XLEN==32 ? 32'd22 : 32'd44);
 localparam ASID_BITS   = (XLEN==32 ? 32'd9  : 32'd16);
 
-
 // constants to check SATP_MODE against
 // defined in Table 4.3 of the privileged spec
 localparam NO_TRANSLATE = 4'd0;
@@ -38,7 +37,8 @@ localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORT
 localparam logic ZPM_SUPPORTED = (SMMPM_SUPPORTED | SSNPM_SUPPORTED | SMNPM_SUPPORTED);
 // mseccfg/mseccfgh exist only when an extension defining one of their fields is implemented
 // (Smepmp, Zkr, Zicfilp, Smmpm); otherwise accesses raise illegal instruction.
-localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED | SMMPM_SUPPORTED
+// Smmpm is the only one Wally supports; OR in the others as they are added.
+localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // | SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED
 
 // Configure MISA based on supported extensions
 localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,
@@ -71,6 +71,7 @@ localparam S_FMT = 2'd0;
 localparam H_LEN = 32'd16;
 localparam H_NE = 32'd5;
 localparam H_NF = 32'd10;
+localparam BF16_NF = 32'd7;   // BF16 shares single's exponent and bias, so only its fraction width is needed
 localparam H_BIAS = 32'd15;
 localparam H_FMT = 2'd2;
 
@@ -122,7 +123,15 @@ localparam INTDIVb        = INTFPDUR*RK - LOGR;
 // largest length in IEU/FPU
 localparam BASECVTLEN = `max(XLEN, NF); // convert length excluding Zfa fcvtmod.w.d
 localparam CVTLEN = (ZFA_SUPPORTED & D_SUPPORTED) ? `max(BASECVTLEN, 32'd84) : BASECVTLEN; // fcvtmod.w.d needs at least 32+52 because a double with 52 fractional bits might be into upper bits of 32 bit word
-localparam LLEN = `max($unsigned(FLEN), $unsigned(XLEN));
+// The amocas pair forms (amocas.d on RV32, amocas.q on RV64) read and write 2*XLEN bits, so they
+// need the same wide load/store path that quad floats use
+localparam CASLEN = ZACAS_SUPPORTED ? XLEN*2 : XLEN;
+localparam LLEN = `max(`max($unsigned(FLEN), $unsigned(XLEN)), $unsigned(CASLEN));
+
+// One counter serves wfi, wrs.nto, and wrs.sto, so it must reach the largest threshold in use
+localparam WAIT_TIMEOUT_BIT = ZAWRS_SUPPORTED ?
+                              `max(WFI_TIMEOUT_BIT, `max(WRSNTO_TIMEOUT_BIT, WRSSTO_TIMEOUT_BIT)) :
+                              WFI_TIMEOUT_BIT;
 localparam LOGCVTLEN = $unsigned($clog2(CVTLEN+1));
 
 // size of FMA output in U(NF+4).(3NF+2) format

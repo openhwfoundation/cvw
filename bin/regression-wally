@@ -119,6 +119,8 @@ derivconfigtests = [
         ["tlb16_rv32gc", "rv32gc", ["priv/Sv"]],
         ["tlb2_rv64gc", "rv64gc", ["priv/Sv"]],
         ["tlb16_rv64gc", "rv64gc", ["priv/Sv"]],
+        ["tlbinexact_rv32gc", "rv32gc", ["priv/Sv"]],
+        ["tlbinexact_rv64gc", "rv64gc", ["priv/Sv"]],
         *[[f"way_{w}_rv32gc", "rv32gc", ["rv32i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"way_{w}_rv64gc", "rv64gc", ["rv64i/I"]] for w in ["1_4096_512", "2_4096_512", "8_4096_512", "4_2048_512", "4_4096_256"]],
         *[[f"ram_{r}_rv64gc", "rv64gc", ["rv64i/I"]] for r in ["0_0", "1_0", "1_1", "2_0", "2_1"]],
@@ -285,6 +287,18 @@ lockstepwaivers = [
     "Exceptions_ZicboSm-00.elf",
     "Exceptions_ZicboU-00.elf",
 
+    # Zama16b: Wally performs a misaligned AMO that stays within a naturally aligned 16-byte granule and
+    # faults one that crosses it.  ImperasDV has no Zama16b parameter; its only control, Zam, either faults
+    # every misaligned AMO (Zam=F, the default) or performs every one, including those that cross a
+    # granule (Zam=T), so neither setting matches the tests that perform misaligned AMOs.
+    "zama16b.elf",
+    "lsu.elf",
+    "Zama16b-00.elf",
+    "ExceptionsZaamo-00.elf",
+    "ExceptionsSvZaamo_sv39_exceptions_Zaamo_Smode-00.elf",
+    "ExceptionsSvZaamo_sv39_exceptions_Zaamo_Umode-00.elf",
+    "ExceptionsSvZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf",
+
     # Wally implements writable mhpmevent bits; ImperasDV models them as read-only zero and offers no
     # parameter to change that, so every test that walks or writes mhpmevent disagrees.  The tests
     # themselves pass without lockstep.
@@ -323,13 +337,13 @@ lockstepwaivers = [
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
 
-    # Stock ImperasDV keeps masking when mstatus.MXR=1, which is wrong; cvw matches Sail.
+    # Stock ImperasDV keeps pointer masking when mstatus.MXR=1, which is wrong; cvw matches Sail.  An ImperasDV
+    # engineering build fixes it; remove these waivers when cvw moves to an ImperasDV release with the fix.
     "Smnpm_SSm-00.elf", "Ssnpm_Sm-00.elf",
     "Smnpm_S_bare_pmm10_edgecases-00.elf", "Smnpm_S_sv39_pmm10_edgecases-00.elf",
     "Smnpm_S_sv48_pmm10_edgecases-00.elf", "Smnpm_S_sv57_pmm10_edgecases-00.elf",
     "Ssnpm_bare_pmm10_edgecases-00.elf", "Ssnpm_sv39_pmm10_edgecases-00.elf",
     "Ssnpm_sv48_pmm10_edgecases-00.elf", "Ssnpm_sv57_pmm10_edgecases-00.elf",
-
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
@@ -908,10 +922,11 @@ def selectTests(args, sims, coverStr):
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
         buildTests(periph=False, deriv=True, testfloat=True)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
-        for config in testfloatconfigs + testfloatdivconfigs:
-            tests = ["div", "sqrt", "cvtint", "cvtfp"]
-            if config in testfloatconfigs:
-                tests.extend(["add", "sub", "mul", "fma", "cmp"])
+        fmalzcconfigs = ["fdqh_lzc_rv64gc", "fdqh_lzc_rv32gc"]  # FMA_LZA = 0: only the operations that use the FMA
+        for config in testfloatconfigs + testfloatdivconfigs + fmalzcconfigs:
+            tests = ["div", "sqrt", "cvtint", "cvtfp"] if config not in fmalzcconfigs else []
+            if config in testfloatconfigs or config in fmalzcconfigs:
+                tests.extend(["add", "sub", "mul", "fma"] + ([] if config in fmalzcconfigs else ["cmp"]))
             if "f_" in config:
                 tests.remove("cvtfp")
             for test in tests:

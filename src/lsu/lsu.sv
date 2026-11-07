@@ -22,30 +22,35 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic                     CommittedF,                            // IFU fetch in flight: the walker holds a fault until the trap
   output logic                     LSUStallM,                             // LSU stalls pipeline during a multicycle operation
   // connected to cpu (controls)
-  input  logic [1:0]               MemRWE,                                // Read/Write control
-  input  logic [1:0]               MemRWM,                                // Read/Write control
-  input  logic [2:0]               Funct3M,                               // Size of memory operation
-  input  logic [6:0]               Funct7M,                               // Atomic memory operation function
-  input  logic [1:0]               AtomicM,                               // Atomic memory operation
-  input  logic                     FlushDCacheM,                          // Flush D cache to next level of memory
-  input  logic [3:0]               CMOpM,                                 // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
-  input  logic                     LSUPrefetchM,                          // Prefetch; presently unused
-  output logic                     CommittedM,                            // Delay interrupts while memory operation in flight
-  output logic                     SquashSCW,                             // Store conditional failed disable write to GPR
-  output logic                     DCacheMiss,                            // D cache miss for performance counters
-  output logic                     DCacheAccess,                          // D cache memory access for performance counters
+  input  logic [1:0]               MemRWE,                               // Read/Write control
+  input  logic [1:0]               MemRWM,                               // Read/Write control
+  input  logic [2:0]               Funct3M,                              // Size of memory operation
+  input  logic [P.XLEN*2-1:0]      ComparePairM,                         // amocas compare operand
+  input  logic [P.XLEN-1:0]        SwapHighM,                            // amocas swap value for rd+1
+  input  logic                     AMOCASPairM,                          // amocas on a register pair
+  input  logic [6:0]               Funct7M,                              // Atomic memory operation function
+  input  logic [1:0]               AtomicM,                              // Atomic memory operation
+  input  logic                     FlushDCacheM,                         // Flush D cache to next level of memory
+  input  logic [3:0]               CMOpM,                                // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
+  input  logic                     LSUPrefetchM,                         // Prefetch; presently unused
+  output logic                     CommittedM,                           // Delay interrupts while memory operation in flight
+  output logic                     SquashSCW,                            // Store conditional failed disable write to GPR
+  output logic                     ReservationValidW,                    // a reservation is held; Zawrs wrs only waits while this is set
+  output logic                     DCacheMiss,                           // D cache miss for performance counters
+  output logic                     DCacheAccess,                         // D cache memory access for performance counters
   // address and write data
   input  logic [P.XLEN-1:0]        IEUAdrE,                               // Execution stage memory address
   output logic [P.XLEN-1:0]        IEUAdrM,                               // Memory stage memory address
   input  logic [P.XLEN-1:0]        WriteDataM,                            // Write data from IEU
   output logic [P.LLEN-1:0]        ReadDataW,                             // Read data to IEU or FPU
   // cpu privilege
-  input  logic [1:0]               PrivilegeModeW,                        // Current privilege mode
-  input  logic                     BigEndianM,                            // Swap byte order to big endian
-  input  logic                     sfencevmaM,                            // Virtual memory address fence, invalidate TLB entries
-  input  logic                     sfencevmaAllM,                         // sfence.vma with rs2=x0: flush all TLB entries including global
-  output logic                     DCacheStallM,                          // D$ busy with multicycle operation
-  output logic [P.XLEN-1:0]        IEUAdrxTvalM,                          // IEUAdrM, but could be spilled onto the next cacheline or virtual page.
+  input  logic [1:0]               PrivilegeModeW,                       // Current privilege mode
+  input  logic                     BigEndianM,                           // Swap byte order to big endian
+  input  logic                     sfencevmaM,                           // Virtual memory address fence, invalidate TLB entries
+  input  logic                     sfencevmaAllM,                        // sfence.vma with rs2=x0: flush all TLB entries including global
+  input  logic                     sfencevmaAdrM,                        // sfence.vma with rs1!=x0: flush only entries for the address in rs1 (IEUAdrM)
+  output logic                     DCacheStallM,                         // D$ busy with multicycle operation
+  output logic [P.XLEN-1:0]        IEUAdrxTvalM,                         // IEUAdrM, but could be spilled onto the next cacheline or virtual page.
   // fpu
   input  logic [P.FLEN-1:0]        FWriteDataM,                           // Write data from FPU
   input  logic                     FpLoadStoreM,                          // Selects FPU as store for write data
@@ -69,21 +74,21 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic [1:0]               LSUHTRANS,                             // Bus transaction type from LSU to EBU
   output logic [P.XLEN/8-1:0]      LSUHWSTRB,                             // Bus byte write enables from LSU to EBU
   // page table walker
-  input  logic [P.XLEN-1:0]        SATP_REGW,                             // SATP (supervisor address translation and protection) CSR
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,   // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
-  input  logic [1:0]               STATUS_MPP,                            // Machine previous privilege mode
-  input  logic                     ENVCFG_PBMTE,                          // Page-based memory types enabled
-  input  logic                     ENVCFG_ADUE,                           // HPTW A/D Update enable
+  input  logic [P.XLEN-1:0]        SATP_REGW,                            // SATP (supervisor address translation and protection) CSR
+  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,  // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
+  input  logic [1:0]               STATUS_MPP,                           // Machine previous privilege mode
+  input  logic                     ENVCFG_PBMTE,                         // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,                          // HPTW A/D Update enable
   input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking config bits
-  input  logic [P.XLEN-1:0]        PCSpillF,                              // Fetch PC
-  input  logic                     ITLBMissOrUpdateAF,                    // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
-  output logic [P.XLEN-1:0]        PTE,                                   // Page table entry write to ITLB
-  output logic [2:0]               PageType,                              // Type of page table entry to write to ITLB
-  output logic                     ITLBWriteF,                            // Write PTE to ITLB
-  output logic                     SelHPTW,                               // During a HPTW walk the effective privilege mode becomes S_MODE
-  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],  // PMP configuration from privileged unit
+  input  logic [P.XLEN-1:0]        PCSpillF,                             // Fetch PC
+  input  logic                     ITLBMissOrUpdateAF,                   // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
+  output logic [P.XLEN-1:0]        PTE,                                  // Page table entry write to ITLB
+  output logic [2:0]               PageType,                             // Type of page table entry to write to ITLB
+  output logic                     ITLBWriteF,                           // Write PTE to ITLB
+  output logic                     SelHPTW,                              // During a HPTW walk the effective privilege mode becomes S_MODE
+  input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP configuration from privileged unit
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
-  output logic                     PointerMaskApplicable, PMLen16Sel      // Pointer Mask signals
+  output logic                     PointerMaskApplicable, PMLen16Sel     // Pointer masking signals
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
   localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses
@@ -96,6 +101,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic [1:0]            PreLSURWM;                              // IEU or HPTW Read/Write signal
   logic [1:0]            LSURWM;                                 // IEU or HPTW Read/Write signal gated by LR/SC
   logic [2:0]            LSUFunct3M;                             // IEU or HPTW memory operation size
+  logic                  CASMatchM;                              // amocas comparison succeeded
   logic [2:0]            LSUSizeM;                               // Memory operation size as an AHB HSIZE
   logic [6:0]            LSUFunct7M;                             // AMO function gated by HPTW
   logic [1:0]            LSUAtomicM;                             // AMO signal gated by HPTW
@@ -248,7 +254,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   // AHB defines HSIZE 100/101/110 as 128/256/512-bit transfers, but funct3 uses those codes for the
   // unsigned integer loads lbu/lhu/lwu, which are byte/halfword/word accesses.  Clear the unsigned bit
   // for integer accesses; FP accesses use funct3 as the true width (including 100 for a 128-bit flq).
-  assign LSUSizeM = LSUFpLoadStoreM ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]}; // exclusion-tag: lsu-fp-size
+  // funct3[2] is the unsigned bit for ordinary loads, so only the wide accesses use all three bits
+  assign LSUSizeM = (LSUFpLoadStoreM | (P.ZACAS_SUPPORTED & AMOCASPairM)) ? LSUFunct3M : {1'b0, LSUFunct3M[1:0]}; // exclusion-tag: lsu-fp-size
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // MMU and misalignment fault logic required if privileged unit exists
@@ -265,6 +272,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .MemRWM, .CMOpMUngated(CMOpM),
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
+      .TLBFlushVA(sfencevmaAdrM), .TLBFlushASID(WriteDataM[P.ASID_BITS-1:0]), // WriteDataM holds rs2
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),
       .InstrAccessFaultF(), .LoadAccessFaultM(LSULoadAccessFaultM),
       .StoreAmoAccessFaultM(LSUStoreAmoAccessFaultM), .InstrPageFaultF(), .LoadPageFaultM(LSULoadPageFaultM),
@@ -420,28 +428,51 @@ module lsu import cvw::*; #(parameter cvw_t P) (
 
   if (P.ZAAMO_SUPPORTED | P.ZALRSC_SUPPORTED) begin : atomic
     atomic #(P) atomic(.clk, .reset, .StallW, .ReadDataWordM(LittleEndianReadDataWordM), .BigEndianM, .IHWriteDataM, .PAdrM,
+      .CASMatchM, .AMOCASPairM,
       .LSUFunct7M, .LSUFunct3M, .LSUAtomicM, .PreLSURWM, .LSUFlushW,
-      .IMAWriteDataM, .SquashSCW, .LSURWM);
+      .IMAWriteDataM, .SquashSCW, .ReservationValidW, .LSURWM);
   end else begin : lrsc
     assign SquashSCW = 1'b0;
+    assign ReservationValidW = 1'b0;
     assign LSURWM = PreLSURWM;
     assign IMAWriteDataM = IHWriteDataM;
   end
 
+  // Zero extend both sources to LLEN; LLEN can exceed both XLEN and FLEN when an amocas pair needs
+  // a wide path.  A pair amocas compares and selects across both halves at once.
+  logic [P.LLEN-1:0] IMAFWriteDataPreM;
   if (P.F_SUPPORTED)
-    if (P.FLEN >= P.XLEN)
-      mux2 #(P.LLEN) datamux({{{P.LLEN-P.XLEN}{1'b0}}, IMAWriteDataM}, FWriteDataM, LSUFpLoadStoreM, IMAFWriteDataM);
-    else
-      mux2 #(P.LLEN) datamux(IMAWriteDataM, {{{P.XLEN-P.FLEN}{1'b0}}, FWriteDataM}, LSUFpLoadStoreM, IMAFWriteDataM);
+    mux2 #(P.LLEN) datamux({{(P.LLEN-P.XLEN){1'b0}}, IMAWriteDataM},
+                           {{(P.LLEN-P.FLEN){1'b0}}, FWriteDataM}, LSUFpLoadStoreM, IMAFWriteDataPreM);
+  else assign IMAFWriteDataPreM = {{(P.LLEN-P.XLEN){1'b0}}, IMAWriteDataM};
 
-  else assign IMAFWriteDataM = IMAWriteDataM;
+  // amocas compares only the bytes its size covers.  One comparison serves every size, including the
+  // 2*XLEN pair forms, and feeds both the AMO ALU (which produces the low half) and the pair mux
+  // below (which only has to choose the high half).
+  if (P.ZACAS_SUPPORTED) begin : caspair
+    always_comb
+      case (LSUFunct3M)
+        3'b000:  CASMatchM = ReadDataM[7:0]  == ComparePairM[7:0];   // amocas.b
+        3'b001:  CASMatchM = ReadDataM[15:0] == ComparePairM[15:0];  // amocas.h
+        3'b010:  CASMatchM = ReadDataM[31:0] == ComparePairM[31:0];  // amocas.w
+        3'b011:  CASMatchM = ReadDataM[63:0] == ComparePairM[63:0];  // amocas.d: one register on RV64, a pair on RV32
+        default: CASMatchM = ReadDataM[P.XLEN*2-1:0] == ComparePairM; // amocas.q, a pair on RV64
+      endcase
+
+    assign IMAFWriteDataM = AMOCASPairM ?
+      {{(P.LLEN-P.XLEN*2){1'b0}}, CASMatchM ? SwapHighM : ReadDataM[P.XLEN*2-1:P.XLEN], IMAWriteDataM} :
+      IMAFWriteDataPreM;
+  end else begin : caspair
+    assign CASMatchM = 1'b0;
+    assign IMAFWriteDataM = IMAFWriteDataPreM;
+  end
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Subword Accesses
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   subwordread #(P) subwordread(.ReadDataWordMuxM(LittleEndianReadDataWordM), .PAdrM(PAdrM[3:0]), .BigEndianM,
-    .FpLoadStoreM(LSUFpLoadStoreM), .Funct3M(LSUFunct3M), .ReadDataM);
+    .FpLoadStoreM(LSUFpLoadStoreM), .WideAccessM(LSUFpLoadStoreM | (P.ZACAS_SUPPORTED & AMOCASPairM)), .Funct3M(LSUFunct3M), .ReadDataM);
   subwordwrite #(P.LLEN) subwordwrite(.LSUFunct3M, .IMAFWriteDataM, .LittleEndianWriteDataM);
 
   // Compute byte masks

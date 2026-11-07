@@ -29,7 +29,7 @@ module pmpchecker import cvw::*; #(parameter cvw_t P) (
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],
   input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM,
-  input  logic [1:0]               Size,
+  input  logic [2:0]               Size,
   input  logic [3:0]               CMOpM,
   output logic                     PMPInstrAccessFaultF,
   output logic                     PMPLoadAccessFaultM,

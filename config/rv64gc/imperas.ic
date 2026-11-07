@@ -37,7 +37,15 @@
 --override cpu/Zicond=T
 --override cpu/Zfh=T
 --override cpu/Zfa=T
+--override cpu/Zfbfmin=T
 --override cpu/Zcb=T
+--override cpu/Zimop=T
+--override cpu/Zcmop=T
+--override cpu/Zabha=T
+--override cpu/Smstateen=T
+--override cpu/Ssstateen=T
+--override cpu/Zacas=T
+--override cpu/Zawrs=T
 --override cpu/Sstc=T
 
 # mcause and scause have 5 lsbs of code and 1 msb of interrupt flag
@@ -79,7 +87,7 @@
 --callcommand refRoot/cpu/setPMA -lo 0x0010020000 -hi 0x00100200FF -attributes " rw-aA- --4- " # PWM
 --callcommand refRoot/cpu/setPMA -lo 0x0080000000 -hi 0x0087FFFFFF -attributes " rwx--- 1248 " # UNCORE_RAM
 
-# PM overrides
+# Pointer masking: PMLEN 7 only (Sv57 supported)
 --override cpu/Smmpm=57
 --override cpu/Smnpm=57
 --override cpu/Ssnpm=57

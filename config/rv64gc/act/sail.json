@@ -429,8 +429,9 @@
             "amo": "AccessFault",
             "lrsc": "AccessFault"
           },
-          "atomic_support": "AMOArithmetic",
-          "misaligned_atomicity_granule_size_exp": 0,
+          "atomic_support": "AMOCASQ",
+          // Zama16b: Wally performs a misaligned AMO only within a naturally aligned 16-byte granule
+          "misaligned_atomicity_granule_size_exp": 4,
           "vector_misaligned_atomicity_granule_size_exp": 0,
           "reservability": "RsrvEventual",
           "supports_cbo_zero": true,
@@ -737,7 +738,7 @@
       "supported": true
     },
     "Zimop": {
-      "supported": false
+      "supported": true
     },
     "Zmmul": {
       "supported": true
@@ -746,10 +747,10 @@
       "supported": true
     },
     "Zabha": {
-      "supported": false
+      "supported": true
     },
     "Zacas": {
-      "supported": false
+      "supported": true
     },
     "Zalrsc": {
       "supported": true
@@ -760,10 +761,10 @@
     // cacheable main memory region is >= 4, otherwise you will get a
     // config validation error.
     "Zama16b": {
-      "supported": false
+      "supported": true
     },
     "Zawrs": {
-      "supported": false,
+      "supported": true,
       // Whether `WRS.NTO` and `WRS.STO` behave as NOPS.  If they do
       // not, see above note for `platform.max_time_to_wait`.  If
       // Zawrs is not supported, these `is_nop` fields need to be
@@ -779,7 +780,7 @@
       "supported": true
     },
     "Zfbfmin": {
-      "supported": false
+      "supported": true
     },
     "Zfh": {
       "supported": true
@@ -806,7 +807,7 @@
       "supported": true
     },
     "Zcmop": {
-      "supported": false
+      "supported": true
     },
     "Zba": {
       "supported": true
@@ -975,10 +976,10 @@
     },
     "Stateen": {
       "Smstateen": {
-        "supported": false
+        "supported": true
       },
       "Ssstateen": {
-        "supported": false
+        "supported": true
       },
       // Each stateen bit is one of CSRBit_Writable,
       // CSRBit_ReadOnlyZero or CSRBit_ReadOnlyOne.
@@ -988,7 +989,8 @@
       // extension is disabled at run time.
       "mstateen0": {
         "SE0": "CSRBit_Writable",
-        "ENVCFG": "CSRBit_ReadOnlyZero",
+        // senvcfg always exists because Wally is Sm1p12 compatible (csrm.sv)
+        "ENVCFG": "CSRBit_Writable",
         "CONTEXT": "CSRBit_ReadOnlyZero",
         "P1P13": "CSRBit_ReadOnlyZero",
         "SRMCFG": "CSRBit_ReadOnlyZero",

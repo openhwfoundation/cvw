@@ -89,8 +89,19 @@ typedef struct packed {
   logic         ZIHPM_SUPPORTED;
   logic         ZFH_SUPPORTED;
   logic         ZFA_SUPPORTED;
+  logic         ZFBFMIN_SUPPORTED;
   logic         SSTC_SUPPORTED;
   logic         MSECCFG_SUPPORTED;
+  logic         SMSTATEEN_SUPPORTED;
+  logic         SSSTATEEN_SUPPORTED;
+  logic         SMP1P13_SUPPORTED;
+  logic         SMCTR_SUPPORTED;
+  logic         SSCSRIND_SUPPORTED;
+  logic         SSAIA_SUPPORTED;
+  logic         SDTRIG_SUPPORTED;
+  logic         SSQOSID_SUPPORTED;
+  logic         ZCMT_SUPPORTED;
+  logic         ZFINX_SUPPORTED;
   logic         VIRTMEM_SUPPORTED;
   logic         SVPBMT_SUPPORTED;
   logic         SVNAPOT_SUPPORTED;
@@ -107,7 +118,10 @@ typedef struct packed {
   logic         ZICBOZ_SUPPORTED;
   logic         ZICBOP_SUPPORTED;
   logic         ZICCLSM_SUPPORTED;
+  logic         ZAMA16B_SUPPORTED;
   logic         ZICOND_SUPPORTED;
+  logic         ZIMOP_SUPPORTED;
+  logic         ZCMOP_SUPPORTED;
   logic         ZAAMO_SUPPORTED;
   logic         ZALRSC_SUPPORTED;
   logic         SMMPM_SUPPORTED;
@@ -115,6 +129,9 @@ typedef struct packed {
   logic         SSNPM_SUPPORTED;
   logic         ZPM_SUPPORTED;
   logic         PMLEN16_SUPPORTED;
+  logic         ZABHA_SUPPORTED;
+  logic         ZACAS_SUPPORTED;
+  logic         ZAWRS_SUPPORTED;
 
   // Microarchitectural Features
   logic         BUS_SUPPORTED;
@@ -124,6 +141,7 @@ typedef struct packed {
   // TLB configuration.  Entries should be a power of 2
   int           ITLB_ENTRIES;
   int           DTLB_ENTRIES;
+  logic         TLB_EXACT_FENCE_INVAL; // sfence.vma and sinval.vma invalidate only the entries their rs1/rs2 name
 
   // Cache configuration.  Sizes should be a power of two
   // typical configuration 4 ways, 4096 bytes per way, 256 bit or more lines
@@ -149,6 +167,9 @@ typedef struct packed {
 
   // WFI Timeout Wait
   int           WFI_TIMEOUT_BIT;
+  int           WRSNTO_TIMEOUT_BIT;
+  int           WRSSTO_TIMEOUT_BIT;
+  int           WAIT_TIMEOUT_BIT;
 
   // Peripheral Addresses
   // Peripheral memory space extends from BASE to BASE+RANGE
@@ -221,6 +242,9 @@ typedef struct packed {
   int           BTB_SIZE;
   int           RAS_SIZE;
   logic         INSTR_CLASS_PRED; // is class predictor enabled
+
+  // FMA normalization
+  logic         FMA_LZA;  // 1: leading zero anticipator, 0: leading zero counter
 
   // FPU division architecture
   int           RADIX;
@@ -312,6 +336,7 @@ typedef struct packed {
   int           H_LEN;
   int           H_NE;
   int           H_NF;
+  int           BF16_NF;
   int           H_BIAS;
   logic [1:0]   H_FMT;
 

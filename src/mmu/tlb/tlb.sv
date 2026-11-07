@@ -56,7 +56,9 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic [2:0]               PageTypeWriteVal,
   input  logic                     TLBWrite,
   input  logic                     TLBFlush,
-  input  logic                     TLBFlushAll,      // Flush global (G=1) entries too
+  input  logic                     TLBFlushAll,      // sfence.vma rs2 = x0: flush every ASID and global (G=1) entries too
+  input  logic                     TLBFlushVA,       // sfence.vma rs1 != x0: flush only entries whose page holds VAdr
+  input  logic [P.ASID_BITS-1:0]   TLBFlushASID,     // sfence.vma rs2 ASID
   input  logic                     PointerMaskApplicable, PMLen16Sel,
   output logic [P.PA_BITS-1:0]     TLBPAdr,
   output logic                     TLBMiss,
@@ -112,7 +114,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   assign WritePTE_NAPOT = P.SVNAPOT_SUPPORTED & PTE[P.XLEN-1] & (PTE[13:10] == 4'b1000);
   tlblru #(TLB_ENTRIES) lru(.clk, .reset, .TLBWrite, .Matches, .TLBHit, .WriteEnables);
   tlbcam #(P, TLB_ENTRIES, P.VPN_BITS + P.ASID_BITS, P.VPN_SEGMENT_BITS)
-    tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .TLBFlushAll, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
+    tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .TLBFlushAll, .TLBFlushVA, .TLBFlushASID, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
            .SATP_ASID, .TLBWrite, .WritePTE_G(PTE[5]), .WritePTE_NAPOT, .Matches, .HitPageType, .CAMHit);
   tlbram #(P, TLB_ENTRIES) tlbram(.clk, .reset, .PTE, .Matches, .WriteEnables, .PPN, .PTEAccessBits, .PTE_Gs, .PTE_NAPOTs);
 
