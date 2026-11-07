@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 #
 # Weekly run of the nightly regression's Verilator part (regression-wally --ci --nightly): lint of
-# every derivative configuration, the standard tests, the derivative configurations, the cache
-# simulations, and Embench and CoreMark.  The lockstep, testfloat (Questa) and buildroot parts need
-# commercial tools or locally built Linux images, so they stay in the local nightly.
+# every derivative configuration, the standard tests with the short buildroot boot, the derivative
+# configurations, the cache simulations, and Embench and CoreMark.  A second job boots buildroot Linux
+# fully on Verilator (regression-wally --ci --config rv64gc --buildroot).  The lockstep and testfloat
+# parts need commercial tools (Questa, ImperasDV), so they stay in the local nightly.  It runs only in
+# openhwfoundation/cvw, not in forks.
 #
-# A failed scheduled run opens an issue labeled nightly-failure, or comments on the open one, with
-# what failed, the commit and tool versions, and the commands that reproduce it locally
-# (.github/scripts/nightly-report.sh); the next passing run closes it.
+# A failed scheduled run opens an issue labeled nightly-failure (create the label once in the repository),
+# or comments on the open one, with what failed, the commit and tool versions, and the commands that
+# reproduce it locally (.github/scripts/nightly-report.sh); the next passing run closes it.
 
 name: Nightly regression
 
@@ -21,53 +23,21 @@ permissions:
 
 env:
   WALLY: ${{ github.workspace }}
+  # The buildroot tests load the Linux testvectors from $RISCV
+  RISCV: /opt/riscv
   # Trust cvw's and riscv-arch-test's .mise.toml
   MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
 jobs:
-  # Embench and CoreMark link C libraries for rv32, which the riscv-collab release toolchain lacks,
-  # so the nightly uses cvw's multilib toolchain.  Building it takes hours, so it is cached until
-  # bin/installation/riscv-gnu-toolchain-install.sh changes.
-  toolchain:
-    name: Multilib RISC-V GCC
-    runs-on: ubuntu-latest
-    timeout-minutes: 345
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Look up cached toolchain
-        id: cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: /opt/cvw-tools/gcc
-          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
-          lookup-only: true
-
-      - name: Build toolchain
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          ./.github/scripts/cli-space-cleanup.sh
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake autotools-dev bc bison build-essential cmake curl flex gawk \
-            git gperf libexpat-dev libglib2.0-dev libgmp-dev libmpc-dev libmpfr-dev libslirp-dev libtool \
-            ninja-build patchutils python3 texinfo zlib1g-dev
-          sudo mkdir -p /opt/cvw-tools
-          sudo chown "$USER:$USER" /opt/cvw-tools
-          bash bin/installation/riscv-gnu-toolchain-install.sh --clean /opt/cvw-tools/gcc
-
-      - name: Save toolchain
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: /opt/cvw-tools/gcc
-          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+  # The multilib GCC (Embench and CoreMark link C libraries for rv32) and the buildroot testvectors
+  tools:
+    name: Tools
+    if: github.repository == 'openhwfoundation/cvw'
+    uses: ./.github/workflows/tools.yml # zizmor: ignore[self-repository]
 
   nightly:
     name: Nightly regression (Verilator)
-    needs: toolchain
+    needs: tools
     runs-on: ubuntu-latest
     timeout-minutes: 345
     outputs:
@@ -88,7 +58,7 @@ jobs:
         with:
           verilator: "true"
           act: "true"
-          multilib: "true"
+          buildroot: "true"
 
       - name: Nightly regression
         run: |
@@ -116,10 +86,44 @@ jobs:
             sim/verilator/logs
             benchmarks/embench/run.log
 
+  # The full Linux boot takes hours, so it runs beside the rest of the nightly, with rv64gc's standard tests
+  buildroot:
+    name: Buildroot Linux boot (Verilator)
+    needs: tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out riscv-arch-test
+        run: git submodule update --init --depth 1 addins/riscv-arch-test
+
+      - name: Set up tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
+        with:
+          verilator: "true"
+          act: "true"
+          buildroot: "true"
+
+      - name: Buildroot boot
+        run: regression-wally --ci --config rv64gc --buildroot
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: buildroot-logs
+          path: sim/verilator/logs
+
   report:
     name: Report
-    needs: [toolchain, nightly]
-    if: always() && github.event_name == 'schedule'
+    needs: [tools, nightly, buildroot]
+    if: always() && github.event_name == 'schedule' && github.repository == 'openhwfoundation/cvw'
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -135,19 +139,17 @@ jobs:
         run: |
           label=nightly-failure
           issue=$(gh issue list --repo "$REPO" --label "$label" --state open --json number --jq '.[0].number')
-          if [[ "$RESULTS" == "success success" ]]; then
+          if [[ "$RESULTS" == "success success success" ]]; then
             if [[ -n "$issue" ]]; then
               gh issue close "$issue" --repo "$REPO" --comment "The nightly regression passed again: $RUN_URL"
             fi
             exit 0
           fi
-          # Without a report, the toolchain build failed and the regression did not run
-          body="$(printf 'The weekly nightly regression failed (job results: toolchain, nightly = %s): %s\n\n%s\n' \
-            "$RESULTS" "$RUN_URL" "${REPORT:-The multilib toolchain build failed. Reproduce it with \`bash bin/installation/riscv-gnu-toolchain-install.sh\` at commit $SHA.}")"
+          # Without a report, the regression did not run or passed: a tool build or the buildroot boot failed
+          body="$(printf 'The weekly nightly regression failed (job results: tools, nightly, buildroot = %s): %s\n\n%s\n' \
+            "$RESULTS" "$RUN_URL" "${REPORT:-See the run for the failed job; its installer script (bin/installation/) or \`regression-wally --ci --config rv64gc --buildroot\` reproduces it at commit $SHA.}")"
           if [[ -n "$issue" ]]; then
             gh issue comment "$issue" --repo "$REPO" --body "$body"
           else
-            gh label create "$label" --repo "$REPO" --color B60205 \
-              --description "The weekly nightly regression is failing" 2>/dev/null || true
             gh issue create --repo "$REPO" --title "Weekly nightly regression failed" --label "$label" --body "$body"
           fi

@@ -6,7 +6,7 @@
 ## Created: March 22 2026
 ## Modified:
 ##
-## Purpose: mise installation script
+## Purpose: mise installation script, and the tools cvw's .mise.toml lists (uv, prek)
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
 ## https://github.com/openhwfoundation/cvw
@@ -40,3 +40,13 @@ if check_tool_version $MISE_VERSION; then
 else
     echo -e "${SUCCESS_COLOR}mise already up to date.${ENDC}"
 fi
+
+# Tools from cvw's .mise.toml: uv (Python package manager and virtual environment tool) and prek (pre-commit hooks).
+# mise installs them for the user running this script; setup.sh installs them for other users the first time.
+section_header "Installing/Updating uv and prek with mise"
+STATUS="mise_tools"
+export MISE_TRUSTED_CONFIG_PATHS="$WALLY${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+"$RISCV"/bin/mise install --cd "$WALLY" --yes
+# Put them on PATH for the rest of the installation (qemu-install.sh uses uv)
+eval "$("$RISCV"/bin/mise env --cd "$WALLY" --shell bash)"
+echo -e "${SUCCESS_COLOR}uv and prek successfully installed/updated!${ENDC}"

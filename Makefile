@@ -21,12 +21,15 @@ act: $(ACT_WORKDIRS:%=%/.cvw_config_stamp)
 
 # ACT's incremental build never deletes ELFs, so the ELFs of tests that a changed configuration no longer
 # supports would be left behind and still run.  When a configuration's files change, discard its ELFs so
-# that ACT rebuilds exactly the current set.
-.SECONDEXPANSION:
-$(ACTDIR)/work/cvw-%/.cvw_config_stamp: $$(wildcard ${WALLY}/config/$$*/act/*)
-	rm -rf $(@D)/elfs
-	mkdir -p $(@D)
-	touch $@
+# that ACT rebuilds exactly the current set.  The stamp holds a hash of the files' names and contents, not
+# a time, so a fresh checkout (or restored ELFs) of unchanged files keeps the ELFs, as ACT's own build does.
+$(ACTDIR)/work/cvw-%/.cvw_config_stamp: FORCE
+	@mkdir -p $(@D)
+	@hash=$$(cd ${WALLY}/config/$*/act && sha256sum * | sha256sum); \
+	if [ "$$(cat $@ 2> /dev/null)" != "$$hash" ]; then rm -rf $(@D)/elfs; echo "$$hash" > $@; fi
+
+.PHONY: FORCE
+FORCE:
 
 # periph builds the self-checking peripheral tests
 periph:

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-# Tool versions for CI and local development. Run `mise run prek` to check every file
-# with the hooks in .pre-commit-config.yaml, as CI does.
+# Tools cvw installs with mise, for local use and CI.  bin/installation/mise-install.sh installs mise and
+# then these tools, and setup.sh activates them.  Run `mise run prek` to check every file with the hooks in
+# .pre-commit-config.yaml, as CI does.
 
 [tools]
 prek = "0.5.7"
+uv = "0.12.23"
 
 [tasks.prek]
 description = "Run prek hooks on all files"

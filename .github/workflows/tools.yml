@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Builds the tools that take hours, with cvw's own installer scripts, and caches them for the regression
+# and nightly workflows (which call this workflow):
+# - the multilib RISC-V GCC (bin/installation/riscv-gnu-toolchain-install.sh)
+# - the buildroot Linux image and its testvectors (bin/installation/buildroot-install.sh, which boots the
+#   image on QEMU to dump the testvectors).  Only what the testbench loads is cached: $RISCV/linux-testvectors
+#   and the label maps in $RISCV/buildroot/output/images/disassembly.
+# Each cache key is the hash of the scripts and sources that build it, so a job rebuilds only when one of
+# them changes, and is otherwise a quick cache lookup.  These caches are saved from any branch: a pull
+# request that changes an installer must not have to rebuild it on every run.
+
+name: Tools
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  WALLY: ${{ github.workspace }}
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  gcc:
+    name: Multilib RISC-V GCC
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Look up cached toolchain
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /opt/cvw-tools/gcc
+          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+          lookup-only: true
+
+      - name: Build toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          ./.github/scripts/cli-space-cleanup.sh
+          sudo --preserve-env=WALLY bash bin/wally-package-install.sh --no-upgrade
+          sudo mkdir -p /opt/cvw-tools
+          sudo chown "$USER:$USER" /opt/cvw-tools
+          bash bin/installation/riscv-gnu-toolchain-install.sh --clean /opt/cvw-tools/gcc
+
+      - name: Save toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /opt/cvw-tools/gcc
+          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+
+  buildroot:
+    name: Buildroot Linux and testvectors
+    needs: gcc
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      RISCV: /opt/riscv
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Look up cached Linux testvectors
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            /opt/riscv/linux-testvectors/ram.bin
+            /opt/riscv/linux-testvectors/bootmem.bin
+            /opt/riscv/buildroot/output/images/disassembly/*.objdump.addr
+            /opt/riscv/buildroot/output/images/disassembly/*.objdump.lab
+          key: buildroot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('linux/**', 'bin/installation/buildroot-install.sh', 'bin/installation/qemu-install.sh', 'bin/installation/riscv-gnu-toolchain-install.sh') }}
+          lookup-only: true
+
+      - name: Install system packages
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          ./.github/scripts/cli-space-cleanup.sh
+          sudo --preserve-env=WALLY bash bin/wally-package-install.sh --no-upgrade
+          sudo mkdir -p /opt/cvw-tools /opt/riscv
+          sudo chown "$USER:$USER" /opt/cvw-tools /opt/riscv
+
+      # gdb dumps the testvectors from the QEMU boot
+      - name: Restore multilib RISC-V GCC
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /opt/cvw-tools/gcc
+          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+          fail-on-cache-miss: true
+
+      # QEMU's installer builds its documentation with uv, which mise installs
+      - name: Install mise, uv, and QEMU
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          echo /opt/cvw-tools/gcc/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+          bash bin/installation/mise-install.sh /opt/cvw-tools/mise
+          export PATH="/opt/cvw-tools/mise/bin:$PATH"
+          eval "$(mise env --cd "$WALLY" --shell bash)"
+          bash bin/installation/qemu-install.sh --clean /opt/cvw-tools/qemu
+          echo /opt/cvw-tools/qemu/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+      - name: Build buildroot and the Linux testvectors
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash bin/installation/buildroot-install.sh "$RISCV"
+
+      - name: Save Linux testvectors
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            /opt/riscv/linux-testvectors/ram.bin
+            /opt/riscv/linux-testvectors/bootmem.bin
+            /opt/riscv/buildroot/output/images/disassembly/*.objdump.addr
+            /opt/riscv/buildroot/output/images/disassembly/*.objdump.lab
+          key: buildroot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('linux/**', 'bin/installation/buildroot-install.sh', 'bin/installation/qemu-install.sh', 'bin/installation/riscv-gnu-toolchain-install.sh') }}

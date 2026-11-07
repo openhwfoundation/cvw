@@ -800,8 +800,8 @@ def parse_args():
                              "ACT tests; skips lint, which covers every configuration (run lint-wally for it)")
     parser.add_argument("--ci", action="store_true",
                         help="Run only what a GitHub-hosted runner can: Verilator simulations, without the commercial "
-                             "tools (Questa, VCS, ImperasDV lockstep, testfloat) or the buildroot boot, whose Linux "
-                             "images are built locally")
+                             "tools (Questa, VCS, ImperasDV lockstep, testfloat).  With --buildroot, the full Linux boot "
+                             "runs on Verilator without lockstep")
     parser.add_argument("--shard", type=parseShard, metavar="I/N",
                         help="With --config, run only the I-th of N equal shares of the configuration's simulations, "
                              "so that CI can split a large configuration across N jobs")
@@ -876,8 +876,10 @@ def selectTests(args, sims, coverStr):
 
     # run full buildroot boot simulation (slow) if buildroot flag is set.  Start it early to overlap with other tests
     if args.buildroot:
-        # addTests(tests_buildrootboot, defaultsim) # non-lockstep with Verilator runs in about 2 hours
-        addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
+        if args.ci:  # ImperasDV is not available: boot on Verilator without lockstep (about 2 hours)
+            addTests(tests_buildrootboot, defaultsim, coverStr, configs)
+        else:  # lockstep with Questa and ImperasDV runs overnight
+            addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs)
     # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
     # against the reference model (one simulation per ELF).
     # code coverage: the configuration runs its ACT tests, its coverage-targeted tests, and its peripheral tests
@@ -912,7 +914,8 @@ def selectTests(args, sims, coverStr):
     if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker):
         buildTests()
         for sim in sims:
-            if not (args.ci or args.config or (args.buildroot and sim == lockstepsim)):  # skip short buildroot sim if running long one
+            # The short buildroot boot runs on rv64gc, so only with rv64gc's tests; skip it if the full boot runs
+            if args.config in (None, "rv64gc") and not args.buildroot and not (args.ci and sim != defaultsim):
                 addTests(tests_buildrootshort, sim, coverStr, configs)
             for config in [args.config] if args.config else standard_configs:
                 addTestsByDir(actElfDir(config), config, sim, coverStr, configs, chunk=25)
@@ -1017,6 +1020,8 @@ def main(args):
         return 1
     others = [f"--{mode}" for mode in ("nightly", "ccov", "fcov", "testfloat", "branch", "breker", "benchmark", "cache",
                                         "buildroot") if getattr(args, mode)]
+    if args.config == "rv64gc" and others == ["--buildroot"]:
+        others = []  # the full buildroot boot is an rv64gc test, so it may run with rv64gc's standard tests
     if args.config and others:
         print(f"{bcolors.FAIL}Error: --config selects the standard tests and cannot be combined with "
               f"{', '.join(others)}{bcolors.ENDC}", file=sys.stderr)

@@ -39,12 +39,9 @@ fi
 
 # mise (https://mise.jdx.dev/)
 # mise is a development environment setup tool for managing tool versions and environment variables.
+# It also installs the tools in cvw's .mise.toml: uv (https://docs.astral.sh/uv/), the Python package
+# manager and virtual environment tool, and prek, which runs the pre-commit hooks.
 source "$WALLY"/bin/installation/mise-install.sh
-
-
-# uv (https://docs.astral.sh/uv/)
-# uv is a Python package manager and virtual environment tool.
-source "$WALLY"/bin/installation/uv-install.sh
 
 
 # Activate tools (python virtual environment and possibly newer version of gcc)
