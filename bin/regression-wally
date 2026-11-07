@@ -184,6 +184,11 @@ derivconfigtests = [
         ["fdh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/Zfa"]],
         ["fdq_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/I", "rv64i/Zfa/Zfa-*", "rv64i/Zfa/ZfaD-*"]],
         ["fdqh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/I", "rv64i/Zfa"]], # "wally64q" when Q is supported again
+
+        # pm16 variant
+        ["pm16", "rv64gc", ["priv/Smmpm", "priv/Smnpm/Smnpm_SSm*", "priv/Ssnpm/Ssnpm_Sm*",
+        "priv/Smnpm/Smnpm_S_bare*", "priv/Smnpm/Smnpm_S_sv39*", "priv/Smnpm/Smnpm_S_sv48*",
+        "priv/Ssnpm/Ssnpm_bare*", "priv/Ssnpm/Ssnpm_sv39*", "priv/Ssnpm/Ssnpm_sv48*"]],
     ]
 
 bpredtests = [
@@ -331,6 +336,14 @@ lockstepwaivers = [
     # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
+
+    # Stock ImperasDV keeps pointer masking when mstatus.MXR=1, which is wrong; cvw matches Sail.  An ImperasDV
+    # engineering build fixes it; remove these waivers when cvw moves to an ImperasDV release with the fix.
+    "Smnpm_SSm-00.elf", "Ssnpm_Sm-00.elf",
+    "Smnpm_S_bare_pmm10_edgecases-00.elf", "Smnpm_S_sv39_pmm10_edgecases-00.elf",
+    "Smnpm_S_sv48_pmm10_edgecases-00.elf", "Smnpm_S_sv57_pmm10_edgecases-00.elf",
+    "Ssnpm_bare_pmm10_edgecases-00.elf", "Ssnpm_sv39_pmm10_edgecases-00.elf",
+    "Ssnpm_sv48_pmm10_edgecases-00.elf", "Ssnpm_sv57_pmm10_edgecases-00.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and

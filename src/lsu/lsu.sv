@@ -79,6 +79,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic [1:0]               STATUS_MPP,                           // Machine previous privilege mode
   input  logic                     ENVCFG_PBMTE,                         // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,                          // HPTW A/D Update enable
+  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking config bits
   input  logic [P.XLEN-1:0]        PCSpillF,                             // Fetch PC
   input  logic                     ITLBMissOrUpdateAF,                   // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
   output logic [P.XLEN-1:0]        PTE,                                  // Page table entry write to ITLB
@@ -86,7 +87,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic                     ITLBWriteF,                           // Write PTE to ITLB
   output logic                     SelHPTW,                              // During a HPTW walk the effective privilege mode becomes S_MODE
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP configuration from privileged unit
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0] // PMP address from privileged unit
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
+  output logic                     PointerMaskApplicable, PMLen16Sel     // Pointer masking signals
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
   localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses
@@ -267,6 +269,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
     dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+      .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .MemRWM, .CMOpMUngated(CMOpM),
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .TLBFlushVA(sfencevmaAdrM), .TLBFlushASID(WriteDataM[P.ASID_BITS-1:0]), // WriteDataM holds rs2
@@ -278,7 +281,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .UpdateDA(DataUpdateDAM), .CMOpM(LSUCMOpM),
       .AtomicAccessM(|LSUAtomicM), .ExecuteAccessF(1'b0),
       .WriteAccessM, .ReadAccessM(PreLSURWM[1]),
-      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW);
+      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLen16Sel);
 
     assign DTLBMissOrUpdateDAM = DTLBMissM | (P.SVADU_SUPPORTED & DataUpdateDAM);
   end else begin  // No MMU, so no PMA/page faults and no address translation
@@ -289,6 +292,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign CacheableM = 1'b1;
     assign SelDTIM = P.DTIM_SUPPORTED & ~P.BUS_SUPPORTED; // if no PMA then select dtim if there is a DTIM.  If there is
     // a bus then this is always 0. Cannot have both without PMA.
+    assign PointerMaskApplicable = 1'b0;
+    assign PMLen16Sel = 1'b0;
   end
 
   /////////////////////////////////////////////////////////////////////////////////////////////

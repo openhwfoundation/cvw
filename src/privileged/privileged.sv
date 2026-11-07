@@ -61,6 +61,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic              ICacheAccess,                                   // instruction cache access
   input  logic              DivBusyE,                                       // integer divide busy
   input  logic              FDivBusyE,                                      // floating point divide busy
+  input  logic              PointerMaskApplicable, PMLen16Sel,
   // fault sources
   input  logic              InstrAccessFaultF,                              // instruction access fault
   input  logic              LoadAccessFaultM, StoreAmoAccessFaultM,         // load or store access fault
@@ -87,6 +88,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]        ENVCFG_CBE,                                     // Cache block operation enables
   output logic              ENVCFG_PBMTE,                                   // Page-based memory type enable
   output logic              ENVCFG_ADUE,                                    // HPTW A/D Update enable
+  output logic [1:0]        MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,          // pointer mask configuration bits from csr registers
   // PC logic output from privileged unit to IFU
   output logic [P.XLEN-1:0] EPCM,                                           // Exception Program counter to IFU PC logic
   output logic [P.XLEN-1:0] TrapVectorM,                                    // Trap vector, to IFU PC logic
@@ -143,6 +145,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .MTIME_CLINT, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
+    .PointerMaskApplicable, .PMLen16Sel,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
     .NextPrivilegeModeM, .PrivilegeModeW, .CauseM, .SelHPTW,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
@@ -151,7 +154,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
-    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM);
+    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM, .MENVCFG_PMM, .SENVCFG_PMM, .MSECCFG_PMM);
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,

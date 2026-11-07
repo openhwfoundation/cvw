@@ -59,6 +59,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic                     TLBFlushAll,      // sfence.vma rs2 = x0: flush every ASID and global (G=1) entries too
   input  logic                     TLBFlushVA,       // sfence.vma rs1 != x0: flush only entries whose page holds VAdr
   input  logic [P.ASID_BITS-1:0]   TLBFlushASID,     // sfence.vma rs2 ASID
+  input  logic                     PointerMaskApplicable, PMLen16Sel,
   output logic [P.PA_BITS-1:0]     TLBPAdr,
   output logic                     TLBMiss,
   output logic                     Translate,
@@ -106,6 +107,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
     .PTEAccessBits, .CAMHit, .Misaligned, .NAPOT4,
+    .PointerMaskApplicable, .PMLen16Sel,
     .TLBMiss, .TLBHit, .TLBPageFault,
     .UpdateDA, .SV39Mode, .SV48Mode, .Translate, .PTE_N, .PBMemoryType);
 

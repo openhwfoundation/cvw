@@ -79,6 +79,9 @@ implemented_extensions:
   - { name: Svpbmt, version: "= 1.0.0" }
   - { name: Svvptc, version: "= 1.0.0" }
   - { name: Sm, version: "= 1.12.0" }
+  - { name: Ssnpm, version: "= 1.0.0" }
+  - { name: Smnpm, version: "= 1.0.0" }
+  - { name: Smmpm, version: "= 1.0.0" }
 
 params:
   NON_STANDARD_EXTENSION_IMPLEMENTED: false
@@ -498,3 +501,7 @@ params:
       false,
       false,
     ]
+  # Pointer masking: PMLEN 7 only (PMLEN 16 is incompatible with Sv57)
+  SUPPORTED_PMLEN_SSNPM: [0, 7]
+  SUPPORTED_PMLEN_SMNPM: [0, 7]
+  SUPPORTED_PMLEN_SMMPM: [0, 7]
