@@ -40,7 +40,7 @@ def coverageDir(config):
 coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
-testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
+testfloatsim = "verilator" # Simulator for the TestFloat tests (wsim --tb testbench_fp)
 rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 
 ##################################
@@ -683,7 +683,7 @@ def search_log_for_text(text, grepfile):
         nonrvcp_suites = ["buildroot", "all_lints", "periph", "coverage", "embench", "coremark"]
         if numpassed:
             print(f"{bcolors.OKGREEN}{grepfile}: {numpassed} {rvcp_summary} PASSED{bcolors.ENDC}")
-        if success and not passed:
+        if success and not passed and text == "All tests ran without failures":  # ELF runs; not TestFloat
             if not any(s in grepfile for s in nonrvcp_suites):
                 print(f"{bcolors.WARNING}{grepfile}: WARNING '{text}' found but no {rvcp_summary} PASSED{bcolors.ENDC}")
         if not success and passed:
@@ -893,7 +893,7 @@ def selectTests(args, sims, coverStr):
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
-        buildTests(periph=False, deriv=True, testfloat=True)
+        buildTests(periph=False, deriv=True, testfloat=True, act=False)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
         for config in testfloatconfigs + testfloatdivconfigs:
             tests = ["div", "sqrt", "cvtint", "cvtfp"]
@@ -902,14 +902,21 @@ def selectTests(args, sims, coverStr):
             if "f_" in config:
                 tests.remove("cvtfp")
             for test in tests:
-                sim_log = f"{regressionDir}/{testfloatsim}/logs/{config}_{test}.log"
-                tc = TestCase(
-                        name=test,
-                        variant=config,
-                        cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test],
-                        log=sim_log,
-                        grepstr="All Tests completed with          0 errors")
-                configs.append(tc)
+                # The fma vectors are most of the suite, so each precision of fma runs as its own simulation
+                # (+TEST_SIZE) to spread it over more processors.  The configuration name lists the precisions.
+                sizes = [size for letter, size in (("q", "QP"), ("d", "DP"), ("f", "SP"), ("h", "HP"))
+                         if letter in config.split("_")[0]] if test == "fma" else [None]
+                for size in sizes:
+                    name = f"{test}_{size}" if size else test
+                    sim_log = f"{regressionDir}/{testfloatsim}/logs/{config}_{name}.log"
+                    tc = TestCase(
+                            name=name,
+                            variant=config,
+                            cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test,
+                                 *(["--args", f"+TEST_SIZE={size}"] if size else [])],
+                            log=sim_log,
+                            grepstr="All Tests completed with          0 errors")
+                    configs.append(tc)
 
     if (args.benchmark or args.nightly):
         # RUNNING THE EMBENCH TEST
