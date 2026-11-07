@@ -132,7 +132,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
 
-  if (P.ZPM_SUPPORTED) begin:xtvalpm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
+  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:xtvalpm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
     logic [1:0]        EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
     logic [P.XLEN-1:0] PMAdrM;
     assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;

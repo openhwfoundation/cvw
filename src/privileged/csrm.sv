@@ -195,19 +195,19 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     logic WriteMENVCFGM;
     logic [63:0] MENVCFG_PreWriteValM, MENVCFG_WriteValM;
     logic [1:0] LegalizedCBIE;
-    logic [1:0] LegalizedMENVCFGPMM;
+    logic [1:0] LegalizedPMM;
     assign WriteMENVCFGM = CSRMWriteM & (CSRAdrM == MENVCFG);
     assign LegalizedCBIE = MENVCFG_PreWriteValM[5:4] == 2'b10 ? MENVCFG_REGW[5:4] : MENVCFG_PreWriteValM[5:4]; // Assume WARL for reserved CBIE = 10, keeps old value
-    assign LegalizedMENVCFGPMM = ((MENVCFG_PreWriteValM[33:32] == 2'b01) |
-                                  (MENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
-                                  MENVCFG_REGW[33:32] : MENVCFG_PreWriteValM[33:32];
+    assign LegalizedPMM = ((MENVCFG_PreWriteValM[33:32] == 2'b01) |
+                           (MENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
+                           MENVCFG_REGW[33:32] : MENVCFG_PreWriteValM[33:32];
     // MENVCFG is always 64 bits even for RV32
     assign MENVCFG_WriteValM = {
       MENVCFG_PreWriteValM[63]  & P.SSTC_SUPPORTED,
       MENVCFG_PreWriteValM[62]  & P.SVPBMT_SUPPORTED,
       MENVCFG_PreWriteValM[61]  & P.SVADU_SUPPORTED,
       27'b0,
-      LegalizedMENVCFGPMM & {2{P.SMNPM_SUPPORTED & (P.XLEN == 64)}},
+      LegalizedPMM              & {2{P.SMNPM_SUPPORTED & (P.XLEN == 64)}},
       24'b0,
       MENVCFG_PreWriteValM[7]   & P.ZICBOZ_SUPPORTED,
       MENVCFG_PreWriteValM[6]   & P.ZICBOM_SUPPORTED,
