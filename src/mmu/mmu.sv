@@ -34,7 +34,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
   input  logic [1:0]           PrivilegeModeW,     // Current privilege level of the processor
   input  logic                 DisableTranslation, // virtual address translation disabled during D$ flush and HPTW walk that use physical addresses
   input  logic [P.XLEN+1:0]    VAdr,               // virtual/physical address from IEU or physical address from HPTW
-  input  logic [1:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
+  input  logic [2:0]           Size,               // access size: 00 = 8 bits, 01 = 16 bits, 10 = 32 bits, 11 = 64 bits
   input  logic [P.XLEN-1:0]    PTE,                // page table entry
   input  logic [2:0]           PageTypeWriteVal,   // page type
   input  logic                 TLBWrite,           // write TLB entry

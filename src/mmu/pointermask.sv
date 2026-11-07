@@ -5,13 +5,12 @@
 // Modified:
 //
 // Purpose: Pointer Masking Module v1.0
-// Module inside of LSU that currently determines whether pointer masking should be applied based on privilege level and instruction.
-// Pointer Masking length (PMLen16Sel) currently limited so that masked bits do not apply to address bits.
-// (PMLen = 7 when Sv57 is supported, 16 or 7 when Sv57 not supported. In addition, physical addresses are
-// limited to 48 bits when PMLen16Sel = 16) Hypervisor guest physical addresses are 2 bits longer and therefore have
+// Module inside of MMU that determines whether pointer masking should be applied based on privilege level and instruction.
+// Pointer Masking length (PMLen16Sel) currently limited to be mutually exclusive with SV57 so that used virtual address bits
+// are never masked. Hypervisor guest physical addresses are 2 bits longer and therefore have
 // additional configurations where addressable bits are masked, for future work.
-// Since addressable bits are never masked in current version, the module itself only sends a signal to disable top bit
-// validity checks to vm64check.sv
+// Virtual address validity checks are masked in vm64check.sv, physical address validity checks are masked in the mmu
+// with PAOutOfRange, and the full ignore transformation is performed when hardware writes to xtval
 // Documentation: Based on descriptions in RISC-V Privileged Specifications
 // Chapter on Pointer Masking https://docs.riscv.org/reference/isa/v20260120/priv/zpm.html
 // Complete Specifications V20260120 https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
