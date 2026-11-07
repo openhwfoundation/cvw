@@ -64,7 +64,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   localparam SINT_MASK  = 12'h222; // supervisor interrupt fields: SEI, STI, SSI
   // scounteren can only be written for counters that are supported by Zicntr or Zihpm and are nonzero
   localparam COUNTEREN_MASK = (P.ZICNTR_SUPPORTED ? 32'h00000007 : 32'h0) |
-                              (P.ZIHPM_SUPPORTED  ? (((1 << P.COUNTERS) - 1)) : 32'h0);
+                              (P.ZIHPM_SUPPORTED  ? (32'hFFFFFFFF >> (32 - P.COUNTERS)) : 32'h0);
 
   logic                    WriteSTVECM;
   logic                    WriteSSCRATCHM, WriteSEPCM;

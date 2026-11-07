@@ -406,7 +406,7 @@ set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM \\| ExecuteAccessF"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1-3
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ExecuteAccessF & PMAAccessFault"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1
-set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM & ~WriteAccessM & PMAAccessFault"]
+set line [GetLineNum ${SRC}/mmu/pmachecker.sv "ReadAccessM & ~WriteAccessM & PMADataAccessFault"]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 1 2 4-6
 set line [GetLineNum ${SRC}/mmu/pmachecker.sv "PMAStoreAmoAccessFaultM ="]
 coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4-6

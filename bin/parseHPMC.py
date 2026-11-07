@@ -192,8 +192,8 @@ def ExtractSelectedData(benchmarkFirstList):
         (name, opt, config, prefixName, entries, size, dataDict) = benchmark
         #print(f'config = {config}, prefixName = {prefixName} entries = {entries}')
         # distinguish the speed- and size-optimized builds of each benchmark
-        if opt == 'bd_speedopt_speed': NewName = name+'Sp'
-        elif opt == 'bd_sizeopt_speed': NewName = name+'Sz'
+        if opt.endswith('speedopt_speed'): NewName = name+'Sp'
+        elif opt.endswith('sizeopt_speed'): NewName = name+'Sz'
         else: NewName = name
         if NewName in benchmarkDict:
             benchmarkDict[NewName].append((config, prefixName, entries, size, dataDict[ReportPredictorType]))

@@ -82,7 +82,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   // Determine which region of physical memory (if any) is being accessed
   // Use a trimmed down portion of the PMA checker - only the address decoders
   // Set access types to all 1 as don't cares because the MMU has already done access checking
-  adrdecs #(P) adrdecs(HADDR, 1'b1, 1'b1, 1'b1, HSIZE, HSELRegions);
+  adrdecs #(P) adrdecs(HADDR, 1'b1, 1'b1, 1'b1, HSIZE[1:0], HSELRegions);
 
   // unswizzle HSEL signals
   assign {HSELPWM, HSELSPI, HSELSDC, HSELPLIC, HSELUART, HSELGPIO, HSELCLINT, HSELRam, HSELBootRom, HSELEXT, HSELIROM, HSELDTIM} = HSELRegions[12:1];
@@ -125,10 +125,11 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   end
 
   if (P.GPIO_SUPPORTED == 1) begin : gpio
-    gpio_apb #(P) gpio(
+    // IOF0 of pins 3:0 is the PWM; no pin has an IOF1
+    gpio_apb #(.P(P), .IOF0_PINS(P.PWM_SUPPORTED ? 32'h0000000F : 32'h0)) gpio(
       .PCLK, .PRESETn, .PSEL(PSEL[0]), .PADDR(PADDR[7:0]), .PWDATA, .PSTRB, .PWRITE, .PENABLE,
       .PRDATA(PRDATA[0]), .PREADY(PREADY[0]),
-      .iof0({28'b0, PWMGPIO[3:0]}), .iof1(), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
+      .iof0({28'b0, PWMGPIO[3:0]}), .iof1('0), .GPIOIN, .GPIOOUT, .GPIOEN, .GPIOIntr);
   end else begin : gpio
     assign GPIOOUT = '0; assign GPIOEN = '0; assign GPIOIntr = 1'b0;
   end

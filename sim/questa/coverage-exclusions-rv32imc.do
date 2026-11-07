@@ -243,8 +243,8 @@ ExcludeRows /core/ieu/c e {FCvtIntStallD_1}
 coverage exclude -scope /core/lsu -linerange [TagLine ${SRC}/lsu/lsu.sv lsu-fp-size] -item b 1
 coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty] -item bs 1
 
-# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a branch predictor
-# (BPRED_SUPPORTED = 0, so BPWrongE = PCSrcE, never 1 for a divide); FDivBusyE needs an FPU.
+# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a BTB predictor
+# (BP_STATIC predicts only branches and JAL, so BPWrongE is never 1 for a divide); FDivBusyE needs an FPU.
 ExcludeRows /core/hzu e {DivBusyE_1 FDivBusyE_1} [TagLine ${SRC}/hazard/hazard.sv hzu-flushe-cause]
 
 ######################################################################################################
@@ -291,8 +291,8 @@ ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 WriteAccessM_0 Write
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-rx]
 ExcludeRows $IMMU/pmachecker e {AccessRWXC_0 AtomicAccessM_1 AtomicAllowed_0 AtomicAllowed_1}
 ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-instr-fault]
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMAAccessFault_0 PMAAccessFault_1}
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMAAccessFault_0 PMAAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMADataAccessFault_0 PMADataAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMADataAccessFault_0 PMADataAccessFault_1}
 ExcludeRows $IMMU e {ReadAccessM_1 WriteAccessM_0 WriteAccessM_1}
 ExcludeRows $IMMU e [list {VAdr\[0\]_1}]
 ExcludeRows $IMMU e {DataMisalignedM_0 DataMisalignedM_1 ReadNoAmoAccessM_1}

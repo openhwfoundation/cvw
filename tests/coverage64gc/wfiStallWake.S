@@ -83,7 +83,14 @@ m_int:                                  # machine timer interrupt
     j m_int_ret
 m_int_after:
     addi t1, t1, 4
-    bne t0, t1, m_int_ret
+    beq t0, t1, m_int_counted
+    // Taken before the wfi: the wfi reached Memory late.  In a run of several tests, a branch predictor entry left
+    // by an earlier test can mispredict an instruction in the loop and stall on a wrong-path I$ miss.  The
+    // misprediction trains the predictor, so retry this s0 from the top of the loop.
+    la t0, loop
+    csrw mepc, t0
+    j m_int_ret
+m_int_counted:
     addi s2, s2, 1
 m_int_ret:
     ld t1, -24(tp)

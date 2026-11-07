@@ -21,29 +21,35 @@ module irom import cvw::*; #(parameter cvw_t P) (
   output logic [31:0]       IROMInstrF // Instruction read data
 );
 
-  localparam XLENBYTES = {{P.PA_BITS-32{1'b0}}, P.XLEN/8}; // XLEN/8, adjusted for width
-  localparam ADDR_WIDTH = $clog2((P.IROM_RANGE[P.PA_BITS-1:0]+1)/XLENBYTES); // IROM_RANGE is a mask (size-1)
-  localparam OFFSET = $clog2(XLENBYTES);
+  // The IROM is 32 bits wide for any XLEN, because instructions are 32 bits.  ADDR_WIDTH is the number of
+  // address bits of a 32-bit word.
+  localparam ADDR_WIDTH = $clog2((P.IROM_RANGE[P.PA_BITS-1:0]+1) >> 2); // IROM_RANGE is a mask (size-1)
 
-  logic [P.XLEN-1:0] IROMInstrFFull;
-  logic [31:0]       RawIROMInstrF;
-  logic [2:1]        AdrD;
-
-  // preload IROM with the FPGA bootloader by default so that it synthesizes to something, avoiding having the IEU optimized away because instructions are all 0
+  // preload the IROM with a dummy instruction (rom1p1r PRELOAD_ENABLED) so that it synthesizes to something, avoiding having the IEU optimized away because instructions are all 0
   // the testbench replaces these dummy contents with the actual program of interest during simulation
-  rom1p1r #(ADDR_WIDTH, P.XLEN, 1) rom(.clk, .ce, .addr(Adr[ADDR_WIDTH+OFFSET-1:OFFSET]), .dout(IROMInstrFFull));
-  if (P.XLEN == 32) assign RawIROMInstrF = IROMInstrFFull;
-  else              begin
-    // IROM is aligned to XLEN words, but instructions are 32 bits.  Select between the two
-    // halves.  Adr is the Next PCF not PCF so we delay 1 cycle.
-    flopen #(1) AdrReg2(clk, ce, Adr[2], AdrD[2]);
-    assign RawIROMInstrF = AdrD[2] ? IROMInstrFFull[63:32] : IROMInstrFFull[31:0];
+  if (P.ZCA_SUPPORTED) begin : banks
+    // With compressed instructions, a 32-bit instruction may start in the upper halfword of a word and end in the
+    // next word.  The IROM is two banks interleaved by word: bank 0 holds the even words and bank 1 the odd words.
+    // Both read the same row, except that bank 0 reads the next row when the instruction starts in bank 1, so the
+    // IROM returns the whole instruction in one fetch.  At the top of the IROM the next row wraps to row 0; the
+    // spill logic fetches the second half of an instruction starting in the last halfword of the IROM.
+    localparam ROW_WIDTH = ADDR_WIDTH - 1;
+    logic [ROW_WIDTH-1:0] Row, RowP1, WrapRow;
+    logic [2:1]           AdrD;        // bank and halfword where the instruction starts
+    logic [31:0]          Bank0F, Bank1F;
+
+    assign Row = Adr[ADDR_WIDTH+1:3];
+    assign RowP1 = Row + 1'b1;
+    mux2 #(ROW_WIDTH) wraprowmux(Row, RowP1, Adr[2], WrapRow);
+    rom1p1r #(ROW_WIDTH, 32, 1) bank0(.clk, .ce, .addr(WrapRow), .dout(Bank0F));
+    rom1p1r #(ROW_WIDTH, 32, 1) bank1(.clk, .ce, .addr(Row), .dout(Bank1F));
+
+    // Pick the instruction starting at the PC's halfword.  Bank 0 follows bank 1 because it read the next row.
+    // Adr is the next PCF, not PCF, so the bank and halfword are delayed 1 cycle.
+    flopen #(2) AdrReg(clk, ce, Adr[2:1], AdrD);
+    mux4 #(32) instrmux(Bank0F, {Bank1F[15:0], Bank0F[31:16]}, Bank1F, {Bank0F[15:0], Bank1F[31:16]}, AdrD, IROMInstrF);
+  end else begin : bank
+    // Without compressed instructions, every instruction is one word
+    rom1p1r #(ADDR_WIDTH, 32, 1) rom(.clk, .ce, .addr(Adr[ADDR_WIDTH+1:2]), .dout(IROMInstrF));
   end
-  // If the memory address is aligned to 2 bytes return the upper 2 bytes in the lower 2 bytes.
-  // The spill logic will handle merging the two together.
-  if (P.ZCA_SUPPORTED) begin
-    flopen #(1) AdrReg1(clk, ce, Adr[1], AdrD[1]);
-    assign IROMInstrF = AdrD[1] ? {16'b0, RawIROMInstrF[31:16]} : RawIROMInstrF;
-  end else
-    assign IROMInstrF = RawIROMInstrF;
 endmodule

@@ -72,17 +72,17 @@ add wave -noupdate -group {PCNext Generation} /testbench/dut/core/ifu/PCF
 add wave -noupdate -group {PCNext Generation} /testbench/dut/core/ifu/bpred/bpred/NextValidPCE
 add wave -noupdate -group {PCNext Generation} /testbench/dut/core/ifu/PCSpillNextF
 add wave -noupdate -group {PCNext Generation} /testbench/dut/core/ifu/PCSpillF
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} /testbench/dut/core/ifu/bpred/bpred/Predictor/DirPredictor/GHRM
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[5]}
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[4]}
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[3]}
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[2]}
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[1]}
-add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory[0]}
-add wave -noupdate -group ifu -group Bpred -group RAS -expand /testbench/dut/core/ifu/bpred/bpred/RASPredictor/memory
-add wave -noupdate -group ifu -group Bpred -group RAS /testbench/dut/core/ifu/bpred/bpred/RASPredictor/Ptr
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} /testbench/dut/core/ifu/bpred/bpred/dynamicbp/Predictor/DirPredictor/GHRM
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[5]}
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[4]}
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[3]}
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[2]}
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[1]}
+add wave -noupdate -group ifu -group Bpred -group {branch update selection inputs} {/testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory[0]}
+add wave -noupdate -group ifu -group Bpred -group RAS -expand /testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/memory
+add wave -noupdate -group ifu -group Bpred -group RAS /testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPredictor/Ptr
 add wave -noupdate -group ifu -group Bpred -divider {class check}
-add wave -noupdate -group ifu -group Bpred -group prediction /testbench/dut/core/ifu/bpred/bpred/RASPCF
+add wave -noupdate -group ifu -group Bpred -group prediction /testbench/dut/core/ifu/bpred/bpred/dynamicbp/RASPCF
 add wave -noupdate -group ifu -group Bpred -group prediction -expand -group ex /testbench/dut/core/ifu/bpred/bpred/PCSrcE
 add wave -noupdate -group ifu /testbench/dut/core/ifu/InstrRawF
 add wave -noupdate -group ifu /testbench/dut/core/ifu/PostSpillInstrRawF
@@ -527,7 +527,7 @@ add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uar
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxdataready
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxdataavailintr
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/RXBR
-add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/squashRXerrIP
+add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/RXerrIP
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/rxshiftreg
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/SOUTbit
 add wave -noupdate -group uncore -group uart /testbench/dut/uncoregen/uncore/uartgen/uart/uartPC/SINsync

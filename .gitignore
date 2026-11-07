@@ -79,6 +79,10 @@ benchmarks/embench/wally*.json
 benchmarks/embench/actual_embench_results/wally*.json
 benchmarks/embench/run*
 benchmarks/coremark/coremark_results.csv
+benchmarks/coremark/build/
+benchmarks/comparison/*/build/
+benchmarks/comparison/*/logs/
+benchmarks/comparison/embench/jobs.txt*
 
 # Simulation
 sim/*.svg

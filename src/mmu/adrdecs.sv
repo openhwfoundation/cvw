@@ -19,22 +19,19 @@
 module adrdecs import cvw::*; #(parameter cvw_t P) (
   input  logic [P.PA_BITS-1:0] PhysicalAddress,
   input  logic                 AccessRW, AccessRX, AccessRWXC,
-  input  logic [2:0]           Size,
+  input  logic [1:0]           Size,
   output logic [12:0]          SelRegions
 );
 
   logic [12:1]                 Sel;
 
   // SizeMask bit i permits 2^i-byte accesses
-  localparam logic [4:0]       SIZE_B             = 5'b00001; // byte only
-  localparam logic [4:0]       SIZE_W             = 5'b00100; // word only
-  localparam logic [4:0]       SIZE_WD            = 5'b01100; // word or doubleword
-  localparam logic [4:0]       SIZE_BHW           = 5'b00111; // byte, halfword, or word
-  localparam logic [4:0]       SIZE_BHWD          = 5'b01111; // byte, halfword, word, or doubleword
-  localparam logic [4:0]       SIZE_BHWDQ         = 5'b11111; // byte through quadword
-  // Only main memory handles a 128-bit access (flq, or an amocas pair form); the bus never does
-  localparam logic [4:0]       SUPPORTED_SIZE     = (P.LLEN == 32 ? SIZE_BHW : P.LLEN == 64 ? SIZE_BHWD : SIZE_BHWDQ);
-  localparam logic [4:0]       SUPPORTED_BUS_SIZE = SUPPORTED_SIZE & (P.AHBW >= 64 ? SIZE_BHWD : SIZE_BHW);
+  localparam logic [3:0]       SIZE_B             = 4'b0001; // byte only
+  localparam logic [3:0]       SIZE_W             = 4'b0100; // word only
+  localparam logic [3:0]       SIZE_WD            = 4'b1100; // word or doubleword
+  localparam logic [3:0]       SIZE_BHW           = 4'b0111; // byte, halfword, or word
+  localparam logic [3:0]       SIZE_BHWD          = 4'b1111; // byte, halfword, word, or doubleword
+  localparam logic [3:0]       SUPPORTED_SIZE     = (P.LLEN == 32 ? SIZE_BHW : SIZE_BHWD);
   // Determine which region of physical memory (if any) is being accessed
   // GPIO, PLIC, SPI, and PWM are word-only; UART is byte-only
   adrdec #(P.PA_BITS) dtimdec(PhysicalAddress, P.DTIM_BASE[P.PA_BITS-1:0], P.DTIM_RANGE[P.PA_BITS-1:0], P.DTIM_SUPPORTED, AccessRW, Size, SUPPORTED_SIZE, Sel[1]);
@@ -42,11 +39,11 @@ module adrdecs import cvw::*; #(parameter cvw_t P) (
   adrdec #(P.PA_BITS) ddr4dec(PhysicalAddress, P.EXT_MEM_BASE[P.PA_BITS-1:0], P.EXT_MEM_RANGE[P.PA_BITS-1:0], P.EXT_MEM_SUPPORTED, AccessRWXC, Size, SUPPORTED_SIZE, Sel[3]);
   adrdec #(P.PA_BITS) bootromdec(PhysicalAddress, P.BOOTROM_BASE[P.PA_BITS-1:0], P.BOOTROM_RANGE[P.PA_BITS-1:0], P.BOOTROM_SUPPORTED, AccessRX, Size, SUPPORTED_SIZE, Sel[4]);
   adrdec #(P.PA_BITS) uncoreramdec(PhysicalAddress, P.UNCORE_RAM_BASE[P.PA_BITS-1:0], P.UNCORE_RAM_RANGE[P.PA_BITS-1:0], P.UNCORE_RAM_SUPPORTED, AccessRWXC, Size, SUPPORTED_SIZE, Sel[5]);
-  adrdec #(P.PA_BITS) clintdec(PhysicalAddress, P.CLINT_BASE[P.PA_BITS-1:0], P.CLINT_RANGE[P.PA_BITS-1:0], P.CLINT_SUPPORTED, AccessRW, Size, SUPPORTED_BUS_SIZE, Sel[6]);
+  adrdec #(P.PA_BITS) clintdec(PhysicalAddress, P.CLINT_BASE[P.PA_BITS-1:0], P.CLINT_RANGE[P.PA_BITS-1:0], P.CLINT_SUPPORTED, AccessRW, Size, SUPPORTED_SIZE, Sel[6]);
   adrdec #(P.PA_BITS) gpiodec(PhysicalAddress, P.GPIO_BASE[P.PA_BITS-1:0], P.GPIO_RANGE[P.PA_BITS-1:0], P.GPIO_SUPPORTED, AccessRW, Size, SIZE_W, Sel[7]);
   adrdec #(P.PA_BITS) uartdec(PhysicalAddress, P.UART_BASE[P.PA_BITS-1:0], P.UART_RANGE[P.PA_BITS-1:0], P.UART_SUPPORTED, AccessRW, Size, SIZE_B, Sel[8]);
   adrdec #(P.PA_BITS) plicdec(PhysicalAddress, P.PLIC_BASE[P.PA_BITS-1:0], P.PLIC_RANGE[P.PA_BITS-1:0], P.PLIC_SUPPORTED, AccessRW, Size, SIZE_W, Sel[9]);
-  adrdec #(P.PA_BITS) sdcdec(PhysicalAddress, P.SDC_BASE[P.PA_BITS-1:0], P.SDC_RANGE[P.PA_BITS-1:0], P.SDC_SUPPORTED, AccessRW, Size, SUPPORTED_BUS_SIZE & SIZE_WD, Sel[10]);
+  adrdec #(P.PA_BITS) sdcdec(PhysicalAddress, P.SDC_BASE[P.PA_BITS-1:0], P.SDC_RANGE[P.PA_BITS-1:0], P.SDC_SUPPORTED, AccessRW, Size, SUPPORTED_SIZE & SIZE_WD, Sel[10]);
   adrdec #(P.PA_BITS) spidec(PhysicalAddress, P.SPI_BASE[P.PA_BITS-1:0], P.SPI_RANGE[P.PA_BITS-1:0], P.SPI_SUPPORTED, AccessRW, Size, SIZE_W, Sel[11]);
   adrdec #(P.PA_BITS) pwmdec(PhysicalAddress, P.PWM_BASE[P.PA_BITS-1:0], P.PWM_RANGE[P.PA_BITS-1:0], P.PWM_SUPPORTED, AccessRW, Size, SIZE_W, Sel[12]);
 
