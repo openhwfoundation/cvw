@@ -171,8 +171,7 @@ RUN eval $(opam config env) && \
 
 # Buildroot
 WORKDIR /opt/riscv
-RUN git clone --recurse-submodules https://stineje:ghp_kXIHqiMSv4tFec2BCAvrhSrIh
-3KNUD06IejU@github.com/davidharrishmc/riscv-wally.git
+RUN git clone --recurse-submodules https://github.com/davidharrishmc/riscv-wally.git
 ENV export WALLY=/opt/riscv/riscv-wally
 RUN git clone https://github.com/buildroot/buildroot.git && \
   cd buildroot && \
