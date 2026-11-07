@@ -62,9 +62,9 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
 
   // *** move to configuration when EU are instantiated
   // EU capabilities, Index: [EU][capability]
-  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = '1;   // integer, floating point, memory
+  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = {3'd2, 3'd2, 3'd4, 3'b1, 3'b1};   // integer, floating point, memory
   localparam logic [P.VPU_EU-1:0][31:0] VEU_CLASSES = '1;   // operation classes, indexed by VOpClassD
-  localparam logic [P.VPU_EU-1:0][6:0]  VEU_MODES   = '1;   // load/store addressing modes
+  localparam logic [P.VPU_EU-1:0][6:0]  VEU_MODES   = {7'b0, 7'b0, 7'b1111111, 7'b0, 7'b0};   // load/store addressing modes
 
   logic [P.VPU_EU-1:0] SelectedD;
   logic [P.VPU_EU-1:0] EligibleD;          // units that can carry out this instruction
