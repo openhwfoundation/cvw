@@ -51,7 +51,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
-  output logic [1:0]                VMemRWM,                                    // Memory read/write (to LSU): [1] = read, [0] = write
+  output logic [1:0]                VMemRWE, VMemRWM,                           // Memory read/write (to LSU): [1] = read, [0] = write
   output logic [2:0]                VSizeM,
   output logic [P.VLEN-1:0]         VWriteDataM,                                // Data to be written to memory (to LSU)
   output logic [P.XLEN-1:0]         VEUAdrE, VEUAdrM,                           // Address to be written to memory (to LSU)
@@ -160,7 +160,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
     vlsuif #(P) vlsuif(.clk, .reset, .ForwardedSrcAE, .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
                         .ReadyW(ControllerWBReadyW[P.VPU_INT_EU]), .ValidD(ControllerValidD[P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[P.VPU_INT_EU]),
-                        .VMemRWD, .Vs3D(VRD3D), .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM, .VReadDataW(VResultW[P.VPU_INT_EU]));
+                        .VMemRWD, .Vs3D(VRD3D), .VMemRWE, .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM, .VReadDataW(VResultW[P.VPU_INT_EU]));
 
     //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
     //assign VIEUResultW[i+P.VPU_INT_EU] = '0;

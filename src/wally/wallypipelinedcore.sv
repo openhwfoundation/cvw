@@ -189,7 +189,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]             VIEUFPResultFinalW;
   logic [P.VLEN-1:0]             VWriteDataM;
   logic [P.XLEN-1:0]             VEUAdrE, VEUAdrM;
-  logic [1:0]                    VMemRWM;
+  logic [1:0]                    VMemRWE, VMemRWM;
   logic [2:0]                    VSizeM;
   logic [P.VLEN-1:0]             VReadDataM;
   logic                          VPUFrontEndBusyD;
@@ -251,7 +251,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
     .FpLoadStoreM, .FWriteDataM, .IEUAdrE, .IEUAdrM, .WriteDataM,
-    .VMemRWM, .VEUAdrE, .VEUAdrM, .VSizeM, .VWriteDataM, .VReadDataM,
+    .VMemRWE, .VMemRWM, .VEUAdrE, .VEUAdrM, .VSizeM, .VWriteDataM, .VReadDataM,
     .ReadDataW, .FlushDCacheM, .CMOpM, .LSUPrefetchM,
     // connected to ahb (all stay the same)
     .LSUHADDR,  .HRDATA, .LSUHWDATA, .LSUHWSTRB, .LSUHSIZE,
@@ -394,14 +394,14 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
                  .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .StallE, .FlushE, .FlushM,
                  .VPUFrontEndBusyD, .VPUBackEndBusyE,
-                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VMemRWM, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VMemRWE, .VMemRWM, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
                  .VIntResM, .IllegalVPUInstrD, .VIEUFPResultFinalW,
                  .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin
     assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD, VWriteIntE, VIntResM,
             WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM,
-            VMemRWM, VWriteDataM, VEUAdrE, VEUAdrM, VSizeM} = '0;
+            VMemRWE, VMemRWM, VWriteDataM, VEUAdrE, VEUAdrM, VSizeM} = '0;
   end
 
 endmodule

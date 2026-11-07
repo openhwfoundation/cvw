@@ -95,9 +95,9 @@ localparam VPU_INT_EU = 32'd2;
 localparam VPU_INT_LANES = 32'd2;
 localparam VPU_INT_NO_MUL = 32'd2;
 localparam VPU_INT_NO_MUL_LANES = 32'd2;
-localparam VPU_LSU_LANES = 32'd2;
+localparam VPU_LSU_LANES = 32'd4;
 localparam VPU_FP_EU = 32'd2;
-localparam VPU_FP_LANES = 32'd2;
+localparam VPU_FP_LANES = 32'd4;
 
 // privilege modes
 localparam logic S_SUPPORTED = 1; // Supervisor mode

@@ -180,8 +180,9 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
   mux2 #(P.XLEN) effadremux(IEUAdrE, VEUAdrE, VectorOpE, effAdrE);
   mux2 #(P.XLEN) effadrmmux(IEUAdrM, VEUAdrM, VectorOpM, effAdrM);
 
-  mux2 #(P.LLEN) vwritedatamux(IMAFWriteDataM, VWriteDataM, VectorOpM, effWriteDataM);
-  assign VReadDataM = ReadDataM;
+  // *** assumes VLEN > LLEN; only the low LLEN bits are written / read for now
+  mux2 #(P.LLEN) vwritedatamux(IMAFWriteDataM, VWriteDataM[P.LLEN-1:0], VectorOpM, effWriteDataM);
+  assign VReadDataM = {{(P.VLEN-P.LLEN){1'b0}}, ReadDataM};
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M

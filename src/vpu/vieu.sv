@@ -125,7 +125,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
   // *** add vector length later
-  assign vlE = 4;
+  assign vlE = 1;
   assign VImmE = '0; // *** fix me
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE, .NotConsummedW,
