@@ -242,12 +242,12 @@ cause_m_ext_interrupt:
     sw t4, 0x08(t3)  // enable the first pin as an output
     sw t4, 0x04(t3)  // enable the first pin as an input as well to cause the interrupt to fire
 
-    sw zero, 0x1C(t3) // clear rise_ip
-    sw zero, 0x24(t3) // clear fall_ip
-    sw zero, 0x2C(t3) // clear high_ip
-    sw zero, 0x34(t3) // clear low_ip
+    sw t4, 0x1C(t3)  // clear rise_ip (pending bits are cleared by writing a 1)
+    sw t4, 0x24(t3)  // clear fall_ip
+    sw t4, 0x2C(t3)  // clear high_ip
+    sw t4, 0x34(t3)  // clear low_ip
 
-    sw t4, 0x28(t3)  // set first pin to interrupt on a rising value
+    sw t4, 0x28(t3)  // set first pin to interrupt on a high value
     sw t4, 0x0C(t3)  // write a 1 to the first output pin (cause interrupt)
 m_ext_loop:
     addi a3, a3, -1
@@ -281,12 +281,12 @@ cause_s_ext_interrupt_GPIO:
     sw t4, 0x08(t3)  // enable the first pin as an output
     sw t4, 0x04(t3)  // enable the first pin as an input as well to cause the interrupt to fire
 
-    sw zero, 0x1C(t3) // clear rise_ip
-    sw zero, 0x24(t3) // clear fall_ip
-    sw zero, 0x2C(t3) // clear high_ip
-    sw zero, 0x34(t3) // clear low_ip
+    sw t4, 0x1C(t3)  // clear rise_ip (pending bits are cleared by writing a 1)
+    sw t4, 0x24(t3)  // clear fall_ip
+    sw t4, 0x2C(t3)  // clear high_ip
+    sw t4, 0x34(t3)  // clear low_ip
 
-    sw t4, 0x28(t3)  // set first pin to interrupt on a rising value
+    sw t4, 0x28(t3)  // set first pin to interrupt on a high value
     sw t4, 0x0C(t3)  // write a 1 to the first output pin (cause interrupt)
 s_ext_loop:
     addi a3, a3, -1
@@ -560,7 +560,7 @@ time_interrupt_\MODE\():
 ext_interrupt_\MODE\():
     li t3, 0x10060000 // reset interrupt by clearing all the GPIO bits
     sw zero, 8(t3) // disable the first pin as an output
-    sw zero, 40(t3) // write a 0 to the first output pin (reset interrupt)
+    sw zero, 40(t3) // clear high_ie to mask the interrupt (high_ip stays set)
 
     // reset PLIC to turn off external interrupts
     // m priority threshold = 7
