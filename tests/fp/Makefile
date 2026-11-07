@@ -6,8 +6,12 @@ MAKEFLAGS += --output-sync --no-print-directory
 
 SOFTFLOAT_DIR := ${WALLY}/addins/berkeley-softfloat-3/build/Linux-x86_64-GCC
 TESTFLOAT_DIR := ${WALLY}/addins/berkeley-testfloat-3/build/Linux-x86_64-GCC
+COVERFLOAT_DIR := ${WALLY}/addins/cover-float
+COVERFLOAT_OUT := ${WALLY}/tests/fp/coverfloat
+# cover-float's full vector set; COVERFLOAT_FLAGS=--partial-output generates its smaller set
+COVERFLOAT_FLAGS ?=
 
-.PHONY: all softfloat testfloat vectors clean
+.PHONY: all softfloat testfloat vectors coverfloat clean
 
 all: vectors
 
@@ -18,8 +22,26 @@ testfloat: ${TESTFLOAT_DIR}/testfloat_gen
 vectors: testfloat
 	$(MAKE) -C ${WALLY}/tests/fp/vectors
 
+# cover-float (addins/cover-float) generates its vectors in coverfloat/gen, regenerating only the models whose
+# generator changed; bin/coverfloat2tv converts them into coverfloat/vectors, named like the TestFloat
+# vectors, for testbench_fp +VECTORS=${COVERFLOAT_OUT}/vectors/.  cover-float is its own uv project, so
+# drop any VIRTUAL_ENV that would make uv warn about the mismatch.
+coverfloat:
+	[ -e ${COVERFLOAT_DIR}/src/dependencies/softfloat/spike/.git ] || \
+	    git -C ${WALLY} submodule update --init --recursive addins/cover-float
+	mkdir -p ${COVERFLOAT_OUT}/gen/testvectors
+	cd ${COVERFLOAT_DIR} && env -u VIRTUAL_ENV uv run --managed-python cover-float-testgen -qq \
+	    --only-processed-vectors --output-dir ${COVERFLOAT_OUT}/gen ${COVERFLOAT_FLAGS}
+	$(MAKE) ${COVERFLOAT_OUT}/vectors/.stamp
+
+${COVERFLOAT_OUT}/vectors/.stamp: $(wildcard ${COVERFLOAT_OUT}/gen/testvectors/B*_tv.txt) ${WALLY}/bin/coverfloat2tv
+	rm -rf ${COVERFLOAT_OUT}/vectors
+	${WALLY}/bin/coverfloat2tv ${COVERFLOAT_OUT}/vectors ${COVERFLOAT_OUT}/gen/testvectors/B*_tv.txt
+	touch $@
+
 clean:
 	$(MAKE) -C ${WALLY}/tests/fp/vectors clean
+	rm -rf ${COVERFLOAT_OUT}
 	$(MAKE) -C ${SOFTFLOAT_DIR} clean
 	$(MAKE) -C ${TESTFLOAT_DIR} clean
 

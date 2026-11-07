@@ -54,6 +54,15 @@ The choices for `<test>` are as follows:
 
 Any config that includes floating point support can be used. Each test will test all its vectors for all precisions supported by the given config.
 
+## cover-float Vectors
+
+The FPU is also tested with the vectors of [cover-float](https://github.com/cover-float/cover-float) (submodule `addins/cover-float`), which are generated to hit the corner cases of its floating-point coverage models.
+```bash
+make coverfloat                                     # in $WALLY; COVERFLOAT_FLAGS=--partial-output for cover-float's smaller set
+wsim <config> all --tb testbench_fp --args +VECTORS=$WALLY/tests/fp/coverfloat/vectors/
+```
+cover-float generates its vectors in `coverfloat/gen`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. The vectors for operations the testbench has no unit for (remainder, min/max, sign injection, classify, round to integer), BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
+
 ### Testvector Count
 
       46464   185856   836352 f16_add_rd.tv

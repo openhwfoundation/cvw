@@ -22,6 +22,7 @@ module testbench_fp;
   parameter string TEST="none"; // choices are cvtint, cvtfp, cmp, add, sub, mul, div, sqrt, fma, all
   parameter string TEST_SIZE="all"; // all, QP, DP, SP, or HP
   string TestName, TestSize;
+  string VectorPath;                           // directory (and file-name prefix) of the test vectors
 
   `include "parameter-defs.vh"
 
@@ -126,6 +127,9 @@ module testbench_fp;
   initial begin : driver
     if (!$value$plusargs("TEST=%s", TestName)) TestName = TEST;
     if (!$value$plusargs("TEST_SIZE=%s", TestSize)) TestSize = TEST_SIZE;
+    // +VECTORS=<dir>/<prefix> reads the vectors from other files named like TestFloat's, such as the
+    // cover-float vectors that make coverfloat converts into tests/fp/coverfloat/vectors
+    if (!$value$plusargs("VECTORS=%s", VectorPath)) VectorPath = `PATH;
 
     if (P.Q_SUPPORTED & (TestSize == "QP" | TestSize == "all")) begin // if Quad precision is supported
       if (TestName == "cvtint" | TestName == "all") begin  // if testing integer conversion
@@ -620,9 +624,9 @@ module testbench_fp;
       OpCtrlVal   = OpCtrl[TestNum/5];
       WriteIntVal = WriteInt[TestNum/5];
       FrmVal      = Frm[TestNum%5];
-      fd = $fopen({`PATH, Tests[TestNum]}, "r");
+      fd = $fopen({VectorPath, Tests[TestNum]}, "r");
       if (fd == 0) begin
-        $display("Error: cannot open %s%s; run make testfloat in $WALLY", `PATH, Tests[TestNum]);
+        $display("Error: cannot open %s%s; run make testfloat (or make coverfloat) in $WALLY", VectorPath, Tests[TestNum]);
         $finish;
       end
       $display("Running %s vectors", Tests[TestNum]);

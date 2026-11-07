@@ -634,13 +634,14 @@ def actElfDir(config):
 builtTargets = set()
 
 
-def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True):
+def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True, coverfloat=False):
     """Build the tests with the root Makefile, which rebuilds only what is out of date: the ACT ELFs
     for every configuration with an ACT configuration and the boot image a 64-bit IROM (rv64i) is
     preloaded from (zsbl), unless act is False, and optionally the peripheral and coverage tests, the
-    derivative configurations (config/deriv) and the testfloat vectors."""
+    derivative configurations (config/deriv), the testfloat vectors and the cover-float vectors."""
     targets = [t for t in (["act", "zsbl"] if act else []) + (["periph"] if periph else []) + (["coverage"] if coverage else [])
-               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) if t not in builtTargets]
+               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) + (["coverfloat"] if coverfloat else [])
+               if t not in builtTargets]
     if not targets:
         return
     # ACT is its own uv project: drop the VIRTUAL_ENV that `uv run` set for this script so ACT's
@@ -893,7 +894,7 @@ def selectTests(args, sims, coverStr):
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
-        buildTests(periph=False, deriv=True, testfloat=True, act=False)
+        buildTests(periph=False, deriv=True, testfloat=True, act=False, coverfloat=True)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
         for config in testfloatconfigs + testfloatdivconfigs:
             tests = ["div", "sqrt", "cvtint", "cvtfp"]
@@ -917,6 +918,19 @@ def selectTests(args, sims, coverStr):
                             log=sim_log,
                             grepstr="All Tests completed with          0 errors")
                     configs.append(tc)
+            # The cover-float vectors (make coverfloat), converted to TestFloat's file layout, run through the
+            # same testbench: every operation on the standard configurations, division and square root on the
+            # divider variants
+            for test in ["all"] if config in testfloatconfigs else ["div", "sqrt"]:
+                name = f"coverfloat_{test}"
+                tc = TestCase(
+                        name=name,
+                        variant=config,
+                        cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test,
+                             "--args", f"+VECTORS={WALLY}/tests/fp/coverfloat/vectors/"],
+                        log=f"{regressionDir}/{testfloatsim}/logs/{config}_{name}.log",
+                        grepstr="All Tests completed with          0 errors")
+                configs.append(tc)
 
     if (args.benchmark or args.nightly):
         # RUNNING THE EMBENCH TEST
