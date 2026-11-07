@@ -19,7 +19,7 @@ make --jobs
 
 This compiles SoftFloat for an x86_64 environment in its `build/Linux-x86_64-GCC` directory using the `SPECIALIZE_TYPE=RISCV` flag to get RISC-V behavior. TestFloat is then compiled in its `build/Linux-x86_64-GCC` directory using this SoftFloat library.
 
-The Makefile in the vectors subdirectory of this directory is then called to  generate testvectors for each rounding mode and operation. It also puts an underscore between each vector instead of a space to allow SystemVerilog `$readmemh` to read correctly.
+The Makefile in the vectors subdirectory of this directory is then called to  generate testvectors for each rounding mode and operation. It also puts an underscore between the fields of each vector instead of a space, so that the testbench reads each line as one hexadecimal number.
 
 Testvectors for the combined integer floating-point divider are also generated.
 
@@ -36,8 +36,10 @@ regression-wally --testfloat
 
 To run a single test, use
 ```bash
-wsim <config> <test> --tb testbench_fp
+wsim <config> <test> --tb testbench_fp            # Verilator by default; --sim questa or vcs also work
+wsim <config> <test> --tb testbench_fp --args +TEST_SIZE=DP   # only one precision: QP, DP, SP or HP
 ```
+The test is a runtime plusarg, so each configuration is compiled once for all of its tests.
 The choices for `<test>` are as follows:
 
     cvtint - test integer conversion unit (fcvtint)
