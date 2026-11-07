@@ -74,21 +74,21 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic [1:0]               LSUHTRANS,                            // Bus transaction type from LSU to EBU
   output logic [P.XLEN/8-1:0]      LSUHWSTRB,                            // Bus byte write enables from LSU to EBU
   // page table walker
-  input  logic [P.XLEN-1:0]       SATP_REGW,                             // SATP (supervisor address translation and protection) CSR
-  input  logic                    STATUS_MXR, STATUS_SUM, STATUS_MPRV,   // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
-  input  logic [1:0]              STATUS_MPP,                            // Machine previous privilege mode
-  input  logic                    ENVCFG_PBMTE,                          // Page-based memory types enabled
-  input  logic                    ENVCFG_ADUE,                           // HPTW A/D Update enable
-  input  logic [1:0]              MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking config bits
-  input  logic [P.XLEN-1:0]       PCSpillF,                              // Fetch PC
-  input  logic                    ITLBMissOrUpdateAF,                    // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
-  output logic [P.XLEN-1:0]       PTE,                                   // Page table entry write to ITLB
-  output logic [2:0]              PageType,                              // Type of page table entry to write to ITLB
-  output logic                    ITLBWriteF,                            // Write PTE to ITLB
-  output logic                    SelHPTW,                               // During a HPTW walk the effective privilege mode becomes S_MODE
+  input  logic [P.XLEN-1:0]        SATP_REGW,                            // SATP (supervisor address translation and protection) CSR
+  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,  // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
+  input  logic [1:0]               STATUS_MPP,                           // Machine previous privilege mode
+  input  logic                     ENVCFG_PBMTE,                         // Page-based memory types enabled
+  input  logic                     ENVCFG_ADUE,                          // HPTW A/D Update enable
+  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking config bits
+  input  logic [P.XLEN-1:0]        PCSpillF,                             // Fetch PC
+  input  logic                     ITLBMissOrUpdateAF,                   // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
+  output logic [P.XLEN-1:0]        PTE,                                  // Page table entry write to ITLB
+  output logic [2:0]               PageType,                             // Type of page table entry to write to ITLB
+  output logic                     ITLBWriteF,                           // Write PTE to ITLB
+  output logic                     SelHPTW,                              // During a HPTW walk the effective privilege mode becomes S_MODE
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP configuration from privileged unit
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
-  output logic                    PointerMaskApplicable, PMLen16Sel      // Pointer Mask signals
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
+  output logic                     PointerMaskApplicable, PMLen16Sel     // Pointer masking signals
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
   localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses

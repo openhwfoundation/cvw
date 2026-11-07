@@ -87,6 +87,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   // ... up to 63 more at consecutive addresses
   localparam MSECCFG       = 12'h747;
   localparam MSECCFGH      = 12'h757;
+
   /* verilator lint_off UNUSEDPARAM */
   localparam TSELECT       = 12'h7A0;
   localparam TDATA1        = 12'h7A1;
@@ -198,8 +199,8 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     assign WriteMENVCFGM = CSRMWriteM & (CSRAdrM == MENVCFG);
     assign LegalizedCBIE = MENVCFG_PreWriteValM[5:4] == 2'b10 ? MENVCFG_REGW[5:4] : MENVCFG_PreWriteValM[5:4]; // Assume WARL for reserved CBIE = 10, keeps old value
     assign LegalizedMENVCFGPMM = ((MENVCFG_PreWriteValM[33:32] == 2'b01) |
-                          (MENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
-                          MENVCFG_REGW[33:32] : MENVCFG_PreWriteValM[33:32];
+                                  (MENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
+                                  MENVCFG_REGW[33:32] : MENVCFG_PreWriteValM[33:32];
     // MENVCFG is always 64 bits even for RV32
     assign MENVCFG_WriteValM = {
       MENVCFG_PreWriteValM[63]  & P.SSTC_SUPPORTED,
@@ -233,9 +234,9 @@ module csrm import cvw::*; #(parameter cvw_t P) (
 
   // MSECCFG register
   // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh.
-  // It exists only if an extension defining one of its fields is implemented (P.MSECCFG_SUPPORTED);
-  // otherwise mseccfg and mseccfgh are illegal.  Only PMM (Smmpm) is implemented; uncomment the other
-  // terms below as each extension is added.
+  // It exists if any extension that adds a field to it is implemented: Smepmp (MML, MMWP, RLB),
+  // Zkr (USEED, SSEED), Zicfilp (MLPE), or Smmpm (PMM); otherwise mseccfg and mseccfgh are illegal.
+  // Uncomment the terms below as each extension is added (and add it to MSECCFG_SUPPORTED in config-shared.vh).
   // Note that the Smepmp fields also need sticky/locking behavior: MML and MMWP cannot be
   // cleared once set, and RLB cannot be set once any pmpcfg entry has its L bit set, both
   // until a PMP reset.

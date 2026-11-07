@@ -20,7 +20,6 @@ localparam SVMODE_BITS = (XLEN==32 ? 32'd1  : 32'd4);
 localparam ASID_BASE   = (XLEN==32 ? 32'd22 : 32'd44);
 localparam ASID_BITS   = (XLEN==32 ? 32'd9  : 32'd16);
 
-
 // constants to check SATP_MODE against
 // defined in Table 4.3 of the privileged spec
 localparam NO_TRANSLATE = 4'd0;
@@ -38,7 +37,8 @@ localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORT
 localparam logic ZPM_SUPPORTED = (SMMPM_SUPPORTED | SSNPM_SUPPORTED | SMNPM_SUPPORTED);
 // mseccfg/mseccfgh exist only when an extension defining one of their fields is implemented
 // (Smepmp, Zkr, Zicfilp, Smmpm); otherwise accesses raise illegal instruction.
-localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED | SMMPM_SUPPORTED
+// Smmpm is the only one Wally supports; OR in the others as they are added.
+localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // | SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED
 
 // Configure MISA based on supported extensions
 localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,

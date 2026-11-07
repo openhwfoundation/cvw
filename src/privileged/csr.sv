@@ -58,7 +58,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InvalidateICacheM,
   input  logic                     DivBusyE,                  // integer divide busy
   input  logic                     FDivBusyE,                 // floating point divide busy
-  input logic                      PointerMaskApplicable, PMLen16Sel,
+  input  logic                     PointerMaskApplicable, PMLen16Sel, // pointer masking applies to the access in the M stage, and selects PMLEN 16
   // outputs from CSRs
   output logic [1:0]               STATUS_MPP,
   output logic                     STATUS_SPP, STATUS_TSR, STATUS_TVM,
@@ -80,8 +80,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   //
   output logic [P.XLEN-1:0]        CSRReadValW,               // value read from CSR
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
-  output logic                     BigEndianM,                 // memory access is big-endian based on privilege mode and STATUS register endian fields
-  output logic [1:0]               MENVCFG_PMM, SENVCFG_PMM, MSECCFG_PMM //pointer masking config bits
+  output logic                     BigEndianM,                // memory access is big-endian based on privilege mode and STATUS register endian fields
+  output logic [1:0]               MENVCFG_PMM, SENVCFG_PMM, MSECCFG_PMM // pointer masking config bits
 );
 
   localparam MIP = 12'h344;
@@ -123,18 +123,22 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic                    ENVCFG_STCE; // supervisor timer counter enable
   logic                    ENVCFG_FIOM; // fence implies io (presently not used)
-  logic [P.XLEN-1:0]       MaskedIEUAdrxTvalM; //Masked virtual address to write to Xtval
-  logic [1:0]              EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
+  logic [P.XLEN-1:0]       MaskedIEUAdrxTvalM; // memory address to write to xtval, pointer masked if pointer masking applies
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
-  assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
+
   ///////////////////////////////////////////
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
-  if (P.ZPM_SUPPORTED) begin //If pointer masking is supported, hardware writes to CSRs can be subject to pointer masking
-    if (P.PMLEN16_SUPPORTED) assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLen16Sel ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLen16Sel ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
-    else                     assign MaskedIEUAdrxTvalM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
+
+  if (P.ZPM_SUPPORTED) begin:xtvalpm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
+    logic [1:0]        EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
+    logic [P.XLEN-1:0] PMAdrM;
+    assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
+    if (P.PMLEN16_SUPPORTED) assign PMAdrM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLen16Sel ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLen16Sel ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
+    else                     assign PMAdrM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
+    assign MaskedIEUAdrxTvalM = PointerMaskApplicable ? PMAdrM : IEUAdrxTvalM;
   end else assign MaskedIEUAdrxTvalM = IEUAdrxTvalM;
   always_comb
     if (InterruptM)           NextFaultXtvalM = '0;
@@ -142,9 +146,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
       12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = PointerMaskApplicable ? MaskedIEUAdrxTvalM : IEUAdrxTvalM; // Instruction / Load/Store Misaligned/page/access faults, pointer masking is applicable to hardware writes to xtval // exclusion-tag: xtval-data-fault
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = MaskedIEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
+
   ///////////////////////////////////////////
   // Trap Vectoring & Returns; vectored traps must be aligned to 64-byte address boundaries
   ///////////////////////////////////////////
@@ -301,16 +306,17 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign ENVCFG_CBE   = (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[7:4] :
                                                                         (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
-  // broadcast environmental configuration pointer masking signals
-  assign MENVCFG_PMM = MENVCFG_REGW[33:32];
-  //SENVCFG is XLEN, when XLEN = 32 PMM doesn't exist
+  // pointer masking configuration
+  assign MENVCFG_PMM  = MENVCFG_REGW[33:32];
+  // senvcfg is SXLEN bits, so with XLEN = 32 it has no PMM field
   if (P.XLEN == 64) assign SENVCFG_PMM = SENVCFG_REGW[33:32];
-  else assign SENVCFG_PMM = 2'b0;
+  else              assign SENVCFG_PMM = 2'b0;
   // FIOM presently doesn't do anything because Wally fences don't do anything
   assign ENVCFG_FIOM  = (PrivilegeModeW == P.M_MODE) ? 1'b1 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[0] :
                                                                         (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
-  assign MSECCFG_PMM =   MSECCFG_REGW[33:32];
+  assign MSECCFG_PMM  = MSECCFG_REGW[33:32];
+
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM;
   flopenrc #(P.XLEN) CSRValWReg(clk, reset, FlushW, ~StallW, CSRReadValM, CSRReadValW);

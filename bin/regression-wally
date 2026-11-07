@@ -337,13 +337,13 @@ lockstepwaivers = [
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
 
-    # Stock ImperasDV keeps masking when mstatus.MXR=1, which is wrong; cvw matches Sail.
+    # Stock ImperasDV keeps pointer masking when mstatus.MXR=1, which is wrong; cvw matches Sail.  An ImperasDV
+    # engineering build fixes it; remove these waivers when cvw moves to an ImperasDV release with the fix.
     "Smnpm_SSm-00.elf", "Ssnpm_Sm-00.elf",
     "Smnpm_S_bare_pmm10_edgecases-00.elf", "Smnpm_S_sv39_pmm10_edgecases-00.elf",
     "Smnpm_S_sv48_pmm10_edgecases-00.elf", "Smnpm_S_sv57_pmm10_edgecases-00.elf",
     "Ssnpm_bare_pmm10_edgecases-00.elf", "Ssnpm_sv39_pmm10_edgecases-00.elf",
     "Ssnpm_sv48_pmm10_edgecases-00.elf", "Ssnpm_sv57_pmm10_edgecases-00.elf",
-
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and

@@ -322,7 +322,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
             sfencevmaM, sfencevmaAllM, sfencevmaAdrM, BigEndianM, WaitM,
-            PointerMaskApplicable, PMLen16Sel, MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
+            MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
   end
 
   // multiply/divide unit

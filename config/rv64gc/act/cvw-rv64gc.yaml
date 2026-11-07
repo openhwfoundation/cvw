@@ -501,7 +501,7 @@ params:
       false,
       false,
     ]
-  #PM params
-  SUPPORTED_PMLEN_SSNPM: [0,7]
-  SUPPORTED_PMLEN_SMNPM: [0,7]
-  SUPPORTED_PMLEN_SMMPM: [0,7]
+  # Pointer masking: PMLEN 7 only (PMLEN 16 is incompatible with Sv57)
+  SUPPORTED_PMLEN_SSNPM: [0, 7]
+  SUPPORTED_PMLEN_SMNPM: [0, 7]
+  SUPPORTED_PMLEN_SMMPM: [0, 7]
