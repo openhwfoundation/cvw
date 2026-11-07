@@ -36,12 +36,17 @@ module valu import cvw::*; #(parameter cvw_t P)
    output logic [P.ELEN-1:0] Sum
    );
 
-  logic [P.ELEN-1:0] AddResultE, AndResultE;
-  logic vand;
+  logic [P.ELEN-1:0] AddResultE, AndResultE, CondInvA;
+  logic vand, vsub;
 
-  // *** simplest implementation for now, just add, SEW = e64
+  // *** simplest implementation for now, just add/sub/and, SEW = 64
+  // Operands: A = vs1 / imm / x[rs1], B = vs2
 
-  assign AddResultE = A + B;
+  // vsub.vv (OPIVV) and vsub.vx (OPIVX): vd = vs2 - vs1 = B - A = B + ~A + 1
+  assign vsub = (Funct6E == 6'b000010) & ((Funct3E == 3'b000) | (Funct3E == 3'b100));
+
+  mux2 #(P.ELEN) subinvmux(A, ~A, vsub, CondInvA);
+  assign AddResultE = B + CondInvA + {{(P.ELEN-1){1'b0}}, vsub};
 
   assign AndResultE = A & B;
 
