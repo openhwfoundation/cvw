@@ -1684,3 +1684,37 @@ ICACHE_LINELENINBITS   32'd256
 derive rv32gc_novm_cache_4way_64KB_512Bline  rv32gc_novm_cache_4way_64KB_256Bline
 DCACHE_LINELENINBITS   32'd512
 ICACHE_LINELENINBITS   32'd512
+
+# Superscalar / late ALU / macro-op fusion gating
+# single: single-issue Wally;  singlelate: single issue + late ALU;  nofusion: dual issue + late ALU, no fusion
+
+deriv single_rv32gc rv32gc
+SUPERSCALAR_SUPPORTED 0
+LATE_ALU_SUPPORTED    0
+FUSION_SUPPORTED      0
+
+deriv singlelate_rv32gc rv32gc
+SUPERSCALAR_SUPPORTED 0
+FUSION_SUPPORTED      0
+
+deriv nofusion_rv32gc rv32gc
+FUSION_SUPPORTED      0
+
+deriv single_rv64gc rv64gc
+SUPERSCALAR_SUPPORTED 0
+LATE_ALU_SUPPORTED    0
+FUSION_SUPPORTED      0
+
+deriv singlelate_rv64gc rv64gc
+SUPERSCALAR_SUPPORTED 0
+FUSION_SUPPORTED      0
+
+deriv nofusion_rv64gc rv64gc
+FUSION_SUPPORTED      0
+
+deriv syn_single_rv32gc syn_rv32gc single_rv32gc
+deriv syn_singlelate_rv32gc syn_rv32gc singlelate_rv32gc
+deriv syn_nofusion_rv32gc syn_rv32gc nofusion_rv32gc
+deriv syn_single_rv64gc syn_rv64gc single_rv64gc
+deriv syn_singlelate_rv64gc syn_rv64gc singlelate_rv64gc
+deriv syn_nofusion_rv64gc syn_rv64gc nofusion_rv64gc

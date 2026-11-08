@@ -9,7 +9,7 @@
 //          slots issue the PC must move by both their lengths in the same cycle.  Everything it
 //          needs is a fixed bit field of an uncompressed instruction, so no decode is required.
 //
-//          The rule is a whitelist for pairing, not for execution.  When Issue2F is low the core
+//          The rule is a whitelist for pairing, not for execution.  When Issue1F is low the core
 //          behaves exactly as the original single-issue Wally: slot 0 issues by itself and slot 1
 //          is fetched again next cycle as the next slot 0.  No instruction is ever skipped.
 //
@@ -48,14 +48,14 @@
 module issue import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0] Instr0F,        // Slot 0 raw instruction (at PCF)
   input  logic [31:0] Instr1F,        // Slot 1 raw instruction, already aligned to bit 0
-  input  logic        Instr2ValidF,   // Slot 1 holds a complete instruction from the I$
+  input  logic        Instr1ValidF,   // Slot 1 holds a complete instruction from the I$
   input  logic        BPPCSrcF,       // Branch predictor says this fetch is a taken branch or jump
-  output logic        Issue2F,        // Both slots may issue together this cycle
-  output logic        LateA2F, LateB2F, // Slot 1's rs1 / rs2 is slot 0's rd: its operand comes from the late ALU's bypass
-  output logic        LateOK2F,         // Slot 1 is an operation the late ALU implements
-  output logic        Fuse2F,           // The pair is fused into one indexed load, executed by slot 0
-  output logic        FuseBr2F,         // The pair is fused into one ALU op + compare-and-branch
-  output logic        FuseBrAdd2F       // ... and slot 0 is an add (else a logic op); see datapath.sv
+  output logic        Issue1F,        // Both slots may issue together this cycle
+  output logic        LateA1F, LateB1F, // Slot 1's rs1 / rs2 is slot 0's rd: its operand comes from the late ALU's bypass
+  output logic        LateOK1F,         // Slot 1 is an operation the late ALU implements
+  output logic        Fuse1F,           // The pair is fused into one indexed load, executed by slot 0
+  output logic        FuseBr1F,         // The pair is fused into one ALU op + compare-and-branch
+  output logic        FuseBrAdd1F       // ... and slot 0 is an add (else a logic op); see datapath.sv
 );
 
   // Opcodes
@@ -130,7 +130,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   //     say taken for an instruction that is not a branch at all (a class misprediction on a stale
   //     or aliased BTB entry), so this cannot be qualified by slot 0's opcode.
   //     With it, a conditional branch predicted not-taken DOES pair; if it later resolves taken,
-  //     Kill2E in ifu.sv squashes slot 1 before it commits and the redirect re-fetches it.
+  //     Kill1E in ifu.sv squashes slot 1 before it commits and the redirect re-fetches it.
   //     When slot 1 is a branch, slot 0 is not one (Branch1OKF), so the prediction made at the
   //     bundle's address is slot 1's: the BTB has no slot field, and the predictor trains a slot 1
   //     branch at slot 0's PC, which is where fetch looks it up.  Both slots issue and fetch goes
@@ -155,7 +155,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // encoding this configuration enables and flags the rest as illegal.  Fetch cannot make that
   // judgement and does not try: sh1add and an illegal encoding are the same bits, separated only by
   // P.ZBA_SUPPORTED, so an encoding that turns out illegal is replayed from the Memory stage and traps
-  // as an unpaired instruction (see Replay2M).  That keeps the one copy of the encoding table in the
+  // as an unpaired instruction (see Replay1M).  That keeps the one copy of the encoding table in the
   // decoder that owns it, rather than a second copy here that could silently disagree with it.
   //
   // Multiplies and divides share the OP and OP-32 opcodes with the ALU instructions but need the one
@@ -209,7 +209,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // a slot 1 branch that is always taken -- one control transfer per bundle, looked up and trained at
   // the bundle's address -- and the first time it is seen it redirects from Execute like a mispredicted
   // branch.  It may sit beside a slot 0 load or store: its target reaches the BTB in Memory on its own
-  // register (IEUAdr2M in ifu.sv), not on the load/store unit's address.
+  // register (IEUAdr1M in ifu.sv), not on the load/store unit's address.
   //   addi a0,a0,1 ; j loop       pairs
   //   sw   a0,0(a1); jal ra,f     pairs
   //   beqz a0,out  ; j loop       does not: two control transfers
@@ -244,7 +244,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
       // that raises its own fault drives LSUFlushW (SelfFaultM in lsu.sv), which stops the cache, bus
       // and DTIM write in the same cycle, before the replay refetches the store to trap alone.  A store
       // beside a slot 0 branch is safe because ieu.sv never makes that branch a late one: it resolves
-      // in Execute, and Kill2E removes the store before it reaches Memory.
+      // in Execute, and Kill1E removes the store before it reaches Memory.
       //
       // Funct3 is checked even though replay would also catch an illegal width: the decoder's LFunctD
       // leaves ControlsD at its illegal default, which carries MemRW = 00, so no access is made either
@@ -287,7 +287,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
     endcase
 
   // Which operations the late ALU implements (lateok.sv).  A dependent bitmanip slot 1 simply does not
-  // pair.  An encoding admitted that turns out illegal is still caught by c2 and replayed, as for any
+  // pair.  An encoding admitted that turns out illegal is still caught by c1 and replayed, as for any
   // slot 1.  Slot 0 is checked separately, in Decode (ieu.sv).  A compressed jump is kept out the same
   // way as a compressed branch: instrfields recognizes it, but it is not an ALU operation.
   lateok #(P) lateok1(.Instr(Instr1F), .MemRW(MemRW1F), .IsBranch(IsBranch1F | IsJal1F), .Recognized(Recognized1F), .LateOK(Slot1LateOKF));
@@ -302,7 +302,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // a5,a5,2; ...) whose next instruction reads the late result at once and stalls for it.  Issuing the
   // first link alone leaves the late ALU free for the second link, which gets the same work done one
   // instruction further on.  Admitting them cost rv64gc CoreMark 0.3%.
-  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & Slot1LateOKF & ~SameRdF) | Fuse2F | FuseBr2F;
+  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & LateOK1F & ~SameRdF) | Fuse1F | FuseBr1F;
 
   // Macro-op fusion: ALU op + dependent branch.  A branch that compares slot 0's result is fused with it
   // into one compare-and-branch op: slot 0 writes its result as usual, and the branch compares that result
@@ -333,8 +333,8 @@ module issue import cvw::*;  #(parameter cvw_t P) (
                       Instr0F[14] & (Instr0F[13:12] != 2'b01);                                       // 100, 110, 111
     end
 
-  assign FuseBr2F    = (FuseBrAdd0F | FuseBrLogic0F) & IsBranch1F & SrcDepF;
-  assign FuseBrAdd2F = FuseBrAdd0F;
+  assign FuseBr1F    = P.FUSION_SUPPORTED & (FuseBrAdd0F | FuseBrLogic0F) & IsBranch1F & SrcDepF;
+  assign FuseBrAdd1F = FuseBrAdd0F;
 
   // Macro-op fusion: Indexed Load (Celio et al., arXiv 1607.02318).  An add whose only use is as the
   // address of the load right after it, which then overwrites it, is fused with that load into one
@@ -351,7 +351,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   //   add a0,a1,a2 ; lw a0, 8(a0)     the address would be a1 + a2 + 8, two additions
   // Slot 0: add, sh1add/sh2add/sh3add (Zba), and c.add and c.mv, which decompress to add.  addw and the
   // .uw forms are left out: their RV64 results are not the raw sum.  Slot 1: a load that may pair at all
-  // (Slot1CanPairF checks its width), or c.lw/c.ld with a zero offset ([12:10] and [6:5]).  Issue2F is
+  // (Slot1CanPairF checks its width), or c.lw/c.ld with a zero offset ([12:10] and [6:5]).  Issue1F is
   // set as for any pair, so the PC moves past both; ieu.sv makes slot 0 the load and slot 1 a bubble.
   always_comb
     if (~&Instr0F[1:0])
@@ -370,14 +370,15 @@ module issue import cvw::*;  #(parameter cvw_t P) (
       endcase
     else FuseLoad1F = (Op1F == LOAD) & (Instr1F[31:20] == 12'b0);
 
-  assign Fuse2F = FuseAdd0F & FuseLoad1F & (Rd0F != 5'b0) & (Rs1_1F == Rd0F) & (Rd1F == Rd0F);
+  assign Fuse1F = P.FUSION_SUPPORTED & FuseAdd0F & FuseLoad1F & (Rd0F != 5'b0) & (Rs1_1F == Rd0F) & (Rd1F == Rd0F);
 
   // Which of slot 1's operands are slot 0's result.  These are the same fields the pairing decision
   // used, so a dependency that permitted the pair is always marked; ieu.sv clears a bit whose operand
   // is an immediate or the PC rather than a register.
-  assign LateOK2F = Slot1LateOKF;
-  assign LateA2F = (Rd0F != 5'b0) & (Rs1_1F == Rd0F);
-  assign LateB2F = (Rd0F != 5'b0) & (Rs2_1F == Rd0F);
+  // With LATE_ALU_SUPPORTED = 0 nothing is late, so a dependent slot 1 pairs only when fused.
+  assign LateOK1F = P.LATE_ALU_SUPPORTED & Slot1LateOKF;
+  assign LateA1F = (Rd0F != 5'b0) & (Rs1_1F == Rd0F);
+  assign LateB1F = (Rd0F != 5'b0) & (Rs2_1F == Rd0F);
 
   // The core has one load/store unit, so a bundle may contain at most one memory operation -- but it
   // may sit in either slot, and ieu.sv steers the LSU's inputs to whichever one holds it.  Slot 0's
@@ -394,7 +395,8 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   assign Slot1IsMduF = (&Instr1F[1:0]) & ((Op1F == OP) | (Op1F == OP_32)) & MExtF;
   assign OneMduOpF   = ~(Slot0IsMduF & Slot1IsMduF);
 
-  assign Issue2F = Instr2ValidF & BothRecognizedF & Slot0CanPairF & Slot1CanPairF &
+  // With SUPERSCALAR_SUPPORTED = 0 slot 1 never issues, and every slot 1 path below is constant.
+  assign Issue1F = P.SUPERSCALAR_SUPPORTED & Instr1ValidF & BothRecognizedF & Slot0CanPairF & Slot1CanPairF &
                    DependencyOKF & OneMemOpF & OneMduOpF;
 
 endmodule

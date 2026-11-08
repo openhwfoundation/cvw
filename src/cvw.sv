@@ -176,6 +176,11 @@ typedef struct packed {
   int           RAS_SIZE;
   logic         INSTR_CLASS_PRED; // is class predictor enabled
 
+  // Superscalar microarchitecture
+  logic         SUPERSCALAR_SUPPORTED; // dual issue: a second instruction (slot 1) may issue beside slot 0
+  logic         LATE_ALU_SUPPORTED;    // Memory-stage ALU: runs an op or branch whose operand arrives too late for Execute
+  logic         FUSION_SUPPORTED;      // macro-op fusion of slot 0 + slot 1 pairs; requires SUPERSCALAR_SUPPORTED
+
   // FPU division architecture
   int           RADIX;
   int           DIVCOPIES;

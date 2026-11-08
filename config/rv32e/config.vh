@@ -226,6 +226,11 @@ localparam BTB_SIZE = 32'd10;
 localparam RAS_SIZE = 32'd16;
 localparam INSTR_CLASS_PRED = 0;
 
+// Superscalar microarchitecture
+localparam logic SUPERSCALAR_SUPPORTED = 0;  // dual issue
+localparam logic LATE_ALU_SUPPORTED = 0;     // Memory-stage late ALU
+localparam logic FUSION_SUPPORTED = 0;       // macro-op fusion (requires SUPERSCALAR_SUPPORTED)
+
 // FPU division architecture
 localparam RADIX = 32'd4;
 localparam DIVCOPIES = 32'd4;

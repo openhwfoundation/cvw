@@ -9,7 +9,7 @@
 //          Each case places the MDU operation as the second instruction of a likely pair and checks:
 //            - every divide and multiply variant beside a slot 0 ALU op
 //            - divide by zero and signed overflow (INT_MIN / -1)
-//            - a result used by the very next pair, from slot 0 and from slot 1 (MDUStall2D)
+//            - a result used by the very next pair, from slot 0 and from slot 1 (MDUStall1D)
 //            - two MDU operations in one fetch window, which must not pair (OneMduOpF)
 //            - a load in slot 0 beside a slot 1 divide
 //            - a branch in slot 0, taken and not taken, beside a divide: never paired, and the taken

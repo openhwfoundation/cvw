@@ -172,7 +172,7 @@ module instrfields import cvw::*;  #(parameter cvw_t P) (
           // Quadrant 1 funct3 100 holds the register-register and shift-immediate ALU forms, all
           // using the 3-bit x8-x15 encoding and separated by Instr[11:10].  The reserved
           // combinations are left unrecognized rather than trusted: slot 1's decompressor flags an
-          // illegal compressed instruction through IllegalCompInstr2D, which nothing reads, so an
+          // illegal compressed instruction through IllegalCompInstr1D, which nothing reads, so an
           // illegal encoding admitted here would execute instead of trapping.
           5'b01_100: begin
             Rd  = {2'b01, Instr[9:7]};
@@ -189,7 +189,7 @@ module instrfields import cvw::*;  #(parameter cvw_t P) (
             endcase
           end
           // Conditional branches, in either slot, exactly as a 32-bit beq.  In slot 0 it writes
-          // nothing, and if it resolves taken Kill2E squashes slot 1; in slot 1 it resolves with
+          // nothing, and if it resolves taken Kill1E squashes slot 1; in slot 1 it resolves with
           // slot 1's own comparator.
           5'b01_110, 5'b01_111: begin                             // c.beqz, c.bnez
             Rs1 = {2'b01, Instr[9:7]};

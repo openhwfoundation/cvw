@@ -28,8 +28,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module hazard (
-  input  logic  BPWrongE, CSRWriteFenceM, Replay2M, RetM, TrapM,
-  input  logic  MemFault2M,            // slot 1's memory access faulted: its LSU stall is for a squashed access
+  input  logic  BPWrongE, CSRWriteFenceM, Replay1M, RetM, TrapM,
+  input  logic  MemFault1M,            // slot 1's memory access faulted: its LSU stall is for a squashed access
   input  logic  LateBrWrongM,          // a branch resolved in Memory went the other way from fetch
   input  logic  StructuralStallD,
   input  logic  LSUStallM, IFUStallF,
@@ -64,16 +64,16 @@ module hazard (
   // Similarly, CSR writes and fences flush all subsequent instructions and refetch them in light of the new operating modes and cache/TLB contents
   // Branch misprediction is found in the Execute stage and must flush the next two instructions.
   //   However, an active division operation resides in the Execute stage, and when the BP incorrectly mispredicts the divide as a taken branch, the divide must still complete
-  // A superscalar replay (Replay2M) discards everything fetched after the bundle and refetches from
+  // A superscalar replay (Replay1M) discards everything fetched after the bundle and refetches from
   // slot 1's own PC, so it flushes exactly what a CSR write or fence does: D, E and M but not W.
   // Leaving W alone is the point -- slot 0 is architecturally before the faulting slot 1 and completed,
   // so it must still commit, just as a CSR write commits while the instructions behind it are flushed.
   // A branch resolved in Memory (LateBrWrongM) that fetch got wrong discards the same three stages, for
-  // the same reason; slot 1 beside it, in Memory, is abandoned through Issue2W rather than FlushW.  Unlike
+  // the same reason; slot 1 beside it, in Memory, is abandoned through Issue1W rather than FlushW.  Unlike
   // an Execute-stage misprediction, a divide already busy in Execute is behind the branch and wrong-path.
-  assign FlushDCause = TrapM | RetM | CSRWriteFenceM | Replay2M | LateBrWrongM | BPWrongE;
-  assign FlushECause = TrapM | RetM | CSRWriteFenceM | Replay2M | LateBrWrongM | (BPWrongE & ~(DivBusyE | FDivBusyE));
-  assign FlushMCause = TrapM | RetM | CSRWriteFenceM | Replay2M | LateBrWrongM;
+  assign FlushDCause = TrapM | RetM | CSRWriteFenceM | Replay1M | LateBrWrongM | BPWrongE;
+  assign FlushECause = TrapM | RetM | CSRWriteFenceM | Replay1M | LateBrWrongM | (BPWrongE & ~(DivBusyE | FDivBusyE));
+  assign FlushMCause = TrapM | RetM | CSRWriteFenceM | Replay1M | LateBrWrongM;
   assign FlushWCause = TrapM;
 
   // Stall causes
@@ -94,7 +94,7 @@ module hazard (
   // Because FlushWCause is a strict subset of FlushDCause, FlushWCause is factored out.
   // A slot 1 memory fault squashes its own access, so its LSU stall is ignored as a trap's is; only the
   // LSU stall, because a fault here means slot 1 holds the bundle's one memory operation.
-  assign StallWCause = (IFUStallF & ~FlushDCause) | (((LSUStallM & ~MemFault2M) | WaitM) & ~FlushWCause) | ExternalStall;
+  assign StallWCause = (IFUStallF & ~FlushDCause) | (((LSUStallM & ~MemFault1M) | WaitM) & ~FlushWCause) | ExternalStall;
 
   // Stall each stage for cause or if the next stage is stalled
   // coverage off: StallFCause is always 0

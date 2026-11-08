@@ -33,7 +33,7 @@
 module lsu import cvw::*;  #(parameter cvw_t P) (
   input  logic                    clk, reset,
   input  logic                    StallM, FlushM, StallW, FlushW,
-  input  logic                    MemFault2M,                           // Superscalar slot 1 memory fault: replayed, so cancel any walk as a trap would
+  input  logic                    MemFault1M,                           // Superscalar slot 1 memory fault: replayed, so cancel any walk as a trap would
   output logic                    LSUStallM,                            // LSU stalls pipeline during a multicycle operation
   // connected to cpu (controls)
   input  logic [1:0]              MemRWE,                               // Read/Write control
@@ -211,7 +211,7 @@ module lsu import cvw::*;  #(parameter cvw_t P) (
       // fetch just as a trap does, though, and a walk started for the abandoned fetch must die with it:
       // left running, it walks a mix of the old and new fetch addresses and its fault is held against
       // the refetched instruction.  Slot 1 holds the bundle's only memory access, so no live walk is lost.
-      .FlushW(FlushW | MemFault2M), .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
+      .FlushW(FlushW | MemFault1M), .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
       .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,

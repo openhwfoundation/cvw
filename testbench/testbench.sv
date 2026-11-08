@@ -647,31 +647,31 @@ module testbench;
   // than silent -- a wrong Rd would let issue.sv permit a dependent pair, which corrupts data with
   // no fault to catch it.  So compare the Fetch-stage fields against the Decode-stage decompressed
   // instruction, which is the authority, every time slot 1 actually issues.
-  if (P.ICACHE_SUPPORTED) begin : fieldscheck
-    logic [4:0] RdF, Rs1F, Rs2F;
-    logic [1:0] MemRWF;
-    logic       RecF;
+  if (P.ICACHE_SUPPORTED & P.SUPERSCALAR_SUPPORTED) begin : fieldscheck
+    logic [4:0] Rd1F, Rs1_1F, Rs2_1F;
+    logic [1:0] MemRW1F;
+    logic       Recognized1F;
     integer     FieldChecks = 0;
-    // These must mirror Instr2RawD's register exactly, which is a flopenl whose load ignores en:
-    // on a simultaneous flush and stall the instruction becomes a nop while Issue2D, a flopenrc
-    // whose clear requires en, keeps its old value.  Clearing RecF on flush suppresses the check for
+    // These must mirror Instr1RawD's register exactly, which is a flopenl whose load ignores en:
+    // on a simultaneous flush and stall the instruction becomes a nop while Issue1D, a flopenrc
+    // whose clear requires en, keeps its old value.  Clearing Recognized1F on flush suppresses the check for
     // a slot that Fetch never examined.
     always_ff @(posedge clk)
-      if (reset | dut.core.ifu.FlushD) RecF <= 1'b0;
+      if (reset | dut.core.ifu.FlushD) Recognized1F <= 1'b0;
       else if (~dut.core.ifu.StallD) begin
-        RdF  <= dut.core.ifu.issue.Rd1F;
-        Rs1F <= dut.core.ifu.issue.Rs1_1F;
-        Rs2F   <= dut.core.ifu.issue.Rs2_1F;
-        MemRWF <= dut.core.ifu.issue.MemRW1F;
-        RecF   <= dut.core.ifu.issue.Recognized1F;
+        Rd1F  <= dut.core.ifu.dualissue.issue.Rd1F;
+        Rs1_1F <= dut.core.ifu.dualissue.issue.Rs1_1F;
+        Rs2_1F   <= dut.core.ifu.dualissue.issue.Rs2_1F;
+        MemRW1F <= dut.core.ifu.dualissue.issue.MemRW1F;
+        Recognized1F   <= dut.core.ifu.dualissue.issue.Recognized1F;
       end
     always_ff @(posedge clk)
       // Only compare when the decompressor actually recognised the instruction.  For a reserved or
       // HINT encoding -- c.slli with a zero shift amount, c.lwsp with rd = x0 -- it emits a default
       // rather than a decode, so there is nothing meaningful to compare against.  Those encodings
-      // are handled instead by IllegalComp2M, which replays slot 1 so it traps as an unpaired
+      // are handled instead by IllegalComp1M, which replays slot 1 so it traps as an unpaired
       // instruction; instrfields deliberately does not try to enumerate the HINT rules.
-      if (~reset & dut.core.ifu.Issue2D & RecF & ~dut.core.ifu.IllegalCompInstr2D) begin
+      if (~reset & dut.core.ifu.Issue1D & Recognized1F & ~dut.core.ifu.IllegalCompInstr1D) begin
         FieldChecks <= FieldChecks + 1;
         // The property that matters is one-sided.  Naming a register the instruction does not touch
         // only makes issue.sv's dependency check refuse a pair it could have taken -- harmless.  *Missing* one
@@ -680,127 +680,127 @@ module testbench;
         // This also accommodates the HINT encodings, which decompress.sv turns into a nop (see its
         // line 156): instrfields names their registers, the nop touches none.
         // A branch's or store's [11:7] are immediate bits: c.beqz and c.sw report no rd, while their expansions put offset bits there.
-        if (~(dut.core.ifu.Instr2D[6:0] inside {7'b1100011, 7'b0100011}) & (dut.core.ifu.Instr2D[11:7] !== 5'b0) & (RdF !== dut.core.ifu.Instr2D[11:7]))
+        if (~(dut.core.ifu.Instr1D[6:0] inside {7'b1100011, 7'b0100011}) & (dut.core.ifu.Instr1D[11:7] !== 5'b0) & (Rd1F !== dut.core.ifu.Instr1D[11:7]))
           $fatal(1, "fieldscheck: Rd under-reported at PC %h: Fetch said x%0d, decompressed writes x%0d (raw %h)",
-                 dut.core.ifu.Instr2PCD, RdF, dut.core.ifu.Instr2D[11:7], dut.core.ifu.Instr2RawD);
+                 dut.core.ifu.Instr1PCD, Rd1F, dut.core.ifu.Instr1D[11:7], dut.core.ifu.Instr1RawD);
         // Only compare rs1 for formats that have one.  LUI, AUIPC and JAL are U- and J-type, so
         // their [19:15] bits are immediate, not a register number -- c.lui decompresses to lui and
         // those bits can be any value.  Likewise [24:20] is rs2 only for R-type, already gated below.
-        if (~(dut.core.ifu.Instr2D[6:0] inside {7'b0110111, 7'b0010111, 7'b1101111})
-            & (dut.core.ifu.Instr2D[19:15] !== 5'b0) & (Rs1F !== dut.core.ifu.Instr2D[19:15]))
+        if (~(dut.core.ifu.Instr1D[6:0] inside {7'b0110111, 7'b0010111, 7'b1101111})
+            & (dut.core.ifu.Instr1D[19:15] !== 5'b0) & (Rs1_1F !== dut.core.ifu.Instr1D[19:15]))
           $fatal(1, "fieldscheck: Rs1 under-reported at PC %h: Fetch said x%0d, decompressed reads x%0d (raw %h)",
-                 dut.core.ifu.Instr2PCD, Rs1F, dut.core.ifu.Instr2D[19:15], dut.core.ifu.Instr2RawD);
+                 dut.core.ifu.Instr1PCD, Rs1_1F, dut.core.ifu.Instr1D[19:15], dut.core.ifu.Instr1RawD);
         // Rs2 only exists as a register in the R-type, branch and store expansions; for an OP-IMM
         // expansion those bits are immediate, so comparing them would be meaningless.
-        if ((dut.core.ifu.Instr2D[6:0] inside {7'b0110011, 7'b1100011, 7'b0100011}) & (dut.core.ifu.Instr2D[24:20] !== 5'b0)
-            & (Rs2F !== dut.core.ifu.Instr2D[24:20]))
+        if ((dut.core.ifu.Instr1D[6:0] inside {7'b0110011, 7'b1100011, 7'b0100011}) & (dut.core.ifu.Instr1D[24:20] !== 5'b0)
+            & (Rs2_1F !== dut.core.ifu.Instr1D[24:20]))
           $fatal(1, "fieldscheck: Rs2 under-reported at PC %h: Fetch said x%0d, decompressed reads x%0d (raw %h)",
-                 dut.core.ifu.Instr2PCD, Rs2F, dut.core.ifu.Instr2D[24:20], dut.core.ifu.Instr2RawD);
+                 dut.core.ifu.Instr1PCD, Rs2_1F, dut.core.ifu.Instr1D[24:20], dut.core.ifu.Instr1RawD);
         // Memory-ness matters as much as the registers: OneMemOpF is the only thing keeping two
         // accesses off the single load/store unit, so a compressed load that Fetch failed to
         // recognise as memory would let a pair through that the LSU cannot serve.
-        if (MemRWF !== {dut.core.ifu.Instr2D[6:0] == 7'b0000011, dut.core.ifu.Instr2D[6:0] == 7'b0100011})
+        if (MemRW1F !== {dut.core.ifu.Instr1D[6:0] == 7'b0000011, dut.core.ifu.Instr1D[6:0] == 7'b0100011})
           $fatal(1, "fieldscheck: MemRW mismatch at PC %h: Fetch said %b, decompressed opcode %h (raw %h)",
-                 dut.core.ifu.Instr2PCD, MemRWF, dut.core.ifu.Instr2D[6:0], dut.core.ifu.Instr2RawD);
+                 dut.core.ifu.Instr1PCD, MemRW1F, dut.core.ifu.Instr1D[6:0], dut.core.ifu.Instr1RawD);
       end
     final $display("fieldscheck: %0d slot-1 field extractions verified against the decompressor", FieldChecks);
   end
 
-  if (P.ICACHE_SUPPORTED) begin : decode2check
+  if (P.ICACHE_SUPPORTED & P.SUPERSCALAR_SUPPORTED) begin : decode1check
     logic              AdvanceD;              // Decode is loading a new instruction this cycle
     logic              CheckPending;          // Decode advanced last cycle, so compare now
-    logic              Instr2ValidPrev;
-    logic [P.XLEN-1:0] Instr2PCPrev, ImmExt2Prev, R1_2Prev, R2_2Prev;
-    logic [31:0]       Instr2RawPrev, Instr2Prev;
-    logic [4:0]        Rs1_2Prev, Rs2_2Prev;
-    logic [2:0]        ImmSrc2Prev;
-    logic              Branch2Prev, Jump2Prev, Illegal2Prev;
+    logic              Instr1ValidPrev;
+    logic [P.XLEN-1:0] Instr1PCPrev, ImmExt1Prev, R1_1Prev, R2_1Prev;
+    logic [31:0]       Instr1RawPrev, Instr1Prev;
+    logic [4:0]        Rs1_1Prev, Rs2_1Prev;
+    logic [2:0]        ImmSrc1Prev;
+    logic              Branch1Prev, Jump1Prev, Illegal1Prev;
     logic              CompressedNow, Slot0Squashed, R1Written, R2Written;
     integer            ChecksDone = 0;
 
     assign AdvanceD = ~reset & ~dut.core.ifu.StallD & ~dut.core.ifu.FlushD;
     always_ff @(posedge clk) begin
       if (AdvanceD) begin                                       // remember slot 1 as Decode is replaced
-        Instr2ValidPrev <= dut.core.ifu.Instr2ValidD;
-        Instr2PCPrev    <= dut.core.ifu.Instr2PCD;
-        Instr2RawPrev   <= dut.core.ifu.Instr2RawD;
-        Instr2Prev      <= dut.core.ifu.Instr2D;
-        Rs1_2Prev       <= dut.core.ieu.Rs1_2D;
-        Rs2_2Prev       <= dut.core.ieu.Rs2_2D;
-        ImmSrc2Prev     <= dut.core.ieu.ImmSrc2D;
-        ImmExt2Prev     <= dut.core.ieu.dp.ImmExt2D;
-        R1_2Prev        <= dut.core.ieu.dp.R1_2D;
-        R2_2Prev        <= dut.core.ieu.dp.R2_2D;
-        Branch2Prev     <= dut.core.ieu.Branch2D;
-        Jump2Prev       <= dut.core.ieu.Jump2D;
-        Illegal2Prev    <= dut.core.ieu.IllegalBaseInstr2D;
+        Instr1ValidPrev <= dut.core.ifu.Instr1ValidD;
+        Instr1PCPrev    <= dut.core.ifu.Instr1PCD;
+        Instr1RawPrev   <= dut.core.ifu.Instr1RawD;
+        Instr1Prev      <= dut.core.ifu.Instr1D;
+        Rs1_1Prev       <= dut.core.ieu.Rs1_1D;
+        Rs2_1Prev       <= dut.core.ieu.Rs2_1D;
+        ImmSrc1Prev     <= dut.core.ieu.ImmSrc1D;
+        ImmExt1Prev     <= dut.core.ieu.dp.ImmExt1D;
+        R1_1Prev        <= dut.core.ieu.dp.R1_1D;
+        R2_1Prev        <= dut.core.ieu.dp.R2_1D;
+        Branch1Prev     <= dut.core.ieu.Branch1D;
+        Jump1Prev       <= dut.core.ieu.Jump1D;
+        Illegal1Prev    <= dut.core.ieu.IllegalBaseInstr1D;
         CheckPending    <= 1'b1;
       end else CheckPending <= 1'b0;
       // fence.i / I$ invalidate: memory may have changed, so the remembered slot 1 is stale
-      if (dut.core.ifu.CSRWriteFenceM | dut.core.ifu.InvalidateICacheM) Instr2ValidPrev <= 1'b0;
+      if (dut.core.ifu.CSRWriteFenceM | dut.core.ifu.InvalidateICacheM) Instr1ValidPrev <= 1'b0;
     end
 
     assign CompressedNow = ~&dut.core.ifu.InstrRawD[1:0];
     assign Slot0Squashed = dut.core.ifu.IllegalIEUFPUInstrD;    // slot 0's controls are zeroed for an illegal instruction; slot 1's are not
     // a writeback in between the two reads changes the register file, so skip that operand
-    assign R1Written = ((dut.core.ieu.RegWriteW  & (dut.core.ieu.RdW  == Rs1_2Prev)) |
-                        (dut.core.ieu.RegWrite2W & (dut.core.ieu.Rd2W == Rs1_2Prev))) & (Rs1_2Prev != 0);
-    assign R2Written = ((dut.core.ieu.RegWriteW  & (dut.core.ieu.RdW  == Rs2_2Prev)) |
-                        (dut.core.ieu.RegWrite2W & (dut.core.ieu.Rd2W == Rs2_2Prev))) & (Rs2_2Prev != 0);
+    assign R1Written = ((dut.core.ieu.RegWriteW  & (dut.core.ieu.RdW  == Rs1_1Prev)) |
+                        (dut.core.ieu.RegWrite1W & (dut.core.ieu.Rd1W == Rs1_1Prev))) & (Rs1_1Prev != 0);
+    assign R2Written = ((dut.core.ieu.RegWriteW  & (dut.core.ieu.RdW  == Rs2_1Prev)) |
+                        (dut.core.ieu.RegWrite1W & (dut.core.ieu.Rd1W == Rs2_1Prev))) & (Rs2_1Prev != 0);
 
     always_ff @(posedge clk)
-      if (CheckPending & Instr2ValidPrev & (dut.core.ifu.PCD == Instr2PCPrev)) begin
+      if (CheckPending & Instr1ValidPrev & (dut.core.ifu.PCD == Instr1PCPrev)) begin
         ChecksDone <= ChecksDone + 1;
-        if (CompressedNow ? (Instr2RawPrev[15:0] != dut.core.ifu.InstrRawD[15:0]) : (Instr2RawPrev != dut.core.ifu.InstrRawD))
-          $fatal(1, "decode2check: raw mismatch at PC %h: slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Instr2RawPrev, dut.core.ifu.InstrRawD);
-        if (Instr2Prev != dut.core.ifu.InstrD)
-          $fatal(1, "decode2check: decompressed mismatch at PC %h: slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Instr2Prev, dut.core.ifu.InstrD);
-        if ({Rs1_2Prev, Rs2_2Prev} != {dut.core.ieu.Rs1D, dut.core.ieu.Rs2D})
-          $fatal(1, "decode2check: Rs1/Rs2 mismatch at PC %h: slot 1 x%0d/x%0d, slot 0 x%0d/x%0d", dut.core.ifu.PCD, Rs1_2Prev, Rs2_2Prev, dut.core.ieu.Rs1D, dut.core.ieu.Rs2D);
-        if ({Branch2Prev, Jump2Prev, Illegal2Prev} != {dut.core.ieu.BranchD, dut.core.ieu.JumpD, dut.core.ieu.IllegalBaseInstrD})
-          $fatal(1, "decode2check: branch/jump/illegal mismatch at PC %h: slot 1 %b, slot 0 %b", dut.core.ifu.PCD, {Branch2Prev, Jump2Prev, Illegal2Prev}, {dut.core.ieu.BranchD, dut.core.ieu.JumpD, dut.core.ieu.IllegalBaseInstrD});
-        if (~Slot0Squashed & ({ImmSrc2Prev, ImmExt2Prev} != {dut.core.ieu.ImmSrcD, dut.core.ieu.dp.ImmExtD}))
-          $fatal(1, "decode2check: immediate mismatch at PC %h: slot 1 src %b ext %h, slot 0 src %b ext %h", dut.core.ifu.PCD, ImmSrc2Prev, ImmExt2Prev, dut.core.ieu.ImmSrcD, dut.core.ieu.dp.ImmExtD);
-        if (~R1Written & (R1_2Prev != dut.core.ieu.dp.R1D))
-          $fatal(1, "decode2check: R1 mismatch at PC %h (x%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Rs1_2Prev, R1_2Prev, dut.core.ieu.dp.R1D);
-        if (~R2Written & (R2_2Prev != dut.core.ieu.dp.R2D))
-          $fatal(1, "decode2check: R2 mismatch at PC %h (x%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Rs2_2Prev, R2_2Prev, dut.core.ieu.dp.R2D);
+        if (CompressedNow ? (Instr1RawPrev[15:0] != dut.core.ifu.InstrRawD[15:0]) : (Instr1RawPrev != dut.core.ifu.InstrRawD))
+          $fatal(1, "decode1check: raw mismatch at PC %h: slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Instr1RawPrev, dut.core.ifu.InstrRawD);
+        if (Instr1Prev != dut.core.ifu.InstrD)
+          $fatal(1, "decode1check: decompressed mismatch at PC %h: slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Instr1Prev, dut.core.ifu.InstrD);
+        if ({Rs1_1Prev, Rs2_1Prev} != {dut.core.ieu.Rs1D, dut.core.ieu.Rs2D})
+          $fatal(1, "decode1check: Rs1/Rs2 mismatch at PC %h: slot 1 x%0d/x%0d, slot 0 x%0d/x%0d", dut.core.ifu.PCD, Rs1_1Prev, Rs2_1Prev, dut.core.ieu.Rs1D, dut.core.ieu.Rs2D);
+        if ({Branch1Prev, Jump1Prev, Illegal1Prev} != {dut.core.ieu.BranchD, dut.core.ieu.JumpD, dut.core.ieu.IllegalBaseInstrD})
+          $fatal(1, "decode1check: branch/jump/illegal mismatch at PC %h: slot 1 %b, slot 0 %b", dut.core.ifu.PCD, {Branch1Prev, Jump1Prev, Illegal1Prev}, {dut.core.ieu.BranchD, dut.core.ieu.JumpD, dut.core.ieu.IllegalBaseInstrD});
+        if (~Slot0Squashed & ({ImmSrc1Prev, ImmExt1Prev} != {dut.core.ieu.ImmSrcD, dut.core.ieu.dp.ImmExtD}))
+          $fatal(1, "decode1check: immediate mismatch at PC %h: slot 1 src %b ext %h, slot 0 src %b ext %h", dut.core.ifu.PCD, ImmSrc1Prev, ImmExt1Prev, dut.core.ieu.ImmSrcD, dut.core.ieu.dp.ImmExtD);
+        if (~R1Written & (R1_1Prev != dut.core.ieu.dp.R1D))
+          $fatal(1, "decode1check: R1 mismatch at PC %h (x%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Rs1_1Prev, R1_1Prev, dut.core.ieu.dp.R1D);
+        if (~R2Written & (R2_1Prev != dut.core.ieu.dp.R2D))
+          $fatal(1, "decode1check: R2 mismatch at PC %h (x%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, Rs2_1Prev, R2_1Prev, dut.core.ieu.dp.R2D);
       end
 
     // FP decode: slot 1's fctrl outputs and FP register-file reads must match slot 0's the next cycle
     if (P.F_SUPPORTED) begin : fpcheck
-      logic [4:0]        FAdr1_2Prev, FAdr2_2Prev, FAdr3_2Prev;
-      logic              XEn2Prev, YEn2Prev, ZEn2Prev, FIllegal2Prev;
-      logic [P.FLEN-1:0] FRD1_2Prev, FRD2_2Prev, FRD3_2Prev;
+      logic [4:0]        FAdr1_1Prev, FAdr2_1Prev, FAdr3_1Prev;
+      logic              XEn1Prev, YEn1Prev, ZEn1Prev, FIllegal1Prev;
+      logic [P.FLEN-1:0] FRD1_1Prev, FRD2_1Prev, FRD3_1Prev;
       logic              F1Written, F2Written, F3Written;
       always_ff @(posedge clk)
         if (AdvanceD) begin
-          {FAdr1_2Prev, FAdr2_2Prev, FAdr3_2Prev} <= {dut.core.fpu.fpu.Adr1_2D, dut.core.fpu.fpu.Adr2_2D, dut.core.fpu.fpu.Adr3_2D};
-          {XEn2Prev, YEn2Prev, ZEn2Prev}          <= {dut.core.fpu.fpu.XEn2D, dut.core.fpu.fpu.YEn2D, dut.core.fpu.fpu.ZEn2D};
-          FIllegal2Prev                           <= dut.core.fpu.fpu.IllegalFPUInstr2D;
-          {FRD1_2Prev, FRD2_2Prev, FRD3_2Prev}    <= {dut.core.fpu.fpu.FRD1_2D, dut.core.fpu.fpu.FRD2_2D, dut.core.fpu.fpu.FRD3_2D};
+          {FAdr1_1Prev, FAdr2_1Prev, FAdr3_1Prev} <= {dut.core.fpu.fpu.Adr1_1D, dut.core.fpu.fpu.Adr2_1D, dut.core.fpu.fpu.Adr3_1D};
+          {XEn1Prev, YEn1Prev, ZEn1Prev}          <= {dut.core.fpu.fpu.XEn1D, dut.core.fpu.fpu.YEn1D, dut.core.fpu.fpu.ZEn1D};
+          FIllegal1Prev                           <= dut.core.fpu.fpu.IllegalFPUInstr1D;
+          {FRD1_1Prev, FRD2_1Prev, FRD3_1Prev}    <= {dut.core.fpu.fpu.FRD1_1D, dut.core.fpu.fpu.FRD2_1D, dut.core.fpu.fpu.FRD3_1D};
         end
       // an FP writeback in between the two reads changes the register file, so skip that operand
-      assign F1Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr1_2Prev);
-      assign F2Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr2_2Prev);
-      assign F3Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr3_2Prev);
+      assign F1Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr1_1Prev);
+      assign F2Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr2_1Prev);
+      assign F3Written = dut.core.fpu.fpu.FRegWriteW & (dut.core.fpu.fpu.RdW == FAdr3_1Prev);
       always_ff @(posedge clk)
-        if (CheckPending & Instr2ValidPrev & (dut.core.ifu.PCD == Instr2PCPrev)) begin
-          if ({FAdr1_2Prev, FAdr2_2Prev, FAdr3_2Prev} != {dut.core.fpu.fpu.Adr1D, dut.core.fpu.fpu.Adr2D, dut.core.fpu.fpu.Adr3D})
-            $fatal(1, "decode2check: FP Adr mismatch at PC %h: slot 1 f%0d/f%0d/f%0d, slot 0 f%0d/f%0d/f%0d", dut.core.ifu.PCD,
-                   FAdr1_2Prev, FAdr2_2Prev, FAdr3_2Prev, dut.core.fpu.fpu.Adr1D, dut.core.fpu.fpu.Adr2D, dut.core.fpu.fpu.Adr3D);
-          if ({XEn2Prev, YEn2Prev, ZEn2Prev, FIllegal2Prev} != {dut.core.fpu.fpu.XEnD, dut.core.fpu.fpu.YEnD, dut.core.fpu.fpu.ZEnD, dut.core.fpu.fpu.IllegalFPUInstrD})
-            $fatal(1, "decode2check: FP XYZEn/illegal mismatch at PC %h: slot 1 %b, slot 0 %b", dut.core.ifu.PCD,
-                   {XEn2Prev, YEn2Prev, ZEn2Prev, FIllegal2Prev}, {dut.core.fpu.fpu.XEnD, dut.core.fpu.fpu.YEnD, dut.core.fpu.fpu.ZEnD, dut.core.fpu.fpu.IllegalFPUInstrD});
-          if (~F1Written & (FRD1_2Prev != dut.core.fpu.fpu.FRD1D))
-            $fatal(1, "decode2check: FRD1 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr1_2Prev, FRD1_2Prev, dut.core.fpu.fpu.FRD1D);
-          if (~F2Written & (FRD2_2Prev != dut.core.fpu.fpu.FRD2D))
-            $fatal(1, "decode2check: FRD2 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr2_2Prev, FRD2_2Prev, dut.core.fpu.fpu.FRD2D);
-          if (~F3Written & (FRD3_2Prev != dut.core.fpu.fpu.FRD3D))
-            $fatal(1, "decode2check: FRD3 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr3_2Prev, FRD3_2Prev, dut.core.fpu.fpu.FRD3D);
+        if (CheckPending & Instr1ValidPrev & (dut.core.ifu.PCD == Instr1PCPrev)) begin
+          if ({FAdr1_1Prev, FAdr2_1Prev, FAdr3_1Prev} != {dut.core.fpu.fpu.Adr1D, dut.core.fpu.fpu.Adr2D, dut.core.fpu.fpu.Adr3D})
+            $fatal(1, "decode1check: FP Adr mismatch at PC %h: slot 1 f%0d/f%0d/f%0d, slot 0 f%0d/f%0d/f%0d", dut.core.ifu.PCD,
+                   FAdr1_1Prev, FAdr2_1Prev, FAdr3_1Prev, dut.core.fpu.fpu.Adr1D, dut.core.fpu.fpu.Adr2D, dut.core.fpu.fpu.Adr3D);
+          if ({XEn1Prev, YEn1Prev, ZEn1Prev, FIllegal1Prev} != {dut.core.fpu.fpu.XEnD, dut.core.fpu.fpu.YEnD, dut.core.fpu.fpu.ZEnD, dut.core.fpu.fpu.IllegalFPUInstrD})
+            $fatal(1, "decode1check: FP XYZEn/illegal mismatch at PC %h: slot 1 %b, slot 0 %b", dut.core.ifu.PCD,
+                   {XEn1Prev, YEn1Prev, ZEn1Prev, FIllegal1Prev}, {dut.core.fpu.fpu.XEnD, dut.core.fpu.fpu.YEnD, dut.core.fpu.fpu.ZEnD, dut.core.fpu.fpu.IllegalFPUInstrD});
+          if (~F1Written & (FRD1_1Prev != dut.core.fpu.fpu.FRD1D))
+            $fatal(1, "decode1check: FRD1 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr1_1Prev, FRD1_1Prev, dut.core.fpu.fpu.FRD1D);
+          if (~F2Written & (FRD2_1Prev != dut.core.fpu.fpu.FRD2D))
+            $fatal(1, "decode1check: FRD2 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr2_1Prev, FRD2_1Prev, dut.core.fpu.fpu.FRD2D);
+          if (~F3Written & (FRD3_1Prev != dut.core.fpu.fpu.FRD3D))
+            $fatal(1, "decode1check: FRD3 mismatch at PC %h (f%0d): slot 1 %h, slot 0 %h", dut.core.ifu.PCD, FAdr3_1Prev, FRD3_1Prev, dut.core.fpu.fpu.FRD3D);
         end
     end
-    final $display("decode2check: %0d slot-1 decodes verified against slot 0", ChecksDone);
+    final $display("decode1check: %0d slot-1 decodes verified against slot 0", ChecksDone);
   end
 
   // Report how often the two slots actually issue together.  This is the headline number for the
@@ -810,9 +810,9 @@ module testbench;
     always_ff @(posedge clk)
       if (~reset & dut.core.ieu.c.InstrValidM & ~dut.core.ifu.StallW & ~dut.core.ifu.FlushW) begin
         Retired <= Retired + 1;
-        // Not Issue2M alone: a replayed slot 1 is still in Memory but has not retired, and will be
+        // Not Issue1M alone: a replayed slot 1 is still in Memory but has not retired, and will be
         // counted when it runs again on its own.
-        if (dut.core.ifu.Issue2M & ~dut.core.Replay2M) RetiredPaired <= RetiredPaired + 1;
+        if (dut.core.ifu.Issue1M & ~dut.core.Replay1M) RetiredPaired <= RetiredPaired + 1;
       end
     final
       if (Retired > 0)
@@ -822,15 +822,15 @@ module testbench;
 
   // Cycles that issue nothing are either stalls or flushes.  Attribute them to a cause so a change
   // that pairs more instructions but runs slower can be diagnosed rather than guessed at.
-  if (P.ICACHE_SUPPORTED) begin : overhead
+  if (P.ICACHE_SUPPORTED & P.SUPERSCALAR_SUPPORTED) begin : overhead
     integer Cycles = 0, StallSlot0 = 0, StallSlot1 = 0, StallOther = 0, FlushMispredict = 0, Kills = 0;
-    integer Replays = 0, Mem2 = 0;   // slot 1 memory operations, and how many had to be replayed
-    integer LoadUse2 = 0, BundleStore = 0;  // the two bundle-level memory hazards, to confirm they fire
-    integer Replay2Ld = 0, Replay2St = 0;   // which kind of slot 1 memory operation had to be replayed
-    integer BrWithMem2 = 0;                 // taken branch in slot 0 alongside a memory operation in slot 1
+    integer Replays = 0, Mem1 = 0;   // slot 1 memory operations, and how many had to be replayed
+    integer LoadUse1 = 0, BundleStore = 0;  // the two bundle-level memory hazards, to confirm they fire
+    integer Replay1Ld = 0, Replay1St = 0;   // which kind of slot 1 memory operation had to be replayed
+    integer BrWithMem1 = 0;                 // taken branch in slot 0 alongside a memory operation in slot 1
     integer ReplayStoreLeak = 0;            // a replayed slot 1 store that the LSU was not told to cancel
 
-    // Why a pair was refused.  Each counter records cycles where one term of Issue2F was the ONLY
+    // Why a pair was refused.  Each counter records cycles where one term of Issue1F was the ONLY
     // thing holding the pair back, so it reads as the marginal headroom of fixing that term alone
     // rather than as a raw tally of a term that was one blocker among several.
     integer PairOpportunity = 0;            // slot 1 held a complete instruction but the pair was refused
@@ -845,28 +845,28 @@ module testbench;
     integer BlockJump1 = 0;                 // ... solely because slot 1 was a jal/jalr (out of scope: the RAS)
     integer BlockMDU1 = 0;                  // ... solely because slot 1 was a divide (slot 1 has no divider)
     integer BlockOneMdu = 0;                // ... solely because both slots wanted the multiply/divide unit
-    integer Mul2 = 0;                       // slot 1 multiplies that committed
-    integer Div2 = 0;                       // slot 1 divides that committed
-    integer KilledDiv2 = 0;                 // slot 1 divides in Execute beside a taken branch (must be 0)
-    integer MulUse2 = 0;                    // cycles stalled because a slot 1 multiply's product was not ready
+    integer Mul1 = 0;                       // slot 1 multiplies that committed
+    integer Div1 = 0;                       // slot 1 divides that committed
+    integer KilledDiv1 = 0;                 // slot 1 divides in Execute beside a taken branch (must be 0)
+    integer MulUse1 = 0;                    // cycles stalled because a slot 1 multiply's product was not ready
     integer DepSlot1Load = 0, DepSameRdOnly = 0, DepSameRd = 0, DepSlot0Late = 0, DepSlot1Op = 0; // dependency blocks: same rd, slot 0 result late, slot 1 not a late-ALU op
     integer LateBr = 0, LateBrWrong = 0;   // branches resolved in Memory, and how many fetch got wrong
-    integer Late2 = 0;                      // bundles whose slot 1 executed on the late ALU
+    integer Late1 = 0;                      // bundles whose slot 1 executed on the late ALU
     integer Fused = 0, Unfused = 0;         // indexed-load fusions retired / replayed unfused after a fault
     integer FusedBr = 0;                    // ALU op + branch fusions leaving Execute
-    integer LateUse2 = 0;                   // cycles stalled because a late slot 1's result was not ready
+    integer LateUse1 = 0;                   // cycles stalled because a late slot 1's result was not ready
     integer BlockUnrec0 = 0;                // ... solely because SLOT 0's encoding is not in instrfields
     integer BlockUnrec1 = 0;                // ... solely because SLOT 1's is
     logic Cfi1F, Br1F, Jmp1F, Refused;
-    assign Br1F    = (dut.core.ifu.issue.Op1F == 7'b1100011);   // branch
-    assign Jmp1F   = (dut.core.ifu.issue.Op1F == 7'b1101111)    // jal
-                   | (dut.core.ifu.issue.Op1F == 7'b1100111);   // jalr
+    assign Br1F    = (dut.core.ifu.dualissue.issue.Op1F == 7'b1100011);   // branch
+    assign Jmp1F   = (dut.core.ifu.dualissue.issue.Op1F == 7'b1101111)    // jal
+                   | (dut.core.ifu.dualissue.issue.Op1F == 7'b1100111);   // jalr
     assign Cfi1F   = Br1F | Jmp1F;
-    assign Refused = dut.core.ifu.issue.Instr2ValidF & ~dut.core.ifu.Issue2F;
+    assign Refused = dut.core.ifu.dualissue.issue.Instr1ValidF & ~dut.core.ifu.Issue1F;
 
     logic Slot1Stall;
     // The slot 1 hazard only costs anything when slot 0 was not already stalling for its own reasons
-    assign Slot1Stall = dut.core.ieu.Issue2D & dut.core.ieu.StructuralStall2D
+    assign Slot1Stall = dut.core.ieu.Issue1D & dut.core.ieu.StructuralStall1D
                         & ~dut.core.ieu.StructuralStall0D;
     always_ff @(posedge clk)
       if (~reset) begin
@@ -876,14 +876,14 @@ module testbench;
           else if (Slot1Stall)                StallSlot1 <= StallSlot1 + 1;
           else                                StallOther <= StallOther + 1;
         end
-        // "Solely" means every other term of Issue2F was satisfied, so this one term is what cost
+        // "Solely" means every other term of Issue1F was satisfied, so this one term is what cost
         // the pair.  A cycle blocked by two terms is counted in neither, which is the point: fixing
         // one of them would not have paired it.
         if (Refused) begin
           PairOpportunity <= PairOpportunity + 1;
-          if (~dut.core.ifu.issue.Slot1CanPairF & Cfi1F
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.DependencyOKF    & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF) begin
+          if (~dut.core.ifu.dualissue.issue.Slot1CanPairF & Cfi1F
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.DependencyOKF    & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF) begin
             if (Br1F) begin
               BlockBranch1 <= BlockBranch1 + 1;
               if (~dut.core.ifu.PCF[2]) BlockBranch1Aligned <= BlockBranch1Aligned + 1;
@@ -892,194 +892,194 @@ module testbench;
           // A slot 1 divide is refused by ~MExtF inside Slot1CanPairF, so it needs its own attribution:
           // it is not a branch, a jump, compressed, a dependency or a memory clash.  Multiplies pair, so
           // since slot 1 multiplies were admitted this counts divides only.
-          if (~dut.core.ifu.issue.Slot1CanPairF & dut.core.ifu.issue.MExtF & ~Cfi1F
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.DependencyOKF   & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF)
+          if (~dut.core.ifu.dualissue.issue.Slot1CanPairF & dut.core.ifu.dualissue.issue.MExtF & ~Cfi1F
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.DependencyOKF   & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF)
             BlockMDU1 <= BlockMDU1 + 1;
-          if (~dut.core.ifu.issue.OneMduOpF
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.Slot1CanPairF     & dut.core.ifu.issue.DependencyOKF & dut.core.ifu.issue.OneMemOpF)
+          if (~dut.core.ifu.dualissue.issue.OneMduOpF
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.Slot1CanPairF     & dut.core.ifu.dualissue.issue.DependencyOKF & dut.core.ifu.dualissue.issue.OneMemOpF)
             BlockOneMdu <= BlockOneMdu + 1;
-          if (~dut.core.ifu.issue.BothRecognizedF) AnyCompressed <= AnyCompressed + 1;
-          if (~dut.core.ifu.issue.DependencyOKF)      AnyDep        <= AnyDep + 1;
-          if (~dut.core.ifu.issue.BothRecognizedF
-              & dut.core.ifu.issue.Slot0CanPairF & dut.core.ifu.issue.Slot1CanPairF
-              & dut.core.ifu.issue.DependencyOKF & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF) begin
+          if (~dut.core.ifu.dualissue.issue.BothRecognizedF) AnyCompressed <= AnyCompressed + 1;
+          if (~dut.core.ifu.dualissue.issue.DependencyOKF)      AnyDep        <= AnyDep + 1;
+          if (~dut.core.ifu.dualissue.issue.BothRecognizedF
+              & dut.core.ifu.dualissue.issue.Slot0CanPairF & dut.core.ifu.dualissue.issue.Slot1CanPairF
+              & dut.core.ifu.dualissue.issue.DependencyOKF & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF) begin
             BlockCompressed <= BlockCompressed + 1;
             // Which slot's encoding instrfields failed to recognise.  A gap in slot 0 is pure
             // conservatism -- slot 0 executes everything it always did -- so it bounds what the
             // class-split change would recover without any datapath work.
-            if (~dut.core.ifu.issue.Recognized0F) BlockUnrec0 <= BlockUnrec0 + 1;
-            if (~dut.core.ifu.issue.Recognized1F) BlockUnrec1 <= BlockUnrec1 + 1;
+            if (~dut.core.ifu.dualissue.issue.Recognized0F) BlockUnrec0 <= BlockUnrec0 + 1;
+            if (~dut.core.ifu.dualissue.issue.Recognized1F) BlockUnrec1 <= BlockUnrec1 + 1;
           end
-          if (~dut.core.ifu.issue.DependencyOKF
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.Slot1CanPairF    & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF)
+          if (~dut.core.ifu.dualissue.issue.DependencyOKF
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.Slot1CanPairF    & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF)
           begin
             BlockDep <= BlockDep + 1;
             // Why the late ALU could not take it.  Not exclusive: a pair can fail several ways.
-            if (dut.core.ifu.issue.SameRdF)                                  DepSameRd   <= DepSameRd + 1;
+            if (dut.core.ifu.dualissue.issue.SameRdF)                                  DepSameRd   <= DepSameRd + 1;
             // ... and how many of those were refused only for the shared destination
-            if (dut.core.ifu.issue.SameRdF & (~dut.core.ifu.issue.SrcDepF |
-                (dut.core.ifu.issue.Slot0EarlyF & dut.core.ifu.issue.Slot1LateOKF))) DepSameRdOnly <= DepSameRdOnly + 1;
-            if (dut.core.ifu.issue.SrcDepF & ~dut.core.ifu.issue.Slot0EarlyF)  DepSlot0Late <= DepSlot0Late + 1;
-            if (dut.core.ifu.issue.SrcDepF & ~dut.core.ifu.issue.Slot1LateOKF) DepSlot1Op  <= DepSlot1Op + 1;
+            if (dut.core.ifu.dualissue.issue.SameRdF & (~dut.core.ifu.dualissue.issue.SrcDepF |
+                (dut.core.ifu.dualissue.issue.Slot0EarlyF & dut.core.ifu.dualissue.issue.Slot1LateOKF))) DepSameRdOnly <= DepSameRdOnly + 1;
+            if (dut.core.ifu.dualissue.issue.SrcDepF & ~dut.core.ifu.dualissue.issue.Slot0EarlyF)  DepSlot0Late <= DepSlot0Late + 1;
+            if (dut.core.ifu.dualissue.issue.SrcDepF & ~dut.core.ifu.dualissue.issue.Slot1LateOKF) DepSlot1Op  <= DepSlot1Op + 1;
             // ... of which a slot 1 load whose address comes from a slot 0 ALU result: what a late
             // address into the LSU could take
-            if (dut.core.ifu.issue.SrcDepF & ~dut.core.ifu.issue.SameRdF & dut.core.ifu.issue.Slot0EarlyF
-                & dut.core.ifu.issue.MemRW1F[1])                                DepSlot1Load <= DepSlot1Load + 1;
+            if (dut.core.ifu.dualissue.issue.SrcDepF & ~dut.core.ifu.dualissue.issue.SameRdF & dut.core.ifu.dualissue.issue.Slot0EarlyF
+                & dut.core.ifu.dualissue.issue.MemRW1F[1])                                DepSlot1Load <= DepSlot1Load + 1;
           end
-          if (~dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot1CanPairF
-              & dut.core.ifu.issue.DependencyOKF     & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF)
+          if (~dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot1CanPairF
+              & dut.core.ifu.dualissue.issue.DependencyOKF     & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF)
             BlockSlot0 <= BlockSlot0 + 1;
-          if (~dut.core.ifu.issue.OneMemOpF
-              & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot0CanPairF
-              & dut.core.ifu.issue.Slot1CanPairF     & dut.core.ifu.issue.DependencyOKF & dut.core.ifu.issue.OneMduOpF)
+          if (~dut.core.ifu.dualissue.issue.OneMemOpF
+              & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot0CanPairF
+              & dut.core.ifu.dualissue.issue.Slot1CanPairF     & dut.core.ifu.dualissue.issue.DependencyOKF & dut.core.ifu.dualissue.issue.OneMduOpF)
             BlockOneMem <= BlockOneMem + 1;
         end
         if (dut.core.ifu.BPWrongE)                             FlushMispredict <= FlushMispredict + 1;
-        if (dut.core.ifu.Kill2E & dut.core.ifu.Issue2E)         Kills <= Kills + 1;
-        if (dut.core.Mem2M & ~dut.core.StallM)                  Mem2 <= Mem2 + 1;
-        if (dut.core.Replay2M & ~dut.core.StallM)               Replays <= Replays + 1;
-        if (dut.core.ieu.LoadStall2D       & ~dut.core.StallE)  LoadUse2    <= LoadUse2 + 1;
-        if (dut.core.ieu.MDUStall2D        & ~dut.core.StallE)  MulUse2     <= MulUse2 + 1;
-        if (dut.core.ieu.LateStall2D       & ~dut.core.StallE)  LateUse2    <= LateUse2 + 1;
+        if (dut.core.ifu.Kill1E & dut.core.ifu.Issue1E)         Kills <= Kills + 1;
+        if (dut.core.Mem1M & ~dut.core.StallM)                  Mem1 <= Mem1 + 1;
+        if (dut.core.Replay1M & ~dut.core.StallM)               Replays <= Replays + 1;
+        if (dut.core.ieu.LoadStall1D       & ~dut.core.StallE)  LoadUse1    <= LoadUse1 + 1;
+        if (dut.core.ieu.MDUStall1D        & ~dut.core.StallE)  MulUse1     <= MulUse1 + 1;
+        if (dut.core.ieu.LateStall1D       & ~dut.core.StallE)  LateUse1    <= LateUse1 + 1;
         if (dut.core.LateBrM & ~dut.core.StallM & ~dut.core.FlushW) begin
           LateBr <= LateBr + 1;
           if (dut.core.LateBrWrongM) LateBrWrong <= LateBrWrong + 1;
         end
-        if (dut.core.ieu.dp.Late2M & dut.core.ifu.Issue2M & ~dut.core.StallM & ~dut.core.FlushM) Late2 <= Late2 + 1;
+        if (dut.core.ieu.dp.Late1M & dut.core.ifu.Issue1M & ~dut.core.StallM & ~dut.core.FlushM) Late1 <= Late1 + 1;
         // A replay flushes Memory itself, so it is counted without the ~FlushM qualifier.
-        if (dut.core.FuseM & ~dut.core.StallM & dut.core.Replay2M)              Unfused <= Unfused + 1;
+        if (dut.core.FuseM & ~dut.core.StallM & dut.core.Replay1M)              Unfused <= Unfused + 1;
         else if (dut.core.FuseM & ~dut.core.StallM & ~dut.core.FlushM)          Fused   <= Fused + 1;
-        if ((dut.core.ieu.FuseBrA2E | dut.core.ieu.FuseBrB2E) & ~dut.core.StallE) FusedBr <= FusedBr + 1;
-        if (dut.core.ieu.Mdu2M & dut.core.ifu.Issue2M & ~dut.core.StallM & ~dut.core.FlushM) begin
-          if (dut.core.ieu.MDUFunct3M[2]) Div2 <= Div2 + 1;
-          else                            Mul2 <= Mul2 + 1;
+        if ((dut.core.ieu.FuseBrA1E | dut.core.ieu.FuseBrB1E) & ~dut.core.StallE) FusedBr <= FusedBr + 1;
+        if (dut.core.ieu.Mdu1M & dut.core.ifu.Issue1M & ~dut.core.StallM & ~dut.core.FlushM) begin
+          if (dut.core.ieu.MDUFunct3M[2]) Div1 <= Div1 + 1;
+          else                            Mul1 <= Mul1 + 1;
         end
         // The divider acts as soon as it starts, so a slot 1 divide must never share Execute with a
         // slot 0 branch that resolves taken: the divide would run for an instruction that is then
         // squashed.  issue.sv refuses that pair; this catches anyone relaxing the rule.
-        if (dut.core.ieu.Mdu2E & dut.core.ieu.IntDiv2E & dut.core.PCSrcE) begin
-          KilledDiv2 <= KilledDiv2 + 1;
+        if (dut.core.ieu.Mdu1E & dut.core.ieu.IntDiv1E & dut.core.PCSrcE) begin
+          KilledDiv1 <= KilledDiv1 + 1;
           $error("slot 1 divide in Execute beside a taken slot 0 branch");
         end
         if (dut.core.ieu.BundleStoreStallD & ~dut.core.StallE)  BundleStore <= BundleStore + 1;
-        if (dut.core.Replay2M & ~dut.core.StallM & dut.core.ieu.MemRW2M[1]) Replay2Ld <= Replay2Ld + 1;
-        if (dut.core.Replay2M & ~dut.core.StallM & dut.core.ieu.MemRW2M[0]) Replay2St <= Replay2St + 1;
-        if (dut.core.PCSrcE & (|dut.core.ieu.MemRW2E) & ~dut.core.StallE)   BrWithMem2 <= BrWithMem2 + 1;
+        if (dut.core.Replay1M & ~dut.core.StallM & dut.core.ieu.MemRW1M[1]) Replay1Ld <= Replay1Ld + 1;
+        if (dut.core.Replay1M & ~dut.core.StallM & dut.core.ieu.MemRW1M[0]) Replay1St <= Replay1St + 1;
+        if (dut.core.PCSrcE & (|dut.core.ieu.MemRW1E) & ~dut.core.StallE)   BrWithMem1 <= BrWithMem1 + 1;
         // A replayed slot 1 store must never reach memory: the instruction is about to be refetched and
         // trap, so the handler has to find state unmodified.  A replay withholds FlushW so slot 0 can
         // commit; the LSU cancels the write itself instead, because the store's own fault drives
         // LSUFlushW (SelfFaultM in lsu.sv).  This must never fire.
-        if (dut.core.Replay2M & dut.core.Mem2M & dut.core.ieu.MemRW2M[0] & ~dut.core.lsu.LSUFlushW) begin
+        if (dut.core.Replay1M & dut.core.Mem1M & dut.core.ieu.MemRW1M[0] & ~dut.core.lsu.LSUFlushW) begin
           ReplayStoreLeak <= ReplayStoreLeak + 1;
           $error("replayed slot 1 store was not cancelled at the LSU: the write will reach memory");
         end
       end
     // Brainstorming breakdowns (measurement only).
-    integer S0Jump = 0, S0PredTaken = 0, S0System = 0, S0Fence = 0;   // why slot 0 could not carry a partner
-    integer DepS1Mul = 0, DepS1Other = 0;                              // dependent slot 1 the late ALU lacks
-    integer LateUseS0 = 0, LateUseS1Only = 0, LateUseS1OnlyAlu = 0;    // late-use stall: who consumed
-    integer LoadUseS0 = 0, LoadUseS1Only = 0, LoadUseS1OnlyAlu = 0;    // load-use stall: who consumed
-    logic [6:0] Op2D; logic [6:0] F7_2D; logic S1BaseAluD;
-    logic S0LoadUseD, S1LoadUseD, S0LateUseD, S1LateUseD;
-    assign Op2D  = dut.core.ieu.Instr2D[6:0];
-    assign F7_2D = dut.core.ieu.Instr2D[31:25];
+    integer Slot0Jump = 0, Slot0PredTaken = 0, Slot0System = 0, Slot0Fence = 0;   // why slot 0 could not carry a partner
+    integer DepSlot1Mul = 0, DepSlot1Other = 0;                              // dependent slot 1 the late ALU lacks
+    integer LateUseSlot0 = 0, LateUseSlot1Only = 0, LateUseSlot1OnlyAlu = 0;    // late-use stall: who consumed
+    integer LoadUseSlot0 = 0, LoadUseSlot1Only = 0, LoadUseSlot1OnlyAlu = 0;    // load-use stall: who consumed
+    logic [6:0] Op1D; logic [6:0] F7_1D; logic Slot1BaseAluD;
+    logic Slot0LoadUseD, Slot1LoadUseD, Slot0LateUseD, Slot1LateUseD;
+    assign Op1D  = dut.core.ieu.Instr1D[6:0];
+    assign F7_1D = dut.core.ieu.Instr1D[31:25];
     // Slot 1 in Decode is an operation a late ALU could do (approximate: base OP/OP-IMM forms)
-    assign S1BaseAluD = (Op2D == 7'b0010011) | (Op2D == 7'b0011011) |
-                        (((Op2D == 7'b0110011) | (Op2D == 7'b0111011)) & ((F7_2D == 7'b0) | (F7_2D == 7'b0100000)));
-    assign S0LoadUseD = (dut.core.ieu.c.MemReadE & (dut.core.ieu.RdE != 0) &
+    assign Slot1BaseAluD = (Op1D == 7'b0010011) | (Op1D == 7'b0011011) |
+                        (((Op1D == 7'b0110011) | (Op1D == 7'b0111011)) & ((F7_1D == 7'b0) | (F7_1D == 7'b0100000)));
+    assign Slot0LoadUseD = (dut.core.ieu.c.MemReadE & (dut.core.ieu.RdE != 0) &
                          ((dut.core.ieu.Rs1D == dut.core.ieu.RdE) | (dut.core.ieu.Rs2D == dut.core.ieu.RdE))) |
-                        (dut.core.ieu.MemRW2E[1] & (dut.core.ieu.Rd2E != 0) &
-                         ((dut.core.ieu.Rs1D == dut.core.ieu.Rd2E) | (dut.core.ieu.Rs2D == dut.core.ieu.Rd2E)));
-    assign S1LoadUseD = dut.core.ieu.Issue2D &
+                        (dut.core.ieu.MemRW1E[1] & (dut.core.ieu.Rd1E != 0) &
+                         ((dut.core.ieu.Rs1D == dut.core.ieu.Rd1E) | (dut.core.ieu.Rs2D == dut.core.ieu.Rd1E)));
+    assign Slot1LoadUseD = dut.core.ieu.Issue1D &
                         ((dut.core.ieu.c.MemReadE & (dut.core.ieu.RdE != 0) &
-                          ((dut.core.ieu.Rs1_2D == dut.core.ieu.RdE) | (dut.core.ieu.Rs2_2D == dut.core.ieu.RdE))) |
-                         (dut.core.ieu.MemRW2E[1] & (dut.core.ieu.Rd2E != 0) &
-                          ((dut.core.ieu.Rs1_2D == dut.core.ieu.Rd2E) | (dut.core.ieu.Rs2_2D == dut.core.ieu.Rd2E))));
-    assign S0LateUseD = dut.core.ieu.Late2E & (dut.core.ieu.Rd2E != 0) &
-                        ((dut.core.ieu.Rs1D == dut.core.ieu.Rd2E) | (dut.core.ieu.Rs2D == dut.core.ieu.Rd2E));
-    assign S1LateUseD = dut.core.ieu.Late2E & dut.core.ieu.Issue2D & (dut.core.ieu.Rd2E != 0) &
-                        ((dut.core.ieu.Rs1_2D == dut.core.ieu.Rd2E) | (dut.core.ieu.Rs2_2D == dut.core.ieu.Rd2E));
+                          ((dut.core.ieu.Rs1_1D == dut.core.ieu.RdE) | (dut.core.ieu.Rs2_1D == dut.core.ieu.RdE))) |
+                         (dut.core.ieu.MemRW1E[1] & (dut.core.ieu.Rd1E != 0) &
+                          ((dut.core.ieu.Rs1_1D == dut.core.ieu.Rd1E) | (dut.core.ieu.Rs2_1D == dut.core.ieu.Rd1E))));
+    assign Slot0LateUseD = dut.core.ieu.Late1E & (dut.core.ieu.Rd1E != 0) &
+                        ((dut.core.ieu.Rs1D == dut.core.ieu.Rd1E) | (dut.core.ieu.Rs2D == dut.core.ieu.Rd1E));
+    assign Slot1LateUseD = dut.core.ieu.Late1E & dut.core.ieu.Issue1D & (dut.core.ieu.Rd1E != 0) &
+                        ((dut.core.ieu.Rs1_1D == dut.core.ieu.Rd1E) | (dut.core.ieu.Rs2_1D == dut.core.ieu.Rd1E));
     always_ff @(posedge clk)
       if (~reset) begin
-        if (Refused & ~dut.core.ifu.issue.Slot0CanPairF
-            & dut.core.ifu.issue.BothRecognizedF & dut.core.ifu.issue.Slot1CanPairF
-            & dut.core.ifu.issue.DependencyOKF & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF) begin
-          if ((dut.core.ifu.issue.Op0F == 7'b1101111) | (dut.core.ifu.issue.Op0F == 7'b1100111)) S0Jump <= S0Jump + 1;
-          else if (dut.core.ifu.issue.BPPCSrcF)                                                  S0PredTaken <= S0PredTaken + 1;
-          else if (dut.core.ifu.issue.Op0F == 7'b1110011)                                         S0System <= S0System + 1;
-          else                                                                                    S0Fence <= S0Fence + 1;
+        if (Refused & ~dut.core.ifu.dualissue.issue.Slot0CanPairF
+            & dut.core.ifu.dualissue.issue.BothRecognizedF & dut.core.ifu.dualissue.issue.Slot1CanPairF
+            & dut.core.ifu.dualissue.issue.DependencyOKF & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF) begin
+          if ((dut.core.ifu.dualissue.issue.Op0F == 7'b1101111) | (dut.core.ifu.dualissue.issue.Op0F == 7'b1100111)) Slot0Jump <= Slot0Jump + 1;
+          else if (dut.core.ifu.dualissue.issue.BPPCSrcF)                                                  Slot0PredTaken <= Slot0PredTaken + 1;
+          else if (dut.core.ifu.dualissue.issue.Op0F == 7'b1110011)                                         Slot0System <= Slot0System + 1;
+          else                                                                                    Slot0Fence <= Slot0Fence + 1;
         end
-        if (Refused & ~dut.core.ifu.issue.DependencyOKF & dut.core.ifu.issue.BothRecognizedF
-            & dut.core.ifu.issue.Slot0CanPairF & dut.core.ifu.issue.Slot1CanPairF
-            & dut.core.ifu.issue.OneMemOpF & dut.core.ifu.issue.OneMduOpF
-            & dut.core.ifu.issue.SrcDepF & ~dut.core.ifu.issue.SameRdF & dut.core.ifu.issue.Slot0EarlyF
-            & ~dut.core.ifu.issue.Slot1LateOKF & ~dut.core.ifu.issue.MemRW1F[1]) begin
-          if (dut.core.ifu.issue.MExtF) DepS1Mul <= DepS1Mul + 1;
-          else                          DepS1Other <= DepS1Other + 1;
+        if (Refused & ~dut.core.ifu.dualissue.issue.DependencyOKF & dut.core.ifu.dualissue.issue.BothRecognizedF
+            & dut.core.ifu.dualissue.issue.Slot0CanPairF & dut.core.ifu.dualissue.issue.Slot1CanPairF
+            & dut.core.ifu.dualissue.issue.OneMemOpF & dut.core.ifu.dualissue.issue.OneMduOpF
+            & dut.core.ifu.dualissue.issue.SrcDepF & ~dut.core.ifu.dualissue.issue.SameRdF & dut.core.ifu.dualissue.issue.Slot0EarlyF
+            & ~dut.core.ifu.dualissue.issue.Slot1LateOKF & ~dut.core.ifu.dualissue.issue.MemRW1F[1]) begin
+          if (dut.core.ifu.dualissue.issue.MExtF) DepSlot1Mul <= DepSlot1Mul + 1;
+          else                          DepSlot1Other <= DepSlot1Other + 1;
         end
         if (dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD) begin
-          if (S0LoadUseD) LoadUseS0 <= LoadUseS0 + 1;
-          else if (S1LoadUseD) begin
-            LoadUseS1Only <= LoadUseS1Only + 1;
-            if (S1BaseAluD) LoadUseS1OnlyAlu <= LoadUseS1OnlyAlu + 1;
+          if (Slot0LoadUseD) LoadUseSlot0 <= LoadUseSlot0 + 1;
+          else if (Slot1LoadUseD) begin
+            LoadUseSlot1Only <= LoadUseSlot1Only + 1;
+            if (Slot1BaseAluD) LoadUseSlot1OnlyAlu <= LoadUseSlot1OnlyAlu + 1;
           end
-          if (S0LateUseD) LateUseS0 <= LateUseS0 + 1;
-          else if (S1LateUseD) begin
-            LateUseS1Only <= LateUseS1Only + 1;
-            if (S1BaseAluD) LateUseS1OnlyAlu <= LateUseS1OnlyAlu + 1;
+          if (Slot0LateUseD) LateUseSlot0 <= LateUseSlot0 + 1;
+          else if (Slot1LateUseD) begin
+            LateUseSlot1Only <= LateUseSlot1Only + 1;
+            if (Slot1BaseAluD) LateUseSlot1OnlyAlu <= LateUseSlot1OnlyAlu + 1;
           end
         end
       end
     final
       $display("brainstorm: slot0-unpairable jump=%0d predtaken=%0d system=%0d fence=%0d | dep slot1 not late: mul=%0d other(bitmanip)=%0d | loaduse consumer slot0=%0d slot1only=%0d (base ALU %0d) | lateuse consumer slot0=%0d slot1only=%0d (base ALU %0d)",
-               S0Jump, S0PredTaken, S0System, S0Fence, DepS1Mul, DepS1Other, LoadUseS0, LoadUseS1Only, LoadUseS1OnlyAlu, LateUseS0, LateUseS1Only, LateUseS1OnlyAlu);
+               Slot0Jump, Slot0PredTaken, Slot0System, Slot0Fence, DepSlot1Mul, DepSlot1Other, LoadUseSlot0, LoadUseSlot1Only, LoadUseSlot1OnlyAlu, LateUseSlot0, LateUseSlot1Only, LateUseSlot1OnlyAlu);
 
     // Could slot 0's load-use consumer have used a shared late ALU?  Upper bounds, per stall cycle.
-    integer S0LU_Alu = 0, S0LU_AluConflict = 0, S0LU_StoreData = 0, S0LU_Branch = 0, S0LU_Other = 0;
-    logic [6:0] Op0D; logic [6:0] F7_0D; logic S0BaseAluD, LdRs1, LdRs2, S1WantsLate;
+    integer Slot0LU_Alu = 0, Slot0LU_AluConflict = 0, Slot0LU_StoreData = 0, Slot0LU_Branch = 0, Slot0LU_Other = 0;
+    logic [6:0] Op0D; logic [6:0] F7_0D; logic Slot0BaseAluD, LdRs1, LdRs2, Slot1WantsLate;
     logic [4:0] Rs1_0D, Rs2_0D;
     assign Op0D  = dut.core.ieu.InstrD[6:0];
     assign F7_0D = dut.core.ieu.InstrD[31:25];
     assign Rs1_0D = dut.core.ieu.Rs1D;
     assign Rs2_0D = dut.core.ieu.Rs2D;
-    assign S0BaseAluD = (Op0D == 7'b0010011) | (Op0D == 7'b0011011) |
+    assign Slot0BaseAluD = (Op0D == 7'b0010011) | (Op0D == 7'b0011011) |
                         (((Op0D == 7'b0110011) | (Op0D == 7'b0111011)) & ((F7_0D == 7'b0) | (F7_0D == 7'b0100000)));
-    // Which of slot 0's sources are a load's destination in Execute (either lane)
+    // Which of slot 0's sources are a load's destination in Execute (either slot)
     assign LdRs1 = (dut.core.ieu.c.MemReadE & (dut.core.ieu.RdE != 0) & (Rs1_0D == dut.core.ieu.RdE)) |
-                   (dut.core.ieu.MemRW2E[1] & (dut.core.ieu.Rd2E != 0) & (Rs1_0D == dut.core.ieu.Rd2E));
+                   (dut.core.ieu.MemRW1E[1] & (dut.core.ieu.Rd1E != 0) & (Rs1_0D == dut.core.ieu.Rd1E));
     assign LdRs2 = (dut.core.ieu.c.MemReadE & (dut.core.ieu.RdE != 0) & (Rs2_0D == dut.core.ieu.RdE)) |
-                   (dut.core.ieu.MemRW2E[1] & (dut.core.ieu.Rd2E != 0) & (Rs2_0D == dut.core.ieu.Rd2E));
+                   (dut.core.ieu.MemRW1E[1] & (dut.core.ieu.Rd1E != 0) & (Rs2_0D == dut.core.ieu.Rd1E));
     // Slot 1 of the same bundle also needs the one late ALU: it reads slot 0, or it is a load-use consumer itself
-    assign S1WantsLate = dut.core.ieu.Issue2D & (dut.core.ieu.LateA2D | dut.core.ieu.LateB2D | S1LoadUseD);
+    assign Slot1WantsLate = dut.core.ieu.Issue1D & (dut.core.ieu.LateA1D | dut.core.ieu.LateB1D | Slot1LoadUseD);
     always_ff @(posedge clk)
-      if (~reset & dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & S0LoadUseD) begin
-        if (S0BaseAluD) begin
-          if (S1WantsLate) S0LU_AluConflict <= S0LU_AluConflict + 1;
-          else             S0LU_Alu <= S0LU_Alu + 1;
+      if (~reset & dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & Slot0LoadUseD) begin
+        if (Slot0BaseAluD) begin
+          if (Slot1WantsLate) Slot0LU_AluConflict <= Slot0LU_AluConflict + 1;
+          else             Slot0LU_Alu <= Slot0LU_Alu + 1;
         end
-        else if ((Op0D == 7'b0100011) & LdRs2 & ~LdRs1) S0LU_StoreData <= S0LU_StoreData + 1;
-        else if (Op0D == 7'b1100011)                    S0LU_Branch <= S0LU_Branch + 1;
-        else                                            S0LU_Other <= S0LU_Other + 1;
+        else if ((Op0D == 7'b0100011) & LdRs2 & ~LdRs1) Slot0LU_StoreData <= Slot0LU_StoreData + 1;
+        else if (Op0D == 7'b1100011)                    Slot0LU_Branch <= Slot0LU_Branch + 1;
+        else                                            Slot0LU_Other <= Slot0LU_Other + 1;
       end
     // Of those, how often the next bundle reads the ALU op's result: a shared late ALU would only move
     // that stall one bundle later.
-    integer S0LU_NextDep = 0, S0LU_Seen = 0;
+    integer Slot0LU_NextDep = 0, Slot0LU_Seen = 0;
     logic Cand, CandLeft; logic [4:0] CandRd;
     always_ff @(posedge clk)
       if (reset) begin Cand <= 0; CandLeft <= 0; end
       else begin
-        if (dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & S0LoadUseD & S0BaseAluD & ~S1WantsLate) begin
+        if (dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & Slot0LoadUseD & Slot0BaseAluD & ~Slot1WantsLate) begin
           Cand <= 1; CandRd <= dut.core.ieu.InstrD[11:7];
         end else if (Cand & ~dut.core.StallD) begin Cand <= 0; CandLeft <= 1; end
         if (CandLeft & ~dut.core.FlushD & dut.core.ifu.InstrValidD) begin
-          CandLeft <= 0; S0LU_Seen <= S0LU_Seen + 1;
+          CandLeft <= 0; Slot0LU_Seen <= Slot0LU_Seen + 1;
           if ((CandRd != 0) & ((dut.core.ieu.Rs1D == CandRd) | (dut.core.ieu.Rs2D == CandRd) |
-              (dut.core.ieu.Issue2D & ((dut.core.ieu.Rs1_2D == CandRd) | (dut.core.ieu.Rs2_2D == CandRd)))))
-            S0LU_NextDep <= S0LU_NextDep + 1;
+              (dut.core.ieu.Issue1D & ((dut.core.ieu.Rs1_1D == CandRd) | (dut.core.ieu.Rs2_1D == CandRd)))))
+            Slot0LU_NextDep <= Slot0LU_NextDep + 1;
         end else if (CandLeft & dut.core.FlushD) CandLeft <= 0;
       end
     // Load-dependent branches: how many were mispredicted anyway.  Resolving these in Memory from the
@@ -1090,7 +1090,7 @@ module testbench;
       if (reset) begin BrCand <= 0; BrInE <= 0; end
       else begin
         BrInE <= 0;
-        if (dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & S0LoadUseD & (Op0D == 7'b1100011)) BrCand <= 1;
+        if (dut.core.StallD & ~dut.core.StallE & ~dut.core.FlushD & Slot0LoadUseD & (Op0D == 7'b1100011)) BrCand <= 1;
         else if (BrCand & ~dut.core.StallD) begin BrCand <= 0; BrInE <= ~dut.core.FlushD; end
         if (BrInE & ~dut.core.StallE) begin
           LdBrSeen <= LdBrSeen + 1;
@@ -1098,10 +1098,10 @@ module testbench;
         end
       end
     final $display("load-dependent branches: %0d reached Execute, %0d mispredicted", LdBrSeen, LdBrWrong);
-    final $display("slot0 load-use ALU candidates: next bundle reads its result in %0d of %0d", S0LU_NextDep, S0LU_Seen);
+    final $display("slot0 load-use ALU candidates: next bundle reads its result in %0d of %0d", Slot0LU_NextDep, Slot0LU_Seen);
     final
       $display("slot0 load-use: base ALU=%0d (+%0d where slot 1 also needs the late ALU) | store data only=%0d | branch=%0d | other (load/store address, jalr, ...)=%0d",
-               S0LU_Alu, S0LU_AluConflict, S0LU_StoreData, S0LU_Branch, S0LU_Other);
+               Slot0LU_Alu, Slot0LU_AluConflict, Slot0LU_StoreData, Slot0LU_Branch, Slot0LU_Other);
 
     // minstret must equal the number of instructions actually committed.  Both count from reset and
     // use the same condition, so any difference is the counter being wrong -- which matters because
@@ -1109,16 +1109,16 @@ module testbench;
     integer Committed = 0;
     always_ff @(posedge clk)
       if (~reset & dut.core.ieu.c.InstrValidM & ~dut.core.StallW & ~dut.core.FlushW)
-        Committed <= Committed + 1 + ((dut.core.ifu.Issue2M & ~dut.core.Replay2M & ~dut.core.LateBrWrongM) ? 1 : 0);
+        Committed <= Committed + 1 + ((dut.core.ifu.Issue1M & ~dut.core.Replay1M & ~dut.core.LateBrWrongM) ? 1 : 0);
 
     final begin
-      $display("overhead: %0d cycles | stall slot0=%0d slot1=%0d other=%0d | mispredict=%0d | slot1 kills=%0d | slot1 mem=%0d replays=%0d | slot1 mul=%0d div=%0d | hazards: loaduse2=%0d muluse2=%0d bundlestore=%0d | replay ld=%0d st=%0d | branch+slot1mem=%0d | replay store leaks=%0d (must be 0) | killed slot1 divs=%0d (must be 0)",
-               Cycles, StallSlot0, StallSlot1, StallOther, FlushMispredict, Kills, Mem2, Replays, Mul2, Div2, LoadUse2, MulUse2, BundleStore, Replay2Ld, Replay2St, BrWithMem2, ReplayStoreLeak, KilledDiv2);
+      $display("overhead: %0d cycles | stall slot0=%0d slot1=%0d other=%0d | mispredict=%0d | slot1 kills=%0d | slot1 mem=%0d replays=%0d | slot1 mul=%0d div=%0d | hazards: loaduse1=%0d muluse1=%0d bundlestore=%0d | replay ld=%0d st=%0d | branch+slot1mem=%0d | replay store leaks=%0d (must be 0) | killed slot1 divs=%0d (must be 0)",
+               Cycles, StallSlot0, StallSlot1, StallOther, FlushMispredict, Kills, Mem1, Replays, Mul1, Div1, LoadUse1, MulUse1, BundleStore, Replay1Ld, Replay1St, BrWithMem1, ReplayStoreLeak, KilledDiv1);
       $display("pairing refused: %0d opportunities | sole cause: branch in slot1=%0d (8B-aligned=%0d) jump in slot1=%0d div in slot1=%0d compressed=%0d dependency=%0d slot0=%0d onemem=%0d onemdu=%0d (unrec slot0=%0d slot1=%0d) | any-cause: compressed=%0d dependency=%0d",
                PairOpportunity, BlockBranch1, BlockBranch1Aligned, BlockJump1, BlockMDU1, BlockCompressed, BlockDep, BlockSlot0, BlockOneMem, BlockOneMdu, BlockUnrec0, BlockUnrec1, AnyCompressed, AnyDep);
       $display("late branch: resolved in Memory=%0d, of which fetch went the wrong way=%0d", LateBr, LateBrWrong);
-      $display("late ALU: slot1 late=%0d | lateuse2 stalls=%0d | dependency still refused: same rd=%0d (only cause %0d) slot0 not ALU=%0d slot1 not late op=%0d (dependent load after ALU op=%0d)",
-               Late2, LateUse2, DepSameRd, DepSameRdOnly, DepSlot0Late, DepSlot1Op, DepSlot1Load);
+      $display("late ALU: slot1 late=%0d | lateuse1 stalls=%0d | dependency still refused: same rd=%0d (only cause %0d) slot0 not ALU=%0d slot1 not late op=%0d (dependent load after ALU op=%0d)",
+               Late1, LateUse1, DepSameRd, DepSameRdOnly, DepSlot0Late, DepSlot1Op, DepSlot1Load);
       $display("fusion: indexed loads fused=%0d, replayed unfused after a fault=%0d | ALU+branch fused=%0d", Fused, Unfused, FusedBr);
       if (P.ZICSR_SUPPORTED)
         $display("minstret check: committed=%0d minstret=%0d %s", Committed,
@@ -1174,11 +1174,11 @@ module testbench;
   // of bits 7:0, which configurations without a UART use for console output.  Any other store to
   // tohost reports the test result.  RV32 stores the upper word to tohost+4 before the lower word.
   // A superscalar slot 1 store has no InstrMName to recognise it by, so its width comes from the
-  // control the LSU acts on.  Mem2M says the bundle's memory operation is slot 1's, and the LSU's
+  // control the LSU acts on.  Mem1M says the bundle's memory operation is slot 1's, and the LSU's
   // address, data and funct3 are then all slot 1's.  Funct3 is unambiguous because the issue rules
   // keep AMOs and store-conditional in slot 0.
-  assign StoreSWM = dut.core.Mem2M ? (dut.core.MemRWM[0] & (dut.core.MemFunct3M == 3'b010)) : (InstrMName == "SW");
-  assign StoreSDM = dut.core.Mem2M ? (dut.core.MemRWM[0] & (dut.core.MemFunct3M == 3'b011)) : (InstrMName == "SD");
+  assign StoreSWM = dut.core.Mem1M ? (dut.core.MemRWM[0] & (dut.core.MemFunct3M == 3'b010)) : (InstrMName == "SW");
+  assign StoreSDM = dut.core.Mem1M ? (dut.core.MemRWM[0] & (dut.core.MemFunct3M == 3'b011)) : (InstrMName == "SD");
   assign TohostStore   = (dut.core.lsu.IEUAdrM == tohost_addr & tohost_addr != 0) & (StoreSWM | StoreSDM);
   assign TohostHiStore = (dut.core.lsu.IEUAdrM == tohost_addr + 4 & tohost_addr != 0) & StoreSWM;
   assign TohostWord    = StoreSDM ? 64'(dut.core.WriteDataM) : {TohostHi, dut.core.WriteDataM[31:0]};

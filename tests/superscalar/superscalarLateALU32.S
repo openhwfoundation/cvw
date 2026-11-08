@@ -10,7 +10,7 @@
 //            - the dependency on rs1, on rs2 and on both
 //            - the other operand forwarded from the bundle just ahead, and read from the register file
 //            - the late result used by the very next instruction, from slot 0 and from slot 1
-//              (LateStall2D), by a branch and by a store
+//              (LateStall1D), by a branch and by a store
 //            - a chain of late pairs, each depending on the last
 //            - lui/auipc + addi, the commonest dependent pairs
 //            - false dependencies: an immediate or a lui/auipc whose bits name slot 0's rd, which
@@ -208,7 +208,7 @@ fail:
     // The late result read by the very next instruction, whichever slot it lands in
     addi s2, a0, 0
     addi s3, s2, 1
-    addi s4, s3, 1          // reads the late result; LateStall2D holds it until ResultW2
+    addi s4, s3, 1          // reads the late result; LateStall1D holds it until Result1W
     addi s5, s3, 2
     CHECK s4, 0xFEDCBA9A, \base+33
     CHECK s5, 0xFEDCBA9B, \base+34

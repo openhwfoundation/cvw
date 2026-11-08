@@ -8,7 +8,7 @@
 //          and slot 1's writeback takes the product.  Each case places a multiply as the second
 //          instruction of a likely pair and checks:
 //            - every multiply variant (mul, mulh, mulhsu, mulhu, mulw) next to a slot 0 ALU op
-//            - a product used by the very next pair, from slot 0 and from slot 1 (MDUStall2D)
+//            - a product used by the very next pair, from slot 0 and from slot 1 (MDUStall1D)
 //            - two multiplies in one fetch window, which must not pair (OneMduOpF)
 //            - a load in slot 0 beside a slot 1 multiply
 //            - a taken branch in slot 0, which must keep the slot 1 multiply from writing
@@ -77,7 +77,7 @@
     CHECK s10, 9, \base+7
 
     // The product is used by the very next pair, from both slots.  Forwarding it from slot 1's
-    // Memory stage would supply the ALU output instead, so MDUStall2D must hold the pair a cycle.
+    // Memory stage would supply the ALU output instead, so MDUStall1D must hold the pair a cycle.
     addi t3, zero, 1
     mul t4, a2, a3
     add t5, t4, t3

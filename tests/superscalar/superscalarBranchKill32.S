@@ -7,7 +7,7 @@
 //          instruction in slot 1: the taken target is the next sequential bundle, so there is no
 //          misprediction and no flush, and the target enters Execute while the dead instruction is
 //          in Memory, then the bundle after it while the dead instruction is in Writeback.  Each case
-//          reads the poisoned register from slot 1 (c2's own forwarding) and from slot 0 (lane 1
+//          reads the poisoned register from slot 1 (c1's own forwarding) and from slot 0 (slot 0
 //          forwarding from slot 1) at both distances.  Every case is run twice, the second time
 //          shifted by 4 bytes, and the testbench's "slot1 kills" count shows how many were killed.
 //          A failing check stores (index << 1) | 1 to tohost.

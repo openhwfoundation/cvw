@@ -60,16 +60,16 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]             SrcAM;
   logic [2:0]                    Funct3E;
   logic [31:0]                   InstrD;
-  logic [31:0]                   Instr2D;                                  // superscalar slot 1 instruction in Decode
-  logic                          Issue2D, Issue2E, Issue2M, Issue2W;       // superscalar slot 1 issues alongside slot 0
-  logic                          LateA2D, LateB2D;                         // slot 1 operand is slot 0's result (late ALU)
-  logic                          LateOK2D;                                 // slot 1 could run on the late ALU
-  logic                          Fuse2D, FuseM;                            // the pair is fused into one indexed load (Decode / Memory)
-  logic                          FuseBr2D;                                 // the pair is fused into one ALU op + branch
-  logic                          FuseBrAdd2D;                              // ... whose slot 0 is an add (else a logic op)
+  logic [31:0]                   Instr1D;                                  // superscalar slot 1 instruction in Decode
+  logic                          Issue1D, Issue1E, Issue1M, Issue1W;       // superscalar slot 1 issues alongside slot 0
+  logic                          LateA1D, LateB1D;                         // slot 1 operand is slot 0's result (late ALU)
+  logic                          LateOK1D;                                 // slot 1 could run on the late ALU
+  logic                          Fuse1D, FuseM;                            // the pair is fused into one indexed load (Decode / Memory)
+  logic                          FuseBr1D;                                 // the pair is fused into one ALU op + branch
+  logic                          FuseBrAdd1D;                              // ... whose slot 0 is an add (else a logic op)
   logic                          PredTakenE;                               // fetch went to slot 0's predicted target
   logic                          LateBrM, LateBrTakenM, LateBrWrongM;      // slot 0 branch resolved in Memory
-  logic                          Replay2RawM;                              // slot 1 must re-run alone, unless it was on the wrong path
+  logic                          Replay1RawM;                              // slot 1 must re-run alone, unless it was on the wrong path
   logic [31:0]                   InstrM, InstrOrigM;
   logic [P.XLEN-1:0]             PCSpillF, PCE, PCLinkE;
   logic [P.XLEN-1:0]             PCM, PCSpillM;
@@ -80,11 +80,11 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          InstrValidD, InstrValidE, InstrValidM;
   logic                          InstrMisalignedFaultM;
   logic                          IllegalBaseInstrD, IllegalFPUInstrD, IllegalIEUFPUInstrD;
-  logic                          Mem2M;                           // The bundle's memory operation is slot 1's
-  logic                          Illegal2M;                       // ... or slot 1 is an illegal instruction
-  logic                          IllegalComp2M;                   // ... or an illegal compressed one, flagged by its decompressor
-  logic                          Replay2M;                        // ... either way slot 1 must re-run alone
-  logic                          MemFault2M;                      // Slot 1's memory operation faulted (the memory half of Replay2M)
+  logic                          Mem1M;                           // The bundle's memory operation is slot 1's
+  logic                          Illegal1M;                       // ... or slot 1 is an illegal instruction
+  logic                          IllegalComp1M;                   // ... or an illegal compressed one, flagged by its decompressor
+  logic                          Replay1M;                        // ... either way slot 1 must re-run alone
+  logic                          MemFault1M;                      // Slot 1's memory operation faulted (the memory half of Replay1M)
   logic                          InstrPageFaultF, LoadPageFaultM, StoreAmoPageFaultM;
   logic                          LoadMisalignedFaultM, LoadAccessFaultM;
   logic                          StoreAmoMisalignedFaultM, StoreAmoAccessFaultM;
@@ -190,8 +190,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          FCvtIntE;
   logic                          CommittedF;
   logic                          BranchD, BranchE, JumpD, JumpE;
-  logic                          Branch2D, Branch2E, Jump2D, Jump2E, PCSrc2E; // slot 1 conditional branch or jal, and its outcome
-  logic [P.XLEN-1:0]             IEUAdr2E, PCLink2E;              // slot 1 branch/jal target, and its link address
+  logic                          Branch1D, Branch1E, Jump1D, Jump1E, PCSrc1E; // slot 1 conditional branch or jal, and its outcome
+  logic [P.XLEN-1:0]             IEUAdr1E, PCLink1E;              // slot 1 branch/jal target, and its link address
   logic                          DCacheStallM, ICacheStallF;
   logic                          WaitM;                           // wfi is waiting for an interrupt
 
@@ -199,7 +199,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   ifu #(P) ifu(.clk, .reset,
     .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
     .InstrValidE, .InstrValidD,
-    .BranchD, .BranchE, .JumpD, .JumpE, .Branch2D, .Branch2E, .Jump2D, .Jump2E, .PCSrc2E, .IEUAdr2E, .PCLink2E, .ICacheStallF,
+    .BranchD, .BranchE, .JumpD, .JumpE, .Branch1D, .Branch1E, .Jump1D, .Jump1E, .PCSrc1E, .IEUAdr1E, .PCLink1E, .ICacheStallF,
     // Fetch
     .HRDATA, .PCSpillF, .IFUHADDR,
     .IFUStallF, .IFUHBURST, .IFUHTRANS, .IFUHSIZE, .IFUHREADY, .IFUHWRITE,
@@ -208,7 +208,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
-    .InstrD, .Instr2D, .Issue2D, .Issue2E, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseBrAdd2D, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp2M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
+    .InstrD, .Instr1D, .Issue1D, .Issue1E, .Issue1M, .Issue1W, .LateA1D, .LateB1D, .LateOK1D, .Fuse1D, .FuseBr1D, .FuseBrAdd1D, .Replay1M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp1M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
@@ -222,7 +222,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
     // Decode Stage interface
-    .InstrD, .Instr2D, .Issue2D, .Issue2M, .Issue2W, .LateA2D, .LateB2D, .LateOK2D, .Fuse2D, .FuseBr2D, .FuseBrAdd2D, .FuseM, .Replay2M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem2M, .Illegal2M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .InstrD, .Instr1D, .Issue1D, .Issue1M, .Issue1W, .LateA1D, .LateB1D, .LateOK1D, .Fuse1D, .FuseBr1D, .FuseBrAdd1D, .FuseM, .Replay1M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .Mem1M, .Illegal1M, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     // Execute Stage interface
     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .LSUAdrE, .IntDivE, .W64E,
     .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
@@ -236,7 +236,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .Funct3M, .MemFunct3M,    // funct3 to MDU/FPU; size and signedness to LSU
     .SrcAM,      // to privilege and fpu
     .RdE, .RdM, .FIntResM, .FlushDCacheM,
-    .BranchD, .BranchE, .JumpD, .JumpE, .Branch2D, .Branch2E, .Jump2D, .Jump2E, .PCSrc2E, .IEUAdr2E, .PCLink2E,
+    .BranchD, .BranchE, .JumpD, .JumpE, .Branch1D, .Branch1E, .Jump1D, .Jump1E, .PCSrc1E, .IEUAdr1E, .PCLink1E,
     // Writeback stage
     .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW, .ReadDataW(ReadDataW[P.XLEN-1:0]),
     .InstrValidM, .InstrValidE, .InstrValidD, .FCvtIntResW, .FCvtIntW,
@@ -246,7 +246,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM);
 
   lsu #(P) lsu(
-    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .MemFault2M,
+    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .MemFault1M,
     // CPU interface
     .MemRWE, .MemRWM, .Funct3M(MemFunct3M), .Funct7M(InstrM[31:25]), .AtomicM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
@@ -313,23 +313,23 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // replayed store would need its write cancelled, and a replay cannot do that: the only thing that
   // cancels a write here is FlushW, which a replay withholds so that slot 0 can still commit.  See the
   // LOAD arm of issue.sv for what admitting stores would require.  A replayed load needs nothing of
-  // the sort -- it writes no memory, and Issue2W already stops its register write.
-  // MemFault2M is the memory half on its own.  The LSU squashes its own faulting access, but the D$ and
+  // the sort -- it writes no memory, and Issue1W already stops its register write.
+  // MemFault1M is the memory half on its own.  The LSU squashes its own faulting access, but the D$ and
   // bus still assert a stall for it every cycle it sits in Memory.  A trap is immune because the hazard
   // unit ignores the LSU stall under FlushWCause; a replay deliberately does not flush Writeback, so the
-  // hazard unit must ignore the stall under MemFault2M instead or the replay never leaves Memory.
+  // hazard unit must ignore the stall under MemFault1M instead or the replay never leaves Memory.
   // A fused indexed load (ieu.sv) faults the same way: its trap would name the add's PC, so the pair is
   // replayed unfused -- slot 0 commits as the add, and the load is refetched to run and trap alone.
-  assign MemFault2M = P.ZICSR_SUPPORTED & (Mem2M | FuseM) &
+  assign MemFault1M = P.ZICSR_SUPPORTED & (Mem1M | FuseM) &
                       (LoadMisalignedFaultM | LoadAccessFaultM | LoadPageFaultM |
                        StoreAmoMisalignedFaultM | StoreAmoAccessFaultM | StoreAmoPageFaultM);
   // A slot 1 beside a late branch that turns out taken was on the wrong path: it is abandoned, not replayed.
-  assign Replay2RawM = MemFault2M | (P.ZICSR_SUPPORTED & (Illegal2M | IllegalComp2M));
-  assign Replay2M    = Replay2RawM & ~LateBrWrongM;
+  assign Replay1RawM = MemFault1M | (P.ZICSR_SUPPORTED & (Illegal1M | IllegalComp1M));
+  assign Replay1M    = Replay1RawM & ~LateBrWrongM;
 
   // global stall and flush control
   hazard hzu(
-    .BPWrongE, .CSRWriteFenceM, .Replay2M, .MemFault2M, .LateBrWrongM, .RetM, .TrapM,
+    .BPWrongE, .CSRWriteFenceM, .Replay1M, .MemFault1M, .LateBrWrongM, .RetM, .TrapM,
     .StructuralStallD,
     .LSUStallM, .IFUStallF,
     .FPUStallD, .ExternalStall,
@@ -351,17 +351,17 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .FRegWriteM, .LoadStallD, .StoreStallD,
       .BPDirWrongM, .BTAWrongM, .BPWrongM,
       .RASPredPCWrongM, .IClassWrongM, .DivBusyE, .FDivBusyE,
-      // Issue2M reaches the privileged unit only to increment minstret for slot 1.  A replayed slot 1
+      // Issue1M reaches the privileged unit only to increment minstret for slot 1.  A replayed slot 1
       // has not retired -- it is about to run again on its own -- so it must not be counted here.
-      .IClassM, .Issue2M(Issue2M & ~Replay2M & ~LateBrWrongM), .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .PrivilegedM,
+      .IClassM, .Issue1M(Issue1M & ~Replay1M & ~LateBrWrongM), .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .PrivilegedM,
       // The six data faults are masked on replay: slot 1 raised them, but this stage describes slot 0,
       // so the trap is deferred until slot 1 re-runs on its own and can be described correctly.
-      .InstrPageFaultF, .LoadPageFaultM(LoadPageFaultM & ~Replay2M), .StoreAmoPageFaultM(StoreAmoPageFaultM & ~Replay2M),
+      .InstrPageFaultF, .LoadPageFaultM(LoadPageFaultM & ~Replay1M), .StoreAmoPageFaultM(StoreAmoPageFaultM & ~Replay1M),
       .InstrMisalignedFaultM, .IllegalIEUFPUInstrD,
-      .LoadMisalignedFaultM(LoadMisalignedFaultM & ~Replay2M), .StoreAmoMisalignedFaultM(StoreAmoMisalignedFaultM & ~Replay2M),
+      .LoadMisalignedFaultM(LoadMisalignedFaultM & ~Replay1M), .StoreAmoMisalignedFaultM(StoreAmoMisalignedFaultM & ~Replay1M),
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
       .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
-      .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM(LoadAccessFaultM & ~Replay2M), .StoreAmoAccessFaultM(StoreAmoAccessFaultM & ~Replay2M), .SelHPTW,
+      .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM(LoadAccessFaultM & ~Replay1M), .StoreAmoAccessFaultM(StoreAmoAccessFaultM & ~Replay1M), .SelHPTW,
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
@@ -394,7 +394,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .clk, .reset,
       .FRM_REGW,                           // Rounding mode from CSR
       .InstrD,                             // instruction from IFU
-      .Instr2D,                            // superscalar slot 1 instruction (decoded, not issued)
+      .Instr1D,                            // superscalar slot 1 instruction (decoded, not issued)
       .ReadDataW(ReadDataW[P.FLEN-1:0]),   // Read data from memory
       .ForwardedSrcAE,                     // Integer input being processed (from IEU)
       .StallE, .StallM, .StallW,           // stall signals from HZU
@@ -419,6 +419,11 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     assign {FPUStallD, FWriteIntE, FCvtIntE, FIntResM, FCvtIntW, FRegWriteM,
             IllegalFPUInstrD, SetFflagsM, FpLoadStoreM,
             FWriteDataM, FCvtIntResW, FIntDivResultW, FDivBusyE} = '0;
+  end
+
+  // Macro-op fusion pairs slot 0 with slot 1 and borrows slot 1's ALU and comparator, so it needs dual issue.
+  if (P.FUSION_SUPPORTED & ~P.SUPERSCALAR_SUPPORTED) begin : fusionneedssuperscalar
+    $error("FUSION_SUPPORTED = 1 requires SUPERSCALAR_SUPPORTED = 1");
   end
 
 endmodule

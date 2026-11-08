@@ -34,36 +34,36 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   input  logic [2:0]        ImmSrcD,                 // Selects type of immediate extension
   input  logic [31:0]       InstrD,                  // Instruction in Decode stage
   input  logic [4:0]        Rs1D, Rs2D, Rs2E,        // Source registers
-  input  logic [2:0]        ImmSrc2D,                // Slot 1 (superscalar): immediate format
-  input  logic [31:0]       Instr2D,                 // Slot 1: instruction in Decode stage
-  input  logic [4:0]        Rs1_2D, Rs2_2D,          // Slot 1: source registers
-  input  logic [4:0]        Rs2_2E,                  // Slot 1: source register 2 in Execute (ALU bit-manipulation)
-  input  logic [2:0]        Forward2AE, Forward2BE,  // Slot 1: forwarding selects
-  input  logic              ALUSrcA2E, ALUSrcB2E,    // Slot 1: ALU operands
-  input  logic              ALUResultSrc2E,          // Slot 1: selects ALU result or immediate
-  input  logic [2:0]        ALUSelect2E,             // Slot 1: ALU mux select
-  input  logic [2:0]        Funct3_2E,               // Slot 1: funct3
-  input  logic [6:0]        Funct7_2E,               // Slot 1: funct7
-  input  logic              W64_2E, UW64_2E,         // Slot 1: RV64 W-type / .uw-type
-  input  logic              SubArith2E,              // Slot 1: subtract or arithmetic shift
-  input  logic [3:0]        BSelect2E, ZBBSelect2E,  // Slot 1: bit-manipulation selects
-  input  logic [2:0]        BALUControl2E,           // Slot 1: bit-manipulation ALU control
-  input  logic              BMUActive2E,             // Slot 1: bit-manipulation instruction active
-  input  logic [1:0]        CZero2E,                 // Slot 1: czero.* active
-  input  logic              BranchSigned2E,          // Slot 1: branch comparison is signed
-  input  logic              FuseBrA2E, FuseBrB2E,    // Slot 1's branch is fused with slot 0's ALU op: its rs1 / rs2 is slot 0's result
-  input  logic              FuseBrAdd2E,             // ... and slot 0's op is an add (else a logic op)
-  input  logic              Jump2E,                  // Slot 1: jal, whose result is its link address
-  input  logic [P.XLEN-1:0] PCLink2E,                // Slot 1: its link address, the PC just past it
-  output logic [1:0]        Flags2E,                 // Slot 1: comparison flags ({eq, lt})
-  output logic [P.XLEN-1:0] IEUAdr2E,                // Slot 1: ALU sum, which is its branch or jal target
-  input  logic              RegWrite2W,              // Slot 1: commits a register write this cycle
-  input  logic [4:0]        Rd2W,                    // Slot 1: destination register in Writeback
-  input  logic              Mem2E,                   // Slot 1: holds the bundle's memory operation
-  input  logic [2:0]        ResultSrc2W,             // Slot 1: selects source of its writeback value
-  input  logic              Mdu2E,                   // Slot 1: holds the bundle's multiply
+  input  logic [2:0]        ImmSrc1D,                // Slot 1 (superscalar): immediate format
+  input  logic [31:0]       Instr1D,                 // Slot 1: instruction in Decode stage
+  input  logic [4:0]        Rs1_1D, Rs2_1D,          // Slot 1: source registers
+  input  logic [4:0]        Rs2_1E,                  // Slot 1: source register 2 in Execute (ALU bit-manipulation)
+  input  logic [2:0]        ForwardA1E, ForwardB1E,  // Slot 1: forwarding selects
+  input  logic              ALUSrcA1E, ALUSrcB1E,    // Slot 1: ALU operands
+  input  logic              ALUResultSrc1E,          // Slot 1: selects ALU result or immediate
+  input  logic [2:0]        ALUSelect1E,             // Slot 1: ALU mux select
+  input  logic [2:0]        Funct3_1E,               // Slot 1: funct3
+  input  logic [6:0]        Funct7_1E,               // Slot 1: funct7
+  input  logic              W64_1E, UW64_1E,         // Slot 1: RV64 W-type / .uw-type
+  input  logic              SubArith1E,              // Slot 1: subtract or arithmetic shift
+  input  logic [3:0]        BSelect1E, ZBBSelect1E,  // Slot 1: bit-manipulation selects
+  input  logic [2:0]        BALUControl1E,           // Slot 1: bit-manipulation ALU control
+  input  logic              BMUActive1E,             // Slot 1: bit-manipulation instruction active
+  input  logic [1:0]        CZero1E,                 // Slot 1: czero.* active
+  input  logic              BranchSigned1E,          // Slot 1: branch comparison is signed
+  input  logic              FuseBrA1E, FuseBrB1E,    // Slot 1's branch is fused with slot 0's ALU op: its rs1 / rs2 is slot 0's result
+  input  logic              FuseBrAdd1E,             // ... and slot 0's op is an add (else a logic op)
+  input  logic              Jump1E,                  // Slot 1: jal, whose result is its link address
+  input  logic [P.XLEN-1:0] PCLink1E,                // Slot 1: its link address, the PC just past it
+  output logic [1:0]        Flags1E,                 // Slot 1: comparison flags ({eq, lt})
+  output logic [P.XLEN-1:0] IEUAdr1E,                // Slot 1: ALU sum, which is its branch or jal target
+  input  logic              RegWrite1W,              // Slot 1: commits a register write this cycle
+  input  logic [4:0]        Rd1W,                    // Slot 1: destination register in Writeback
+  input  logic              Mem1E,                   // Slot 1: holds the bundle's memory operation
+  input  logic [2:0]        ResultSrc1W,             // Slot 1: selects source of its writeback value
+  input  logic              Mdu1E,                   // Slot 1: holds the bundle's multiply
   output logic [P.XLEN-1:0] MDUSrcAE, MDUSrcBE,      // Operands to the MDU, from whichever slot holds its operation
-  input  logic [1:0]        LateSelA2E, LateSelB2E,  // Slot 1: late ALU operand source (00 own, 01 slot 0, 10 ResultW, 11 ResultW2)
+  input  logic [1:0]        LateSelA1E, LateSelB1E,  // Slot 1: late ALU operand source (00 own, 01 slot 0, 10 ResultW, 11 Result1W)
   input  logic              LateBrE,                 // The late ALU compares slot 0's branch operands instead
   input  logic              Late0RawE,               // ... or computes slot 0's ALU operation instead (ieu.sv)
   output logic [2:0]        LateFlagsM,              // ... giving {eq, lt, ltu}
@@ -112,33 +112,33 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // Decode stage signals
   logic [P.XLEN-1:0] R1D, R2D;                       // Read data from Rs1 (RD1), Rs2 (RD2)
   logic [P.XLEN-1:0] ImmExtD;                        // Extended immediate in Decode stage
-  logic [P.XLEN-1:0] R1_2D, R2_2D;                   // Slot 1: read data from Rs1_2D, Rs2_2D
-  logic [P.XLEN-1:0] ImmExt2D;                       // Slot 1: extended immediate in Decode stage
-  logic [P.XLEN-1:0] R1_2E, R2_2E, ImmExt2E;         // Slot 1: the same, in Execute
-  logic [P.XLEN-1:0] ForwardedSrc2AE, ForwardedSrc2BE; // Slot 1: operands after forwarding
-  logic [P.XLEN-1:0] SrcA2E, SrcB2E;                 // Slot 1: ALU inputs
-  logic [P.XLEN-1:0] ALUResult2E;                    // Slot 1: ALU output.  The sum, IEUAdr2E, needs no bit-0
+  logic [P.XLEN-1:0] R1_1D, R2_1D;                   // Slot 1: read data from Rs1_1D, Rs2_1D
+  logic [P.XLEN-1:0] ImmExt1D;                       // Slot 1: extended immediate in Decode stage
+  logic [P.XLEN-1:0] R1_1E, R2_1E, ImmExt1E;         // Slot 1: the same, in Execute
+  logic [P.XLEN-1:0] ForwardedSrcA1E, ForwardedSrcB1E; // Slot 1: operands after forwarding
+  logic [P.XLEN-1:0] SrcA1E, SrcB1E;                 // Slot 1: ALU inputs
+  logic [P.XLEN-1:0] ALUResult1E;                    // Slot 1: ALU output.  The sum, IEUAdr1E, needs no bit-0
                                                      //   mask as slot 0's does: that is for jalr, and slot 1
                                                      //   only ever jumps with jal, whose target is even.
-  logic [P.XLEN-1:0] AltResult2E, IEUResult2E;       // Slot 1: result in Execute
-  logic [P.XLEN-1:0] IEUResult2M;                    // Slot 1: result in Memory
-  logic [P.XLEN-1:0] IEUResult2W;                    // Slot 1: result in Writeback
-  logic [P.XLEN-1:0] ResultW2;                       // Slot 1: value written back
-  logic [P.XLEN-1:0] SrcA2M, SrcB2M;                 // Slot 1: ALU inputs, carried to the late ALU
-  logic [P.XLEN-1:0] LateSrcA2M, LateSrcB2M;         // Slot 1: late ALU inputs, with slot 0's result substituted
-  logic [P.XLEN-1:0] LateResult2M;                   // Slot 1: late ALU result
-  logic [P.XLEN-1:0] Result2M;                       // Slot 1: result entering Writeback
-  logic [2:0]        ALUSelect2M, Funct3_2M;         // Slot 1: late ALU control
-  logic              SubArith2M, W64_2M;
-  logic [1:0]        LateSelA2M, LateSelB2M;         // Slot 1: where the late ALU takes each operand from
-  logic              Late2M;                         // Slot 1 executes on the late ALU
+  logic [P.XLEN-1:0] AltResult1E, IEUResult1E;       // Slot 1: result in Execute
+  logic [P.XLEN-1:0] IEUResult1M;                    // Slot 1: result in Memory
+  logic [P.XLEN-1:0] IEUResult1W;                    // Slot 1: result in Writeback
+  logic [P.XLEN-1:0] Result1W;                       // Slot 1: value written back
+  logic [P.XLEN-1:0] SrcA1M, SrcB1M;                 // Slot 1: ALU inputs, carried to the late ALU
+  logic [P.XLEN-1:0] LateSrcA1M, LateSrcB1M;         // Slot 1: late ALU inputs, with slot 0's result substituted
+  logic [P.XLEN-1:0] LateResult1M;                   // Slot 1: late ALU result
+  logic [P.XLEN-1:0] Result1M;                       // Slot 1: result entering Writeback
+  logic [2:0]        ALUSelect1M, Funct3_1M;         // Slot 1: late ALU control
+  logic              SubArith1M, W64_1M;
+  logic [1:0]        LateSelA1M, LateSelB1M;         // Slot 1: where the late ALU takes each operand from
+  logic              Late1M;                         // Slot 1 executes on the late ALU
   logic              LateBrM;                        // The late ALU compares slot 0's branch instead
   logic              Late0RawM, Late0M;              // The late ALU was given slot 0's ALU operation / and computes it
   logic [2:0]        LateALUSelectE, LateFunct3E;    // Late ALU control, from whichever slot uses it
   logic              LateSubArithE, LateW64E;
   logic [P.XLEN-1:0] IFResultLateM;                  // Slot 0's result entering Writeback, the late ALU's if slot 0 was late
-  logic [P.XLEN-1:0] LateInA2E, LateInB2E;           // What the late ALU's operand registers capture
-  logic [P.XLEN-1:0] LateSum2M;                      // The late ALU's adder output
+  logic [P.XLEN-1:0] LateInA1E, LateInB1E;           // What the late ALU's operand registers capture
+  logic [P.XLEN-1:0] LateSum1M;                      // The late ALU's adder output
   logic              LateSignA, LateSignB, LateNeg;  // ... and the signs the branch flags are formed from
   // Execute stage signals
   logic [P.XLEN-1:0] R1E, R2E;                       // Source operands read from register file
@@ -158,10 +158,9 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
 
   // Decode stage
-  regfile #(P.XLEN, P.E_SUPPORTED) regf(clk, reset, RegWriteW, RegWrite2W, Rs1D, Rs2D, RdW,
-    Rs1_2D, Rs2_2D, Rd2W, ResultW, ResultW2, R1D, R2D, R1_2D, R2_2D);
+  regfile #(P.XLEN, P.E_SUPPORTED, P.SUPERSCALAR_SUPPORTED) regf(clk, reset, RegWriteW, RegWrite1W, Rs1D, Rs2D, RdW,
+    Rs1_1D, Rs2_1D, Rd1W, ResultW, Result1W, R1D, R2D, R1_1D, R2_1D);
   extend #(P)        ext(.InstrD(InstrD[31:7]), .ImmSrcD, .ImmExtD);
-  extend #(P)        ext2(.InstrD(Instr2D[31:7]), .ImmSrcD(ImmSrc2D), .ImmExtD(ImmExt2D));   // slot 1
 
   // Execute stage pipeline register and logic
   //
@@ -176,19 +175,30 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // stops.  The two cases cannot overlap with a flush: StallE without StallM means StallECause, which
   // is already gated by ~FlushECause, so FlushE is low whenever CaptureE is high.
   logic              CaptureE;                       // Execute held while Memory advances: keep forwarded operands
-  logic [P.XLEN-1:0] R1ENext, R2ENext, R1_2ENext, R2_2ENext;
-  assign CaptureE = StallE & ~StallM;
-  mux2  #(P.XLEN)  r1enextmux(R1D, ForwardedSrcAE, CaptureE, R1ENext);
-  mux2  #(P.XLEN)  r2enextmux(R2D, ForwardedSrcBE, CaptureE, R2ENext);
+  logic [P.XLEN-1:0] R1ENext, R2ENext, R1_1ENext, R2_1ENext;
+  assign CaptureE = P.SUPERSCALAR_SUPPORTED & StallE & ~StallM;
+  if (P.SUPERSCALAR_SUPPORTED) begin : capture
+    mux2  #(P.XLEN)  r1enextmux(R1D, ForwardedSrcAE, CaptureE, R1ENext);
+    mux2  #(P.XLEN)  r2enextmux(R2D, ForwardedSrcBE, CaptureE, R2ENext);
+  end else begin : nocapture
+    assign R1ENext = R1D;
+    assign R2ENext = R2D;
+  end
   flopenrc #(P.XLEN) RD1EReg(clk, reset, FlushE, ~StallE | CaptureE, R1ENext, R1E);
   flopenrc #(P.XLEN) RD2EReg(clk, reset, FlushE, ~StallE | CaptureE, R2ENext, R2E);
   flopenrc #(P.XLEN) ImmExtEReg(clk, reset, FlushE, ~StallE, ImmExtD, ImmExtE);
 
-  // Forwarding sources in the order each lane's select encodes them: no forward, own Writeback,
-  // own Memory, other Writeback, other Memory.  The encoding is relative to the lane, so lane 2's
+  // Forwarding sources in the order each slot's select encodes them: no forward, own Writeback,
+  // own Memory, other Writeback, other Memory.  The encoding is relative to the slot, so slot 1's
   // muxes below take the same four sources with the pairs swapped.  See controller.sv for priority.
-  mux5  #(P.XLEN)  faemux(R1E, ResultW, IFResultM, ResultW2, IEUResult2M, ForwardAE, ForwardedSrcAE);
-  mux5  #(P.XLEN)  fbemux(R2E, ResultW, IFResultM, ResultW2, IEUResult2M, ForwardBE, ForwardedSrcBE);
+  // Without superscalar only the first three sources exist, as in single-issue Wally.
+  if (P.SUPERSCALAR_SUPPORTED) begin : fwd5
+    mux5  #(P.XLEN)  faemux(R1E, ResultW, IFResultM, Result1W, IEUResult1M, ForwardAE, ForwardedSrcAE);
+    mux5  #(P.XLEN)  fbemux(R2E, ResultW, IFResultM, Result1W, IEUResult1M, ForwardBE, ForwardedSrcBE);
+  end else begin : fwd3
+    mux3  #(P.XLEN)  faemux(R1E, ResultW, IFResultM, ForwardAE[1:0], ForwardedSrcAE);
+    mux3  #(P.XLEN)  fbemux(R2E, ResultW, IFResultM, ForwardBE[1:0], ForwardedSrcBE);
+  end
   comparator #(P.XLEN) comp(ForwardedSrcAE, ForwardedSrcBE, BranchSignedE, FlagsE);
   mux2  #(P.XLEN)  srcamux(ForwardedSrcAE, PCE, ALUSrcAE, SrcAE);
   mux2  #(P.XLEN)  srcbmux(ForwardedSrcBE, ImmExtE, ALUSrcBE, SrcBE);
@@ -199,115 +209,148 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   mux2  #(P.XLEN)  altresultmux(ImmExtE, PCLinkE, JumpE, AltResultE);
   mux2  #(P.XLEN)  ieuresultmux(ALUResultE, AltResultE, ALUResultSrcE, IEUResultE);
 
-  // Slot 1 (superscalar) Execute stage, mirroring slot 0 above.  A conditional branch in slot 1
-  // compares with its own comparator, and its target is its ALU's sum of slot 1's PC and immediate.
-  mux2  #(P.XLEN)  r1_2enextmux(R1_2D, ForwardedSrc2AE, CaptureE, R1_2ENext);   // operand capture, as for slot 0
-  mux2  #(P.XLEN)  r2_2enextmux(R2_2D, ForwardedSrc2BE, CaptureE, R2_2ENext);
-  flopenrc #(P.XLEN) RD1_2EReg(clk, reset, FlushE, ~StallE | CaptureE, R1_2ENext, R1_2E);
-  flopenrc #(P.XLEN) RD2_2EReg(clk, reset, FlushE, ~StallE | CaptureE, R2_2ENext, R2_2E);
-  flopenrc #(P.XLEN) ImmExt2EReg(clk, reset, FlushE, ~StallE, ImmExt2D, ImmExt2E);
+  if (P.SUPERSCALAR_SUPPORTED) begin : slot1
+    extend #(P)        ext1(.InstrD(Instr1D[31:7]), .ImmSrcD(ImmSrc1D), .ImmExtD(ImmExt1D));   // slot 1
 
-  mux5  #(P.XLEN)  faemux2(R1_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2AE, ForwardedSrc2AE);
-  mux5  #(P.XLEN)  fbemux2(R2_2E, ResultW2, IEUResult2M, ResultW, IFResultM, Forward2BE, ForwardedSrc2BE);
-  // Macro-op fusion: ALU op + dependent branch (issue.sv).  The pair is one compare-and-branch op, decided
-  // in Execute.  The branch must not wait for slot 0's ALU result: that would put two carry chains in a
-  // row (slot 0's add, then comp2's compare) on the clock's critical path.  So comp2 works from slot 0's
-  // ALU inputs (SrcAE, SrcBE) instead.  No new adder: slot 0's ALU still makes rd, comp2 does the compare,
-  // and slot 1's ALU still makes the target.
-  //
-  // Logic op: no carry chain, so its result is simply remade here, one gate deep, and compared as usual.
-  //   andi t0, a1, 1  ; bnez t0, L      comp2 compares (a1 & 1, x0)
-  //
-  // Add, X = P + Q: the question "X < Y" is the sign/borrow of X - Y = P + Q + ~Y + 1, three numbers.  A full
-  // adder per bit, with no carry passing between bits, turns P, Q, ~Y into two numbers, a sum Sum and a
-  // carry Carry, with P + Q + ~Y = Sum + (Carry << 1).  comp2 compares a = Sum against b = ~(Carry << 1):
-  // its a - b = Sum + (Carry << 1) + 1 = X - Y, the one carry chain.  So comp2's eq is X == Y, and its
-  // unsigned lt is X < Y once corrected for the two carries that fall off the top bit: Carry's top bit and
-  // slot 0's own carry out of P + Q (made from the top bits of P, Q and slot 0's sum, ready alongside).
-  // Signed: X < Y signed is X < Y unsigned, flipped when X and Y have different sign bits.
-  //   add t0, a1, a2  ; blt t0, a3, L   is a1 + a2 < a3?   (P = a1, Q = a2, Y = a3)
-  //   li  t0, 5       ; beq a4, t0, L   is 0 + 5 == a4?    (P = x0, Q = 5,  Y = a4)
-  // When slot 0's result is rs2 (blt a3, t0), comp2 still answers X < Y, and Y < X = not (X < Y or X == Y).
-  // When it is both (beq t0, t0), the operands are equal.
-  logic [P.XLEN-1:0] Logic0E;                        // Slot 0's logic result, remade from its ALU inputs
-  logic [P.XLEN-1:0] FuseYE, NotYE;                  // Y: the branch operand that is not slot 0's result, and ~Y
-  logic [P.XLEN-1:0] CsaSumE, CsaCarryE;             // P + Q + ~Y as two numbers: Sum + (Carry << 1)
-  logic [P.XLEN-1:0] Cmp2AE, Cmp2BE;                 // Slot 1's comparator inputs
-  logic [1:0]        CmpFlags2E;                     // comp2's {eq, lt}
-  logic              CarryOutE;                      // Carry out of slot 0's P + Q
-  logic              LtuE, LtE;                      // Fused add: X < Y unsigned, X < Y as the branch asks
+    // Slot 1 (superscalar) Execute stage, mirroring slot 0 above.  A conditional branch in slot 1
+    // compares with its own comparator, and its target is its ALU's sum of slot 1's PC and immediate.
+    mux2  #(P.XLEN)  r1_1enextmux(R1_1D, ForwardedSrcA1E, CaptureE, R1_1ENext);   // operand capture, as for slot 0
+    mux2  #(P.XLEN)  r2_1enextmux(R2_1D, ForwardedSrcB1E, CaptureE, R2_1ENext);
+    flopenrc #(P.XLEN) RD1_1EReg(clk, reset, FlushE, ~StallE | CaptureE, R1_1ENext, R1_1E);
+    flopenrc #(P.XLEN) RD2_1EReg(clk, reset, FlushE, ~StallE | CaptureE, R2_1ENext, R2_1E);
+    flopenrc #(P.XLEN) ImmExt1EReg(clk, reset, FlushE, ~StallE, ImmExt1D, ImmExt1E);
 
-  always_comb
-    case (ALUSelectE[1:0])                           // slot 0's ALUSelect: 100 xor, 110 or, 111 and
-      2'b00:   Logic0E = SrcAE ^ SrcBE;
-      2'b10:   Logic0E = SrcAE | SrcBE;
-      default: Logic0E = SrcAE & SrcBE;
-    endcase
+    mux5  #(P.XLEN)  faemux1(R1_1E, Result1W, IEUResult1M, ResultW, IFResultM, ForwardA1E, ForwardedSrcA1E);
+    mux5  #(P.XLEN)  fbemux1(R2_1E, Result1W, IEUResult1M, ResultW, IFResultM, ForwardB1E, ForwardedSrcB1E);
+    // Macro-op fusion: ALU op + dependent branch (issue.sv).  The pair is one compare-and-branch op, decided
+    // in Execute.  The branch must not wait for slot 0's ALU result: that would put two carry chains in a
+    // row (slot 0's add, then comp1's compare) on the clock's critical path.  So comp1 works from slot 0's
+    // ALU inputs (SrcAE, SrcBE) instead.  No new adder: slot 0's ALU still makes rd, comp1 does the compare,
+    // and slot 1's ALU still makes the target.
+    //
+    // Logic op: no carry chain, so its result is simply remade here, one gate deep, and compared as usual.
+    //   andi t0, a1, 1  ; bnez t0, L      comp1 compares (a1 & 1, x0)
+    //
+    // Add, X = P + Q: the question "X < Y" is the sign/borrow of X - Y = P + Q + ~Y + 1, three numbers.  A full
+    // adder per bit, with no carry passing between bits, turns P, Q, ~Y into two numbers, a sum Sum and a
+    // carry Carry, with P + Q + ~Y = Sum + (Carry << 1).  comp1 compares a = Sum against b = ~(Carry << 1):
+    // its a - b = Sum + (Carry << 1) + 1 = X - Y, the one carry chain.  So comp1's eq is X == Y, and its
+    // unsigned lt is X < Y once corrected for the two carries that fall off the top bit: Carry's top bit and
+    // slot 0's own carry out of P + Q (made from the top bits of P, Q and slot 0's sum, ready alongside).
+    // Signed: X < Y signed is X < Y unsigned, flipped when X and Y have different sign bits.
+    //   add t0, a1, a2  ; blt t0, a3, L   is a1 + a2 < a3?   (P = a1, Q = a2, Y = a3)
+    //   li  t0, 5       ; beq a4, t0, L   is 0 + 5 == a4?    (P = x0, Q = 5,  Y = a4)
+    // When slot 0's result is rs2 (blt a3, t0), comp1 still answers X < Y, and Y < X = not (X < Y or X == Y).
+    // When it is both (beq t0, t0), the operands are equal.
+    logic [P.XLEN-1:0] Logic0E;                        // Slot 0's logic result, remade from its ALU inputs
+    logic [P.XLEN-1:0] FuseYE, NotYE;                  // Y: the branch operand that is not slot 0's result, and ~Y
+    logic [P.XLEN-1:0] CsaSumE, CsaCarryE;             // P + Q + ~Y as two numbers: Sum + (Carry << 1)
+    logic [P.XLEN-1:0] CmpA1E, CmpB1E;                 // Slot 1's comparator inputs
+    logic [1:0]        CmpFlags1E;                     // comp1's {eq, lt}
+    logic              CarryOutE;                      // Carry out of slot 0's P + Q
+    logic              LtuE, LtE;                      // Fused add: X < Y unsigned, X < Y as the branch asks
 
-  mux2  #(P.XLEN)  fuseymux(ForwardedSrc2AE, ForwardedSrc2BE, FuseBrA2E, FuseYE);  // slot 0's is rs1: Y is rs2
-  assign NotYE     = ~FuseYE;
-  assign CsaSumE   = SrcAE ^ SrcBE ^ NotYE;                                       // full adder sum, per bit
-  assign CsaCarryE = (SrcAE & SrcBE) | (SrcAE & NotYE) | (SrcBE & NotYE);         // full adder carry, per bit
+    always_comb
+      case (ALUSelectE[1:0])                           // slot 0's ALUSelect: 100 xor, 110 or, 111 and
+        2'b00:   Logic0E = SrcAE ^ SrcBE;
+        2'b10:   Logic0E = SrcAE | SrcBE;
+        default: Logic0E = SrcAE & SrcBE;
+      endcase
 
-  // select: 00 slot 1's own register, 01 logic result, 1x carry-save (an add replaces both inputs)
-  mux3  #(P.XLEN)  cmp2amux(ForwardedSrc2AE, Logic0E, CsaSumE, {FuseBrAdd2E, FuseBrA2E}, Cmp2AE);
-  mux3  #(P.XLEN)  cmp2bmux(ForwardedSrc2BE, Logic0E, ~{CsaCarryE[P.XLEN-2:0], 1'b0}, {FuseBrAdd2E, FuseBrB2E}, Cmp2BE);
-  comparator #(P.XLEN) comp2(Cmp2AE, Cmp2BE, BranchSigned2E & ~FuseBrAdd2E, CmpFlags2E);  // an add compares unsigned
+    mux2  #(P.XLEN)  fuseymux(ForwardedSrcA1E, ForwardedSrcB1E, FuseBrA1E, FuseYE);  // slot 0's is rs1: Y is rs2
+    assign NotYE     = ~FuseYE;
+    assign CsaSumE   = SrcAE ^ SrcBE ^ NotYE;                                       // full adder sum, per bit
+    assign CsaCarryE = (SrcAE & SrcBE) | (SrcAE & NotYE) | (SrcBE & NotYE);         // full adder carry, per bit
 
-  assign CarryOutE = SrcAE[P.XLEN-1] & SrcBE[P.XLEN-1] | (SrcAE[P.XLEN-1] | SrcBE[P.XLEN-1]) & ~IEUAdrRawE[P.XLEN-1];
-  assign LtuE      = CmpFlags2E[0] ^ CsaCarryE[P.XLEN-1] ^ CarryOutE;
-  assign LtE       = BranchSigned2E ? LtuE ^ IEUAdrRawE[P.XLEN-1] ^ FuseYE[P.XLEN-1] : LtuE;  // IEUAdrRawE: P + Q
+    // select: 00 slot 1's own register, 01 logic result, 1x carry-save (an add replaces both inputs)
+    mux3  #(P.XLEN)  cmp1amux(ForwardedSrcA1E, Logic0E, CsaSumE, {FuseBrAdd1E, FuseBrA1E}, CmpA1E);
+    mux3  #(P.XLEN)  cmp1bmux(ForwardedSrcB1E, Logic0E, ~{CsaCarryE[P.XLEN-2:0], 1'b0}, {FuseBrAdd1E, FuseBrB1E}, CmpB1E);
+    comparator #(P.XLEN) comp1(CmpA1E, CmpB1E, BranchSigned1E & ~FuseBrAdd1E, CmpFlags1E);  // an add compares unsigned
 
-  always_comb
-    if      (FuseBrA2E & FuseBrB2E) Flags2E = 2'b10;                                  // beq t0, t0: equal
-    else if (~FuseBrAdd2E)          Flags2E = CmpFlags2E;                             // not fused, or a logic op
-    else if (FuseBrA2E)             Flags2E = {CmpFlags2E[1], LtE};                   // blt X, Y
-    else                            Flags2E = {CmpFlags2E[1], ~LtE & ~CmpFlags2E[1]}; // blt Y, X
-  // Slot 1 sits one instruction after slot 0, so its PC is PCLinkE (= PCE + 4, since the issue
-  // rules require an uncompressed slot 0).  Using PCE here would make every paired auipc off by 4.
-  mux2  #(P.XLEN)  srcamux2(ForwardedSrc2AE, PCLinkE, ALUSrcA2E, SrcA2E);
-  mux2  #(P.XLEN)  srcbmux2(ForwardedSrc2BE, ImmExt2E, ALUSrcB2E, SrcB2E);
-  alu   #(P)       alu2(SrcA2E, SrcB2E, W64_2E, UW64_2E, SubArith2E, ALUSelect2E, BSelect2E, ZBBSelect2E,
-                        Funct3_2E, Funct7_2E, Rs2_2E, BALUControl2E, BMUActive2E, CZero2E, ALUResult2E, IEUAdr2E);
-  // Slot 1's result when it is not the ALU's, as slot 0's altresultmux: lui writes its immediate, a jal
-  // its link address.  Slot 1's link is one instruction past slot 1, so it is PCLink2E (ifu.sv), not
-  // slot 0's PCLinkE.  The jal's target is its ALU sum, IEUAdr2E, which goes to the IFU.
-  //   0x100 addi a0,a0,1 ; 0x104 jal ra,f     ra = 0x108   (0x106 if the jal is a c.jal)
-  mux2  #(P.XLEN)  altresultmux2(ImmExt2E, PCLink2E, Jump2E, AltResult2E);
-  mux2  #(P.XLEN)  ieuresultmux2(ALUResult2E, AltResult2E, ALUResultSrc2E, IEUResult2E);
+    assign CarryOutE = SrcAE[P.XLEN-1] & SrcBE[P.XLEN-1] | (SrcAE[P.XLEN-1] | SrcBE[P.XLEN-1]) & ~IEUAdrRawE[P.XLEN-1];
+    assign LtuE      = CmpFlags1E[0] ^ CsaCarryE[P.XLEN-1] ^ CarryOutE;
+    assign LtE       = BranchSigned1E ? LtuE ^ IEUAdrRawE[P.XLEN-1] ^ FuseYE[P.XLEN-1] : LtuE;  // IEUAdrRawE: P + Q
 
-  // The address handed to the load/store unit, selected from whichever slot holds the bundle's one
-  // memory operation.  Each slot's ALU already computes its own sum, so this is only a choice of which
-  // one the LSU listens to.
-  //
-  // It is deliberately a separate output from IEUAdrE rather than a mux on it.  A single instruction
-  // is never both a control transfer and a memory access -- srcamux steers its one adder to PC+imm or
-  // to rs1+imm -- which is why slot 0 can send one net to both the IFU and the LSU.  That stops being
-  // true across slots: a taken branch in slot 0 needs its target at the IFU in the very cycle slot 1
-  // needs its address at the LSU.  Keeping the nets apart lets both happen, and leaves the IFU's
-  // redirect path exactly as it was.
-  mux2  #(P.XLEN)  lsuadrmux(IEUAdrE, IEUAdr2E, Mem2E, LSUAdrE);
+    always_comb
+      if      (FuseBrA1E & FuseBrB1E) Flags1E = 2'b10;                                  // beq t0, t0: equal
+      else if (~FuseBrAdd1E)          Flags1E = CmpFlags1E;                             // not fused, or a logic op
+      else if (FuseBrA1E)             Flags1E = {CmpFlags1E[1], LtE};                   // blt X, Y
+      else                            Flags1E = {CmpFlags1E[1], ~LtE & ~CmpFlags1E[1]}; // blt Y, X
+    // Slot 1 sits one instruction after slot 0, so its PC is PCLinkE (= PCE + 4, since the issue
+    // rules require an uncompressed slot 0).  Using PCE here would make every paired auipc off by 4.
+    mux2  #(P.XLEN)  srcamux1(ForwardedSrcA1E, PCLinkE, ALUSrcA1E, SrcA1E);
+    mux2  #(P.XLEN)  srcbmux1(ForwardedSrcB1E, ImmExt1E, ALUSrcB1E, SrcB1E);
+    alu   #(P)       alu1(SrcA1E, SrcB1E, W64_1E, UW64_1E, SubArith1E, ALUSelect1E, BSelect1E, ZBBSelect1E,
+                          Funct3_1E, Funct7_1E, Rs2_1E, BALUControl1E, BMUActive1E, CZero1E, ALUResult1E, IEUAdr1E);
+    // Slot 1's result when it is not the ALU's, as slot 0's altresultmux: lui writes its immediate, a jal
+    // its link address.  Slot 1's link is one instruction past slot 1, so it is PCLink1E (ifu.sv), not
+    // slot 0's PCLinkE.  The jal's target is its ALU sum, IEUAdr1E, which goes to the IFU.
+    //   0x100 addi a0,a0,1 ; 0x104 jal ra,f     ra = 0x108   (0x106 if the jal is a c.jal)
+    mux2  #(P.XLEN)  altresultmux1(ImmExt1E, PCLink1E, Jump1E, AltResult1E);
+    mux2  #(P.XLEN)  ieuresultmux1(ALUResult1E, AltResult1E, ALUResultSrc1E, IEUResult1E);
 
-  // The multiplier's operands, from whichever slot holds the bundle's one MDU operation.  These are
-  // the forwarded register values, as slot 0's ForwardedSrcAE/BE always were.  They are separate
-  // outputs rather than a mux on ForwardedSrcAE/BE because the FPU reads those too, for slot 0.
-  mux2  #(P.XLEN)  mdusrcamux(ForwardedSrcAE, ForwardedSrc2AE, Mdu2E, MDUSrcAE);
-  mux2  #(P.XLEN)  mdusrcbmux(ForwardedSrcBE, ForwardedSrc2BE, Mdu2E, MDUSrcBE);
+    // Slot 1 Memory and Writeback.  Slot 0 needs a mux5 in Writeback to choose between the ALU, a load,
+    // a CSR read, the multiply/divide unit and a store-conditional.  Slot 1 can only be an ALU operation,
+    // a load or a multiply/divide, so it needs just three of those, selected by the same ResultSrc
+    // encoding slot 0 uses.  A slot 1 MDU result is always the MDU's own: the FPU only ever divides, and
+    // issue.sv admits slot 1 divides only in configurations whose divider is the MDU's.
+    flopenrc #(P.XLEN) IEUResult1MReg(clk, reset, FlushM, ~StallM, IEUResult1E, IEUResult1M);
+    flopenrc #(P.XLEN) IEUResult1WReg(clk, reset, FlushW, ~StallW, Result1M, IEUResult1W);
+    always_comb
+      case (ResultSrc1W)
+        3'b001:  Result1W = ReadDataW;
+        3'b011:  Result1W = MDUResultW;
+        default: Result1W = IEUResult1W;
+      endcase
+
+    // The address handed to the load/store unit, selected from whichever slot holds the bundle's one
+    // memory operation.  Each slot's ALU already computes its own sum, so this is only a choice of which
+    // one the LSU listens to.
+    //
+    // It is deliberately a separate output from IEUAdrE rather than a mux on it.  A single instruction
+    // is never both a control transfer and a memory access -- srcamux steers its one adder to PC+imm or
+    // to rs1+imm -- which is why slot 0 can send one net to both the IFU and the LSU.  That stops being
+    // true across slots: a taken branch in slot 0 needs its target at the IFU in the very cycle slot 1
+    // needs its address at the LSU.  Keeping the nets apart lets both happen, and leaves the IFU's
+    // redirect path exactly as it was.
+    mux2  #(P.XLEN)  lsuadrmux(IEUAdrE, IEUAdr1E, Mem1E, LSUAdrE);
+    // The multiplier's operands, from whichever slot holds the bundle's one MDU operation.  These are
+    // the forwarded register values, as slot 0's ForwardedSrcAE/BE always were.  They are separate
+    // outputs rather than a mux on ForwardedSrcAE/BE because the FPU reads those too, for slot 0.
+    mux2  #(P.XLEN)  mdusrcamux(ForwardedSrcAE, ForwardedSrcA1E, Mdu1E, MDUSrcAE);
+    mux2  #(P.XLEN)  mdusrcbmux(ForwardedSrcBE, ForwardedSrcB1E, Mdu1E, MDUSrcBE);
+    // A store's data is rs2 after forwarding, so it comes from whichever slot's forwarding muxes hold
+    // the memory operation.  The slot choice is made before the register, so Memory sees one value.
+    mux2  #(P.XLEN)  writedatamux(ForwardedSrcBE, ForwardedSrcB1E, Mem1E, WriteDataE);
+  end else begin : noslot1
+    // Single issue: slot 1 never issues, so its results are constant and slot 0 owns the LSU and MDU.
+    assign Flags1E     = '0;
+    assign IEUAdr1E    = '0;
+    assign SrcA1E      = '0;
+    assign SrcB1E      = '0;
+    assign IEUResult1M = '0;
+    assign IEUResult1W = '0;
+    assign Result1W    = '0;
+    assign LSUAdrE     = IEUAdrE;
+    assign MDUSrcAE    = ForwardedSrcAE;
+    assign MDUSrcBE    = ForwardedSrcBE;
+    assign WriteDataE  = ForwardedSrcBE;
+  end
 
   // Slot 1 late ALU.  A slot 1 that reads slot 0's result is paired anyway and executes here, one stage
   // late, where slot 0's result is already sitting in IEUResultM.  Its Execute-stage ALU ran on a stale
-  // operand and that result is discarded.  The operands are captured after srcamux2/srcbmux2, so an
+  // operand and that result is discarded.  The operands are captured after srcamux1/srcbmux1, so an
   // immediate or the PC arrives as it would have in Execute, and the operand that depended on slot 0 is
   // replaced.  IEUResultM rather than IFResultM: issue.sv only makes a pair late when slot 0 is an
   // integer ALU operation, so the FPU's integer result never applies, and its mux would lengthen the path.
   //
   // An operand that the bundle ahead produced too late to forward in Execute (a load, say) arrives here
-  // from Writeback instead: ResultW for that bundle's slot 0, ResultW2 for its slot 1.  ieu.sv chooses.
+  // from Writeback instead: ResultW for that bundle's slot 0, Result1W for its slot 1.  ieu.sv chooses.
   //
   // The late ALU implements only the base operations, so its bit-manipulation and czero inputs are tied
   // off and synthesis removes that logic.  issue.sv keeps every other operation out of it.  Its output
-  // goes nowhere but the Writeback register: nothing forwards from it, and ieu.sv's LateStall2D holds
-  // back any consumer until the result reaches ResultW2.
+  // goes nowhere but the Writeback register: nothing forwards from it, and ieu.sv's LateStall1D holds
+  // back any consumer until the result reaches Result1W.
   //
   // For a late branch the same registers carry slot 0's branch operands instead -- its rs1 and rs2 after
   // forwarding, which is what the comparator in Execute would have used -- and the late ALU subtracts.
@@ -317,78 +360,88 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   //   bundle B:  addi a4, a5, 3     <- slot 0 is late
   //   1. End of Execute (lateinamux): store what is available now.  Operand A is a5, still wrong -- the
   //      load is only in Memory -- and operand B is the immediate 3, which is right.
-  //   2. Memory (latesrcamux, below): replace what came too late.  LateSelA2M = 10 swaps the wrong a5
-  //      for ResultW, the loaded a5 now in Writeback; LateSelB2M = 00 keeps the 3.
+  //   2. Memory (latesrcamux, below): replace what came too late.  LateSelA1M = 10 swaps the wrong a5
+  //      for ResultW, the loaded a5 now in Writeback; LateSelB1M = 00 keeps the 3.
   // Step 1 is needed because only the slow operand comes from Writeback; the other one (an immediate,
   // or a register that was ready in Execute) must be carried from Execute to Memory.
   //
-  // Names: LateInA2E is late ALU operand A as chosen in Execute, SrcA2M the same value stored in
-  // Memory, LateSrcA2M it after the swap.  The "2" dates from when only slot 1 used the late ALU.
+  // Names: LateInA1E is late ALU operand A as chosen in Execute, SrcA1M the same value stored in
+  // Memory, LateSrcA1M it after the swap.  The "2" dates from when only slot 1 used the late ALU.
   //
   // What step 1 stores depends on who uses the late ALU (at most one instruction per bundle):
-  //   slot 1 (normal)   slot 1's ALU inputs              SrcA2E, SrcB2E        slot 1's operation
+  //   slot 1 (normal)   slot 1's ALU inputs              SrcA1E, SrcB1E        slot 1's operation
   //   late branch       slot 0's two register values     ForwardedSrcAE/BE     subtract (LateBrM)
   //   late slot 0       slot 0's ALU inputs              SrcAE, SrcBE          slot 0's operation
   // A late slot 0 takes SrcAE/SrcBE rather than ForwardedSrcAE/BE because its operand may be the PC or
   // an immediate, which SrcAE/SrcBE already include.  LateBrE and Late0RawE are never both set.
-  mux3  #(P.XLEN)  lateinamux(SrcA2E, ForwardedSrcAE, SrcAE, {Late0RawE, LateBrE}, LateInA2E);
-  mux3  #(P.XLEN)  lateinbmux(SrcB2E, ForwardedSrcBE, SrcBE, {Late0RawE, LateBrE}, LateInB2E);
-  // The operation travels with the operands: slot 0's for a late slot 0, otherwise slot 1's.
-  mux2  #(8)       latectrlmux({ALUSelect2E, Funct3_2E, SubArith2E, W64_2E},          // slot 1's operation
-                               {ALUSelectE,  Funct3E,   SubArithE,  W64E},            // slot 0's operation
-                               Late0RawE, {LateALUSelectE, LateFunct3E, LateSubArithE, LateW64E});
-  flopenrc #(P.XLEN) SrcA2MReg(clk, reset, FlushM, ~StallM, LateInA2E, SrcA2M);
-  flopenrc #(P.XLEN) SrcB2MReg(clk, reset, FlushM, ~StallM, LateInB2E, SrcB2M);
-  flopenrc #(14)     LateCtrl2MReg(clk, reset, FlushM, ~StallM,
-                                   {LateALUSelectE, LateFunct3E, LateSubArithE, LateW64E, LateSelA2E, LateSelB2E, LateBrE, Late0RawE},
-                                   {ALUSelect2M, Funct3_2M, SubArith2M, W64_2M, LateSelA2M, LateSelB2M, LateBrM, Late0RawM});
 
-  // Whose result the late ALU produced:
-  //   Late0M  slot 0's: it was sent late and an operand really was replaced.  If nothing was replaced
-  //           (a false match on an immediate field), slot 0's Execute result is right and is used.
-  //   Late2M  slot 1's: only when neither a late branch nor a late slot 0 used the late ALU.
-  assign Late0M = Late0RawM & (|LateSelA2M | |LateSelB2M);
-  assign Late2M = ~LateBrM & ~Late0RawM & (|LateSelA2M | |LateSelB2M);
-  mux4  #(P.XLEN)  latesrcamux(SrcA2M, IEUResultM, ResultW, ResultW2, LateSelA2M, LateSrcA2M);
-  mux4  #(P.XLEN)  latesrcbmux(SrcB2M, IEUResultM, ResultW, ResultW2, LateSelB2M, LateSrcB2M);
-  alu   #(P)       latealu(.A(LateSrcA2M), .B(LateSrcB2M), .W64(W64_2M & ~LateBrM), .UW64(1'b0),
-                           .SubArith(SubArith2M | LateBrM),
-                           .ALUSelect(ALUSelect2M), .BSelect(4'b0), .ZBBSelect(4'b0), .Funct3(Funct3_2M),
-                           .Funct7(7'b0), .Rs2E(5'b0), .BALUControl(3'b0), .BMUActive(1'b0), .CZero(2'b0),
-                           .ALUResult(LateResult2M), .Sum(LateSum2M));
+  if (P.LATE_ALU_SUPPORTED) begin : lateALU
+    if (P.SUPERSCALAR_SUPPORTED) begin : lateinslot1
+      mux3  #(P.XLEN)  lateinamux(SrcA1E, ForwardedSrcAE, SrcAE, {Late0RawE, LateBrE}, LateInA1E);
+      mux3  #(P.XLEN)  lateinbmux(SrcB1E, ForwardedSrcBE, SrcBE, {Late0RawE, LateBrE}, LateInB1E);
+    end else begin : lateinslot0                          // only slot 0 can be late
+      mux2  #(P.XLEN)  lateinamux(ForwardedSrcAE, SrcAE, Late0RawE, LateInA1E);
+      mux2  #(P.XLEN)  lateinbmux(ForwardedSrcBE, SrcBE, Late0RawE, LateInB1E);
+    end
+    // The operation travels with the operands: slot 0's for a late slot 0, otherwise slot 1's.
+    if (P.SUPERSCALAR_SUPPORTED) begin : latectrlslot1
+      mux2  #(8)       latectrlmux({ALUSelect1E, Funct3_1E, SubArith1E, W64_1E},          // slot 1's operation
+                                   {ALUSelectE,  Funct3E,   SubArithE,  W64E},            // slot 0's operation
+                                   Late0RawE, {LateALUSelectE, LateFunct3E, LateSubArithE, LateW64E});
+    end else begin : latectrlslot0
+      assign {LateALUSelectE, LateFunct3E, LateSubArithE, LateW64E} = {ALUSelectE, Funct3E, SubArithE, W64E};
+    end
+    flopenrc #(P.XLEN) SrcA1MReg(clk, reset, FlushM, ~StallM, LateInA1E, SrcA1M);
+    flopenrc #(P.XLEN) SrcB1MReg(clk, reset, FlushM, ~StallM, LateInB1E, SrcB1M);
+    flopenrc #(14)     LateCtrl1MReg(clk, reset, FlushM, ~StallM,
+                                     {LateALUSelectE, LateFunct3E, LateSubArithE, LateW64E, LateSelA1E, LateSelB1E, LateBrE, Late0RawE},
+                                     {ALUSelect1M, Funct3_1M, SubArith1M, W64_1M, LateSelA1M, LateSelB1M, LateBrM, Late0RawM});
 
-  // Branch flags from the late ALU's subtraction A - B.  When the signs agree the difference cannot
-  // overflow, so its sign answers both comparisons; when they differ, the operand signs alone do --
-  // the same reasoning as alu.sv's slt/sltu.  Equality is compared directly rather than by zero-testing
-  // the difference, which would wait for the carry chain.
-  assign LateSignA = LateSrcA2M[P.XLEN-1];
-  assign LateSignB = LateSrcB2M[P.XLEN-1];
-  assign LateNeg   = LateSum2M[P.XLEN-1];
-  assign LateFlagsM = {(LateSrcA2M == LateSrcB2M),
-                       (LateSignA & ~LateSignB) | (~(LateSignA ^ LateSignB) & LateNeg),    // lt
-                       (~LateSignA & LateSignB) | (~(LateSignA ^ LateSignB) & LateNeg)};   // ltu
-  mux2  #(P.XLEN)  lateresultmux(IEUResult2M, LateResult2M, Late2M, Result2M);
+    // Whose result the late ALU produced:
+    //   Late0M  slot 0's: it was sent late and an operand really was replaced.  If nothing was replaced
+    //           (a false match on an immediate field), slot 0's Execute result is right and is used.
+    //   Late1M  slot 1's: only when neither a late branch nor a late slot 0 used the late ALU.
+    assign Late0M = Late0RawM & (|LateSelA1M | |LateSelB1M);
+    assign Late1M = ~LateBrM & ~Late0RawM & (|LateSelA1M | |LateSelB1M);
+    if (P.SUPERSCALAR_SUPPORTED) begin : latesrcslot1
+      mux4  #(P.XLEN)  latesrcamux(SrcA1M, IEUResultM, ResultW, Result1W, LateSelA1M, LateSrcA1M);
+      mux4  #(P.XLEN)  latesrcbmux(SrcB1M, IEUResultM, ResultW, Result1W, LateSelB1M, LateSrcB1M);
+    end else begin : latesrcslot0                         // no slot 1 result to take (select 11)
+      mux3  #(P.XLEN)  latesrcamux(SrcA1M, IEUResultM, ResultW, LateSelA1M, LateSrcA1M);
+      mux3  #(P.XLEN)  latesrcbmux(SrcB1M, IEUResultM, ResultW, LateSelB1M, LateSrcB1M);
+    end
+    alu   #(P)       latealu(.A(LateSrcA1M), .B(LateSrcB1M), .W64(W64_1M & ~LateBrM), .UW64(1'b0),
+                             .SubArith(SubArith1M | LateBrM),
+                             .ALUSelect(ALUSelect1M), .BSelect(4'b0), .ZBBSelect(4'b0), .Funct3(Funct3_1M),
+                             .Funct7(7'b0), .Rs2E(5'b0), .BALUControl(3'b0), .BMUActive(1'b0), .CZero(2'b0),
+                             .ALUResult(LateResult1M), .Sum(LateSum1M));
 
-  // Slot 1 Memory and Writeback.  Slot 0 needs a mux5 in Writeback to choose between the ALU, a load,
-  // a CSR read, the multiply/divide unit and a store-conditional.  Slot 1 can only be an ALU operation,
-  // a load or a multiply/divide, so it needs just three of those, selected by the same ResultSrc
-  // encoding slot 0 uses.  A slot 1 MDU result is always the MDU's own: the FPU only ever divides, and
-  // issue.sv admits slot 1 divides only in configurations whose divider is the MDU's.
-  flopenrc #(P.XLEN) IEUResult2MReg(clk, reset, FlushM, ~StallM, IEUResult2E, IEUResult2M);
-  flopenrc #(P.XLEN) IEUResult2WReg(clk, reset, FlushW, ~StallW, Result2M, IEUResult2W);
-  always_comb
-    case (ResultSrc2W)
-      3'b001:  ResultW2 = ReadDataW;
-      3'b011:  ResultW2 = MDUResultW;
-      default: ResultW2 = IEUResult2W;
-    endcase
+    // Branch flags from the late ALU's subtraction A - B.  When the signs agree the difference cannot
+    // overflow, so its sign answers both comparisons; when they differ, the operand signs alone do --
+    // the same reasoning as alu.sv's slt/sltu.  Equality is compared directly rather than by zero-testing
+    // the difference, which would wait for the carry chain.
+    assign LateSignA = LateSrcA1M[P.XLEN-1];
+    assign LateSignB = LateSrcB1M[P.XLEN-1];
+    assign LateNeg   = LateSum1M[P.XLEN-1];
+    assign LateFlagsM = {(LateSrcA1M == LateSrcB1M),
+                         (LateSignA & ~LateSignB) | (~(LateSignA ^ LateSignB) & LateNeg),    // lt
+                         (~LateSignA & LateSignB) | (~(LateSignA ^ LateSignB) & LateNeg)};   // ltu
+    if (P.SUPERSCALAR_SUPPORTED) begin : lateresult1
+      mux2  #(P.XLEN)  lateresultmux(IEUResult1M, LateResult1M, Late1M, Result1M);
+    end else begin : nolateresult1
+      assign Result1M = IEUResult1M;
+    end
+
+    mux2  #(P.XLEN)  latewbmux(IFResultM, LateResult1M, Late0M, IFResultLateM);
+  end else begin : nolateALU
+    assign LateFlagsM    = '0;
+    assign Result1M      = IEUResult1M;
+    assign IFResultLateM = IFResultM;
+  end
 
   // Memory stage pipeline register
   flopenrc #(P.XLEN) SrcAMReg(clk, reset, FlushM, ~StallM, SrcAE, SrcAM);
   flopenrc #(P.XLEN) IEUResultMReg(clk, reset, FlushM, ~StallM, IEUResultE, IEUResultM);
-  // A store's data is rs2 after forwarding, so it comes from whichever slot's forwarding muxes hold
-  // the memory operation.  The lane choice is made before the register, so Memory sees one value.
-  mux2  #(P.XLEN)  writedatamux(ForwardedSrcBE, ForwardedSrc2BE, Mem2E, WriteDataE);
   flopenrc #(P.XLEN) WriteDataMReg(clk, reset, FlushM, ~StallM, WriteDataE, WriteDataM);
 
   // Writeback stage pipeline register and logic
@@ -399,7 +452,6 @@ module datapath import cvw::*;  #(parameter cvw_t P) (
   // ALU, and putting the late ALU in front of it would chain two ALUs in one cycle -- the critical path
   // the late ALU exists to avoid.  So a consumer in the next bundle goes late too (takes ResultW in
   // Memory) or stalls a cycle (LateStall0D in ieu.sv).
-  mux2  #(P.XLEN)  latewbmux(IFResultM, LateResult2M, Late0M, IFResultLateM);
   flopenrc #(P.XLEN) IFResultWReg(clk, reset, FlushW, ~StallW, IFResultLateM, IFResultW);
 
   // floating point inputs: FIntResM comes from fclass, fcmp, fmv; FCvtIntResW comes from fcvt

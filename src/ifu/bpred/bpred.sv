@@ -53,8 +53,8 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
 
   // Branch and jump outcome
   input  logic              InstrValidD, InstrValidE,
-  input  logic              Commit2E,                  // Slot 1 will commit alongside slot 0, so the bundle is two instructions long
-  input  logic [P.XLEN-1:0] PCLink2E,                  // ... and this is the address just past slot 1, where the bundle then ends
+  input  logic              Commit1E,                  // Slot 1 will commit alongside slot 0, so the bundle is two instructions long
+  input  logic [P.XLEN-1:0] PCLink1E,                  // ... and this is the address just past slot 1, where the bundle then ends
   input  logic              BranchD, BranchE,
   input  logic              JumpD, JumpE,
   input  logic              PCSrcE,                    // Execution stage branch is taken
@@ -168,7 +168,7 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
 
   // Part 3 RAS
   // A call pushes the address after itself.  That is the bundle's fall-through, whichever slot holds the
-  // call: a slot 0 call never pairs, so the bundle ends at PCLinkE, and a slot 1 call ends it at PCLink2E.
+  // call: a slot 0 call never pairs, so the bundle ends at PCLinkE, and a slot 1 call ends it at PCLink1E.
   //   0x100 jal ra,f                       pushes 0x104
   //   0x100 addi a0,a0,1 ; 0x104 jal ra,f   pushes 0x108
   RASPredictor #(P) RASPredictor(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
@@ -200,7 +200,7 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
   // The bundle is two instructions long only if slot 1 actually commits.  When slot 1 is killed --
   // because slot 0 turned out to be a taken branch -- the fall-through is slot 1's own address, so
   // this comparison against PCD makes BPWrongE fire and redirect there, re-executing it as slot 0.
-  assign PCFallThroughE = Commit2E ? PCLink2E : PCLinkE;
+  assign PCFallThroughE = Commit1E ? PCLink1E : PCLinkE;
   mux2 #(P.XLEN) pccorrectemux(PCFallThroughE, IEUAdrE, PCSrcE, PCCorrectE);
 
   // If the fence/csrw was predicted as a taken branch then we select PCF, rather than PCE.

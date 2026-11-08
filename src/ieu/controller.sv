@@ -41,13 +41,13 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   output logic        JumpD,                   // Jump instruction
   output logic        BranchD,                 // Branch instruction
   output logic        StructuralStallD,        // Structural stalls detected by controller
-  output logic        StructuralStall2D,       // Slot 1 (superscalar) depends on a result that is not ready to forward
-  output logic        SlowResultE,             // This lane's Execute-stage result is not ready to forward from Memory
+  output logic        StructuralStall1D,       // Slot 1 (superscalar) depends on a result that is not ready to forward
+  output logic        SlowResultE,             // This slot's Execute-stage result is not ready to forward from Memory
   output logic        LoadStallD,              // Structural stalls for load, sent to performance counters
   output logic        StoreStallD,             // load after store hazard
   output logic [4:0]  Rs1D, Rs2D, Rs2E,        // Register sources to read in Decode or Execute stage
   output logic [1:0]  MemRWD,                  // Mem read/write decoded, for the superscalar bundle's memory hazards
-  input  logic [4:0]  Rs1_2D, Rs2_2D,          // The other issue slot's register sources in Decode
+  input  logic [4:0]  Rs1_1D, Rs2_1D,          // The other issue slot's register sources in Decode
   input  logic        FuseLoadD,               // This add is fused with the load after it: also do the load
   // Execute stage control signals
   input  logic        StallE, FlushE,          // Stall, flush Execute stage
@@ -100,7 +100,7 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   // Stall during CSRs
   output logic        CSRWriteFenceM,          // CSR write or fence instruction; needs to flush the following instructions
   output logic [4:0]  RdE, RdM,                // Pipelined destination registers
-  input  logic [4:0]  RdOtherM, RdOtherW,      // The other issue lane's destination registers in Memory and Writeback
+  input  logic [4:0]  RdOtherM, RdOtherW,      // The other slot's destination registers in Memory and Writeback
   // Forwarding controls
   output logic [4:0]  RdW                      // Destination register in Writeback stage
 );
@@ -175,7 +175,7 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
   logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
   logic [4:0]  Rs1E;                           // pipelined register source
-  logic        MatchD2E;                       // Same, for the other issue lane's source registers
+  logic        MatchD1E;                       // Same, for the other slot's source registers
   logic        FCvtIntStallD, MDUStallD, CSRRdStallD; // Stall due to fcvt to integer, multiply/divide, CSR read
   logic        FunctCZeroD;                    // Funct7 and Funct3 indicate czero.* (not including Op check)
   logic        BUW64D;                         // Indicates if it is a .uw type B instruction in Decode Stage
@@ -496,17 +496,17 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   assign CSRWriteFenceM = CSRWriteM | FenceM;
 
   // Forwarding logic
-  // Each issue lane instantiates this controller and forwards for itself, so the four producers are
-  // named relative to this lane: its own result in Memory and Writeback, and the other lane's.
-  // The select encoding is relative too, and datapath.sv cross-wires each lane's mux5 inputs to
+  // Each slot instantiates this controller and forwards for itself, so the four producers are
+  // named relative to this slot: its own result in Memory and Writeback, and the other slot's.
+  // The select encoding is relative too, and datapath.sv cross-wires each slot's mux5 inputs to
   // match: 000 no forward, 001 own Writeback, 010 own Memory, 011 other Writeback, 100 other Memory.
   //
-  // Memory is tested before Writeback because it is the newer bundle.  Within a stage the two lanes
+  // Memory is tested before Writeback because it is the newer bundle.  Within a stage the two slots
   // are in the same bundle, and they may both write the same register, so the younger -- slot 1 -- is
-  // tested first.  OTHER_IS_YOUNGER says which that is: the other lane for slot 0's controller (the
-  // default), this lane for slot 1's.
+  // tested first.  OTHER_IS_YOUNGER says which that is: the other slot for slot 0's controller (the
+  // default), this slot for slot 1's.
   //
-  // There is deliberately no bypass from the other lane in Execute: that would chain one ALU into
+  // There is deliberately no bypass from the other slot in Execute: that would chain one ALU into
   // the other within a cycle, and the issue logic refuses to pair instructions that would need it.
   always_comb begin
     ForwardAE = 3'b000;
@@ -557,7 +557,7 @@ module controller import cvw::*;  #(parameter cvw_t P, parameter OTHER_IS_YOUNGE
   // This is computed here rather than in the slot 1 controller because the producer it must be
   // compared against, RdE, belongs to the real pipeline that only this instance has.
   // The store-then-load hazard, which slot 1's loads and stores also take part in, is ieu.sv's BundleStoreStallD.
-  assign MatchD2E = ((Rs1_2D == RdE) | (Rs2_2D == RdE)) & (RdE != 5'b0);
+  assign MatchD1E = ((Rs1_1D == RdE) | (Rs2_1D == RdE)) & (RdE != 5'b0);
   assign SlowResultE = (MemReadE | SCE) | CSRReadE | MDUE | FCvtIntE;
-  assign StructuralStall2D = SlowResultE & MatchD2E;
+  assign StructuralStall1D = SlowResultE & MatchD1E;
 endmodule
