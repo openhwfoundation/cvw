@@ -32,20 +32,14 @@ module vshifter import cvw::*; #(parameter cvw_t P) (
     input logic [P.ELEN-1:0] A, B,
     input logic dir,    // 1 for right, 0 for left
     input logic arith,
-    output logic [P.ELEN-1:0] shiftResult
+    output logic [P.ELEN-1:0] Y
 );
     logic [$clog2(P.ELEN)-1:0] shiftAmount;
     assign shiftAmount = A[$clog2(P.ELEN)-1:0];
 
-    if (dir) begin
-        if (arith) begin
-            assign shiftResult = $signed(B) >>> A;
-        end else begin
-            assign shiftResult = B >> A;
-        end
-        else begin
-            assign shiftResult = B << A;
-        end
-    end
+    always_comb
+        if (~dir) Y = B << shiftAmount;
+        else if (arith) Y = $signed(B) >>> shiftAmount;
+        else Y = B >> shiftAmount;
 
 endmodule
