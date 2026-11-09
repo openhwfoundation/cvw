@@ -54,6 +54,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
+  output logic [1:0]  VALUCntrlD,
+  output logic [1:0]  VLaneSelectD,
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -62,7 +64,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 );
 
 
-`define VCTRLW 7
+`define VCTRLW 8
 
   logic [6:0] OpD;                             // Opcode in Decode stage
   logic       OPIVVD, OPFVVD, OPMVVD, OPIVID;
@@ -507,35 +509,56 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // Main vector instruction decoder
   always_comb
     if (STATUS_VS == 2'b00)                    // vector instr are illegal when VS is off
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
     else if (VTYPED[P.XLEN-1] & ~VSETD)        // vtype.vill, only vset may execute
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
     else begin
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;     // default illegal instr
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;     // default illegal instr
       case(OpD)
-      // VRegWrite_VWriteInt_VWriteFP_Vset_VALUResult_VALUSrcB_Illegal
+      // VRegWrite_VWriteInt_VWriteFP_Vset_VALUResult_VALUSrcB_VALUOp_Illegal
         7'b0000111: if (VLSFunctD)                               // vector loads, address from x[rs1]
-                        VControlsD = `VCTRLW'b1_0_0_0_1_0_0;
+                        VControlsD = `VCTRLW'b1_0_0_0_1_0_0_0;
         7'b0100111: if (VLSFunctD)                               // vector stores, data is Vs3 in the Vd field
-                        VControlsD = `VCTRLW'b0_0_0_0_0_1_0;
+                        VControlsD = `VCTRLW'b0_0_0_0_0_1_0_0;
         7'b1010111: if      (VsetvliD | VsetivliD | VsetvlD)     // vsetvli, vsetivli, vsetvl
-                        VControlsD = `VCTRLW'b0_1_0_1_0_0_0;
+                        VControlsD = `VCTRLW'b0_1_0_1_0_0_0_0;
                     else if (VFunctD & VUnaryWriteIntD)          // vmv.x.s, vcpop.m, vfirst.m write rd
-                        VControlsD = `VCTRLW'b0_1_0_0_0_0_0;
+                        VControlsD = `VCTRLW'b0_1_0_0_0_0_0_0;
                     else if (VFunctD & VUnaryWriteFPD)           // vfmv.f.s writes fd
-                        VControlsD = `VCTRLW'b0_0_1_0_0_0_0;
+                        VControlsD = `VCTRLW'b0_0_1_0_0_0_0_0;
                     else if (VFunctD)                            // vector arithmetic writes vd
-                        VControlsD = `VCTRLW'b1_0_0_0_0_0_0;
-        default:        VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
+                        VControlsD = `VCTRLW'b1_0_0_0_0_0_1_0;
+        default:        VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
       endcase
     end
 
   // control bits
+  logic VALUOpD;                                   // instruction uses Funct6 to select the valu operation
   logic IllegalVEncodingD;                         // not a supported vector encoding
   logic IllegalVOperandD;                          // an operand is reserved under the current vtype
 
-  assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
+  assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, VALUOpD, IllegalVEncodingD} = VControlsD;
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
+
+  // VALU decoder
+  always_comb begin
+    VALUCntrlD = 2'b00;
+    if (VALUOpD & (OPIVVD | OPIVXD | OPIVID))
+      case (Funct6D)
+        6'b001001: VALUCntrlD = 2'b01; // vand
+        6'b001010: VALUCntrlD = 2'b10; // vor
+        default:   VALUCntrlD = 2'b00;
+      endcase
+  end
+
+  // lane result select: 00 for alu, 01 for vmul, 10 for move
+  always_comb begin
+    case (VOpClassD)
+      VOPCLASS_MUL: VLaneSelectD = 2'b01;
+      VOPCLASS_MOVE: VLaneSelectD = 2'b10;
+      default:      VLaneSelectD = 2'b00;
+    endcase
+  end
 
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand

@@ -31,22 +31,17 @@
 module valu import cvw::*; #(parameter cvw_t P)
   (
    input logic [P.ELEN-1:0] A, B,
-   input logic [5:0] Funct6E,
-   input logic [2:0] Funct3E,
-   output logic [P.ELEN-1:0] Sum
+   input logic [1:0] VALUCntrl,
+   output logic [P.ELEN-1:0] VALUResult
    );
 
-  logic [P.ELEN-1:0] AddResultE, AndResultE;
-  logic vand;
+  logic [P.ELEN-1:0] AddResult, AndResult, OrResult;
 
-  // *** simplest implementation for now, just add, SEW = e64
+  assign AddResult = A + B;
+  assign AndResult = A & B;
+  assign OrResult = A | B;
 
-  assign AddResultE = A + B;
+  mux3 #(P.ELEN) resultmux(AddResult, AndResult, OrResult, VALUCntrl, VALUResult);
 
-  assign AndResultE = A & B;
-
-  assign vand = (Funct6E == 6'b001001) & ((Funct3E == 3'b000) | (Funct3E == 3'b011) | (Funct3E == 3'b100));
-
-  mux2 #(P.ELEN) resultmux(AddResultE, AndResultE, vand, Sum);
 
 endmodule
