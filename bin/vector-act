@@ -2,16 +2,18 @@
 #
 # vector-act
 # Build and run the riscv-arch-test (ACT4) vector tests on a vector configuration of Wally.
-# usage: vector-act [INSTRUCTION... | --all [--update]] [--config CONFIG] [--suite SUITE]
+# usage: vector-act [INSTRUCTION... [--update] | --all] [--config CONFIG] [--suite SUITE]
 #                   [--loadstore {move,vector}] [--all-cases] [--sim SIMULATOR] [--build-only | --run-only]
 # The tests are the scalar self-checking base suite: every testcase runs at vl=1, LMUL=1, unmasked, and a scalar
 # routine checks the result.  With --loadstore move (the default until the vector load/store path works) the only
 # vector instructions besides the one under test are vset{i}vl{i}, vmv.v.x and vmv.x.s.
 # With no instructions, vector-act runs the passing list tests/vector/act/<config>/passing-<suite>.txt and fails if
-# any of them fails.  After implementing an instruction, run vector-act --all --update to add it to the list.
+# any of them fails.  The list holds only instructions meant to work, not ones that pass by coincidence: after
+# implementing an instruction, run vector-act <instruction> --update to add it.
 # example: vector-act                          # the passing list: everything that must keep passing
 # example: vector-act vsub.vv vsub.vx          # only these instructions
-# example: vector-act --all --update           # every test; add the newly passing ones to the list
+# example: vector-act vsub.vv vsub.vx --update  # run these and add the ones that pass to the list
+# example: vector-act --all                    # every test; report passing ones that are not in the list
 # example: vector-act vadd.vv --loadstore vector   # use vle64.v/vse64.v instead of vmv.v.x/vmv.x.s
 #
 # The ACT checkout (addins/riscv-arch-test, or $ACTDIR) must have the VECTOR_SUITE and VECTOR_LOADSTORE options
@@ -38,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--all", action="store_true",
                         help="Run every test and report the passing instructions missing from the passing list")
     parser.add_argument("--update", action="store_true",
-                        help="Add the newly passing instructions to the passing list (never removes entries)")
+                        help="Add the named instructions that pass to the passing list (never removes entries)")
     parser.add_argument("--config", "-c", default="rv64gcv", help="Wally configuration (default: rv64gcv)")
     parser.add_argument("--suite", default="Vx64", help="ACT vector suite (default: Vx64)")
     parser.add_argument("--loadstore", choices=["move", "vector"], default="move",
@@ -52,6 +54,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.all and args.instructions:
         parser.error("give instructions or --all, not both")
+    if args.update and not args.instructions:
+        parser.error("--update needs the instructions to add, e.g. vector-act vsub.vv --update")
     if args.all_cases and args.loadstore == "move":
         parser.error("--all-cases needs --loadstore vector: the length suite checks store results with vse")
     return args
@@ -143,13 +147,13 @@ def main() -> None:
     if new:
         if args.update:
             passing_file.write_text(
-                f"# {args.suite} instructions whose base tests pass on {args.config}.  vector-act runs this list;\n"
-                "# every entry must keep passing.  vector-act --all --update adds newly passing instructions.\n"
+                f"# {args.suite} instructions implemented on {args.config} whose base tests pass.  vector-act runs this\n"
+                "# list; every entry must keep passing.  Only add instructions meant to work: vector-act <instr> --update\n"
                 + "".join(f"{instr}\n" for instr in sorted({*passing, *new}))
             )
             print(f"Added to {passing_file}: {' '.join(new)}")
         else:
-            print(f"Passing but not in {passing_file.name} (add them, or rerun with --update): {' '.join(new)}")
+            print(f"Passing but not in {passing_file.name} (add the ones meant to work with <instr> --update): {' '.join(new)}")
     sys.exit(1 if broken or (failed and not args.all) else 0)
 
 

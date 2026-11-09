@@ -30,15 +30,19 @@ reports the register, element, expected and actual values.
 
 ## The passing list
 
-`rv64gcv/passing-Vx64.txt` lists the instructions whose base tests pass. Every entry must keep passing:
-`vector-act` with no instructions runs the list and fails, printing `REGRESSION: ...`, if any entry fails.
+`rv64gcv/passing-Vx64.txt` lists the instructions that are implemented and whose base tests pass. Every entry
+must keep passing: `vector-act` with no instructions runs the list and fails, printing `REGRESSION: ...`, if any
+entry fails. An instruction that passes by coincidence (e.g. `vredsum.vs` is just an add at vl=1) does not go in
+the list.
 
 When you implement an instruction:
 
 1. Test it: `vector-act vsub.vv vsub.vx`.
 2. Make sure nothing that passed before broke: `vector-act --run-only`.
-3. Add it to the list: `vector-act --run-only --all --update` runs everything and adds every newly passing
-   instruction (it never removes one). Commit `passing-Vx64.txt` with your change.
+3. Add it to the list: `vector-act --run-only vsub.vv vsub.vx --update` adds the named instructions that pass
+   (it never removes one). Commit `passing-Vx64.txt` with your change.
+
+`vector-act --all` runs every test and reports instructions that pass but are not in the list, without adding them.
 
 ## What the tests contain
 
