@@ -54,15 +54,14 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic                         RegWriteD,
   input logic                         VRegWriteD,
   input logic [1:0]                   VALUSrcAD,
-  input logic                         VALUSrcBD,
   input logic                         VALUResultSrcD,
    // datapath from vregfile
   input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
   input logic [P.VLEN-1:0]            v0D,
    //
   // from/to the scalar core
-  input logic [P.XLEN-1:0]            R1D, R2D,                       // Scalar rs1/rs2 read in Decode (from IEU)
-  output logic [P.XLEN-1:0]           VIEUResultToScalarW,                // Int or FP result for
+  input logic [P.XLEN-1:0]            R1D,                            // Scalar rs1 read in Decode (from IEU)
+  output logic [P.XLEN-1:0]           VIEUResultToScalarW,            // Int or FP result for
   output logic [P.VLEN-1:0]           VIEUResultW,
   // control output
   output logic                        VIEURegWriteW, VIEUVRegWriteW,
@@ -78,7 +77,6 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic       RegWriteE;
   logic       VRegWriteE;
   logic [1:0] VALUSrcAE;
-  logic       VALUSrcBE;
   logic       VALUResultSrcE;
 
   logic       RegWriteM;
@@ -94,7 +92,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderE, ExecutionUnitOrderM;
 
   logic [P.VLEN-1:0]     VRD1E, VRD2E, VRD3E, v0E;
-  logic [P.XLEN-1:0]     R1E, R2E;              // scalar rs1/rs2 captured with the micro-op
+  logic [P.XLEN-1:0]     R1E;                   // scalar rs1 captured with the micro-op
   logic [P.VPU_INT_BLEN-1:0] VRD1BeatE [P.VPU_INT_MAX_BEATS-1:0];
   logic [P.VPU_INT_BLEN-1:0] VRD2BeatE [P.VPU_INT_MAX_BEATS-1:0];
   logic [P.VPU_INT_BLEN-1:0] VRD3BeatE [P.VPU_INT_MAX_BEATS-1:0];
@@ -138,7 +136,6 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   flopenrc #(P.VLEN) VRD3EReg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, VRD3D, VRD3E);
   flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~LocalStallE & CaptureD, v0D,   v0E);
   flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~LocalStallE & CaptureD, R1D,   R1E);
-  flopenrc #(P.XLEN) R2EReg  (clk, reset, VectorFlushE, ~LocalStallE & CaptureD, R2D,   R2E);
 
   // convert to index format
   genvar index;
@@ -158,17 +155,17 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(20+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(19+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~LocalStallE & CaptureD,
-     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUSrcBD, VALUResultSrcD, ExecutionUnitOrderD},
-     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUSrcBE, VALUResultSrcE, ExecutionUnitOrderE});
+     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, ExecutionUnitOrderD},
+     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, ExecutionUnitOrderE});
 
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, InstrD, InstrE);
 
   mux3 #(P.VPU_INT_BLEN) vscramux(VRD1SelectedE, VImmE, {XLENTOINTLANES{R1E}}, VALUSrcAE, VSrcAE);
 
-  mux2 #(P.VPU_INT_BLEN) vscrbmux(VRD2SelectedE, {XLENTOINTLANES{R2E}}, VALUSrcBE, VSrcBE);
+  assign VSrcBE = VRD2SelectedE;
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, Funct6E, Funct3E, VALUResultE);
 

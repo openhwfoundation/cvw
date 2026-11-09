@@ -151,7 +151,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
-  logic        MatchDE, MatchDM;               // Match between a source register in Decode stage and destination register in Execute/Memory stage
+  logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
+  logic        VReadRs1D, VReadRs2D;           // Vector instr reads rs1/rs2
+  logic        VMatchDE, VMatchDM;             // Match between a vector instr's scalar source and destination register in Execute/Memory stage
   logic        VectorSrcStallD;                // Vector instr waits for an older scalar to write to rs1/rs2
   logic        FCvtIntStallD, MDUStallD, CSRRdStallD; // Stall due to fcvt to integer, multiply/divide, CSR read
   logic        FunctCZeroD;                    // Funct7 and Funct3 indicate czero.* (not including Op check)
@@ -304,8 +306,12 @@ module controller import cvw::*; #(parameter cvw_t P) (
     logic VUnaryWriteIntD;
     assign VUnaryWriteIntD = (OpD == 7'b1010111) & (Funct3D == 3'b010) & (Funct7D[6:1] == 6'b010000);
     assign VectorD = ((OpD == 7'b0000111 | OpD == 7'b0100111) & VLSFunctD) | (OpD == 7'b1010111) & (Funct3D != 3'b111) & ~VUnaryWriteIntD;
+    // Instruction that does not use rs1/rs2 should not cause stalls to wait for scalar reg
+    assign VReadRs1D = (OpD == 7'b0000111 | OpD == 7'b0100111) | (OpD == 7'b1010111) & (Funct3D == 3'b100 | Funct3D == 3'b110);
+    assign VReadRs2D = (OpD == 7'b0000111 | OpD == 7'b0100111) & (InstrD[27:26] == 2'b10); // mop = strided
   end else begin
     assign VectorD = '0;
+    assign {VReadRs1D, VReadRs2D} = '0;
   end
 
   /* verilator lint_on CASEINCOMPLETE */
@@ -496,7 +502,8 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign FCvtIntStallD = FCvtIntE & MatchDE; // FPU to Integer transfers have single-cycle latency except fcvt
   // Vector instr leaves scalar pipeline in Decode and takes rs1/rs2 from IRF there, so it waits
   // until an older scalar that writes to them has reached Writeback.
-  assign MatchDM = ((Rs1D == RdM) | (Rs2D == RdM)) & (RdM != 5'b0);
-  assign VectorSrcStallD = VectorD & (MatchDE & RegWriteE | MatchDM & RegWriteM);
+  assign VMatchDE = ((VReadRs1D & (Rs1D == RdE)) | (VReadRs2D & (Rs2D == RdE))) & (RdE != 5'b0);
+  assign VMatchDM = ((VReadRs1D & (Rs1D == RdM)) | (VReadRs2D & (Rs2D == RdM))) & (RdM != 5'b0);
+  assign VectorSrcStallD = VectorD & (VMatchDE & RegWriteE | VMatchDM & RegWriteM);
   assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD | VectorSrcStallD;
 endmodule

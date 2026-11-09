@@ -146,8 +146,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
-                   .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .R2D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD,
+                   .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VIEUVdFinalW[i]));
   end
