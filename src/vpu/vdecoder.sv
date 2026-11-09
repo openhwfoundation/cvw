@@ -54,6 +54,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
+  output logic [2:0]  VALUSelectD,
+  output logic [1:0]  VLaneSelectD,
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -531,11 +533,32 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
     end
 
   // control bits
+  logic VALUOpD;                                   // instruction uses Funct6 to select the valu operation
   logic IllegalVEncodingD;                         // not a supported vector encoding
   logic IllegalVOperandD;                          // an operand is reserved under the current vtype
 
   assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
+  assign VALUOpD = (OPIVVD | OPIVXD | OPIVID);
+  // VALU decoder
+  always_comb begin
+    VALUSelectD = 3'b000;
+    if (VALUOpD)
+      case (Funct6D)
+        6'b001001: VALUSelectD = 3'b101; // vand
+        6'b001010: VALUSelectD = 3'b011; // vor
+        default:   VALUSelectD = 3'b000;
+      endcase
+  end
+
+  // lane result select: 00 for alu, 01 for vmul, 10 for move
+  always_comb begin
+    case (VOpClassD)
+      VOPCLASS_MUL: VLaneSelectD = 2'b01;
+      VOPCLASS_MOVE: VLaneSelectD = 2'b10; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
+      default:      VLaneSelectD = 2'b00;
+    endcase
+  end
 
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand

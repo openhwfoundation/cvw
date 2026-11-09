@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module shiftcorrection import cvw::*; #(parameter cvw_t P) (
+module shiftcorrection import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.NORMSHIFTSZ-1:0] Shifted,                // normalization shifter output
   // divsqrt
   input  logic                     DivOp,                  // is it a divsqrt operation

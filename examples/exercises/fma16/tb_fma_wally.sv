@@ -19,6 +19,7 @@
 `include "config.vh"
 import cvw::*;
 `include "parameter-defs.vh"
+`include "fpu-parameter-defs.vh"
 
 `define PATH "./"
 
@@ -95,19 +96,19 @@ module stimulus;
    logic [P.Q_LEN*4+7:0]          TestVectors[MAXVECTORS-1:0];  // list of test vectors
    logic                          vectors_ready;
 
-   unpack #(P) unpack (.X(X), .Y(Y), .Z(Z), .Fmt(Fmt), .XEn(1'b1),
+   unpack #(FP) unpack (.X(X), .Y(Y), .Z(Z), .Fmt(Fmt), .XEn(1'b1),
                        .YEn(1'b1), .ZEn(1'b1), .FPUActive(1'b1), .Xs(Xs), .Ys(Ys), .Zs(Zs),
                        .Xe(Xe), .Ye(Ye), .Ze(Ze), .Xm(Xm), .Ym(Ym), .Zm(Zm), .XNaN(XNaN), .YNaN(YNaN),
                        .ZNaN(ZNaN), .XSNaN(XSNaN), .YSNaN(YSNaN), .ZSNaN(ZSNaN), .XSubnorm(XSubnorm),
                        .XZero(XZero), .YZero(YZero), .ZZero(ZZero), .XInf(XInf), .YInf(YInf), .ZInf(ZInf),
                        .XExpMax(XExpMax), .XPostBox(XPostBox), .Bias(Bias), .Nf(Nf));
 
-   fma #(P) dut (.Xs(Xs), .Ys(Ys), .Zs(Zs), .Xe(Xe), .Ye(Ye), .Ze(Ze),
+   fma #(FP) dut (.Xs(Xs), .Ys(Ys), .Zs(Zs), .Xe(Xe), .Ye(Ye), .Ze(Ze),
          .Xm(Xm), .Ym(Ym), .Zm(Zm), .XZero(XZero), .YZero(YZero), .ZZero(ZZero),
          .OpCtrl(OpCtrl), .ASticky(ASticky),  .Sm(Sm), .InvA(InvA), .As(As),
          .Ps(Ps), .Ss(Ss), .Se(Se), .SCnt(SCnt));
 
-   postprocess #(P) postprocess(.Xs(Xs), .Ys(Ys), .Xm(Xm), .Ym(Ym), .Zm(Zm), .Frm(Frm), .Fmt(Fmt),
+   postprocess #(FP) postprocess(.Xs(Xs), .Ys(Ys), .Xm(Xm), .Ym(Ym), .Zm(Zm), .Frm(Frm), .Fmt(Fmt),
                 .FmaASticky(ASticky), .XZero(XZero), .YZero(YZero), .XInf(XInf), .YInf(YInf), .DivUm(DivUm), .FmaSs(Ss),
                 .ZInf(ZInf), .XNaN(XNaN), .YNaN(YNaN), .ZNaN(ZNaN), .XSNaN(XSNaN), .YSNaN(YSNaN), .ZSNaN(ZSNaN),
                 .FmaSm(Sm), .DivUe(DivUe), .FmaAs(As), .FmaPs(Ps), .OpCtrl(OpCtrl), .FmaSCnt(SCnt), .FmaSe(Se),

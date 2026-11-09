@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module cvtshiftcalc import cvw::*; #(parameter cvw_t P) (
+module cvtshiftcalc import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                     XZero,              // is the input zero?
   input  logic                     ToInt,              // to integer conversion?
   input  logic                     IntToFp,            // integer to floating point conversion?

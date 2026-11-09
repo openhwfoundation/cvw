@@ -36,7 +36,7 @@ endif
 # ------ Paths ------
 VERILATOR_DIR = ${WALLY}/sim/verilator
 INCLUDE_PATH  = "-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
-SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
+SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/src/fpu_pkg.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
                 ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv
 # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
 ifneq ($(findstring RVVI_SYNTH_SUPPORTED=1,$(PARAM_ARGS)),)

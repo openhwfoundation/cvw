@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fctrl import cvw::*; #(parameter cvw_t P) (
+module fctrl import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   input  logic                 clk,
   input  logic                 reset,
   // input control signals

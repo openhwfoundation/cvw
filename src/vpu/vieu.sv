@@ -55,6 +55,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic                         VRegWriteD,
   input logic [1:0]                   VALUSrcAD,
   input logic                         VALUResultSrcD,
+  input logic [2:0]                   VALUSelectD,
+  input logic [1:0]                   VLaneSelectD,
    // datapath from vregfile
   input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
   input logic [P.VLEN-1:0]            v0D,
@@ -78,6 +80,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic       VRegWriteE;
   logic [1:0] VALUSrcAE;
   logic       VALUResultSrcE;
+  logic [2:0] VALUSelectE;
+  logic [1:0] VLaneSelectE;
 
   logic       RegWriteM;
   logic       VRegWriteM;
@@ -155,10 +159,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(19+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(24+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~LocalStallE & CaptureD,
-     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, ExecutionUnitOrderD},
-     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, ExecutionUnitOrderE});
+     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VLaneSelectD, ExecutionUnitOrderD},
+     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, VALUSelectE, VLaneSelectE, ExecutionUnitOrderE});
 
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, InstrD, InstrE);
@@ -167,7 +171,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   assign VSrcBE = VRD2SelectedE;
 
-  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, Funct6E, Funct3E, VALUResultE);
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, VALUSelectE, VLaneSelectE, VALUResultE);
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~LocalStallM, VALUResultE, VALUResultM); // *** may need an enable
 

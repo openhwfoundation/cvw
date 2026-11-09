@@ -9,3 +9,5 @@ vmul.vx
 vmv.v.v
 vmv.v.x
 vmv.x.s
+vor.vv
+vor.vx
