@@ -499,9 +499,6 @@ coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
 set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "FinalBeatReg\\("]
 coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
 
-set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicElse"]
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line  -item bc 1
-
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicWait"]
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line -item bc 1
 
@@ -584,7 +581,6 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # CacheBusAck HREADY_0 (row 5): at the final beat of a burst, see the HREADY note above.
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign CacheBusAck"] 5
 
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicElse"] -item s 1
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicWait"] -item s 1
 
 # these transitions will not happen
