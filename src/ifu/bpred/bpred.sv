@@ -36,6 +36,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
   // Branch and jump outcome
   input  logic              InstrValidD, InstrValidE,
+  input  logic              VectorD, IllegalVPUInstrD, // Decode instruction is vector/illegal vector
   input  logic              BranchD, BranchE,
   input  logic              JumpD, JumpE,
   input  logic              PCSrcE,                    // Execution stage branch is taken
@@ -84,6 +85,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     logic [P.XLEN-1:0]       BPPCF;
     logic [P.XLEN-1:0]       PC0NextF;
     logic [P.XLEN-1:0]       PCCorrectE;
+    logic [P.XLEN-1:0]       PCPlus4D;                 // address after a vector instr in Decode
 
     logic                    BPBTAWrongM;
     logic                    PCSrcM;
@@ -163,8 +165,8 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     mux2 #(P.XLEN) pcmuxbp(BPBTAF, RASPCF, BPReturnF, BPPCF);
     // Selects the BP or PC+2/4.
     mux2 #(P.XLEN) pcmux0(PCPlus2or4F, BPPCF, BPPCSrcF, PC0NextF);
-    // If the prediction is wrong select the correct address.
-    mux2 #(P.XLEN) pcmux1(PC0NextF, PCCorrectE, BPWrongE, PC1NextF);
+    // If the prediction is wrong select the correct address. Execute correction has priority over Decode redirect.
+    mux3 #(P.XLEN) pcmux1(PC0NextF, PCPlus4D, PCCorrectE, {BPWrongE, BPRedirectD}, PC1NextF);
     // Correct branch/jump target.
     mux2 #(P.XLEN) pccorrectemux(PCLinkE, IEUAdrE, PCSrcE, PCCorrectE);
 
@@ -200,7 +202,10 @@ module bpred import cvw::*; #(parameter cvw_t P) (
       assign {BTAWrongM, RASPredPCWrongM, BPDirWrongM} = 0;
     end
 
-    assign BPRedirectD = 1'b0;
+    // Vector instr leaves scalar pipeline in Decode, so BPWrongE never checks the PC after.
+    // Vector instr is never a branch or compressed, redirect fetch to PCD + 4 if next PC is wrong.
+    assign PCPlus4D = PCD + 4;
+    assign BPRedirectD = VectorD & ~IllegalVPUInstrD & (PCF != PCPlus4D) & ~StallD;
   end
 
   // Instruction class prediction (with a BTB) or decode (without one)

@@ -65,6 +65,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // Faults
   input  logic                     IllegalBaseInstrD,                        // Illegal non-compressed instruction
   input  logic                     IllegalFPUInstrD,                         // Illegal FP instruction
+  input  logic                     VectorD,                                  // Decode instruction is vector
   input  logic                     IllegalVPUInstrD,                         // Illegal vector instruction
   output logic                     InstrPageFaultF,                          // Instruction page fault
   output logic                     IllegalIEUFPUVPUInstrD,                   // Illegal instruction including compressed & FP
@@ -380,7 +381,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   if (P.BPRED_SUPPORTED) begin : bpred
     bpred #(P) bpred(.clk, .reset,
                 .StallF, .StallD, .StallE, .StallM, .StallW,
-                .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE,
+                .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE, .VectorD, .IllegalVPUInstrD,
                 .BranchD, .BranchE, .JumpD, .JumpE,
                 .InstrD, .PCNextF, .PCPlus2or4F, .PC1NextF, .PCE, .PCM, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCF, .NextValidPCE,
                 .PCD, .PCLinkE, .IClassM, .BPWrongE, .BPRedirectD, .PostSpillInstrRawF, .BPWrongM,

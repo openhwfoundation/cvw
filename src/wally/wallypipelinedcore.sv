@@ -202,7 +202,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCD, .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
-    .IllegalBaseInstrD, .IllegalFPUInstrD, .IllegalVPUInstrD, .InstrPageFaultF, .IllegalIEUFPUVPUInstrD, .InstrMisalignedFaultM,
+    .IllegalBaseInstrD, .IllegalFPUInstrD, .VectorD, .IllegalVPUInstrD, .InstrPageFaultF, .IllegalIEUFPUVPUInstrD, .InstrMisalignedFaultM,
     // mmu management
     .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
     .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .sfencevmaAllM, .ITLBMissOrUpdateAF,
