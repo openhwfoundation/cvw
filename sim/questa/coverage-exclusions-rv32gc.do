@@ -108,6 +108,8 @@ foreach gm {gm0 gm1} {
 # StallFCause is tied to 0, so StallF = StallD and LatestUnstalledD = ~StallD & StallF is always 0.
 ExcludeRows /core/hzu e {StallD_0 StallF_1}
 ExcludeRows /core/hzu e {LatestUnstalledD_1}
+# BPRedirectD comes only from the static predictor (BP_STATIC); rv32gc uses gshare, so bpred ties it to 0.
+ExcludeRows /core/hzu e {BPRedirectD_1}
 
 ######################################################################################################
 # Privileged unit

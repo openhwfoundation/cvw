@@ -608,6 +608,8 @@ coverage exclude -scope /core/lsu/dmmu/dmmu/pmp/pmpchecker/pmp/pmpadrdecs[0] -fe
 # StallD always equals StallF so LatestUnstalledD is always 0
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "StallD always equals StallF"] 1 4
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 2
+# BPRedirectD comes only from the static predictor (BP_STATIC); rv64gc uses gshare, so bpred ties it to 0.
+coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 6
 
 ####################
 # Privileged
