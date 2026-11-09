@@ -1,72 +1,168 @@
-# sha512.do
+# Copyright 1991-2016 Mentor Graphics Corporation
 #
-# Written: James E. Stine james.stine@okstate.edu
+# Modification by Oklahoma State University
+# Use with Testbench
+# James Stine, 2008
+# Go Cowboys!!!!!!
 #
-# Purpose: Compile and simulate the SHA-512 example with Questa and show its signals.
+# All Rights Reserved.
 #
-# Documentation: RISC-V System on Chip Design
-#
-# A component of the CORE-V-WALLY configurable RISC-V project.
-# https://github.com/openhwfoundation/cvw
-#
-# Copyright (C) 2025-26 Harvey Mudd College & Oklahoma State University
-#
-# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-#
-# Run from this directory with
-#     vsim -do sha512.do        (GUI)
-#     vsim -c -do sha512.do     (batch)
-
+# THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY INFORMATION
+# WHICH IS THE PROPERTY OF MENTOR GRAPHICS CORPORATION
+# OR ITS LICENSORS AND IS SUBJECT TO LICENSE TERMS.
+# Use this run.do file to run this example.
+# Either bring up ModelSim and type the following at the "ModelSim>" prompt:
+#     do run.do
+# or, to run from a shell, type the following at the shell prompt:
+#     vsim -do run.do -c
+# (omit the "-c" to see the GUI while running from the shell)
 onbreak {resume}
-
-# Start from an empty work library
-if {[file exists work]} {
-  vdel -all
+# create library
+if [file exists work] {
+    vdel -all
 }
 vlib work
-
+# compile source files
 vlog sha512.sv tb_sha512.sv
-vsim -voptargs=+acc work.stimulus
 
+# start and run simulation
+vsim -voptargs=+acc work.stimulus
 view wave
 
-# Testbench
-add wave -noupdate -divider -height 64 "Testbench"
-foreach sig {hashed message result errors} {
-  add wave -noupdate -expand -group tb /stimulus/$sig
-}
+#am going to change height values from 32 to 64, and sha256 to sha512 idk what this will do ???
 
-# Message padding
-add wave -noupdate -divider -height 64 "Padder"
-add wave -noupdate -expand -group padder /stimulus/dut/padder/*
-
-# Working variables of the main loop
-add wave -noupdate -divider -height 64 "Main loop"
-foreach v {a b c d e f g} {
-  add wave -noupdate -expand -group main /stimulus/dut/main/$v
-}
-
-# Message schedule
-add wave -noupdate -divider -height 64 "Message schedule"
+-- display input and output signals as hexidecimal values
+# Diplays All Signals recursively
+#add wave -hex -r /stimulus/*
+add wave -noupdate -divider -height 64 "Main tb"
+add wave -noupdate -expand -group tb /stimulus/hashed
+add wave -noupdate -expand -group tb /stimulus/message
+add wave -noupdate -expand -group tb /stimulus/result
+add wave -noupdate -expand -group tb /stimulus/errors
+add wave -noupdate -divider -height 64 "padded"
+add wave -noupdate -expand -group padded /stimulus/dut/padder/*
+add wave -noupdate -divider -height 64 "sha512 main module"
+add wave -noupdate -expand -group main /stimulus/dut/main/a
+add wave -noupdate -expand -group main /stimulus/dut/main/b
+add wave -noupdate -expand -group main /stimulus/dut/main/c
+add wave -noupdate -expand -group main /stimulus/dut/main/d
+add wave -noupdate -expand -group main /stimulus/dut/main/e
+add wave -noupdate -expand -group main /stimulus/dut/main/f
+add wave -noupdate -expand -group main /stimulus/dut/main/g
+add wave -noupdate -divider -height 64 "sha512 prepare"
 add wave -noupdate -expand -group prepare /stimulus/dut/main/p1/*
+add wave -noupdate -divider -height 64 "sha512 mc01"
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/a_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/b_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/c_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/d_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/e_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/f_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/g_out
+add wave -noupdate -expand -group mc01 /stimulus/dut/main/mc01/h_out
 
-# Outputs of selected rounds of the compression function
-foreach round {mc01 mc02 mc03 mc04 mc15 mc61 mc62 mc63 mc64} {
-  add wave -noupdate -divider -height 64 "Round $round"
-  foreach v {a b c d e f g h} {
-    add wave -noupdate -expand -group $round /stimulus/dut/main/$round/${v}_out
-  }
-}
+add wave -noupdate -divider -height 64 "sha512 mc02"
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/a_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/b_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/c_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/d_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/e_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/f_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/g_out
+add wave -noupdate -expand -group mc02 /stimulus/dut/main/mc02/h_out
 
-# Intermediate hash
-add wave -noupdate -divider -height 64 "Intermediate hash"
+add wave -noupdate -divider -height 64 "sha512 mc03"
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/a_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/b_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/c_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/d_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/e_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/f_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/g_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc03/h_out
+
+
+add wave -noupdate -divider -height 64 "sha512 mc04"
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/a_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/b_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/c_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/d_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/e_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/f_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/g_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc04/h_out
+
+add wave -noupdate -divider -height 64 "sha512 mc15"
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/a_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/b_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/c_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/d_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/e_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/f_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/g_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc15/h_out
+
+add wave -noupdate -divider -height 64 "sha512 mc61"
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/a_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/b_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/c_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/d_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/e_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/f_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/g_out
+add wave -noupdate -expand -group mc03 /stimulus/dut/main/mc61/h_out
+
+
+add wave -noupdate -divider -height 64 "sha512 mc62"
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/a_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/b_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/c_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/d_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/e_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/f_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/g_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc62/h_out
+
+add wave -noupdate -divider -height 64 "sha512 mc63"
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/a_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/b_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/c_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/d_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/e_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/f_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/g_out
+add wave -noupdate -expand -group mc63 /stimulus/dut/main/mc63/h_out
+
+
+add wave -noupdate -divider -height 64 "sha512 mc64"
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/a_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/b_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/c_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/d_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/e_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/f_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/g_out
+add wave -noupdate -expand -group mc64 /stimulus/dut/main/mc64/h_out
+
+add wave -noupdate -divider -height 64 "sha512 intermediate hash"
 add wave -noupdate -expand -group ih1 /stimulus/dut/main/ih1/*
 
+
+
+
+
+-- Set Wave Output Items
+TreeUpdate [SetDefaultTree]
+WaveRestoreZoom {0 ps} {75 ns}
 configure wave -namecolwidth 350
 configure wave -valuecolwidth 200
 configure wave -justifyvalue left
 configure wave -signalnamewidth 1
-WaveRestoreZoom {0 ps} {75 ns}
+configure wave -snapdistance 10
+configure wave -datasetprefix 0
+configure wave -rowmargin 4
+configure wave -childrowmargin 2
 
+-- Run the Simulation
 run 25 ns
 quit
