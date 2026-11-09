@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmaalign import cvw::*; #(parameter cvw_t P) (
+module fmaalign import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.NE-1:0]      Xe, Ye, Ze,          // biased exponents in B(NE.0) format
   input  logic [P.NF:0]        Zm,                  // significand in U(1.NF) format
   input  logic                 XZero, YZero, ZZero, // is the input zero

@@ -56,6 +56,7 @@ def lint_config(WALLY: Path, config: str) -> bool:
         f"-I{WALLY}/config/{config}",
         f"-I{WALLY}/config/deriv/{config}",
         f"{WALLY}/src/cvw.sv",
+        f"{WALLY}/src/fpu_pkg.sv",
         f"{WALLY}/testbench/wallywrapper.sv",
     ]
 

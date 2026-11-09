@@ -167,7 +167,7 @@ def compileDesign(wkdir, args):
                    f"+incdir+{WALLY}/tests", f"+incdir+{tbdir}", f"+incdir+{srcdir}"]
     vcsStandardFlags = ["+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF",
                         "-suppress", "+warn", "-sverilog", "+vc", "-Mupdate", "-line", "-full64", "-lca", "-ntb_opts", "sensitive_dyn"]
-    vcsCMD = ["vcs", *vcsStandardFlags, "-top", args.tb, *compileOptions, f"-Mdir={wkdir}", *includePath, f"{srcdir}/cvw.sv",
+    vcsCMD = ["vcs", *vcsStandardFlags, "-top", args.tb, *compileOptions, f"-Mdir={wkdir}", *includePath, f"{srcdir}/cvw.sv", f"{srcdir}/fpu_pkg.sv",
               *rtlFiles, "-o", f"{wkdir}/sim_out", "-work", wkdir, f"-Mlib={wkdir}", "-l", f"{logdir}/{os.path.basename(wkdir)}_compile.log"]
     print(f"Compiling VCS: {shlex.join(vcsCMD)}")
     subprocess.run(vcsCMD, check=True)
