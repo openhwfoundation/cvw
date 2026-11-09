@@ -35,7 +35,7 @@ set VECROOT $WALLY/tests/fp/vectors
 puts "Using WALLY=$WALLY"
 
 # compile source files
-vlog $WALLY/src/cvw.sv $WALLY/src/fpu/fma/*.sv tb_fma_wally.sv +incdir+$WALLY/config/rv32gc +incdir+$WALLY/config/shared
+vlog $WALLY/src/cvw.sv $WALLY/src/fpu_pkg.sv $WALLY/src/fpu/fma/*.sv tb_fma_wally.sv +incdir+$WALLY/config/rv32gc +incdir+$WALLY/config/shared
 vlog $WALLY/src/generic/lzc.sv $WALLY/src/generic/mux.sv
 vlog $WALLY/src/fpu/postproc/*.sv
 vlog $WALLY/src/fpu/unpack.sv $WALLY/src/fpu/unpackinput.sv $WALLY/src/fpu/fmtparams.sv
