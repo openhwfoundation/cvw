@@ -54,7 +54,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
-  output logic [1:0]  VALUCntrlD,
+  output logic [2:0]  VALUSelectD,
   output logic [1:0]  VLaneSelectD,
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
@@ -64,7 +64,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 );
 
 
-`define VCTRLW 8
+`define VCTRLW 7
 
   logic [6:0] OpD;                             // Opcode in Decode stage
   logic       OPIVVD, OPFVVD, OPMVVD, OPIVID;
@@ -509,26 +509,26 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // Main vector instruction decoder
   always_comb
     if (STATUS_VS == 2'b00)                    // vector instr are illegal when VS is off
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
     else if (VTYPED[P.XLEN-1] & ~VSETD)        // vtype.vill, only vset may execute
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
     else begin
-      VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;     // default illegal instr
+      VControlsD = `VCTRLW'b0_0_0_0_0_0_1;     // default illegal instr
       case(OpD)
-      // VRegWrite_VWriteInt_VWriteFP_Vset_VALUResult_VALUSrcB_VALUOp_Illegal
+      // VRegWrite_VWriteInt_VWriteFP_Vset_VALUResult_VALUSrcB_Illegal
         7'b0000111: if (VLSFunctD)                               // vector loads, address from x[rs1]
-                        VControlsD = `VCTRLW'b1_0_0_0_1_0_0_0;
+                        VControlsD = `VCTRLW'b1_0_0_0_1_0_0;
         7'b0100111: if (VLSFunctD)                               // vector stores, data is Vs3 in the Vd field
-                        VControlsD = `VCTRLW'b0_0_0_0_0_1_0_0;
+                        VControlsD = `VCTRLW'b0_0_0_0_0_1_0;
         7'b1010111: if      (VsetvliD | VsetivliD | VsetvlD)     // vsetvli, vsetivli, vsetvl
-                        VControlsD = `VCTRLW'b0_1_0_1_0_0_0_0;
+                        VControlsD = `VCTRLW'b0_1_0_1_0_0_0;
                     else if (VFunctD & VUnaryWriteIntD)          // vmv.x.s, vcpop.m, vfirst.m write rd
-                        VControlsD = `VCTRLW'b0_1_0_0_0_0_0_0;
+                        VControlsD = `VCTRLW'b0_1_0_0_0_0_0;
                     else if (VFunctD & VUnaryWriteFPD)           // vfmv.f.s writes fd
-                        VControlsD = `VCTRLW'b0_0_1_0_0_0_0_0;
+                        VControlsD = `VCTRLW'b0_0_1_0_0_0_0;
                     else if (VFunctD)                            // vector arithmetic writes vd
-                        VControlsD = `VCTRLW'b1_0_0_0_0_0_1_0;
-        default:        VControlsD = `VCTRLW'b0_0_0_0_0_0_0_1;
+                        VControlsD = `VCTRLW'b1_0_0_0_0_0_0;
+        default:        VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
       endcase
     end
 
@@ -537,17 +537,17 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   logic IllegalVEncodingD;                         // not a supported vector encoding
   logic IllegalVOperandD;                          // an operand is reserved under the current vtype
 
-  assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, VALUOpD, IllegalVEncodingD} = VControlsD;
+  assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
-
+  assign VALUOpD = (OPIVVD | OPIVXD | OPIVID);
   // VALU decoder
   always_comb begin
-    VALUCntrlD = 2'b00;
-    if (VALUOpD & (OPIVVD | OPIVXD | OPIVID))
+    VALUSelectD = 3'b000;
+    if (VALUOpD)
       case (Funct6D)
-        6'b001001: VALUCntrlD = 2'b01; // vand
-        6'b001010: VALUCntrlD = 2'b10; // vor
-        default:   VALUCntrlD = 2'b00;
+        6'b001001: VALUSelectD = 3'b101; // vand
+        6'b001010: VALUSelectD = 3'b011; // vor
+        default:   VALUSelectD = 3'b000;
       endcase
   end
 
@@ -555,7 +555,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   always_comb begin
     case (VOpClassD)
       VOPCLASS_MUL: VLaneSelectD = 2'b01;
-      VOPCLASS_MOVE: VLaneSelectD = 2'b10;
+      VOPCLASS_MOVE: VLaneSelectD = 2'b10; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
       default:      VLaneSelectD = 2'b00;
     endcase
   end

@@ -30,14 +30,14 @@
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.ELEN-1:0] SrcA, SrcB,    // lane operands
-  input  logic [1:0] VALUCntrlE,
+  input  logic [2:0] VALUSelectE,
   input  logic [1:0] VLaneSelectE,          // 00 = valu, 01 = vmul, 10 = move
   output logic [P.ELEN-1:0] LaneResult     // lane result
 );
 
   logic [P.ELEN-1:0] SumE, ProductE;
 
-  valu #(P) valu(.A(SrcA), .B(SrcB), .VALUCntrl(VALUCntrlE), .VALUResult(SumE));
+  valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VALUResult(SumE));
 
   vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
 

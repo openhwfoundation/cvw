@@ -31,7 +31,7 @@
 module valu import cvw::*; #(parameter cvw_t P)
   (
    input logic [P.ELEN-1:0] A, B,
-   input logic [1:0] VALUCntrl,
+   input logic [2:0] VALUSelect,
    output logic [P.ELEN-1:0] VALUResult
    );
 
@@ -41,7 +41,16 @@ module valu import cvw::*; #(parameter cvw_t P)
   assign AndResult = A & B;
   assign OrResult = A | B;
 
-  mux3 #(P.ELEN) resultmux(AddResult, AndResult, OrResult, VALUCntrl, VALUResult);
+ //mux3 #(P.ELEN) resultmux(AddResult, AndResult, OrResult, VALUSelect, VALUResult);
+
+  always_comb
+    case (VALUSelect)
+      3'b000: VALUResult = AddResult;
+      3'b011: VALUResult = OrResult;
+      3'b101: VALUResult = AndResult;
+      default: VALUResult = AddResult;
+    endcase
+
 
 
 endmodule

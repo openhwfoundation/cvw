@@ -51,7 +51,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]                  VALUSrcAD,
   output logic                        VALUSrcBD,
   output logic                        VALUResultSrcD,
-  output logic [1:0]                  VALUCntrlD,
+  output logic [2:0]                  VALUSelectD,
   output logic [1:0]                  VLaneSelectD,
   output logic                        IllegalVPUInstrD,
   // vset controls, sent to vconfig
@@ -90,7 +90,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
-                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUCntrlD, .VLaneSelectD, .IllegalVPUInstrD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VLaneSelectD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
