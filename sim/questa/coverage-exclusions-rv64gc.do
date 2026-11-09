@@ -323,7 +323,8 @@ coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow $line 2 4 6
 # PBMT = NC, which requires the TLB hit that this row needs to be absent.
 set line [GetLineNum ${SRC}/mmu/mmu.sv "assign MisalignedFaultAllowedM"]
 coverage exclude -scope /core/lsu/dmmu/dmmu -fecexprrow $line 4
-coverage exclude -scope /core/ifu/immu/immu -fecexprrow $line 4
+# The IMMU's TLBMiss_1 row is reported hit by tests/coverage64gc/icacheITLBUpdate for zero time while the
+# fetch's ITLB entry is replaced (a negedge probe never sees it); that glitch hit is left as reported.
 
 # The instruction side ties AtomicAccessM, ReadAccessM and WriteAccessM low, so every row that needs an
 # atomic access is unreachable in the instruction MMU: AtomicAccessM_1 (row 4), and the Cacheable (5, 6),
@@ -443,12 +444,21 @@ coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow $line
 # IMMU only makes word-sized accesses (Size = 3'b010), so the other arms of the misalignment case never
 # run (neither of the two statements on each arm line), and the fetch address bit 0 is always 0 (row 4,
 # VAdr[0]_1, of the word arm).
-foreach arm {"3'b000:  begin DataMisalignedM" "3'b001:  begin DataMisalignedM" "3'b011:  begin DataMisalignedM" "3'b100:  begin DataMisalignedM" "default: begin DataMisalignedM"} {
+# The default arm is reported hit once at time 0, before the constant Size port settles, and is left as reported.
+foreach arm {"3'b000:  begin DataMisalignedM" "3'b001:  begin DataMisalignedM" "3'b011:  begin DataMisalignedM" "3'b100:  begin DataMisalignedM"} {
   set line [GetLineNum ${SRC}/mmu/mmu.sv $arm]
   coverage exclude -scope /core/ifu/immu/immu -linerange $line -item b 1
   coverage exclude -scope /core/ifu/immu/immu -linerange $line -item s 1-2
 }
 coverage exclude -scope /core/ifu/immu/immu -fecexprrow [GetLineNum ${SRC}/mmu/mmu.sv "3'b010:  begin DataMisalignedM"] 4
+# The IMMU's accesses are words (Size = 3'b010), so (Size > 3) is always 0: rows 4-6 of the wide uncached access
+# check are unreachable.
+coverage exclude -scope /core/ifu/immu/immu/pmachecker -fecexprrow [GetLineNum ${SRC}/mmu/pmachecker.sv "Size > AHBWSIZE"] 4-6
+# The ITLB ties TLBFlushVA to 0 (it looks up PCF, not the sfence.vma address), so in every ITLB CAM line the
+# TLBFlushVA_1 and MatchVPN rows (4-6) of the flush condition are unreachable.  -scope does not accept wildcards.
+for {set i 0} {$i < 32} {incr i} {
+  coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcam/camlines[$i] -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcamline.sv "TLB_EXACT_FENCE_INVAL. assign ShouldFlush"] 4-6
+}
 
 # IMMU never disables translations (DisableTranslation_1).
 coverage exclude -scope /core/ifu/immu/immu/tlb/tlb/tlbcontrol -fecexprrow [GetLineNum ${SRC}/mmu/tlb/tlbcontrol.sv "assign Translate"] 2
@@ -613,16 +623,19 @@ coverage exclude -scope /core/lsu/dmmu/dmmu/pmp/pmpchecker/pmp/pmpadrdecs[0] -fe
 # StallD always equals StallF so LatestUnstalledD is always 0
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "StallD always equals StallF"] 1 4
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 2
+# BPRedirectD comes only from the static predictor (BP_STATIC); rv64gc uses gshare, so bpred ties it to 0.
+coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 6
 
 ####################
 # Privileged
 ####################
 
+# A write that mstateen0 denies to S mode (ENVCFGAccessM or SE0AccessM = 0) is an illegal instruction, which traps
+# and flushes Writeback, so CSRSWriteM is 0 whenever either is 0 (M mode is never denied): row 5 is unreachable.
+coverage exclude -scope /core/priv/priv/csr/csrs/csrs -fecexprrow [GetLineNum ${SRC}/privileged/csrs.sv "assign WriteSENVCFGM"] 5
+coverage exclude -scope /core/priv/priv/csr/csrs/csrs -fecexprrow [GetLineNum ${SRC}/privileged/csrs.sv "assign WriteSSTATEEN0M"] 5
 # Instruction Misaligned never asserted because compressed instructions are accepted
 coverage exclude -scope /core/priv/priv/trap -fecexprrow [GetLineNum ${SRC}/privileged/trap.sv "assign ExceptionM"] 2
-# The wait counter clears whenever M advances and M holds the same instruction while it is stalled, so the counter
-# can only reach its limit with the wfi still in M: wfiM_0 (row 1) never sees the counter's top bit set.
-coverage exclude -scope /core/priv/priv/pmd -fecexprrow [GetLineNum ${SRC}/privileged/privdec.sv "assign TWTimeoutM"] 1
 
 # Attempting to access fflags, frm, fcsr with mstatus.FS = 0 traps, so checking for (STATUS_FS != 2'b00)
 # before enabling writes to these CSRs is redundant and uncoverable

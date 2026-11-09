@@ -108,6 +108,8 @@ foreach gm {gm0 gm1} {
 # StallFCause is tied to 0, so StallF = StallD and LatestUnstalledD = ~StallD & StallF is always 0.
 ExcludeRows /core/hzu e {StallD_0 StallF_1}
 ExcludeRows /core/hzu e {LatestUnstalledD_1}
+# BPRedirectD comes only from the static predictor (BP_STATIC); rv32gc uses gshare, so bpred ties it to 0.
+ExcludeRows /core/hzu e {BPRedirectD_1}
 
 ######################################################################################################
 # Privileged unit
@@ -121,9 +123,11 @@ ExcludeRows /core/priv/priv/trap e {InstrMisalignedFaultM_1}
 # counter reaches its limit (q[16]) only with the wfi still in M: wfiM_0 is never seen with q[16] = 1.
 ExcludeRows /core/priv/priv/pmd e {wfiM_0} [TagLine ${SRC}/privileged/privdec.sv pmd-tw-timeout]
 
-# A write to satp from S mode with mstatus.TVM = 1, or to stimecmp/stimecmph from S mode with STCE = 0 (STCE reads 1
-# in M mode), is an illegal CSR access.  It traps, so CSRSWriteM is 0 and these write enables never see the other
-# term false.
+# A write to satp from S mode with mstatus.TVM = 1, to stimecmp/stimecmph from S mode with STCE = 0 (STCE reads 1
+# in M mode), or to senvcfg or sstateen0 from S mode while mstateen0 denies it (ENVCFGAccessM or SE0AccessM = 0), is
+# an illegal CSR access.  It traps, so CSRSWriteM is 0 and these write enables never see the other term false.
+ExcludeRows /core/priv/priv/csr/csrs/csrs e {ENVCFGAccessM_0}
+ExcludeRows /core/priv/priv/csr/csrs/csrs e {SE0AccessM_0}
 ExcludeRows /core/priv/priv/csr/csrs/csrs e {{(PrivilegeModeW == 3)_0} STATUS_TVM_1}
 ExcludeRows /core/priv/priv/csr/csrs/csrs e {STCE_0 {+(CSRAdrM == 333)*}}
 ExcludeRows /core/priv/priv/csr/csrs/csrs e {STCE_0 {+(CSRAdrM == 349)*}}
@@ -390,6 +394,9 @@ ExcludeRows $IMMU/pmachecker e {ReadAccessM_0} [TagLine ${SRC}/mmu/pmachecker.sv
 ExcludeRows $IMMU/pmachecker e {AtomicAllowed_* +AtomicAccessM_*}
 ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 PMADataAccessFault_* +ReadAccessM_*}
 ExcludeRows $IMMU/pmachecker e {PMADataAccessFault_* +|CMOpM_*}
+# A fetch without a PMA fault is from the boot ROM or RAM, both cacheable, and RV32 has no Svpbmt to make a page
+# uncached, so the IMMU never sees ~PMAAccessFault & ~Cacheable: the (Size > 2)_0 row is unreachable.
+ExcludeRows $IMMU/pmachecker e {{(Size > 2)_0}}
 # Every fetch is a word (Size = 2), no wider than the bus, so the IMMU never checks an access wider than the bus
 # against Cacheable: (Size > 2)_1 and the Cacheable rows, whose non-masking condition needs it, cannot be reached.
 ExcludeRows $IMMU/pmachecker e {{(Size > 2)_1} Cacheable_*}
@@ -404,8 +411,17 @@ ExcludeRows $IMMU/tlb/tlb/tlbcontrol e {WriteAccess_0 |CMOpM_0}
 
 # The IMMU fetches words (Size = 2'b10), so the byte, halfword and doubleword arms of the misalignment case never
 # run, and fetch addresses are 2-byte aligned (VAdr[0] = 0).  The IFU also ties the IMMU's DisableTranslation to 0.
-foreach size {byte half double} {
-  coverage exclude -scope $IMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-$size] -item bs 1
+foreach size {byte half double quad} {
+  coverage exclude -scope $IMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-$size] -item b 1
+  coverage exclude -scope $IMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-$size] -item s 1-2
+}
+# RV32 makes no 16-byte accesses, so the DMMU's quad arm never runs either.
+coverage exclude -scope $DMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-quad] -item b 1
+coverage exclude -scope $DMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-quad] -item s 1-2
+# The ITLB ties TLBFlushVA to 0 (it looks up PCF, not the sfence.vma address), so in every ITLB CAM line the
+# TLBFlushVA_1 and MatchVPN rows of the flush condition are unreachable.  -scope does not accept wildcards.
+for {set i 0} {$i < 32} {incr i} {
+  ExcludeRows $IMMU/tlb/tlb/tlbcam/camlines\[$i\] e {TLBFlushVA_1 MatchVPN_0 MatchVPN_1}
 }
 ExcludeRows $IMMU e {{VAdr\[0\]_1}}
 ExcludeRows $IMMU/tlb/tlb/tlbcontrol e {DisableTranslation_1}

@@ -168,7 +168,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
       3'b001:  begin DataMisalignedM = VAdr[0];           CrossesGranuleM = &VAdr[3:1];  end // lh, sh, lhu // exclusion-tag: mmu-size-half
       3'b010:  begin DataMisalignedM = VAdr[1] | VAdr[0]; CrossesGranuleM = &VAdr[3:2];  end // lw, sw, flw, fsw, lwu
       3'b011:  begin DataMisalignedM = |VAdr[2:0];        CrossesGranuleM = VAdr[3];     end // ld, sd, fld, fsd // exclusion-tag: mmu-size-double
-      3'b100:  begin DataMisalignedM = |VAdr[3:0];        CrossesGranuleM = 1'b1;        end // flq, fsq, amocas.q: a misaligned 16-byte access always crosses
+      3'b100:  begin DataMisalignedM = |VAdr[3:0];        CrossesGranuleM = 1'b1;        end // flq, fsq, amocas.q: a misaligned 16-byte access always crosses // exclusion-tag: mmu-size-quad
       default: begin DataMisalignedM = 1'b0;              CrossesGranuleM = 1'b0;        end // no other sizes exist
     endcase
 

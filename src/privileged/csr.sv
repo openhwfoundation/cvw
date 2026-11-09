@@ -134,10 +134,17 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:xtvalpm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
     logic [1:0]        EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
-    logic [P.XLEN-1:0] PMAdrM;
+    logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
+    logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
     assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
-    if (P.PMLEN16_SUPPORTED) assign PMAdrM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? (PMLen16Sel ? {16'b0, IEUAdrxTvalM[47:0]} : {7'b0, IEUAdrxTvalM[56:0]}) : (PMLen16Sel ? {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]});
-    else                     assign PMAdrM = (~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1]) ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
+    assign PhysicalAdrM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+    assign PM7AdrM = PhysicalAdrM ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
+    if (P.PMLEN16_SUPPORTED) begin : pmlen16
+      logic [P.XLEN-1:0] PM16AdrM;
+      assign PM16AdrM = PhysicalAdrM ? {16'b0, IEUAdrxTvalM[47:0]} : {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]};
+      assign PMAdrM = PMLen16Sel ? PM16AdrM : PM7AdrM;
+    end else
+      assign PMAdrM = PM7AdrM;
     assign MaskedIEUAdrxTvalM = PointerMaskApplicable ? PMAdrM : IEUAdrxTvalM;
   end else assign MaskedIEUAdrxTvalM = IEUAdrxTvalM;
   always_comb
