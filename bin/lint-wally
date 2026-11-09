@@ -31,7 +31,7 @@ def get_configs(nightly: bool, WALLY: Path) -> list[str]:
     configs = ["rv32e", "rv64gc", "rv32gc", "rv32imc", "rv32imcb", "rv32i", "rv64i"]
 
     if not nightly:
-        return configs + ["fdqh_rv64gc"]
+        return configs + ["fdqh_rv64gc", "rv64gcv", "rv32gcv"]
 
     # Add derivative configs, excluding syn_sram* configs that contain undefined module
     deriv_dir = WALLY / "config" / "deriv"

@@ -72,13 +72,13 @@ localparam logic ZFH_SUPPORTED = 1;
 localparam logic ZFA_SUPPORTED = 1;
 
 // Vector extensions
-localparam logic ZVE32X_SUPPORTED = 1;
-localparam logic ZVE32F_SUPPORTED = 1;
-localparam logic ZVE64X_SUPPORTED = 1;
-localparam logic ZVE64F_SUPPORTED = 1;
-localparam logic ZVE64D_SUPPORTED = 1;
-localparam logic ZVFHMIN_SUPPORTED = 1;
-localparam logic ZVFH_SUPPORTED = 1;
+localparam logic ZVE32X_SUPPORTED = 0;
+localparam logic ZVE32F_SUPPORTED = 0;
+localparam logic ZVE64X_SUPPORTED = 0;
+localparam logic ZVE64F_SUPPORTED = 0;
+localparam logic ZVE64D_SUPPORTED = 0;
+localparam logic ZVFHMIN_SUPPORTED = 0;
+localparam logic ZVFH_SUPPORTED = 0;
 localparam VLEN = 32'd256;
 localparam VPU_INT_EU = 32'd2;
 localparam VPU_INT_LANES = 32'd2;
