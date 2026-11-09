@@ -299,8 +299,11 @@ module controller import cvw::*; #(parameter cvw_t P) (
   end
 
   // vset (OP-V, funct3 = 111) is executed by vconfig but keeps its scalar pipeline slot to read rs1/rs2 and write rd
+  // vmv.x.s, vcpop.m, and vfirst.m (OPMVV, funct6 = 010000) also keep their slot to write rd
   if (P.ZVE32X_SUPPORTED) begin
-    assign VectorD = ((OpD == 7'b0000111 | OpD == 7'b0100111) & VLSFunctD) | (OpD == 7'b1010111) & (Funct3D != 3'b111);
+    logic VUnaryWriteIntD;
+    assign VUnaryWriteIntD = (OpD == 7'b1010111) & (Funct3D == 3'b010) & (Funct7D[6:1] == 6'b010000);
+    assign VectorD = ((OpD == 7'b0000111 | OpD == 7'b0100111) & VLSFunctD) | (OpD == 7'b1010111) & (Funct3D != 3'b111) & ~VUnaryWriteIntD;
   end else begin
     assign VectorD = '0;
   end

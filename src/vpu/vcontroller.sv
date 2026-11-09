@@ -142,7 +142,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   assign AnyMatchW = | MatchW;
 
-  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
+  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 
 
 endmodule
