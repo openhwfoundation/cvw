@@ -1,34 +1,22 @@
-
 ///////////////////////////////////////////
 // packoutput.sv
 //
-// Written: David_Harris@hmc.edu
-// Modified: 5/11/24
+// Written:  David Harris David_Harris@hmc.edu 11 May 2024
+// Modified:
 //
-// Purpose: Pack the output of the FPU
+// Purpose: Packs a result into the selected format, NaN-boxed.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module packoutput import cvw::*;  #(parameter cvw_t P) (
+module packoutput import cvw::*; #(parameter cvw_t P) (
   input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
   input  logic [P.FMTBITS-1:0]    Fmt,       // output format
   output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
@@ -83,18 +71,18 @@ module packoutput import cvw::*;  #(parameter cvw_t P) (
     always_comb begin
       {Exp1, Fract1, Exp2, Fract2, Exp3, Fract3} = '0; // default if not used, to prevent latch
       case (Fmt)
-        2'h3: Packed = Unpacked;  // Quad
-        2'h1: begin // double
+        P.Q_FMT: Packed = Unpacked;  // Quad
+        P.D_FMT: begin // double
                 Exp1 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE1-2:P.NF]};
                 Fract1 = Unpacked[P.NF-1:P.NF-P.NF1];
                 Packed = {{(P.FLEN-P.LEN1){1'b1}}, Sign, Exp1, Fract1};
               end
-        2'h0: begin // float
+        P.S_FMT: begin // float
                 Exp2 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE2-2:P.NF]};
                 Fract2 = Unpacked[P.NF-1:P.NF-P.NF2];
                 Packed = {{(P.FLEN-P.LEN2){1'b1}}, Sign, Exp2, Fract2};
               end
-        2'h2: begin // half
+        P.H_FMT: begin // half
                 Exp3 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.H_NE-2:P.NF]};
                 Fract3 = Unpacked[P.NF-1:P.NF-P.H_NF];
                 Packed = {{(P.FLEN-P.H_LEN){1'b1}}, Sign, Exp3, Fract3};

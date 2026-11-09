@@ -1,31 +1,19 @@
 ///////////////////////////////////////////
 // ahbcacheinterface.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: August 29, 2022
-// Modified: 18 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 29 August 2022
+// Modified: David Harris
 //
-// Purpose: Translates cache bus requests and uncached ieu memory requests into AHB transactions.
+// Purpose: AHB interface for cache line fills, writebacks, and uncached accesses.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module ahbcacheinterface import cvw::*; #(
@@ -81,7 +69,7 @@ module ahbcacheinterface import cvw::*; #(
   logic [P.AHBW-1:0]      PreHWDATA;                                  // AHB Address phase write data
   logic [P.PA_BITS-1:0]   PAdrZero;
 
-  genvar                      index;
+  genvar                  index;
 
   // fetch buffer is made of BEATSPERLINE flip-flops
   for (index = 0; index < BEATSPERLINE; index++) begin : fetchbufferbeat
@@ -98,10 +86,10 @@ module ahbcacheinterface import cvw::*; #(
   mux2 #(3) sizemux(.d0(Size), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
 
   // When AHBW is less than LLEN need extra muxes to select the subword from cache's read data.
-  logic [P.AHBW-1:0]          CacheReadDataWordAHB;
+  logic [P.AHBW-1:0] CacheReadDataWordAHB;
   if (LLENPOVERAHBW > 1) begin
-    logic [P.AHBW-1:0]          AHBWordSets [(LLENPOVERAHBW)-1:0];
-    genvar                     index;
+    logic [P.AHBW-1:0] AHBWordSets [(LLENPOVERAHBW)-1:0];
+    genvar             index;
     for (index = 0; index < LLENPOVERAHBW; index++) begin : readdatalinesetsmux
       assign AHBWordSets[index] = CacheReadDataWordM[(index*P.AHBW)+P.AHBW-1: (index*P.AHBW)];
     end
@@ -115,7 +103,7 @@ module ahbcacheinterface import cvw::*; #(
   if (READ_ONLY_CACHE) begin
     assign HWSTRB = '0;
   end else begin // compute byte mask for AHB transaction based on size and address.  AHBW may be different than LLEN
-    logic [P.AHBW/8-1:0]          BusByteMaskM;                           // Byte enables within a word. For cache request all 1s
+    logic [P.AHBW/8-1:0] BusByteMaskM; // Byte enables within a word. For cache request all 1s
 
     swbytemask #(P.AHBW) busswbytemask(.Size(HSIZE), .Adr(HADDR[$clog2(P.AHBW/8)-1:0]), .ByteMask(BusByteMaskM), .ByteMaskExtended());
     flopen #(P.AHBW/8) HWSTRBReg(HCLK, HREADY, BusByteMaskM[P.AHBW/8-1:0], HWSTRB);

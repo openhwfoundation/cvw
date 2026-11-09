@@ -1,40 +1,29 @@
 ///////////////////////////////////////////
 // fregfile.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified: James Stine
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Katherine Parry, James Stine
 //
-// Purpose: 3R1W 4-port register file for FPU
+// Purpose: Floating-point register file.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fregfile #(parameter FLEN, SUPERSCALAR = 1) (
-  input logic              clk, reset,
-  input logic              we4,             // write enable
-  input logic [4:0]        a1, a2, a3, a4,  // addresses: read a1-a3, write a4
-  input logic [4:0]        a5, a6, a7,      // read addresses for the slot 1 (superscalar)
-  input logic [FLEN-1:0]   wd4,             // write data
-  output logic [FLEN-1:0]  rd1, rd2, rd3,   // read data
-  output logic [FLEN-1:0]  rd5, rd6, rd7    // read data for the slot 1
+  input  logic            clk, reset,
+  input  logic            we4,            // write enable
+  input  logic [4:0]      a1, a2, a3, a4, // addresses
+  input  logic [4:0]      a5, a6, a7,     // read addresses for slot 1 (superscalar)
+  input  logic [FLEN-1:0] wd4,            // write data
+  output logic [FLEN-1:0] rd1, rd2, rd3,  // read data
+  output logic [FLEN-1:0] rd5, rd6, rd7   // read data for slot 1
 );
 
   logic [FLEN-1:0] rf[31:0];
@@ -51,6 +40,7 @@ module fregfile #(parameter FLEN, SUPERSCALAR = 1) (
   assign rd1 = rf[a1];
   assign rd2 = rf[a2];
   assign rd3 = rf[a3];
+
   // Slot 1 read ports, built only for a superscalar core
   if (SUPERSCALAR) begin : slot1ports
     assign rd5 = rf[a5];

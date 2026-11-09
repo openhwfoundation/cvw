@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // wallypipelinedcore.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Katherine Parry, Ben Bracker, Thomas Fleming, Kip Macsai-Goren, Lucio
 //
-// Purpose: Pipelined RISC-V Processor
+// Purpose: Five-stage pipelined RISC-V core.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
@@ -170,7 +159,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          LSUHWRITE;
   logic                          LSUHREADY;
 
-  logic                          BPWrongE, BPWrongM;
+  logic                          BPWrongE, BPWrongM, BPRedirectD;
   logic                          BPDirWrongM;
   logic                          BTAWrongM;
   logic                          RASPredPCWrongM;
@@ -205,7 +194,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .IFUStallF, .IFUHBURST, .IFUHTRANS, .IFUHSIZE, .IFUHREADY, .IFUHWRITE,
     .ICacheAccess, .ICacheMiss,
     // Execute
-    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPWrongM,
+    .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE, .BPRedirectD, .BPWrongM,
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
     .InstrD, .Instr1D, .Issue1D, .Issue1E, .Issue1M, .Issue1W, .LateA1D, .LateB1D, .LateOK1D, .Fuse1D, .FuseBr1D, .FuseBrAdd1D, .Replay1M, .PredTakenE, .LateBrM, .LateBrTakenM, .LateBrWrongM, .IllegalComp1M, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
@@ -246,7 +235,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .CSRReadM, .CSRWriteM, .PrivilegedM, .CSRWriteFenceM, .InvalidateICacheM);
 
   lsu #(P) lsu(
-    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .MemFault1M,
+    .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .MemFault1M, .CommittedF,
     // CPU interface
     .MemRWE, .MemRWM, .Funct3M(MemFunct3M), .Funct7M(InstrM[31:25]), .AtomicM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
@@ -329,7 +318,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
 
   // global stall and flush control
   hazard hzu(
-    .BPWrongE, .CSRWriteFenceM, .Replay1M, .MemFault1M, .LateBrWrongM, .RetM, .TrapM,
+    .BPWrongE, .BPRedirectD, .CSRWriteFenceM, .Replay1M, .MemFault1M, .LateBrWrongM, .RetM, .TrapM,
     .StructuralStallD,
     .LSUStallM, .IFUStallF,
     .FPUStallD, .ExternalStall,
@@ -424,6 +413,11 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // Macro-op fusion pairs slot 0 with slot 1 and borrows slot 1's ALU and comparator, so it needs dual issue.
   if (P.FUSION_SUPPORTED & ~P.SUPERSCALAR_SUPPORTED) begin : fusionneedssuperscalar
     $error("FUSION_SUPPORTED = 1 requires SUPERSCALAR_SUPPORTED = 1");
+  end
+  // The static predictor redirects fetch from Decode (BPRedirectD), which would leave a slot 1 beside a
+  // predicted-taken slot 0 on the wrong path.  Dual issue is built only with the dynamic predictors.
+  if (P.SUPERSCALAR_SUPPORTED & P.BPRED_SUPPORTED & (P.BPRED_TYPE == BP_STATIC)) begin : superscalarneedsdynamicbp
+    $error("SUPERSCALAR_SUPPORTED = 1 does not support BPRED_TYPE = BP_STATIC");
   end
 
 endmodule

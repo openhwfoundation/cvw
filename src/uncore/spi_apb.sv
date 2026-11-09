@@ -1,34 +1,20 @@
 ///////////////////////////////////////////
 // spi_apb.sv
 //
-// Written: Naiche Whyte-Aguayo nwhyteaguayo@g.hmc.edu
-//          Jacob Pease jacobpease@protonmail.com (October 29th, 2024)
-// Created: November 16th, 2022
+// Written:  Naiche Whyte-Aguayo nwhyteaguayo@g.hmc.edu, Jacob Pease jacobpease@protonmail.com 16 November 2022
+// Modified: Rose Thompson
 //
-// Purpose: SPI peripheral
+// Purpose: SPI controller on APB, after the SiFive FU540-C000 SPI.
+//          Not supported: flash read sequencer mode, dual and quad modes.
+//          fmt.len = 0 (zero-bit frames) is not supported: it sends a 16-bit frame.  len 9-15 (outside the
+//          allowed 0-8) sends len bits; the received value is then not meaningful.
 //
-// SPI module is written to the specifications described in FU540-C000-v1.0. At the top level, it is consists of synchronous 8 byte transmit and receive FIFOs connected to shift registers.
-// The FIFOs are connected to WALLY by an apb control register interface, which includes various control registers for modifying the SPI transmission along with registers for writing
-// to the transmit FIFO and reading from the receive FIFO. The transmissions themselves are then controlled by a finite state machine. The SPI module uses 4 tristate pins for SPI input/output,
-// along with a 4 bit Chip Select signal, a clock signal, and an interrupt signal to WALLY.
-// Current limitations: Flash read sequencer mode not implemented, dual and quad mode not supported
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
 //
-// A component of the Wally configurable RISC-V project.
-//
-// Copyright (C) 2021-24 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module spi_apb import cvw::*; #(parameter cvw_t P) (
@@ -49,20 +35,20 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
 );
 
   // register map
-  localparam SPI_SCKDIV =  8'h00;
+  localparam SPI_SCKDIV  = 8'h00;
   localparam SPI_SCKMODE = 8'h04;
-  localparam SPI_CSID =    8'h10;
-  localparam SPI_CSDEF =   8'h14;
-  localparam SPI_CSMODE =  8'h18;
-  localparam SPI_DELAY0 =  8'h28;
-  localparam SPI_DELAY1 =  8'h2C;
-  localparam SPI_FMT =     8'h40;
-  localparam SPI_TXDATA =  8'h48;
-  localparam SPI_RXDATA =  8'h4C;
-  localparam SPI_TXMARK =  8'h50;
-  localparam SPI_RXMARK =  8'h54;
-  localparam SPI_IE =      8'h70;
-  localparam SPI_IP =      8'h74;
+  localparam SPI_CSID    = 8'h10;
+  localparam SPI_CSDEF   = 8'h14;
+  localparam SPI_CSMODE  = 8'h18;
+  localparam SPI_DELAY0  = 8'h28;
+  localparam SPI_DELAY1  = 8'h2C;
+  localparam SPI_FMT     = 8'h40;
+  localparam SPI_TXDATA  = 8'h48;
+  localparam SPI_RXDATA  = 8'h4C;
+  localparam SPI_TXMARK  = 8'h50;
+  localparam SPI_RXMARK  = 8'h54;
+  localparam SPI_IE      = 8'h70;
+  localparam SPI_IP      = 8'h74;
 
   // SPI control registers. Refer to SiFive FU540-C000 manual
   logic [11:0] SckDiv;
@@ -72,6 +58,8 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   logic [1:0]  ChipSelectMode;
   logic [15:0] Delay0, Delay1;
   logic [4:0]  Format;
+  logic        FormatDir;                          // fmt.dir: 1 = Tx, the receive FIFO is not populated
+  logic        FrameDir;                           // fmt.dir of the frame in the shift register
   logic [7:0]  ReceiveData;
   logic [8:0]  TransmitData;
   logic [2:0]  TransmitWatermark, ReceiveWatermark;
@@ -91,6 +79,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
 
   // Starting Transmission and restarting SCLKenable
   logic        ResetSCLKenable;
+  logic        CSRelease;                          // write that deasserts a held CS (FE310 19.8)
   logic        TransmitStart;
   logic        TransmitStartD;
 
@@ -160,6 +149,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
       Delay0 <= {8'b1, 8'b1};
       Delay1 <= {8'b0, 8'b1};
       Format <= {5'b10000};
+      FormatDir <= 1'b0;
       TransmitData <= 9'b0;
       TransmitWatermark <= 3'b0;
       ReceiveWatermark <= 3'b0;
@@ -176,7 +166,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
           SPI_CSMODE:  ChipSelectMode <= Din[1:0];
           SPI_DELAY0:  Delay0 <= {Din[23:16], Din[7:0]};
           SPI_DELAY1:  Delay1 <= {Din[23:16], Din[7:0]};
-          SPI_FMT:     Format <= {Din[19:16], Din[2]}; // fmt fields len[19:16], endian[2]; proto and dir are not implemented
+          SPI_FMT:     {Format, FormatDir} <= {Din[19:16], Din[2], Din[3]}; // fmt fields len[19:16], dir[3], endian[2]; proto is not implemented
           SPI_TXDATA:  if (~TransmitFIFOFull) TransmitData[7:0] <= Din[7:0];
           SPI_TXMARK:  TransmitWatermark <= Din[2:0];
           SPI_RXMARK:  ReceiveWatermark <= Din[2:0];
@@ -197,7 +187,7 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
         SPI_CSMODE:  Dout <= {30'b0, ChipSelectMode};
         SPI_DELAY0:  Dout <= {8'b0, Delay0[15:8], 8'b0, Delay0[7:0]};
         SPI_DELAY1:  Dout <= {8'b0, Delay1[15:8], 8'b0, Delay1[7:0]};
-        SPI_FMT:     Dout <= {12'b0, Format[4:1], 13'b0, Format[0], 2'b0};
+        SPI_FMT:     Dout <= {12'b0, Format[4:1], 12'b0, FormatDir, Format[0], 2'b0};
         SPI_TXDATA:  Dout <= {TransmitFIFOFull, 23'b0, 8'b0};
         SPI_RXDATA:  Dout <= {ReceiveFIFOEmpty, 23'b0, ReceiveData[7:0]};
         SPI_TXMARK:  Dout <= {29'b0, TransmitWatermark};
@@ -211,11 +201,16 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // SPI Controller module -------------------------------------------
   // This module controls state and timing signals that drive the rest of this module
   assign ResetSCLKenable = Memwrite & (Entry == SPI_SCKDIV);
+  // In HOLD, CS is deasserted when a different value is written to csmode or csid, or a csdef write
+  // changes the default of the selected pin
+  assign CSRelease = Memwrite & (((Entry == SPI_CSMODE) & (Din[1:0] != ChipSelectMode)) |
+                                 ((Entry == SPI_CSID)   & (Din[1:0] != ChipSelectID)) |
+                                 ((Entry == SPI_CSDEF)  & (Din[{3'b0, ChipSelectID}] != ChipSelectDef[ChipSelectID])));
   assign FrameLength = Format[4:1];
 
   spi_controller controller(PCLK, PRESETn,
                             // Transmit Signals
-                            TransmitStart, TransmitRegLoaded, ResetSCLKenable,
+                            TransmitStart, TransmitRegLoaded, ResetSCLKenable, CSRelease,
                             // Register Inputs
                             SckDiv, SckMode, ChipSelectMode, Delay0, Delay1, FrameLength,
                             // txFIFO stuff
@@ -288,13 +283,15 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   // Receive FIFO ----------------------------------------------------
 
   // Receive FIFO Read Increment register
+  // Dequeue only on a read of rxdata, decided in the APB setup phase from the same empty flag that the
+  // read returns (Dout is captured at the end of the setup phase)
   flopr #(1) rxfiforincreg(PCLK, ~PRESETn,
-                           ((Entry == SPI_RXDATA) & ~ReceiveFIFOEmpty & PSEL & ~ReceiveFIFOReadInc),
+                           ((Entry == SPI_RXDATA) & ~ReceiveFIFOEmpty & PSEL & ~PENABLE & ~PWRITE),
                            ReceiveFIFOReadInc);
 
   // Receive FIFO Write Increment register
   flopenr #(1) rxfifowincreg(PCLK, ~PRESETn, SCLKenable,
-                             EndOfFrame, ReceiveFIFOWriteInc);
+                             EndOfFrame & ~FrameDir, ReceiveFIFOWriteInc); // dir = Tx: no receive
 
   // Receive FIFO
   spi_fifo #(3, 8) rxFIFO(PCLK, SCLKenable, 1'b1, PRESETn,
@@ -311,6 +308,8 @@ module spi_apb import cvw::*; #(parameter cvw_t P) (
   assign TransmitLoad = TransmitStart | (EndOfFrame & ~TransmitFIFOEmpty);
   assign TransmitDataReversed = {<<{TransmitReadData[7:0]}};
   assign TransmitDataEndian = Format[0] ? TransmitDataReversed : TransmitReadData[7:0];
+  // fmt.dir is captured with each frame, so a fmt write for the next transfer does not change the frame in flight
+  flopenr #(1) framedirreg(PCLK, ~PRESETn, TransmitLoad, FormatDir, FrameDir);
   always_ff @(posedge PCLK)
     if (~PRESETn)           TransmitReg <= 8'b0;
     else if (TransmitLoad)  TransmitReg <= TransmitDataEndian;

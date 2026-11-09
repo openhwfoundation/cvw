@@ -1,36 +1,23 @@
 ///////////////////////////////////////////
 // btb.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: February 15, 2021
-// Modified: 24 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 15 February 2021
+// Modified: David Harris
 //
-// Purpose: Branch Target Buffer (BTB). The BTB predicts the target address of all control flow instructions.
-//          It also guesses the type of instruction; jalr(r), return, jump (jr), or branch.
+// Purpose: Branch target buffer.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module btb import cvw::*;  #(parameter cvw_t P,
-                             parameter Depth = 10) (
+module btb import cvw::*; #(parameter cvw_t P,
+                            parameter Depth = 10) (
   input  logic              clk,
   input  logic              reset,
   input  logic              StallF, StallD, StallE, StallM, StallW, FlushD, FlushE, FlushM, FlushW,
@@ -94,8 +81,8 @@ module btb import cvw::*;  #(parameter cvw_t P,
   // 1. It gates updates to the BTB when the prediction does not change.  This saves power.
   // 2. BPBTAWrongE is used by the performance counters to track when the BTB's BPBTA or instruction class is wrong.
   flopenrc #(P.XLEN) BTBTargetEReg(clk, reset, FlushE, ~StallE, BPBTAD, BPBTAE);
-  // IClass = {Call, Return, Jump, Branch}: target is checked for branches and non-return jumps (the RAS predicts returns)
-  assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[0] | IClassE[1] & ~IClassE[2]);
+  // Target is checked for branches and non-return jumps (the RAS predicts returns)
+  assign BPBTAWrongE = (BPBTAE != IEUAdrE) & (IClassE[ICLASS_BRANCH] | IClassE[ICLASS_JUMP] & ~IClassE[ICLASS_RETURN]);
 
   flopenrc #(1) BPBTAWrongMReg(clk, reset, FlushM, ~StallM, BPBTAWrongE, BPBTAWrongM);
   assign BTBWrongM = BPBTAWrongM | IClassWrongM;

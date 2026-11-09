@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
-// wally-pipelinedsoc.sv
+// wallypipelinedsoc.sv
 //
-// Written: David_Harris@hmc.edu 6 November 2020
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 6 November 2020
+// Modified: Rose Thompson, Jacob Pease, Ben Bracker, Naiche Whyte-Aguayo
 //
-// Purpose: System on chip including pipelined processor and uncore memories/peripherals
+// Purpose: System on chip: core and uncore.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2020-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
@@ -50,7 +39,6 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   output logic                 HMASTLOCK,
   output logic                 HREADY,
   // I/O Interface
-  input  logic                 TIMECLK,         // optional for CLINT MTIME counter
   input  logic [31:0]          GPIOIN,          // inputs from GPIO
   output logic [31:0]          GPIOOUT,         // output values for GPIO
   output logic [31:0]          GPIOEN,          // output enables for GPIO
@@ -85,8 +73,8 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   );
 
   // instantiate uncore if a bus interface exists
-  if (P.BUS_SUPPORTED) begin : uncoregen // Hack to work around Verilator bug https://github.com/verilator/verilator/issues/4769
-    uncore #(P) uncore(.HCLK, .HRESETn, .TIMECLK,
+  if (P.BUS_SUPPORTED) begin : uncoregen
+    uncore #(P) uncore(.HCLK, .HRESETn,
       .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .HRDATAEXT,
       .HREADYEXT, .HRESPEXT, .HRDATA, .HREADY, .HRESP, .HSELEXT,
       .MTimerInt, .MSwInt, .MExtInt, .SExtInt, .GPIOIN, .GPIOOUT, .GPIOEN, .UARTSin,
