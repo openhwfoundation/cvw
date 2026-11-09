@@ -31,10 +31,9 @@ module shifter import cvw::*; #(parameter cvw_t P) (
     if (P.ZBB_SUPPORTED | P.ZBKB_SUPPORTED) begin : rotfunnel32 // rv32 shifter with rotates
       always_comb  // funnel mux
         case ({Right, Rotate})
-          2'b00: Z = {A[31:0], 31'b0};
-          2'b01: Z = {A[31:0], A[31:1]};
-          2'b10: Z = {{31{Sign}}, A[31:0]};
-          2'b11: Z = {A[30:0], A[31:0]};
+          2'b00:        Z = {A[31:0], 31'b0};
+          2'b10:        Z = {{31{Sign}}, A[31:0]};
+          2'b01, 2'b11: Z = {A[30:0], A[31:0]}; // rotates (a left rotate is a right rotate by -TruncAmt)
         endcase
     end else begin : norotfunnel32 // rv32 shifter without rotates
       always_comb  // funnel mux
@@ -47,15 +46,14 @@ module shifter import cvw::*; #(parameter cvw_t P) (
     // W-type shifts use A[31:0]: zero-extended for logical (sel 00) or sign-extended for arithmetic (sel 01); others use A (sel 1x)
     mux3 #(64) extendmux({{32{1'b0}}, A[31:0]}, {{32{A[31]}}, A[31:0]}, A, {~W64, SubArith}, A64); // bottom 32 bits are always A[31:0], so effectively a 32-bit upper mux
     if (P.ZBB_SUPPORTED | P.ZBKB_SUPPORTED) begin : rotfunnel64 // rv64 shifter with rotates
-      // shifter rotate source select mux
-      logic [P.XLEN-1:0]   RotA;                          // rotate source
-      mux2 #(P.XLEN) rotmux(A, {A[31:0], A[31:0]}, W64, RotA); // W64 rotations
+      // shifter source select mux: shifts and rotates share one source so they share the funnel mux inputs
+      logic [P.XLEN-1:0]   Src;                           // shift and rotate source
+      mux2 #(P.XLEN) rotmux(A64, {A[31:0], A[31:0]}, W64 & Rotate, Src); // W64 rotations
       always_comb  // funnel mux
         case ({Right, Rotate})
-          2'b00: Z = {A64[63:0], {63'b0}};
-          2'b01: Z = {RotA[63:0], RotA[63:1]};
-          2'b10: Z = {{63{Sign}}, A64[63:0]};
-          2'b11: Z = {RotA[62:0], RotA[63:0]};
+          2'b00:        Z = {Src[63:0], {63'b0}};
+          2'b10:        Z = {{63{Sign}}, Src[63:0]};
+          2'b01, 2'b11: Z = {Src[62:0], Src[63:0]}; // rotates (a left rotate is a right rotate by -TruncAmt)
         endcase
     end else begin : norotfunnel64 // rv64 shifter without rotates
       always_comb  // funnel mux
@@ -65,10 +63,17 @@ module shifter import cvw::*; #(parameter cvw_t P) (
     assign TruncAmt = W64 ? {1'b0, Amt[4:0]} : Amt; // 32- or 64-bit shift
   end
 
-  // Funnel shifts right by TruncAmt for right shifts, or by XLEN-1-TruncAmt (~TruncAmt) for left shifts
-  assign Offset = Right ? TruncAmt : ~TruncAmt;
+  // Funnel shifts right by TruncAmt for right shifts and rotates, by XLEN-1-TruncAmt (~TruncAmt) for left shifts,
+  // or by XLEN-TruncAmt (-TruncAmt) for left rotates
+  if (P.ZBB_SUPPORTED | P.ZBKB_SUPPORTED) assign Offset = Right ? TruncAmt : Rotate ? -TruncAmt : ~TruncAmt;
+  else                                    assign Offset = Right ? TruncAmt : ~TruncAmt;
 
-  // Funnel operation
-  assign ZShift = Z >> Offset;
+  // Funnel operation: shift right by each power of 2, largest first.  Only ZShift[XLEN-1:0] is used, so synthesis
+  // drops the bits that each step moves out of reach; Z >> Offset synthesizes to a larger full-width shifter.
+  always_comb begin
+    ZShift = Z;
+    for (int i = P.LOG_XLEN-1; i >= 0; i--)
+      if (Offset[i]) ZShift = ZShift >> 2**i;
+  end
   assign Y = ZShift[P.XLEN-1:0];
 endmodule
