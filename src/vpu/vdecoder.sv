@@ -68,7 +68,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   logic [6:0] OpD;                             // Opcode in Decode stage
   logic       OPIVVD, OPFVVD, OPMVVD, OPIVID;
-  logic       OPIVXD, OPFVFD, OPMVXD, VSETD;
+  logic       OPIVXD, OPFVFD, OPMVXD, OPVSETD;
 
   logic [`VCTRLW-1:0] VControlsD;
 
@@ -87,7 +87,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign OPIVXD  = (OpD == 7'b1010111) & (Funct3D == 3'b100);
   assign OPFVFD  = (OpD == 7'b1010111) & (Funct3D == 3'b101);
   assign OPMVXD  = (OpD == 7'b1010111) & (Funct3D == 3'b110);
-  assign VSETD   = (OpD == 7'b1010111) & (Funct3D == 3'b111);
+  assign OPVSETD   = (OpD == 7'b1010111) & (Funct3D == 3'b111);
 
   // Vector load/store decode
   logic [2:0] NfD;                       // nf+1 fields per segment
@@ -168,9 +168,9 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // vset decoding
   logic VsetvliD;
 
-  assign VsetvliD  = VSETD & (InstrD[31] == 1'b0);             // vsetvli:  InstrD[31]    == 0       → vtype imm = InstrD[30:20], AVL = rs1   InstrD[19:15]
-  assign VsetivliD = VSETD & (InstrD[31:30] == 2'b11);         // vsetivli: InstrD[31:30] == 11      → vtype imm = InstrD[29:20], AVL = uimm5 InstrD[19:15]
-  assign VsetvlD   = VSETD & (InstrD[31:25] == 7'b1000000);    // vsetvl:   InstrD[31:25] == 1000000 → vtype rs2 = InstrD[24:20], AVL = rs1   InstrD[19:15]
+  assign VsetvliD  = OPVSETD & (InstrD[31] == 1'b0);             // vsetvli:  InstrD[31]    == 0       → vtype imm = InstrD[30:20], AVL = rs1   InstrD[19:15]
+  assign VsetivliD = OPVSETD & (InstrD[31:30] == 2'b11);         // vsetivli: InstrD[31:30] == 11      → vtype imm = InstrD[29:20], AVL = uimm5 InstrD[19:15]
+  assign VsetvlD   = OPVSETD & (InstrD[31:25] == 7'b1000000);    // vsetvl:   InstrD[31:25] == 1000000 → vtype rs2 = InstrD[24:20], AVL = rs1   InstrD[19:15]
   assign VTYPEImmD = VsetivliD ? {1'b0, InstrD[29:20]} : InstrD[30:20];
 
   // execution unit class
@@ -510,7 +510,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   always_comb
     if (STATUS_VS == 2'b00)                    // vector instr are illegal when VS is off
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
-    else if (VTYPED[P.XLEN-1] & ~VSETD)        // vtype.vill, only vset may execute
+    else if (VTYPED[P.XLEN-1] & ~OPVSETD)        // vtype.vill, only vset may execute
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
     else begin
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;     // default illegal instr
@@ -568,7 +568,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   assign VdEnD  = VRegWriteD | (OpD == 7'b0100111);                                 // written, or store data
   assign Vs2EnD = VLoadStoreD ? MopD[0] :                                           // load/store: only the index
-                  (OpD == 7'b1010111) & ~VSETD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
+                  (OpD == 7'b1010111) & ~OPVSETD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
   assign Vs1EnD = (OPIVVD | OPMVVD | OPFVVD) & ~VUnaryD;
   assign VScalarMoveD = (OPMVXD | OPFVFD) & (Funct6D == 6'b010000) | VUnaryWriteIntD | VUnaryWriteFPD;
   assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[5];
@@ -586,7 +586,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // second operand: 00 = vs1, 01 = imm, 10 = rs1 or fs1
   always_comb
     if      (OPIVID)                           VALUSrcAD = 2'b01;
-    else if (OPIVXD | OPFVFD | OPMVXD | VSETD) VALUSrcAD = 2'b10;
+    else if (OPIVXD | OPFVFD | OPMVXD | OPVSETD) VALUSrcAD = 2'b10;
     else                                       VALUSrcAD = 2'b00;
 
 endmodule
