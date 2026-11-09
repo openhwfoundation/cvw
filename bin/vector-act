@@ -1,0 +1,157 @@
+#!/usr/bin/env -S uv run --script
+#
+# vector-act
+# Build and run the riscv-arch-test (ACT4) vector tests on a vector configuration of Wally.
+# usage: vector-act [INSTRUCTION... | --all [--update]] [--config CONFIG] [--suite SUITE]
+#                   [--loadstore {move,vector}] [--all-cases] [--sim SIMULATOR] [--build-only | --run-only]
+# The tests are the scalar self-checking base suite: every testcase runs at vl=1, LMUL=1, unmasked, and a scalar
+# routine checks the result.  With --loadstore move (the default until the vector load/store path works) the only
+# vector instructions besides the one under test are vset{i}vl{i}, vmv.v.x and vmv.x.s.
+# With no instructions, vector-act runs the passing list tests/vector/act/<config>/passing-<suite>.txt and fails if
+# any of them fails.  After implementing an instruction, run vector-act --all --update to add it to the list.
+# example: vector-act                          # the passing list: everything that must keep passing
+# example: vector-act vsub.vv vsub.vx          # only these instructions
+# example: vector-act --all --update           # every test; add the newly passing ones to the list
+# example: vector-act vadd.vv --loadstore vector   # use vle64.v/vse64.v instead of vmv.v.x/vmv.x.s
+#
+# The ACT checkout (addins/riscv-arch-test, or $ACTDIR) must have the VECTOR_SUITE and VECTOR_LOADSTORE options
+# (fork georgiatai/riscv-arch-test, branch vector-base).  The ACT test-generation configuration for each vector
+# configuration lives in tests/vector/act/<config>/, outside config/<config>/act so that make act and
+# regression-wally do not build vector tests.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+WALLY = Path(os.environ.get("WALLY", Path(__file__).resolve().parent.parent))
+ACTDIR = Path(os.environ.get("ACTDIR", WALLY / "addins" / "riscv-arch-test"))
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build and run the ACT4 vector base tests on Wally.")
+    parser.add_argument("instructions", nargs="*",
+                        help="Instructions to run, e.g. vadd.vv (default: the passing list)")
+    parser.add_argument("--all", action="store_true",
+                        help="Run every test and report the passing instructions missing from the passing list")
+    parser.add_argument("--update", action="store_true",
+                        help="Add the newly passing instructions to the passing list (never removes entries)")
+    parser.add_argument("--config", "-c", default="rv64gcv", help="Wally configuration (default: rv64gcv)")
+    parser.add_argument("--suite", default="Vx64", help="ACT vector suite (default: Vx64)")
+    parser.add_argument("--loadstore", choices=["move", "vector"], default="move",
+                        help="move: operands by vmv.v.x and results by vmv.x.s (default); vector: vle/vse")
+    parser.add_argument("--all-cases", action="store_true",
+                        help="Keep the length suite testcases (masking, vl, LMUL); needs --loadstore vector")
+    parser.add_argument("--sim", "-s", default="verilator", help="Simulator (default: verilator)")
+    stage = parser.add_mutually_exclusive_group()
+    stage.add_argument("--build-only", action="store_true", help="Build the tests but do not run them")
+    stage.add_argument("--run-only", action="store_true", help="Run the tests already built")
+    args = parser.parse_args()
+    if args.all and args.instructions:
+        parser.error("give instructions or --all, not both")
+    if args.all_cases and args.loadstore == "move":
+        parser.error("--all-cases needs --loadstore vector: the length suite checks store results with vse")
+    return args
+
+
+def build(args: argparse.Namespace, act_config: Path) -> None:
+    makefile = (ACTDIR / "Makefile").read_text()
+    if "VECTOR_SUITE" not in makefile or "VECTOR_LOADSTORE" not in makefile:
+        sys.exit(f"Error: {ACTDIR} has no VECTOR_SUITE/VECTOR_LOADSTORE options.  Check out the fork branch:\n"
+                 f"  cd {ACTDIR} && git remote rename origin upstream\n"
+                 f"  git remote add origin https://github.com/georgiatai/riscv-arch-test.git\n"
+                 f"  git fetch origin && git switch vector-base")
+    command = ["make", "-C", str(ACTDIR), "VECTOR_CHECK=scalar",
+               f"VECTOR_SUITE={'all' if args.all_cases else 'base'}", f"VECTOR_LOADSTORE={args.loadstore}",
+               f"EXTENSIONS={args.suite}", f"CONFIG_FILES={act_config}"]
+    print(" ".join(command), flush=True)
+    subprocess.run(command, check=True)
+
+
+def instruction_of(elf: Path, suite: str) -> str:
+    """Vx64-scalarcheck-vadd.vv-00.elf -> vadd.vv"""
+    return elf.stem.removeprefix(f"{suite}-scalarcheck-").rsplit("-", 1)[0]
+
+
+def read_passing(passing_file: Path) -> list[str]:
+    if not passing_file.is_file():
+        return []
+    lines = (line.split("#", 1)[0].strip() for line in passing_file.read_text().splitlines())
+    return [line for line in lines if line]
+
+
+def run(args: argparse.Namespace, elfs: list[Path]) -> dict[str, bool]:
+    """Run the ELFs in one wsim session and return whether each instruction passed (all of its files)."""
+    command = ["wsim", args.config, *map(str, elfs), "--sim", args.sim]
+    print(f"wsim {args.config} <{len(elfs)} ELFs> --sim {args.sim}", flush=True)
+    passed_elfs = set()
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as process:
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            passed_elfs.update(str(elf) for elf in elfs if f"{elf} succeeded" in line)
+    results: dict[str, bool] = {}
+    for elf in elfs:
+        instr = instruction_of(elf, args.suite)
+        results[instr] = results.get(instr, True) and str(elf) in passed_elfs
+    return results
+
+
+def main() -> None:
+    args = parse_args()
+    config_dir = WALLY / "tests" / "vector" / "act" / args.config
+    act_config = config_dir / "test_config.yaml"
+    passing_file = config_dir / f"passing-{args.suite}.txt"
+    if not act_config.is_file():
+        sys.exit(f"Error: no ACT configuration for {args.config} at {act_config}")
+    if not args.run_only:
+        build(args, act_config)
+    if args.build_only:
+        return
+
+    xlen = "32" if "rv32" in args.config else "64"
+    elf_dir = ACTDIR / "work" / f"cvw-{args.config}" / "elfs" / f"rv{xlen}i" / f"{args.suite}-scalarcheck"
+    all_elfs = sorted(elf_dir.glob("*.elf"))
+    if not all_elfs:
+        sys.exit(f"Error: no tests in {elf_dir}; build them first")
+    available = {instruction_of(elf, args.suite) for elf in all_elfs}
+    passing = read_passing(passing_file)
+
+    if args.all:
+        selected = sorted(available)
+    elif args.instructions:
+        selected = args.instructions
+    else:
+        selected = passing
+        if not selected:
+            sys.exit(f"Error: {passing_file} lists no instructions; run vector-act --all to find passing ones")
+        print(f"Running the {len(selected)} instructions in {passing_file}", flush=True)
+    missing = [instr for instr in selected if instr not in available]
+    if missing:
+        sys.exit(f"Error: no {args.suite} test for {', '.join(missing)} in {elf_dir}")
+
+    results = run(args, [elf for elf in all_elfs if instruction_of(elf, args.suite) in selected])
+    failed = sorted(instr for instr, ok in results.items() if not ok)
+    broken = sorted(instr for instr in failed if instr in passing)
+    new = sorted(instr for instr, ok in results.items() if ok and instr not in passing)
+
+    print(f"\n{len(results) - len(failed)} of {len(results)} instructions passed")
+    if broken:
+        print(f"REGRESSION: {len(broken)} instructions in {passing_file.name} now fail: {' '.join(broken)}")
+    if new:
+        if args.update:
+            passing_file.write_text(
+                f"# {args.suite} instructions whose base tests pass on {args.config}.  vector-act runs this list;\n"
+                "# every entry must keep passing.  vector-act --all --update adds newly passing instructions.\n"
+                + "".join(f"{instr}\n" for instr in sorted({*passing, *new}))
+            )
+            print(f"Added to {passing_file}: {' '.join(new)}")
+        else:
+            print(f"Passing but not in {passing_file.name} (add them, or rerun with --update): {' '.join(new)}")
+    sys.exit(1 if broken or (failed and not args.all) else 0)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,14 @@
+# Vx64 instructions whose base tests pass on rv64gcv.  vector-act runs this list;
+# every entry must keep passing.  vector-act --all --update adds newly passing instructions.
+vadd.vv
+vadd.vx
+vand.vv
+vand.vx
+vmul.vv
+vmul.vx
+vmv.v.v
+vmv.v.x
+vmv.x.s
+vmv1r.v
+vmxor.mm
+vredsum.vs
