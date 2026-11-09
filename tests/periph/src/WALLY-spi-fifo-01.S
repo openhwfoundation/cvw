@@ -5,7 +5,9 @@
 //          ignored while full; the rxdata empty flag, reads that dequeue, and writes to rxdata that
 //          are ignored; FIFO order through many fills and drains that wrap the pointers; and ip.txwm /
 //          ip.rxwm at every FIFO count for every txmark / rxmark value, at fast and slow SCK.
-//          Expected values follow the FE310-G002 manual (see WALLY-spi.h), not the RTL.
+//          Expected values follow the FE310-G002 manual (see WALLY-spi.h), not the RTL.  The manual
+//          leaves the rxdata data field invalid when empty is set; Wally defines it as 0, and the test
+//          checks that, so software that tests empty with a sign branch never reads X.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
 // https://github.com/openhwfoundation/cvw
@@ -86,7 +88,7 @@
     EXPECT ((\v + 0x0B * k) & 0xFF)
     .set k, k + 1
     .endr
-    CHKFLAG SPI_RXDATA, 1
+    CHKE SPI_RXDATA, 0x80000000     // empty: the data field reads 0, not the stale FIFO entry
 .endm
 
 INIT_TESTS
@@ -104,7 +106,7 @@ EXPECT_BEGIN
     SPIW SPI_SCKDIV, 0
     jal ra, spi_rxwm_mask
     SIGRE a0, 0x00                  // 0 entries: never > rxmark
-    CHKFLAG SPI_RXDATA, 1
+    CHKE SPI_RXDATA, 0x80000000     // empty after reset: the data field reads 0, not unwritten FIFO storage
     .set k, 1
     .rept 8
     SPIW SPI_TXDATA, (0x60 + k)
