@@ -60,7 +60,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   logic                        HRESPRam, HREADYRam;
   logic [P.XLEN-1:0]           HREADBootRom;
   logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom;
-  logic                        HSELNoneD;
+  logic                        HSELNone, HSELNoneD, NoneErr1, NoneErr2;
   logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
 
@@ -85,6 +85,8 @@ module uncore import cvw::*; #(parameter cvw_t P) (
 
   // unswizzle HSEL signals
   assign {HSELPWM, HSELSPI, HSELSDC, HSELPLIC, HSELUART, HSELGPIO, HSELCLINT, HSELRam, HSELBootRom, HSELEXT, HSELIROM, HSELDTIM} = HSELRegions[12:1];
+  // The IROM and DTIM are inside the core, not on the bus: the default subordinate answers for their ranges
+  assign HSELNone = HSELRegions[0] | HSELIROM | HSELDTIM;
 
   // AHB -> APB bridge
   ahbapbbridge #(P, 7) ahbapbbridge (
@@ -180,20 +182,26 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   assign HRESP = HSELRamD & HRESPRam |
                  HSELEXTD & HRESPEXT |
                  HSELBRIDGED & HRESPBRIDGE |
-                 HSELBootRomD & HRESPBootRom;
+                 HSELBootRomD & HRESPBootRom |
+                 NoneErr1 | NoneErr2;
 
   assign HREADY = HSELRamD & HREADYRam |
                   HSELEXTD & HREADYEXT |
                   HSELBRIDGED & HREADYBRIDGE |
                   HSELBootRomD & HREADYBootRom |
-                  HSELNoneD; // don't lock up the bus if no region is being accessed
+                  HSELNoneD & ~NoneErr1; // don't lock up the bus if no region is being accessed
+
+  // Default subordinate: an IDLE or BUSY gets a zero-wait OKAY, but a NONSEQ or SEQ to an address with no subordinate
+  // gets the two-cycle ERROR response (HRESP high with HREADY low, then HRESP high with HREADY high)
+  flopr #(1) noneerr1reg(HCLK, ~HRESETn, HREADY & HSELNone & HTRANS[1], NoneErr1);
+  flopr #(1) noneerr2reg(HCLK, ~HRESETn, NoneErr1, NoneErr2);
 
   // Address Decoder Delay (figure 4-2 in spec)
   // The select for HREADY needs to be based on the address phase address.  If the device
   // takes more than 1 cycle to respond it needs to hold on to the old select until the
   // device is ready.  Hence this register must be selectively enabled by HREADY.
   // However on reset None must be selected.
-  flopenl #(13) hseldelayreg(HCLK, ~HRESETn, HREADY, HSELRegions, 13'b1,
+  flopenl #(13) hseldelayreg(HCLK, ~HRESETn, HREADY, {HSELRegions[12:1], HSELNone}, 13'b1,
     {HSELPWMD, HSELSPID, HSELSDCD, HSELPLICD, HSELUARTD, HSELGPIOD, HSELCLINTD,
       HSELRamD, HSELBootRomD, HSELEXTD, HSELIROMD, HSELDTIMD, HSELNoneD});
   flopenr #(1) hselbridgedelayreg(HCLK, ~HRESETn, HREADY, HSELBRIDGE, HSELBRIDGED);
