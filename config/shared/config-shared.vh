@@ -37,7 +37,7 @@ localparam logic C_SUPPORTED = ZCA_SUPPORTED & (D_SUPPORTED ? ZCD_SUPPORTED : 1)
 localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORTED & ZKND_SUPPORTED & ZKNE_SUPPORTED & ZKNH_SUPPORTED);
 
 // Configure MISA based on supported extensions
-localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,
+localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, H_SUPPORTED, 1'b0,
                    F_SUPPORTED, E_SUPPORTED, D_SUPPORTED, C_SUPPORTED, B_SUPPORTED, A_SUPPORTED};
 
 // logarithm of XLEN, used for number of index bits to select

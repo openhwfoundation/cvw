@@ -199,7 +199,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_SPIE     <= P.S_SUPPORTED & CSRWriteValM[5];
         STATUS_SIE      <= P.S_SUPPORTED & CSRWriteValM[1];
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
-      end else if (~VirtModeW & (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM)) STATUS_FS_INT <= 2'b11; // exclusion-tag: csrsr-fs-dirty
+      end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM) STATUS_FS_INT <= 2'b11; // exclusion-tag: csrsr-fs-dirty
     end
 
   if (P.H_SUPPORTED) begin: mpv_gva
