@@ -317,6 +317,12 @@ lockstepwaivers = [
     # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
+
+    # A misaligned load to the CLINT or GPIO may raise address-misaligned or access fault.  rv64gc splits it
+    # and the I/O region faults the pieces (cause 5).  ImperasDV raises address-misaligned (4) when imperas.ic
+    # marks the region aligned-only, and otherwise completes the access, so neither setting matches Wally.
+    "rv64_WALLY-clint-access-01.elf",
+    "rv64_WALLY-gpio-stress-01.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
