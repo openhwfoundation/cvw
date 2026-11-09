@@ -4,7 +4,7 @@
 TOP      = tb_vfrecrsqrt7
 WKDIR    = wkdir
 RESULTS  = results
-CONFIG   = rv32gc
+CONFIG   = rv64gc
 INCLUDE  = -I$(WALLY)/config/shared -I$(WALLY)/config/$(CONFIG)
 SRCS     = $(WALLY)/src/cvw.sv $(WALLY)/src/fpu_pkg.sv $(WALLY)/src/fpu/unpackinput.sv \
            $(WALLY)/src/vpu/vfrecrsqrt7.sv $(WALLY)/src/generic/lzc.sv $(TOP).sv wrapper.c

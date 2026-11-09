@@ -38,8 +38,9 @@ module vfrecrsqrt7 import fpu_pkg::*; #(parameter fpu_t FP) (
 
   // Xe and Xm arrive in the widest supported vector format (FP.NE, FP.NF, FP.BIAS), so the datapath
   // scales with the configuration. SEW 16 needs half precision, 32 is always present in a vector FP unit,
-  // and 64 needs double; the decoder rejects SEW 16 without Zvfh (Zvfhmin only).
-  // An unsupported or reserved SEW produces a zero result and no flags.
+  // and 64 needs double. An unsupported or reserved SEW produces a zero result and no flags.
+  // FP.ZFH_SUPPORTED is set for Zvfhmin too, where vfrec7/vfrsqrt7 at SEW 16 are reserved.
+  // TODO: the vector decoder must reject them as illegal when ZVFH_SUPPORTED = 0.
   localparam logic [2:0] VSEW_16 = 3'b001, VSEW_32 = 3'b010, VSEW_64 = 3'b011;
   localparam logic [2:0] RTZ = 3'b001, RDN = 3'b010, RUP = 3'b011;
   localparam integer     EW     = FP.NE + 1;       // one extra bit holds the unshifted rsqrt exponent
