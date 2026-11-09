@@ -22,7 +22,7 @@
 //   s0     UART base address
 //   s1     cycles of one 8N1 character (10 bits) at the current divisor, from uart_calibrate
 //   s2-s8  free for the tests; preserved by the helpers
-//   a0-a5, t0, t2-t6, ra: arguments and scratch, clobbered by the helpers
+//   a0-a5, a7, t0, t2-t6, ra: arguments and scratch, clobbered by the helpers
 
 .equ UART,      0x10000000
 .equ UART_RBR,  0      // receiver buffer (read, DLAB = 0)
@@ -71,6 +71,13 @@
     SIGR t2
 .endm
 
+// Read UART register \off into the signature, recording in \reg the mcycle value right after the read.
+.macro CHK_MARK off, reg
+    lbu t2, \off(s0)
+    csrr \reg, mcycle
+    SIGR t2
+.endm
+
 // Read UART register \off, keep the bits in \mask, and append the result to the signature.
 .macro CHKM off, mask
     lbu t2, \off(s0)
@@ -78,7 +85,7 @@
     SIGR t2
 .endm
 
-// Wait until (LSR & \mask) == \val; a0 = LSR, or 0xBAD if the wait timed out.
+// Wait until (LSR & \mask) == \val; a0 = LSR, or 0xBAD if the wait timed out; a7 = mcycle when it was seen.
 .macro WAIT_LSR mask, val
     li a0, \mask
     li a1, \val
@@ -91,6 +98,15 @@
     jal ra, uart_wait_half_chars
 .endm
 
+// Wait until \n half characters after the mcycle value in register \ref.  A test that checks several times
+// against one event (the end of a character, from WAIT_LSR's a7, or a read, from CHK_MARK) waits for each
+// check from that event rather than from the previous check, so the time each check takes does not add up.
+.macro WAIT_HALF_CHARS_AFTER ref, n
+    mv a1, \ref
+    li a0, \n
+    jal ra, uart_wait_half_chars_after
+.endm
+
 // Execute exactly \reg nops (0 <= \reg < 1024).
 .macro NOPS reg
     mv a0, \reg
@@ -101,7 +117,8 @@
 .macro UART_HELPERS
 
 // uart_wait_lsr: poll until (LSR & a0) == a1.  Returns a0 = LSR value, or 0xBAD after about 400000
-// polls (several times the longest character any test sends).  Uses t2-t4.
+// polls (several times the longest character any test sends), and a7 = mcycle when the LSR value was seen.
+// Uses t2-t4.
 uart_wait_lsr:
     li t4, 400000
 1:
@@ -113,6 +130,7 @@ uart_wait_lsr:
     li a0, 0xBAD
     ret
 2:
+    csrr a7, mcycle
     mv a0, t2
     ret
 
@@ -137,6 +155,22 @@ uart_wait_half_chars:
 2:
     mv a0, t3
     j uart_delay
+
+// uart_wait_half_chars_after: wait until a0 half characters (s1/2 cycles each) after mcycle value a1.
+// Returns at once if that time has passed.  Uses a0, t2-t4.
+uart_wait_half_chars_after:
+    srli t4, s1, 1
+    li t3, 0
+1:
+    beqz a0, 2f
+    add t3, t3, t4
+    addi a0, a0, -1
+    j 1b
+2:
+    csrr t2, mcycle
+    sub t2, t2, a1
+    bltu t2, t3, 2b
+    ret
 
 // uart_nops: execute exactly a0 nops (0 <= a0 < 1024) by jumping into a nop sled.  Uses t2, t3.
 uart_nops:
