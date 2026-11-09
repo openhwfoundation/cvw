@@ -35,6 +35,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   output logic              IntDivE, W64E,                    // Integer divide, RV64 W-type instruction
   output logic [2:0]        Funct3E,                          // Funct3 instruction field
   output logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE,   // ALU src inputs before the mux choosing between them and PCE to put in srcA/B
+  output logic [P.XLEN-1:0] R1D, R2D,                         // Register file reads of rs1 and rs2 in Decode stage (VPU scalar operands)
   output logic [4:0]        RdE,                              // Destination register
   output logic              MDUActiveE,                       // Mul/Div instruction being executed
   output logic [3:0]        CMOpM,                            // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
@@ -116,7 +117,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   datapath #(P) dp(
     .clk, .reset, .ImmSrcD, .InstrD, .Rs1D, .Rs2D, .Rs2E, .StallE, .FlushE, .ForwardAE, .ForwardBE, .W64E, .UW64E, .SubArithE,
     .Funct3E, .Funct7E, .ALUSrcAE, .ALUSrcBE, .ALUResultSrcE, .ALUSelectE, .JumpE, .BranchSignedE,
-    .PCE, .PCLinkE, .FlagsE, .IEUAdrE, .ForwardedSrcAE, .ForwardedSrcBE, .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE, .CZeroE,
+    .PCE, .PCLinkE, .FlagsE, .IEUAdrE, .ForwardedSrcAE, .ForwardedSrcBE, .R1D, .R2D, .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE, .CZeroE,
     .StallM, .FlushM, .FWriteIntM, .FIntResM, .VWriteIntM, .VIntResM, .SrcAM, .WriteDataM, .FCvtIntW,
     .StallW, .FlushW, .RegWriteW, .IntDivW, .SquashSCW, .ResultSrcW, .ReadDataW, .FCvtIntResW,
     .CSRReadValW, .MDUResultW, .FIntDivResultW, .RdW);

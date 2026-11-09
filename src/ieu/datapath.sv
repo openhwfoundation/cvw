@@ -44,6 +44,7 @@ module datapath import cvw::*; #(parameter cvw_t P) (
   output logic [1:0]        FlagsE,                  // Comparison flags ({eq, lt})
   output logic [P.XLEN-1:0] IEUAdrE,                 // Address computed by ALU
   output logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // ALU sources before the mux chooses between them and PCE to put in srcA/B
+  output logic [P.XLEN-1:0] R1D, R2D,               // Register file reads of rs1 and rs2 in Decode stage (VPU scalar operands)
   // Memory stage signals
   input  logic              StallM, FlushM,          // Stall, flush Memory stage
   input  logic              FWriteIntM, FCvtIntW,    // FPU writes integer register file, FPU converts float to int
@@ -66,7 +67,6 @@ module datapath import cvw::*; #(parameter cvw_t P) (
 );
 
   // Decode stage signals
-  logic [P.XLEN-1:0] R1D, R2D;                       // Read data from Rs1 (RD1), Rs2 (RD2)
   logic [P.XLEN-1:0] ImmExtD;                        // Extended immediate in Decode stage
   // Execute stage signals
   logic [P.XLEN-1:0] R1E, R2E;                       // Source operands read from register file

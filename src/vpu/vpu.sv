@@ -48,6 +48,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input logic                       VectorD,                                    // This instruction is a vector
   // Execute state
   input logic [P.XLEN-1:0]          ForwardedSrcAE, ForwardedSrcBE,             // Integer/FP input for convert, move (from IEU)
+  input logic [P.XLEN-1:0]          R1D, R2D,                                   // Scalar rs1/rs2 read in Decode
   output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
@@ -146,7 +147,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
-                   .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
+                   .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .R2D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VIEUVdFinalW[i]));
   end

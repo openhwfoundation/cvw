@@ -151,7 +151,8 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
-  logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
+  logic        MatchDE, MatchDM;               // Match between a source register in Decode stage and destination register in Execute/Memory stage
+  logic        VectorSrcStallD;                // Vector instr waits for an older scalar to write to rs1/rs2
   logic        FCvtIntStallD, MDUStallD, CSRRdStallD; // Stall due to fcvt to integer, multiply/divide, CSR read
   logic        FunctCZeroD;                    // Funct7 and Funct3 indicate czero.* (not including Op check)
   logic        BUW64D;                         // Indicates if it is a .uw type B instruction in Decode Stage
@@ -490,5 +491,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign CSRRdStallD = CSRReadE & MatchDE;
   assign MDUStallD = MDUE & MatchDE; // Int mult/div is at least two cycle latency, even when coming from the FDIV
   assign FCvtIntStallD = FCvtIntE & MatchDE; // FPU to Integer transfers have single-cycle latency except fcvt
-  assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD;
+  // Vector instr leaves scalar pipeline in Decode and takes rs1/rs2 from IRF there, so it waits
+  // until an older scalar that writes to them has reached Writeback.
+  assign MatchDM = ((Rs1D == RdM) | (Rs2D == RdM)) & (RdM != 5'b0);
+  assign VectorSrcStallD = VectorD & (MatchDE & RegWriteE | MatchDM & RegWriteM);
+  assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD | VectorSrcStallD;
 endmodule
