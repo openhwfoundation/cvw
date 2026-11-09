@@ -16,8 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module round import cvw::*;  #(parameter cvw_t P,
-                               parameter logic V = 0) (
+module round import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FMTBITS-1:0]     OutFmt,             // output format
   input  logic [2:0]               Frm,                // rounding mode
   input  logic [1:0]               PostProcSel,        // select the postprocessor output
@@ -251,7 +250,7 @@ module round import cvw::*;  #(parameter cvw_t P,
       RM_RDN:  CalcPlus1 = Ms;  // round down
       RM_RUP:  CalcPlus1 = ~Ms;  // round up
       RM_RMM:  CalcPlus1 = Guard;  // round to nearest max magnitude
-      RM_ROD:  CalcPlus1  = V ? ~LsbRes : 1'bx;//round to odd
+      RM_ROD:  CalcPlus1  = P.ROUND_TO_ODD_SUPPORTED ? ~LsbRes : 1'bx;//round to odd
       default: CalcPlus1 = 1'bx;
     endcase
       // Determine if you add 1 (for underflow flag)
@@ -262,7 +261,7 @@ module round import cvw::*;  #(parameter cvw_t P,
       RM_RDN:  UfCalcPlus1 = Ms;  // round down
       RM_RUP:  UfCalcPlus1 = ~Ms;  // round up
       RM_RMM:  UfCalcPlus1 = Round;  // round to nearest max magnitude
-      RM_ROD:  if (V) UfCalcPlus1  = ~Guard; else UfCalcPlus1 = 1'bx;//round to odd
+      RM_ROD:  if (P.ROUND_TO_ODD_SUPPORTED) UfCalcPlus1  = ~Guard; else UfCalcPlus1 = 1'bx;//round to odd
       default: UfCalcPlus1 = 1'bx;
     endcase
   end

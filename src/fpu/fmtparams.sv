@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fmtparams import cvw::*; #(parameter cvw_t P) (
+module fmtparams import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FMTBITS-1:0] Fmt,   // format
   output logic [P.NE-2:0]      Bias,  // exponent bias
   output logic [P.LOGFLEN-1:0] Nf     // number of fraction bits

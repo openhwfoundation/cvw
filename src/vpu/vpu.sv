@@ -70,6 +70,11 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   output logic                      ClearVSTARTM                                // vector instruction resets vstart
 );
 
+  // vector floating point datapath parameters FP extracted from P
+  /* verilator lint_off UNUSEDPARAM */ // FP is unused until the vector floating point unit is instantiated
+  `include "vfpu-parameter-defs.vh"
+  /* verilator lint_on UNUSEDPARAM */
+
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
   logic [4:0] VdFinalD;                      // Vector Destination read (overwrite)
   logic       VMD;                            // 0 = mask enabled; 1 mask disabled
