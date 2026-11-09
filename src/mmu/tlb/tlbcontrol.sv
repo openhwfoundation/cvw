@@ -61,7 +61,7 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   assign TLBAccess = ReadAccess | WriteAccess | (|CMOpM);
 
   // Check that upper bits are legal (all 0s or all 1s)
-  vm64check #(P, ITLB) vm64check(.SATP_MODE, .VAdr, .PointerMaskApplicable, .PMLen16Sel, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
+  vm64check #(P) vm64check(.SATP_MODE, .VAdr, .PointerMaskApplicable, .PMLen16Sel, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
 
   // unswizzle useful PTE bits
   assign PTE_N = PTEAccessBits[11];

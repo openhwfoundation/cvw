@@ -122,11 +122,13 @@ module mmu import cvw::*; #(parameter cvw_t P,
   // masking applies to is zero extended from bit 47 (PMLEN 16) or 56 (PMLEN 7).  Without PMLEN 16, the masked
   // bits are all above PA_BITS, so only the PAOutOfRange check below needs to ignore them.
   // Page-table walks and D$ flushes (DisableTranslation) are implicit accesses, which pointer masking does not apply to.
+  /*
   if (P.XLEN == 64 & P.ZPM_SUPPORTED & P.PMLEN16_SUPPORTED)
     assign MaskedVAdr = (PointerMaskApplicable & ~DisableTranslation) ? (PMLen16Sel ? {18'b0, VAdr[47:0]} : {9'b0, VAdr[56:0]}) : VAdr;
   else
     assign MaskedVAdr = VAdr;
-  mux2 #(P.PA_BITS-12) addressmux(MaskedVAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
+  */
+  mux2 #(P.PA_BITS-12) addressmux(VAdr[P.PA_BITS-1:12], TLBPAdr[P.PA_BITS-1:12], Translate, PhysicalAddress[P.PA_BITS-1:12]);
   assign PhysicalAddress[11:0] = VAdr[11:0];
 
   // An untranslated address is a physical address, so bits XLEN-1:PA_BITS must be zero.  Otherwise it is outside
@@ -135,8 +137,8 @@ module mmu import cvw::*; #(parameter cvw_t P,
   // With pointer masking, the masked bits are ignored: with PMLEN 16 MaskedVAdr is already zero extended, and
   // with PMLEN 7 only bits 56:PA_BITS are checked when the mask applies.
   if (P.XLEN > P.PA_BITS) begin
-    if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED & ~IMMU) assign PAOutOfRange = ~Translate & (PointerMaskApplicable ? |VAdr[56:P.PA_BITS] : |VAdr[P.XLEN-1:P.PA_BITS]);
-    else                                                assign PAOutOfRange = ~Translate & (|MaskedVAdr[P.XLEN-1:P.PA_BITS]);
+    //if (P.ZPM_SUPPORTED & ~P.PMLEN16_SUPPORTED & ~IMMU) assign PAOutOfRange = ~Translate & (PointerMaskApplicable ? |VAdr[56:P.PA_BITS] : |VAdr[P.XLEN-1:P.PA_BITS]);
+                                                        assign PAOutOfRange = ~Translate & (|VAdr[P.XLEN-1:P.PA_BITS]);
   end else                                              assign PAOutOfRange = 1'b0;
 
   ///////////////////////////////////////////

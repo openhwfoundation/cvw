@@ -155,18 +155,34 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
+  logic [P.XLEN-1:0]     IEUAdrEMasked;
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////
 
-  flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
+  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
+    logic [1:0]        EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
+    logic              PhysicalAdrE;             // The address is physical (M mode or satp Bare), so masking zero-extends it
+    logic [P.XLEN-1:0] PM7AdrE, PMAdrE;
+    assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
+    assign PhysicalAdrE = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+    assign PM7AdrE = PhysicalAdrE ? {7'b0, IEUAdrE[56:0]} : {{7{IEUAdrE[56]}}, IEUAdrE[56:0]};
+    if (P.PMLEN16_SUPPORTED) begin : pmlen16
+      logic [P.XLEN-1:0] PM16AdrE;
+      assign PM16AdrE = PhysicalAdrE ? {16'b0, IEUAdrE[47:0]} : {{16{IEUAdrE[47]}}, IEUAdrE[47:0]};
+      assign PMAdrE = PMLen16Sel ? PM16AdrE : PM7AdrE;
+    end else
+      assign PMAdrE = PM7AdrE;
+    assign IEUAdrEMasked = PointerMaskApplicable ? PMAdrE : IEUAdrE;
+  end else assign IEUAdrEMasked = IEUAdrE;
+  flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrEMasked, IEUAdrM);
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
-    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
+    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE(IEUAdrEMasked), .IEUAdrM, .Funct3M, .FpLoadStoreM,
                      .MemRWM,
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
