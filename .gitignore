@@ -183,6 +183,4 @@ examples/exercises/riscvsoc_solutions
 external
 config/deriv
 sim/slack-notifier/slack-webhook-url.txt
-docs/docker/buildroot-config-src
-docs/docker/testvector-generation
 sim/*/testlists/
