@@ -1,0 +1,1 @@
+../../rv64gc/act/link.ld

@@ -1,16 +1,55 @@
-[![Installation CI](https://github.com/openhwgroup/cvw/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/openhwgroup/cvw/actions/workflows/install.yml)
+[![Installation CI](https://github.com/openhwfoundation/cvw/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/openhwfoundation/cvw/actions/workflows/install.yml)
 
 # core-v-wally
 
-Wally is a 5-stage pipelined processor configurable to support all the standard RISC-V options, including RV32/64, A, B, C, D, F, M, Q, and Zk* extensions, virtual memory, PMP, and the various privileged modes and CSRs. It provides optional caches, branch prediction, and standard RISC-V peripherals (CLINT, PLIC, UART, GPIO).   Wally is written in SystemVerilog.  It passes the [RISC-V Arch Tests](https://github.com/riscv-non-isa/riscv-arch-test) and boots Linux on an FPGA.  Configurations range from a minimal RV32E core to a fully featured RV64GC application processor with all of the RVA22S64 profile extensions. Wally is part of the OpenHWGroup family of robust open RISC-V cores.
+Wally is a 5-stage pipelined processor configurable to support up through the RVA22 profile, including virtual memory, PMP, and the various privileged modes and CSRs. The rv64gc configuration supports:
+
+- RV64IMAFDCB with M, S, and U modes
+- Zicsr, Zifencei, Zicntr, Zihpm, Zicond, and Zicclsm
+- Zbc
+- Zkn scalar crypto (Zbkb, Zbkc, Zbkx, Zknd, Zkne, and Zknh)
+- Zcb
+- Zfh and Zfa
+- Zicbom, Zicboz, and Zicbop
+- Sstc
+- Sv39, Sv48, and Sv57 virtual memory with Svpbmt, Svnapot, Svinval, and Svadu
+- 16 PMP entries
+
+Other configurations range down to a minimal RV32E core, and derivative configurations add the Q extension. Wally provides optional caches, branch prediction, and standard RISC-V peripherals (CLINT, PLIC, UART, GPIO).   Wally is written in SystemVerilog.  It passes the [RISC-V Arch Tests](https://github.com/riscv/riscv-arch-test) and boots Linux on an FPGA.  Wally is part of the OpenHW Foundation family of robust open RISC-V cores.
 
 ![Wally block diagram](wallyriscvTopAll.png)
 
-Wally is described in an upcoming textbook, *RISC-V System-on-Chip Design*, by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.  A system administrator must install CAD tools using the directions further down.
+Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages.hmc.edu/harris/ddca/rvsocd.html), by Harris, Stine, Thompson, and Harris.  Users should follow the setup instructions below.
+
+# Configurations
+
+Wally default configurations are listed below.  Synthesis results are from TSMC 28HPC+ TT conditions (0.9 V, 25 °C), Design Compiler Y-2026.03-SP3 physical (topographical) synthesis, with timing that includes its estimated wire delays, before place and route.  The hierarchy is ungrouped automatically, and the clock frequency counts paths into the register files, which are written on the falling edge, as half-cycle paths.  Embench results are without F and D.
+
+|                       | rv32e             | rv32i               | rv32imc                           | rv32imcb                              | rv32gc                                                                                                                                       | rv64i      | rv64gc                                                                                                                                                                    |
+| --------------------- | ----------------- | ------------------- | --------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Features              | Tiny Embedded     | RVI20U32            | Microcontroller                   | Microcontroller with bit manipulation | Like rv64gc                                                                                                                                  | RVI20U64   | RVA22S64                                                                                                                                                                  |
+| Privilege Modes       | M                 | M                   | M, U                              | M, U                                  | M, S, U                                                                                                                                      | M          | M, S, U                                                                                                                                                                   |
+| Extensions            | E                 | I                   | IMC, Zicsr, Zicntr, Zihpm         | IMCB, Zbc, Zicsr, Zicntr, Zihpm       | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv32, Svadu, Svinval, Sstc | I          | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv39, Sv48, Sv57, Svadu, Svinval, Svnapot, Svpbmt, Sstc |
+| Memory                | Bus               | IROM, DTIM          | IROM, DTIM                        | IROM, DTIM                            | 16 KB I$, 16 KB D$                                                                                                                           | IROM, DTIM | 16 KB I$, 16 KB D$                                                                                                                                                        |
+| Branch Predictor      | None              | None                | Static (backward taken)           | Static (backward taken)               | 1K gshare, 1K BTB, 16 RAS                                                                                                                    | None       | 1K gshare, 1K BTB, 16 RAS                                                                                                                                                 |
+| Peripherals           | No                | No                  | CLINT, PLIC, UART, GPIO, SPI, PWM | CLINT, PLIC, UART, GPIO, SPI, PWM     | CLINT, PLIC, UART, GPIO, SPI, PWM                                                                                                            | No         | CLINT, PLIC, UART, GPIO, SPI, PWM                                                                                                                                         |
+| External bus (AHB)    | Yes               | No                  | Yes                               | Yes                                   | Yes                                                                                                                                          | No         | Yes                                                                                                                                                                       |
+| CoreMark/MHz          | 0.35              | 1.04                | 3.54                              | 4.06                                  | 4.33                                                                                                                                         | 0.91       | 4.20                                                                                                                                                                      |
+| Embench Speed         | 0.20              | 0.63                | 1.58                              | 1.65                                  | 1.70                                                                                                                                         | 0.70       | 2.03                                                                                                                                                                      |
+| Clock Frequency (MHz) | 2800              | 2780                | 1880                              | 1890                                  | 920                                                                                                                                          | 2540       | 770                                                                                                                                                                       |
+| Total Area (mm^2)     | 0.0058            | 0.0065              | 0.020                             | 0.021                                 | 0.43                                                                                                                                         | 0.016      | 0.48                                                                                                                                                                      |
+| Logic Area (mm^2)     | 0.0058            | 0.0065              | 0.020                             | 0.021                                 | 0.11                                                                                                                                         | 0.016      | 0.17                                                                                                                                                                      |
+| Flip-Flops            | 573 + 495 latches | 573 + 1,023 latches | 1,792 + 1,023 latches             | 1,801 + 1,023 latches                 | 16,496                                                                                                                                       | 3,026      | 24,416                                                                                                                                                                    |
+| Gates                 | 3,650             | 4,495               | 14,583                            | 16,122                                | 89,945                                                                                                                                       | 10,309     | 139,072                                                                                                                                                                   |
+| RAM Bits              | 0                 | 0                   | 0                                 | 0                                     | 312,320                                                                                                                                      | 0          | 356,352                                                                                                                                                                   |
+
+CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks, so Embench is compiled without F and D for every configuration, and its floating-point benchmarks use software floating point rather than the FPU.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, rv32imcb, and rv64i using the AHB bus in place of the IROM and DTIM.  The clock frequency is the best of three synthesis targets, and the area is from that run.  Flip-flops and gates are standard cells; gates exclude buffers and inverters.  rv32e, rv32i, rv32imc, and rv32imcb build the integer register file from latches (`LATCH_BASED_REGISTERFILE`), counted separately, including a clock-gate latch for each register.  RAM bits are the SRAM bits used for I$ and D$ data and tags, BTB, and PHT; the SRAM macros take 0.31 mm^2 in rv32gc and rv64gc.
+
+See also [comparison to other cores](docs/comparison.adoc).
 
 # Verification
 
-Wally is presently at Technology Readiness Level 4, passing the RISC-V compatibility test suite and custom tests, and booting Linux in simulation and on an FPGA.  See the [Test Plan](docs/testplans/testplan.md) for details.
+Wally is presently at Technology Readiness Level 4, passing the [RISC-V architectural certification tests](https://github.com/riscv/riscv-arch-test) and custom tests, and booting Linux in simulation and on an FPGA.  The rv32imc, rv32gc, and rv64gc configurations achieve 100% code and functional coverage.  See the [Test Plan](docs/testplans/testplan.md) for details.
 
 # New User Setup
 
@@ -31,7 +70,7 @@ New users may wish to do the following setup to access the server via a GUI and 
 Then fork and clone the repo, source setup, make the tests and run regression
 
 1. If you don't already have a Github account, create one
-2. In a web browser, visit https://github.com/openhwgroup/cvw
+2. In a web browser, visit https://github.com/openhwfoundation/cvw
 3. In the upper right part of the screen, click on Fork
 4. Create a fork, choosing the owner as your github account and the repository as cvw.
 5. On the Linux computer where you will be working, log in.
@@ -39,11 +78,11 @@ Then fork and clone the repo, source setup, make the tests and run regression
   ```bash
   $ git clone --recurse-submodules https://github.com/<yourgithubid>/cvw
   $ cd cvw
-  $ git remote add upstream https://github.com/openhwgroup/cvw
+  $ git remote add upstream https://github.com/openhwfoundation/cvw
   ```
 
 > [!NOTE]
-> If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration-sys-admin), then come back here.
+> If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration), then come back here.
 
 7. Run the setup script to update your `PATH` and activate the python virtual environment.
 
@@ -78,17 +117,16 @@ Then fork and clone the repo, source setup, make the tests and run regression
   $ regression-wally
   ```
 
-# Toolchain Installation and Configuration (Sys Admin)
+# Toolchain Installation and Configuration
 
-> This section describes the open source toolchain installation.
+This section describes the open source toolchain installation.
 
 ### Compatibility
-The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS), Debian (versions 11, 12, and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), and SUSE versions 15.6 and 16.0. Only the latest minor release of each major version is tested.
+The current version of the toolchain has been tested on Ubuntu (versions 20.04 LTS, 22.04 LTS, 24.04 LTS, and 26.04 LTS), Debian (versions 12 and 13), Red Hat/Rocky/AlmaLinux (versions 8, 9, and 10), SUSE versions 15.6 and 16.0 and Fedora (version 44). Only the latest minor release of each major version is tested.
 
 > [!WARNING]
-> - Ubuntu 22.04LTS is incompatible with Synopsys Design Compiler.
-> - Verilator currently fails to simulate correctly on Ubuntu 20.04 LTS and Red Hat/Rocky/AlmaLinux 8.
-> - Whisper is not installed on Ubuntu 20.04 LTS or Debian 11 due to issues compiling the boost libraries.
+> - Ubuntu 22.04 LTS is incompatible with Synopsys Design Compiler.
+> - Whisper is not installed on Ubuntu 20.04 LTS due to issues compiling the boost libraries.
 
 ### Overview
 The toolchain installation script installs the following tools:
@@ -101,7 +139,6 @@ The toolchain installation script installs the following tools:
 - [OSU Skywater 130 cell library](https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t12): standard cell library
 - [uv](https://docs.astral.sh/uv/): Python package manager and virtual environment tool
 - [mise](https://mise.jdx.dev/): development environment setup tool for managing tool versions and environment variables
-- [RISCOF](https://github.com/riscv-software-src/riscof.git): RISC-V compliance test framework
 
 Additionally, Buildroot Linux is built for Wally and linux test-vectors are generated for simulation. See the [Linux README](linux/README.md) for more details. This can be skipped using the `--no-buildroot` flag.
 
@@ -156,7 +193,7 @@ Verilator is an open-source Verilog simulator.  It is fast and free.  Run Wally 
 regression-wally
 ```
 
-Running code or functional coverage simulations or lock-step presently require commercial tools.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally and lock-step simulation.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+Running code coverage simulations or lock-step presently requires commercial tools; functional coverage also runs on Verilator.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
 
 Note: Some EDA tools utilize `LM_LICENSE_FILE` for their environmental variable to point to their license server.  Some operating systems may also utilize `MGLS_LICENSE_FILE` instead, therefore, it is important to read the user manual on the preferred environmental variable required to point to a user’s license file.  Although there are different mechanisms to allow licenses to work, many companies commonly utilize the FlexLM (i.e., Flex-enabled) license server manager that runs off a node locked license.
 
@@ -221,26 +258,31 @@ If you want to add a cronjob you can do the following:
 2) Enter `crontab -e` into a terminal
 3) add this code to test cloning CVW, making CVW's tests, then running `regression-wally --nightly --buildroot` every day at 21:30 in your local time
 ```bash
-30 21 * * * curl -L https://raw.githubusercontent.com/openhwgroup/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
+30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
 ```
 This utility will take up approximately 100 GB on your hard drive. You can also run the script directly from `bin/nightly_build.py`.
 
 # Example wsim commands
 
-wsim runs one of multiple simulators, Questa, VCS, or Verilator using a specific configuration and either a suite of tests or a specific elf file.
+wsim runs one of multiple simulators, Questa, VCS, or Verilator using a specific configuration and one or more ELF files.
 The general syntax is
-`wsim <config> <suite or elf file> [--options]`
+`wsim <config> <elf or directory>... [--options]`
+
+Every ELF named, and every `*.elf` found under every directory named, runs back-to-back in a single simulation session.
+Tests are self-checking, so the simulation ends with a single summary: `SUCCESS! All tests ran without failures.` or `FAIL: N test programs had errors`.
 
 Parameters and options:
 
 ```
 -h, --help                                                   show this help message and exit
 --elf ELF, -e ELF                                            ELF File name; use if name does not end in .elf
+--test {buildroot,fpga,coremark,embench}, -T ...             Special testbench mode
+--name NAME, -n NAME                                         Name used for log and coverage database files
 --sim {questa,verilator,vcs}, -s {questa,verilator,vcs}      Simulator
 --tb {testbench,testbench_fp}, -t {testbench,testbench_fp}   Testbench
 --gui, -g                                                    Simulate with GUI
 --ccov, -c                                                   Code Coverage
---fcov, -f                                                   Functional Coverage with cvw-arch-verif, implies lockstep
+--fcov, -f                                                   Functional Coverage
 --args ARGS, -a ARGS                                         Optional arguments passed to simulator via $value$plusargs
 --params PARAMS, -p PARAMS                                   Optional top-level parameter overrides of the form param=value
 --define DEFINE, -d DEFINE                                   Optional define macros passed to simulator
@@ -250,34 +292,34 @@ Parameters and options:
 --rvvi, -r                                                   Simulate rvvi hardware interface and ethernet.
 ```
 
-Run basic test with Questa
+Run a whole directory of RISC-V Architecture Tests in one session with Questa
 
 ```bash
-wsim rv64gc arch64i
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 ```
 
-Run Questa with gui
+Run one ELF in the Questa gui
 
 ```bash
-wsim rv64gc wally64priv --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --gui
 ```
 
-Run basic test with Verilator
+Run several ELFs back-to-back with Verilator
 
 ```bash
-wsim rv32i arch32i --sim verilator
+wsim rv32gc $WALLY/tests/periph/rv32/WALLY-gpio-01.elf $WALLY/tests/periph/rv32/WALLY-clint-01.elf --sim verilator
 ```
 
-Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires single elf.
+Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires a single elf.
 
 ```bash
-wsim rv64gc $WALLY/tests/riscof/work/riscv-arch-test/rv64i_m/I/src/add-01.S/ref/ref.elf --lockstep --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
 ```
 
-Run lockstep against ImperasDV with a single elf file. Collect functional coverage.
+Collect functional coverage over a directory of tests (add `--sim vcs` to use VCS).
 
 ```bash
-wsim rv64gc $WALLY/addins/cvw-arch-verif/tests/rv64/Zicsr/WALLY-COV-ALL.elf --fcov
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov
 ```
 
 Run Linux boot simulation in lock step between Wally and ImperasDV

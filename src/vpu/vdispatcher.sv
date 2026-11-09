@@ -35,6 +35,10 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   input  logic        VectorD,                 // This instruction is a vector
   input  logic [4:0]  Vs1D, Vs2D, VdD,
   input  logic [6:0]  lmulDecodedD,
+  // EU requirements
+  input  logic [2:0]  VEUTypeD,                // type of EU an instruction needs (INT, FP, LSU)
+  input  logic [4:0]  VOpClassD,               // execution block requirement for EU
+  input  logic [5:0]  VLSModeD,                // addressing modes for load/store
   // hand shaking controls
   output logic [P.VPU_EU-1:0] ControllerValidD,
   input  logic [P.VPU_EU-1:0] ExecutionUnitReadyD,
@@ -49,19 +53,34 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   //input  logic        SelectedControllerValidD,
 
   // The EU selector
-  // ExecutionUnitReadyD indications which EUs can take a new vector instruction this cycle
+  // ExecutionUnitReadyD indicates which EUs can take a new vector instruction this cycle.
   // However not all EUs can take the same instructions.  They may only accept int, float, load/store, fixed,
   // or specific sub categories.
+  // The decoder specifies the EU requirements (e.g. type, operation class, addressing mode for load/store).
+  // EU selector compares the requirements to the capabilities of each EU.
   // For this initial version All EUs will accept all instructions. *** fix me later.
-  // Selection mechanism is currently priority encoder.  Should be round robin. *** fix me later.
+
+  // *** move to configuration when EU are instantiated
+  // EU capabilities, Index: [EU][capability]
+  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = '1;   // integer, floating point, memory
+  localparam logic [P.VPU_EU-1:0][31:0] VEU_CLASSES = '1;   // operation classes, indexed by VOpClassD
+  localparam logic [P.VPU_EU-1:0][5:0]  VEU_MODES   = '1;   // load/store addressing modes
 
   logic [P.VPU_EU-1:0] SelectedD;
-  logic                    AnyExecutionUnitReadyD;
+  logic [P.VPU_EU-1:0] EligibleD;          // units that can carry out this instruction
+  logic [P.VPU_EU-1:0] AvailableD;         // units that are ready for a new instruction
+  logic                AnyExecutionUnitReadyD;
+  genvar               i;
 
-  priorityonehot #(P.VPU_EU) SelectedEUPriority(ExecutionUnitReadyD, SelectedD);
-  //assign AnyExecutionUnitReadyD = |ExecutionUnitReadyD;
-  // *** for now just first 2 EUs
-  assign AnyExecutionUnitReadyD = ExecutionUnitReadyD[0] | ExecutionUnitReadyD[1];
+  for (i = 0; i < P.VPU_EU; i++) begin : eligibility
+    assign EligibleD[i] = |(VEUTypeD & VEU_TYPES[i]) & VEU_CLASSES[i][VOpClassD] &
+                          ((VLSModeD & ~VEU_MODES[i]) == 6'b0);
+  end
+
+  // Selection mechanism is currently priority encoder.  Should be round robin. *** fix me later.
+  assign AvailableD = ExecutionUnitReadyD & EligibleD;
+  priorityonehot #(P.VPU_EU) SelectedEUPriority(AvailableD, SelectedD);
+  assign AnyExecutionUnitReadyD = |AvailableD;
 
   lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD, .VectorFlushD,
                                    .VectorD, .Vs1D, .Vs2D, .VdD, .lmulDecodedD,

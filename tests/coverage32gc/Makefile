@@ -1,0 +1,27 @@
+# RV32 self-checking coverage tests for rv32gc.  Kept out of tests/coverage64gc, whose ELFs the nightly
+# regression runs on rv64gc in lockstep.
+MAKEFLAGS += --no-builtin-rules
+SOURCES  ?= $(sort $(wildcard *.S))
+ELFS     := $(SOURCES:.S=.elf)
+
+all: $(addsuffix .objdump, $(ELFS)) $(addsuffix .memfile, $(ELFS))
+
+%.elf.objdump: %.elf
+	riscv64-unknown-elf-objdump -S -D $< > $@
+
+%.elf.memfile: %.elf
+	elf2hex $< $@
+
+.PRECIOUS: %.elf
+%.elf: %.o
+	riscv64-unknown-elf-gcc -g -o $@ -march=rv32gc -mabi=ilp32 -mcmodel=medany -nostartfiles -T../../examples/link/link.ld $<
+
+%.o: %.s
+	riscv64-unknown-elf-as -g -o $@ -march=rv32gc_zcb_zfa_zba_zbb_zbc_zbs_zfh_zicond_zicboz_zicbop_zicbom_zbkb_zbkx_zknd_zkne_zknh_svinval -mabi=ilp32 $<
+
+# Preprocess assembly files; a test can include either of the WALLY-*.h headers (RV32 versions of tests/coverage64gc's)
+%.s: %.S $(wildcard WALLY-*.h)
+	riscv64-unknown-elf-gcc -E -g -o $@ $<
+
+clean:
+	rm -f *.elf *.elf.objdump *.elf.memfile *.o *.s

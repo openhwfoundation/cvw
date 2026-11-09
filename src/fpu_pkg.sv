@@ -33,6 +33,25 @@
 
 package fpu_pkg;
 
+  // Shared constants; some are unused in configurations that omit the hardware using them
+  /* verilator lint_off UNUSEDPARAM */
+
+  // FPU postprocessor operation select PostProcSel
+  localparam logic [1:0] POSTPROC_CVT = 2'b00; // conversion
+  localparam logic [1:0] POSTPROC_DIV = 2'b01; // divide or square root
+  localparam logic [1:0] POSTPROC_FMA = 2'b10; // fused multiply-add, add, subtract, multiply
+
+  // FP rounding modes Frm
+  localparam logic [2:0] RM_RNE = 3'b000; // round to nearest, ties to even
+  localparam logic [2:0] RM_RTZ = 3'b001; // round towards zero
+  localparam logic [2:0] RM_RDN = 3'b010; // round down, towards negative infinity
+  localparam logic [2:0] RM_RUP = 3'b011; // round up, towards positive infinity
+  localparam logic [2:0] RM_RMM = 3'b100; // round to nearest, ties to max magnitude
+  localparam logic [2:0] RM_ROD = 3'b110; // round to odd
+  localparam logic [2:0] RM_DYN = 3'b111; // dynamic: use the frm field of fcsr
+
+  /* verilator lint_on UNUSEDPARAM */
+
 typedef struct packed {
   int           XLEN;     // Machine width (32 or 64)
   logic         IEEE754;  // IEEE754 NaN handling (0 = use RISC-V NaN propagation instead)

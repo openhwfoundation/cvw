@@ -107,6 +107,5 @@ $(TARGET).memfile: $(TARGET)
 	@riscv64-unknown-elf-objdump -D $< > $<.objdump
 	@echo 'Making memory file'
 	elf2hex $^ $@
-	extractFunctionRadix.sh $<.objdump
 	mkdir -p ../work/
 	cp -f $(TARGETDIR)/* ../work/

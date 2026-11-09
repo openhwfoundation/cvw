@@ -1,49 +1,37 @@
 ///////////////////////////////////////////
 // cache.sv
 //
-// Written: Rose Thompson rose@rosethompson.net
-// Created: 7 July 2021
-// Modified: 20 January 2023
+// Written:  Rose Thompson rose@rosethompson.net 7 July 2021
+// Modified: David Harris, Alec Vercruysse, Katherine Parry, Limnanthes Serafini
 //
-// Purpose: Implements the I$ and D$. Interfaces with requests from IEU and HPTW and ahbcacheinterface
+// Purpose: Configurable set-associative cache for the I$ and D$.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module cache import cvw::*; #(parameter cvw_t P,
-                              parameter PA_BITS, LINELEN,  NUMSETS,  NUMWAYS, LOGBWPL, WORDLEN, MUXINTERVAL, READ_ONLY_CACHE) (
+                              parameter PA_BITS, LINELEN, NUMSETS, OFFSETLEN, SETLEN, NUMWAYS, LOGBWPL, WORDLEN, MUXINTERVAL, READ_ONLY_CACHE) (
   input  logic                   clk,
   input  logic                   reset,
   input  logic                   Stall,             // Stall the cache, preventing new accesses. In-flight access finished but does not return to READY
   input  logic                   FlushStage,        // Pipeline flush of second stage (prevent writes and bus operations)
-  input  logic                   InvalidateFlushStage, // Pipeline flush of second stage (prevent writes and bus operations)
+  input  logic                   InvalidateFlushStage, // Flush of the stage issuing InvalidateCache (suppresses the invalidate)
   // cpu side
   input  logic [1:0]             CacheRW,           // [1] Read, [0] Write
   input  logic                   FlushCache,        // Flush all dirty lines back to memory
   input  logic                   InvalidateCache,   // Clear all valid bits
-  input  logic [3:0]             CMOpM,              // 1: cbo.inval; 2: cbo.flush; 4: cbo.clean; 8: cbo.zero
-  input  logic [11:0]            NextSet,           // Virtual address, but we only use the lower 12 bits.
+  input  logic [3:0]             CMOpM,             // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
+  input  logic [OFFSETLEN+SETLEN-1:0] NextSet,      // Set and offset bits of the virtual address
   input  logic [PA_BITS-1:0]     PAdr,              // Physical address
   input  logic [(WORDLEN-1)/8:0] ByteMask,          // Which bytes to write (D$ only)
-  input  logic [WORDLEN-1:0]     WriteData,    // Data to write to cache (D$ only)
+  input  logic [WORDLEN-1:0]     WriteData,         // Data to write to cache (D$ only)
   output logic                   CacheCommitted,    // Cache has started bus operation that shouldn't be interrupted
   output logic                   CacheStall,        // Cache stalls pipeline during multicycle operation
   output logic [WORDLEN-1:0]     ReadDataWord,      // Word read from cache (goes to CPU and bus)
@@ -62,12 +50,9 @@ module cache import cvw::*; #(parameter cvw_t P,
 );
 
   // Cache parameters
-  localparam                     LINEBYTELEN = LINELEN/8;            // Line length in bytes
-  localparam                     OFFSETLEN = $clog2(LINEBYTELEN);    // Number of bits in offset field
-  localparam                     SETLEN = $clog2(NUMSETS);          // Number of set bits
   localparam                     SETTOP = SETLEN+OFFSETLEN;          // Number of set plus offset bits
   localparam                     TAGLEN = PA_BITS - SETTOP;          // Number of tag bits
-  localparam                     FLUSHADRTHRESHOLD = NUMSETS - 1;   // Used to determine when flush is complete
+  localparam                     FLUSHADRTHRESHOLD = NUMSETS - 1;    // Used to determine when flush is complete
 
   logic                          SelAdrData;
   logic                          SelAdrTag;
@@ -134,7 +119,7 @@ module cache import cvw::*; #(parameter cvw_t P,
 
   assign Hit = |HitWay;
   assign LineDirty = |DirtyWay;
-  assign HitLineDirty = |HitDirtyWay;
+  assign HitLineDirty = |(HitDirtyWay & HitWay);
 
   // ReadDataLineWay is a 2d array of cache line len by number of ways.
   // Need to OR together each way in a bitwise manner.
@@ -144,7 +129,7 @@ module cache import cvw::*; #(parameter cvw_t P,
 
   // Data cache needs to choose word offset from PAdr or BeatCount to writeback dirty lines
   if (!READ_ONLY_CACHE)
-    mux2 #(LOGBWPL) WordAdrrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
+    mux2 #(LOGBWPL) WordAdrMux(.d0(PAdr[$clog2(LINELEN/8) - 1 : $clog2(MUXINTERVAL/8)]),
       .d1(BeatCount), .s(SelBusBeat),
       .y(WordOffsetAddr));
   else
@@ -179,9 +164,10 @@ module cache import cvw::*; #(parameter cvw_t P,
     assign FetchBufferByteSel = SetDirty ? ~DemuxedByteMask : '1;  // If load miss set all muxes to 1.
 
     // Merge write data into fetched cache line for store miss
+    // cbo.zero takes every byte from WriteData, which the LSU forces to zero
     for (index = 0; index < LINELEN/8; index++) begin
       mux2 #(8) WriteDataMux(.d0(WriteData[(8*index)%WORDLEN+7:(8*index)%WORDLEN]),
-        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[3]), .y(LineWriteData[8*index+7:8*index]));
+        .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[CMO_ZERO]), .y(LineWriteData[8*index+7:8*index]));
     end
     assign LineByteMask = SetDirty ? DemuxedByteMask : '1;
   end else begin : WriteSelLogic
@@ -208,10 +194,9 @@ module cache import cvw::*; #(parameter cvw_t P,
     // Flush way
     flopenl #(NUMWAYS) FlushWayReg(clk, FlushWayCntEn, ResetOrFlushCntRst, {{NUMWAYS-1{1'b0}}, 1'b1}, NextFlushWay, FlushWay);
     if (NUMWAYS > 1) assign NextFlushWay = {FlushWay[NUMWAYS-2:0], FlushWay[NUMWAYS-1]};
-    else            assign NextFlushWay = FlushWay[NUMWAYS-1];
+    else             assign NextFlushWay = FlushWay[NUMWAYS-1];
     assign FlushWayFlag = FlushWay[NUMWAYS-1];
-  end // block: flushlogic
-  else begin : flushlogic // I$ is never flushed because it is never dirty
+  end else begin : flushlogic // I$ is never flushed because it is never dirty
     assign FlushWay = '0;
     assign FlushWayFlag = 1'b0;
     assign FlushAdrFlag = 1'b0;

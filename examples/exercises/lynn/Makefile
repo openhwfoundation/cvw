@@ -15,8 +15,8 @@ INC_DIR       		?= $(CURDIR)/sample_processor/incdir/  # Optional directory for 
 PROCESSOR_TOP 		?= riscvsingle # top-level module name
 PROCESSOR_CONFIG 	?= $(CURDIR)/sample_processor/config
 
-#--trace-all
-SAIL_TRACE_FLAGS 	?= --trace-all
+# --trace enables every Sail trace except TLB, PTW and gdbserver (--trace-all was removed in Sail 0.15)
+SAIL_TRACE_FLAGS 	?= --trace
 
 # ----    Synthesis Configuration ---- #
 SYNTH_TECH 			?= sky130 #tsmc28 #tsmc28psyn
@@ -58,7 +58,7 @@ TESTBENCH_DIR 	?= $(CURDIR)/tb
 SYNTH_DIR 		?= $(CURDIR)/synth
 
 WORK_DIR        ?= $(CURDIR)/work
-RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test-cvw
+RISCV_ARCH_TEST ?= $(WALLY)/addins/riscv-arch-test
 
 TEST_WORK_DIR	?= $(ACT4_TEST_DIR)/work
 C_TEST_WORK_DIR ?= $(C_TEST_DIR)/work
@@ -130,7 +130,6 @@ build: $(WORK_DIR)/_info Makefile
 	$(READELF) -S $< > $<.read
 	$(OBJDUMP) -D $< > $<.objdump
 	$(ELF2HEX) $< $@
-	extractFunctionRadix.sh $<.objdump
 
 #   Use: make run ELFS="path/to/a.elf path/to/b.elf" [-j]
 .PHONY: run

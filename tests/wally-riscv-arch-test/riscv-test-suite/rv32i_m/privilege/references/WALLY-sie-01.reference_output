@@ -1,7 +1,0 @@
-00000000 # test 5.3.1.6: Readback value from zeroing out SIE. # note that none of the attempted interrupts should fire since MIE is zeroed.
-0000000b # mcause for ecall going from M mode to S mode
-00000000 # mtval of ecall (*** defined to be zero for now)
-00001800 # masked out mstatus.MPP = 11, mstatus.MPIE = 0, and mstatus.MIE = 0
-00000009 # mcause for ecall from terminating tests in S mode
-00000000 # mtval of ecall (*** defined to be zero for now)
-00000800 # masked out mstatus.MPP = 01, mstatus.MPIE = 0, and mstatus.MIE = 0

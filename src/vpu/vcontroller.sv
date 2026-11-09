@@ -35,6 +35,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   input logic                         StallW,
   input logic [31:0]                  InstrD,                     // Instruction in Decode stage
   input logic                         VectorD,                    // This instruction is a vector
+  // CSR state
+  input logic [1:0]                   STATUS_VS,                  // vector (VS) field in status register
+  input logic [P.XLEN-1:0]            VTYPED,                     // vtype, forwarded from an older vset still in flight
 
   // Decode stage outputs
   output logic [4:0]                  Vs1FinalD, Vs2FinalD,       // Vector Source 1 and 2
@@ -42,12 +45,18 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VMD,                        // 0 = mask enabled, 1 mask disabled
   output logic [5:0]                  Funct6D,
   output logic [2:0]                  Funct3D,
-  output logic                        RegWriteD,
+  output logic                        VWriteIntD,                 // writes integer register
+  output logic                        VWriteFPD,                  // writes floating-point register
   output logic                        VRegWriteD,
   output logic [1:0]                  VALUSrcAD,
   output logic                        VALUSrcBD,
   output logic                        VALUResultSrcD,
   output logic                        IllegalVPUInstrD,
+  // vset controls, sent to vconfig
+  output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
+  output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
+  output logic                        VsetivliD,                  // vsetivli: AVL is the uimm5 in the rs1 field
+  output logic [10:0]                 VTYPEImmD,                  // zero-extended vtype immediate for vsetvli / vsetivli
   // hand shaking controls
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
@@ -64,18 +73,33 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [6:0]  lmulDecodedD;
   logic        MicroOpNotLastD;
 
+  logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
+  logic [4:0]  VOpClassD;                 // execution block requirement for EU
+  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic        VReductionD;               // instr is a reduction op
+  logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
   //logic [2:0]  lmulD;                  // *** should be set by vset* instruction
 
   assign lmulDecodedD = 7'b0100_000; // m4
 
 
   vdecoder #(P) vdecoder(.clk, .reset, .VectorStallD, .VectorFlushD,
-                         .InstrD, .Vs1D, .Vs2D, .VdD, .VMD,
-                         .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD,
-                         .VALUResultSrcD, .VALUSrcAD, .VALUSrcBD, .IllegalVPUInstrD);
+                         .InstrD, .STATUS_VS, .VTYPED, .Vs1D, .Vs2D, .VdD, .VMD,
+                         .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
+                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
+                         .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .IllegalVPUInstrD,
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
+
+  // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
+  // Decode must not reach an EU or the order queue: its result would arrive in Writeback with a cleared order tag that
+  // never matches the queue head, so the EU waits forever for writeback and VPUBackEndBusyE stalls the pipeline.
+  logic        DispatchVectorD;
+  assign DispatchVectorD = VectorD & ~VectorFlushD & ~IllegalVPUInstrD;
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
-                               .VectorD, .Vs1D, .Vs2D, .VdD, .ControllerValidD, .ExecutionUnitReadyD,
+                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .lmulDecodedD,
                                .MicroOpNotLastD);
 
