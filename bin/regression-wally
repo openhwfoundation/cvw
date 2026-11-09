@@ -819,13 +819,15 @@ def parseShard(text):
 def shardTests(configs, shard):
     """Return the simulations of one shard: each simulation, largest first, goes to the shard with the
     fewest ELFs so far (the lowest-numbered one on a tie).  The split depends only on the list of
-    simulations, so the N jobs of one configuration agree on it and together run every simulation once."""
+    simulations, so the N jobs of one configuration agree on it and together run every simulation once.
+    A run that is not a list of ELFs (the short buildroot boot) counts as none, so it goes last, to the
+    shard with the fewest ELFs."""
     index, count = shard
     loads = [0] * count
     selected = []
-    for case in sorted(configs, key=lambda c: (-len(c.elfs), c.name)):
+    for case in sorted(configs, key=lambda c: (-len(c.elfs or ()), c.name)):
         target = loads.index(min(loads))
-        loads[target] += len(case.elfs)
+        loads[target] += len(case.elfs or ())
         if target == index - 1:
             selected.append(case)
     return selected
@@ -1040,7 +1042,7 @@ def main(args):
         total = len(configs)
         configs = shardTests(configs, args.shard)
         print(f"Shard {args.shard[0]}/{args.shard[1]}: running {len(configs)} of {total} simulations "
-              f"({sum(len(c.elfs) for c in configs)} ELFs)", flush=True)
+              f"({sum(len(c.elfs or ()) for c in configs)} ELFs)", flush=True)
     if coverStr and not args.dryrun:
         # Merge only coverage that belongs to the tests selected now: drop the .ucdb of any test that
         # was renamed, removed, or run by hand outside the regression.  Coverage of the other
