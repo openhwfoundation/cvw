@@ -86,6 +86,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [1:0] VALUSrcAD;
   logic       VALUSrcBD;
   logic       VALUResultSrcD;
+  logic [2:0] VALUSelectD;
+  logic [1:0] VLaneSelectD;
   logic        VsetD;                         // vsetvli, vsetivli, or vsetvl
   logic        VsetvlD;                       // vsetvl (vtype from rs2)
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
@@ -134,7 +136,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
                                .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultSrcD, .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
+                               .VALUResultSrcD, .VALUSelectD, .VLaneSelectD, .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
                                .VPUFrontEndBusyD);
@@ -150,7 +152,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VLaneSelectD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VIEUVdFinalW[i]));
