@@ -28,16 +28,16 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module data_reg import cvw::*; #(parameter cvw_t P) (
-  input logic                         tck,
-  input logic                         tdi,
-  input logic                         resetn,
-  input logic [P.DTM_INSTR_WIDTH-1:0] currentInst,
-  input logic                         ShiftDR, ClockDR, UpdateDR,
-  input logic [31:0]                  dtmcs_next,
-  output logic [31:0]                 dtmcs,
-  input logic [P.DTM_ABITS + 34 - 1:0]    dmi_next,
-  output logic [P.DTM_ABITS + 34 - 1:0]   dmi,
-  output logic                        tdo
+  input  logic                          tck,
+  input  logic                          tdi,
+  input  logic                          resetn,
+  input  logic [P.DTM_INSTR_WIDTH-1:0]  CurrentInst,
+  input  logic                          ShiftDR, ClockDR, UpdateDR,
+  input  logic [31:0]                   DTMCSNext,
+  output logic [31:0]                   dtmcs,
+  input  logic [P.DTM_ABITS + 34 - 1:0] DMINext,
+  output logic [P.DTM_ABITS + 34 - 1:0] dmi,
+  output logic                          tdo
 );
 
   logic        tdo_idcode;
@@ -60,13 +60,12 @@ module data_reg import cvw::*; #(parameter cvw_t P) (
   idreg #(32) idcode(tck, tdi, resetn, P.JEDEC, ShiftDR, ClockDR, tdo_idcode);
 
   // DTMCS TODO (JACOB): Debug Spec Section 6.1.4
-  internalreg #(32) dtmcsreg(tck, tdi, resetn, dtmcs_next, {11'b0, 3'd4, 6'd0, 2'b0, P.DTM_ABITS, 4'b1},
+  internalreg #(32) dtmcsreg(tck, tdi, resetn, DTMCSNext, {11'b0, 3'd4, 6'd0, 2'b0, P.DTM_ABITS, 4'b1},
   ShiftDR, ClockDR, dtmcs, tdo_dtmcs);
 
   // DMI
-  internalreg #(P.DTM_ABITS + 34) dmireg(tck, tdi, resetn, dmi_next, {(P.DTM_ABITS + 34){1'b0}},
+  internalreg #(P.DTM_ABITS + 34) dmireg(tck, tdi, resetn, DMINext, {(P.DTM_ABITS + 34){1'b0}},
   ShiftDR, ClockDR, dmi, tdo_dmi);
-
 
   // BYPASS DR implementation.  IEEE 1149.1 describes the DR as being
   // clocked during Capture-DR and Shift-DR; here ClockDR is implemented
@@ -79,7 +78,7 @@ module data_reg import cvw::*; #(parameter cvw_t P) (
 
   // Mux data register output based on current instruction
   always_comb begin
-    case (currentInst)
+    case (CurrentInst)
       IDCODE  : tdo = tdo_idcode;
       DTMCS   : tdo = tdo_dtmcs;
       DMIREG  : tdo = tdo_dmi;

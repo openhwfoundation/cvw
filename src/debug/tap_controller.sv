@@ -38,6 +38,7 @@ module tap_controller
    output logic ClockIR,
    output logic UpdateIR,
    output logic ShiftDR,
+   output logic CaptureDR,
    output logic ClockDR,
    output logic UpdateDR);
 
@@ -124,17 +125,18 @@ module tap_controller
    assign select = State[3];
 
    always @(negedge tck, posedge trst)
-     if (trst) begin
-        CaptureIR <= 0;
-        ShiftIR <= 0;
-        ShiftDR <= 0;
-        reset <= 0;
-        enable <= 0;
-     end else begin
-        CaptureIR <= (State == CAPTURE_IR);
-        ShiftIR <= (State == SHIFT_IR);
-        ShiftDR <= (State == SHIFT_DR);
-        reset <= ~(State == TEST_LOGIC_RESET);
-        enable <= (State == SHIFT_IR) | (State == SHIFT_DR);
+      if (trst) begin
+         CaptureIR <= 0;
+         ShiftIR <= 0;
+         ShiftDR <= 0;
+         reset <= 0;
+         enable <= 0;
+      end else begin
+         CaptureIR <= (State == CAPTURE_IR);
+         ShiftIR <= (State == SHIFT_IR);
+         ShiftDR <= (State == SHIFT_DR);
+         CaptureDR <= (State == CAPTURE_DR);
+         reset <= ~(State == TEST_LOGIC_RESET);
+         enable <= (State == SHIFT_IR) | (State == SHIFT_DR);
      end
 endmodule

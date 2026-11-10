@@ -681,78 +681,136 @@ add wave -noupdate -group Debug -expand -group jtag /testbench/dut/debug/dtm/tck
 add wave -noupdate -group Debug -expand -group jtag /testbench/dut/debug/dtm/tms
 add wave -noupdate -group Debug -expand -group jtag /testbench/dut/debug/dtm/tdi
 add wave -noupdate -group Debug -expand -group jtag /testbench/dut/debug/dtm/tdo
-add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIADDR
-add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIDATA
-add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIOP
-add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIREADY
-add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIVALID
-add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/currentInst
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/controller/State
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/resetn
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/CaptureDR
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/ShiftDR
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/UpdateDR
+add wave -noupdate -group Debug -expand -group jtag -group tap /testbench/dut/debug/dtm/UpdateIR
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/CaptureDMI
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/UpdateDMI
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/UpdateDTMCS
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/Sticky
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/Discard
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIStatus
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DTMHardReset
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/DMIReset
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/RspDeliver
+add wave -noupdate -group Debug -expand -group dtm /testbench/dut/debug/dtm/NextData
+add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/CurrentInst
 add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/dmi
+add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/DMINextReg
+add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/DMINext
 add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/dtmcs
+add wave -noupdate -group Debug -expand -group dtm -group {registers} /testbench/dut/debug/dtm/DTMCSNext
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/tck
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/TckReset
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/ReqSend
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/ReqLaunch
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/ReqToggle
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/ReqHold
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/AckToggleTck
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/AckToggleTckPrev
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/Busy
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/RspValid
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/RspData
+add wave -noupdate -group Debug -expand -group cdc -group {tck side} /testbench/dut/debug/dtm/cdc/RspOp
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/clk
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/reset
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/ReqToggleClk
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/ReqToggleClkPrev
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/AckToggle
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIADDR
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIDATA
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIOP
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIREADY
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIVALID
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIRSPDATA
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIRSPOP
+add wave -noupdate -group Debug -expand -group cdc -group {clk side} /testbench/dut/debug/dtm/cdc/DMIRSPVALID
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DMIRSPDATA
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DMIRSPOP
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DMIRSPREADY
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DMIRSPVALID
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DMActive
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/ResetDM
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugNDMReset
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/NDMResetPending
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugHaltReq
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugResumeReq
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugResetHaltReq
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugHaveReset
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/DebugHaveResetAck
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/ResumeAck
 add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/AnyResumeAck
+add wave -noupdate -group Debug -expand -group dm /testbench/dut/debug/debug/AllResumeAck
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/DMControl
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/DMStatus
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/Data0
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/Data1
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/AbstractCS
 add wave -noupdate -group Debug -expand -group dm -group {Debug Registers} /testbench/dut/debug/debug/Command
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DebugMode
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/state
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/state_n
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugMode
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/NextHalt
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/NextResume
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/NextHaltCause
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/Stepping
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugEBreak
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugUseDPC
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugHaltFlush
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugResumeFlush
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/DebugHaveReset
+add wave -noupdate -group Debug -expand -group debugmode /testbench/dut/core/priv/priv/debugmode/debugmode/InstrValidE
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/cause
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DebugHaltReq
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DebugResumeReq
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DebugResetHaltReq
+add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/prv
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DPC_REGW
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DPCWriteValM
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DCSR_REGW
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DCSRWriteValM
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/WriteDCSR
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/WriteDPC
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/InstrValidE
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DPCset
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/DebugResume
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/ebreak
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/ebreakm
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/ebreaks
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/ebreaku
 add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/step
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/Stepping
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/state
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/state_n
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/NextHalt
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug.csrd/DebugHaveReset
-add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug.csrd/DebugHaveResetAck
+add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/stepie
+add wave -noupdate -group Debug -expand -group csrd /testbench/dut/core/priv/priv/csr/debug/csrd/stopcount
 add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/PCSrcM
 add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/IEUAdrM
 add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/PCM
 add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/NextValidPCE
+add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/TrapVectorM
+add wave -noupdate -group Debug -expand -group csrd -group {DPC Sources} /testbench/dut/core/priv/priv/csr/debug/csrd/EPCM
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/StartCommand
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/CommandWrite
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/ValidCommand
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/ValidSize
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/AARException
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/Busy
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/CMDErr
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/debug_apb/CurrState
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugGPREnable
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugCSREnable
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugFPREnable
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugRegWDATA
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugRegAddr
 add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugRegWrite
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PCLK
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PRESETn
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PENABLE
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PSELRegister
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PSELMemory
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PWRITE
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PWDATA
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PSTRB
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PADDR
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PREADY
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PRDATA
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/PSLVERR
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/debug_apb/CurrState
-add wave -noupdate -group Debug -expand -group abstract /testbench/dut/debug/debug/CMDErr
+add wave -noupdate -group Debug -expand -group abstract /testbench/dut/core/debug_apb/debug_apb/DebugFPRWrite
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPCLK
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPRESETn
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPENABLE
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPSELRegister
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPSELMemory
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPWRITE
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPWDATA
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPSTRB
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPADDR
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPREADY
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPRDATA
+add wave -noupdate -group Debug -expand -group abstract -group apb /testbench/dut/debug/debug/DebugPSLVERR
 
 
 

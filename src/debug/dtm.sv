@@ -1,5 +1,5 @@
 ///////////////////////////////////////////
-// tap_controller.sv
+// dtm.sv
 //
 // Written: Jacob Pease jacobpease@protonmail.com,
 //          James E. Stine james.stine@okstate.edu
@@ -48,7 +48,6 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   input logic [1:0]   DMIRSPOP,
   input logic         DMIRSPREADY,
   input logic         DMIRSPVALID
-
 );
 
   // Tap Controller stuff
@@ -60,20 +59,31 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   logic  ClockIR;
   logic  UpdateIR;
   logic  ShiftDR;
+  logic  CaptureDR;
   logic  ClockDR;
   logic  UpdateDR;
 
   // Instruction Register
-  logic [P.DTM_INSTR_WIDTH-1:0]  currentInst;
+  logic [P.DTM_INSTR_WIDTH-1:0]  CurrentInst;
 
   // Select outputs
   logic        tdo_dr, tdo_ir, tdo_mux, tdo_delayed;
 
-  // Edge detecting UpdateDR. Avoids cases where UpdateDR is still
-  // high for multiple clock cycles.
-  logic        UpdateDRSync;
-  logic [1:0]  UpdateDRSamples;
-  logic        UpdateDRValid;
+  // CDC -------------------------------------------------------------
+  // DMI scan decode (TCK domain)
+  logic        CaptureDMI;
+  logic        UpdateDMI;
+  logic        UpdateDTMCS;
+
+  // TCK side of the DMI clock-domain crossing
+  logic        ReqSend;
+  logic        Busy;
+  logic        RspValid;
+  logic [31:0] RspData;
+  logic [1:0]  RspOp;
+  logic        Discard;
+  logic        RspDeliver;
+  logic [31:0] NextData;
 
   // Test Data Register Stuff
   logic [31:0] dtmcs, DTMCSNext;
@@ -81,8 +91,6 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   logic [P.DTM_ABITS + 34 - 1:0] DMINextReg, DMINext, dmi;
 
   // Debug Module Interface Control
-  logic        UpdateDMI;
-  logic        UpdateDTMCS;
   logic        DTMHardReset;
   logic        DMIReset;
   logic        Sticky;
@@ -95,23 +103,21 @@ module dtm import cvw::*; #(parameter cvw_t P) (
     WR  = 2'b10
   } DMIOPW;
 
-  enum logic {IDLE, BUSY} DMIState;
-
   // Temporarily tying tresetn to resetn. This isn't the way JTAG
   // recommends doing it, but the debug spec and neorv32 seem to
   // imply it's ok to do so.
   tap_controller controller (tck, reset, tms, tdi,
     resetn, enable, select,
     ShiftIR, CaptureIR, ClockIR, UpdateIR,
-    ShiftDR, ClockDR, UpdateDR);
+    ShiftDR, CaptureDR, ClockDR, UpdateDR);
 
   // IR
-  inst_reg instructionreg (tck, tdi, resetn,
-    ShiftIR, CaptureIR, ClockIR, UpdateIR,
-    tdo_ir, currentInst);
+  inst_reg instructionreg (.tck, .tdi, .resetn,
+    .ShiftIR, .CaptureIR, .ClockIR, .UpdateIR,
+    .tdo(tdo_ir), .instreg(CurrentInst));
 
   // tdr = Test Data Register
-  data_reg #(P) tdr (tck, tdi, resetn, currentInst, ShiftDR, ClockDR, UpdateDR,
+  data_reg #(P) tdr (tck, tdi, resetn, CurrentInst, ShiftDR, ClockDR, UpdateDR,
     DTMCSNext, dtmcs, DMINext, dmi, tdo_dr);
 
   // Choose output of tdo
@@ -124,29 +130,31 @@ module dtm import cvw::*; #(parameter cvw_t P) (
   // NOTE: Push the tristate logic for this to the IO cell
   assign tdo = enable ? tdo_delayed : 1'bz;
 
-  // The JTAG-side of the DTM runs on TCK, while the Debug Module (DM)
-  // and DMI bus live on our system clock, we need a clean
-  // clock-domain crossing (CDC) between them. After updating the DMI
-  // register, then it is safe to drive the DMI with the value stored
-  // in the DMI data register.
-  synchronizer updatesync (clk, UpdateDR, UpdateDRSync);
+  // The whole DTM runs on TCK. Only the DMI request and response
+  // cross into the system clock domain, through a two-phase
+  // bundled-data handshake (dmicdc). The DM side sees the
+  // DMIVALID/DMIRSPVALID interface (Debug Spec Appendix A.3) and is
+  // unaware of the clock domain crossing.
 
-  always_ff @(posedge clk) begin
-    if (reset) begin
-      UpdateDRSamples <= 2'b0;
-    end else begin
-      if (UpdateDRSync) UpdateDRSamples[0] <= 1;
-      else UpdateDRSamples[0] <= 0;
-      UpdateDRSamples[1] <= UpdateDRSamples[0];
-    end
-  end
+  // CaptureDR comes from the TAP controller. UpdateDR is high for
+  // exactly one TCK cycle, and dmi still holds the scanned value then.
+  assign CaptureDMI  = CaptureDR & (CurrentInst[4:0] == 5'b10001);
+  assign UpdateDMI   = UpdateDR  & (CurrentInst[4:0] == 5'b10001);
+  assign UpdateDTMCS = UpdateDR  & (CurrentInst[4:0] == 5'b10000);
 
-  assign UpdateDRValid = (UpdateDRSamples == 2'b01);
-  assign UpdateDTMCS = UpdateDRValid & (currentInst[4:0] == 5'b10000);
-  assign UpdateDMI = UpdateDRValid & (currentInst[4:0] == 5'b10001);
+  // Launch a DMI access on Update-DR for a read or write, unless the
+  // sticky busy error is set. Busy can't be high here: a scan that
+  // captured busy has already set Sticky. dmicdc also gates on ~Busy.
+  assign ReqSend = UpdateDMI & ~Sticky & ((dmi[1:0] == RD) | (dmi[1:0] == WR));
+
+  dmicdc #(P.DTM_ABITS) cdc (.tck, .TckReset(reset), .ReqSend, .dmi,
+    .Busy, .RspValid, .RspData, .RspOp,
+    .clk, .reset,
+    .DMIADDR, .DMIDATA, .DMIOP, .DMIREADY, .DMIVALID,
+    .DMIRSPDATA, .DMIRSPOP, .DMIRSPREADY, .DMIRSPVALID);
 
   // DTMCS
-  always_ff @(posedge clk) begin
+  always_ff @(posedge tck) begin
     if (reset | ~resetn | DTMHardReset) begin
       DTMHardReset <= 0;
       DMIReset <= 0;
@@ -160,63 +168,48 @@ module dtm import cvw::*; #(parameter cvw_t P) (
 
   assign DTMCSNext = {11'b0, 3'd4, DTMHardReset, DMIReset, 1'b0, 3'd0, DMIStatus, P.DTM_ABITS, 4'b1};
 
-  // Sticky error
-  always_ff @(posedge clk) begin
-    if (reset | ~resetn | DMIReset == 1 | DTMHardReset == 1) begin
+  // Sticky busy error: set when a scan captures dmi while an access is in flight
+  always_ff @(posedge tck) begin
+    if (reset | ~resetn | DMIReset | DTMHardReset) begin
       Sticky <= 0;
-    end else if ((DMIState == BUSY) & (UpdateDMI) & (dmi[1:0] != NOP)) begin
+    end else if (CaptureDMI & Busy) begin
       Sticky <= 1;
     end
   end
 
-  // DMI
-  // Based on the Debug Module Interface Signals found in Appendix
-  // A.3 of the v1.0 Debug Specification
-  always_ff @(posedge clk) begin
-    if (reset | ~resetn | DTMHardReset) begin
-      DMINextReg[1:0] <= NOP;
-      DMIREADY <= 1'b1;
-      DMIVALID <= 1'b0;
-      DMIState <= IDLE;
-    end else begin
-      case(DMIState)
-        IDLE: begin
-          if (UpdateDMI & ~Sticky) begin
-            DMIADDR <= dmi[P.DTM_ABITS+34-1:34];
-            DMIDATA <= dmi[33:2];
-            DMINextReg[33:2] <= dmi[33:2];
-            if ((dmi[1:0] == RD) | (dmi[1:0] == WR)) begin
-              DMIOP <= dmi[1:0];
-              DMIVALID <= 1'b1;
-              DMIState <= BUSY;
-            end
-          end else begin
-            DMIState <= IDLE;
-          end
-        end
-        BUSY: begin
-          DMIVALID <= 1'b0;
-          if (DMIRSPVALID) begin
-            DMIOP <= NOP;
-            if (DMIOP == 2'b01) begin
-              DMINextReg[33:2] <= DMIRSPDATA;
-            end else begin
-              DMINextReg[33:2] <= dmi[33:2];
-            end
-            DMINextReg[1:0] <= DMIRSPOP;
-            DMIState <= IDLE;
-          end else begin
-            DMINextReg[33:2] <= dmi[33:2];
-            DMIState <= BUSY;
-          end
-        end
-        default: DMIState <= IDLE;
-      endcase
+  // An access in flight can't be cancelled across the crossing. After
+  // dtmhardreset or Test-Logic-Reset, drop its response when it arrives.
+  // Cleared whenever nothing is in flight (Busy also drops in the
+  // RspValid cycle), which also initializes it on the first TCK edge.
+  always_ff @(posedge tck) begin
+    if (~Busy) begin
+      Discard <= 0;
+    end else if (~resetn | DTMHardReset) begin
+      Discard <= 1;
     end
   end
 
-  assign DMIStatus = Sticky ? 2'b11 : DMINextReg[1:0];
+  // DMI result captured by the next scan. Update-DR records the address
+  // and data scanned in; the response then replaces the data for a read
+  // and sets the status. The response is also passed straight to
+  // Capture-DR in the RspValid cycle, which saves a TCK cycle of
+  // busy. Based on the Debug Module Interface Signals found in
+  // Appendix A.3 of the v1.0 Debug Specification.
+  // DMIOP is dmicdc's held request op, stable until the next launch.
+  assign RspDeliver = RspValid & ~Discard;
+  assign NextData   = (DMIOP == RD) ? RspData : DMINextReg[33:2];
 
-  assign DMINext = {DMIADDR, DMINextReg[33:2], DMIStatus};
+  always_ff @(posedge tck or posedge reset) begin
+    if (reset | ~resetn | DTMHardReset) begin
+      DMINextReg <= '0;
+    end else if (RspDeliver) begin
+      DMINextReg[33:0] <= {NextData, RspOp};
+    end else if (UpdateDMI & ~Sticky & ~Busy) begin
+      DMINextReg[P.DTM_ABITS+34-1:2] <= dmi[P.DTM_ABITS+34-1:2];
+    end
+  end
+
+  assign DMIStatus = (Sticky | Busy) ? 2'b11 : RspDeliver ? RspOp : DMINextReg[1:0];
+  assign DMINext   = {DMINextReg[P.DTM_ABITS+34-1:34], RspDeliver ? NextData : DMINextReg[33:2], DMIStatus};
 
 endmodule
