@@ -40,9 +40,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
 );
 
   // constants
-  parameter VERSION = 8'b1;
-  parameter LOG_NUM_TRIGGERS = $clog2(P.NUM_TRIGGERS);
-  parameter MASKMAX6 = P.XLEN-1;
+  localparam VERSION = 8'b1;
+  localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
+  localparam MASKMAX6 = P.XLEN-1;
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
