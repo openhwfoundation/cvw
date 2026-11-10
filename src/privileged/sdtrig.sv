@@ -2,7 +2,7 @@
 ///////////////////////////////////////////
 // sdtrig.sv
 //
-// Written: David_Harris@hmc.edu 14 March 2026
+// Written: David_Harris@hmc.edu 14 March 2026 & Pclark@hmc.edu 10 Nov 2026
 // Modified:
 //
 // Purpose: Sdtrig debug trigger extension
@@ -44,16 +44,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
 
-  if (P.SDTRIG_SUPPORTED & P.NUM_TRIGGERS == 0) begin : notriggers
-    $error("sdtrig: SDTRIG_SUPPORTED = 1 requires NUM_TRIGGERS > 0");
-  end
-  if (~P.SDTRIG_SUPPORTED & P.NUM_TRIGGERS != 0) begin : unusedtriggers
-    $error("sdtrig: NUM_TRIGGERS = %0d but SDTRIG_SUPPORTED = 0", P.NUM_TRIGGERS);
-  end
-
-  localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
-  localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
-
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
   // hcontext (0x6A8) requires the H extension, which Wally lacks; accesses are illegal
@@ -65,6 +55,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam TDATA3    = 12'h7A3;
   localparam TINFO     = 12'h7A4;
   localparam TCONTROL  = 12'h7A5;
+
+  localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
+  localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
 
   // trigger types
   localparam ICOUNT_TYPE    = 4'b0011;
@@ -122,10 +115,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
   assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
   assign WriteTDATA2M     = CSRMWriteM & (CSRAdrM == TDATA2);
-  // tdata3 (textra) exists for every enabled trigger; tdata1 legalizes type to a supported one or disabled
-  logic       TDATA3ExistsM;
-  assign TDATA3ExistsM    = TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] != DISABLED_TYPE;
-  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3) & TDATA3ExistsM;
+  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
   assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
   assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
   assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
@@ -263,8 +253,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
       TDATA1:    CSRTReadValM = TDATA1_REGW[TSELECT_REGW];
       TDATA2:    CSRTReadValM = TDATA2_REGW[TSELECT_REGW];
-      TDATA3:    if (TDATA3ExistsM) CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
-                 else IllegalCSRTAccessM = 1'b1;
+      TDATA3:    CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end
