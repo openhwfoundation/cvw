@@ -59,7 +59,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [2:0]                   VALUSelectD,
   input logic                         VSubD,
   input logic [1:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
-  input logic                         VShiftRightD, VShiftArithD,     // vlane shifter controls
+  input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
    // datapath from vregfile
   input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
   input logic [P.VLEN-1:0]            v0D,
@@ -87,7 +87,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [2:0] VALUSelectE;
   logic [1:0] VLaneSelectE;
   logic       VSubE;
-  logic       VShiftRightE, VShiftArithE;
+  logic [1:0] VShiftSelectE;
 
   logic       RegWriteM;
   logic       VRegWriteM;
@@ -169,9 +169,9 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   flopenrc #(28+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~LocalStallE & CaptureD,
      {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUSrcBD, VALUResultSrcD, VALUSelectD, VSubD, VLaneSelectD,
-      VShiftRightD, VShiftArithD, ExecutionUnitOrderD},
+      VShiftSelectD, ExecutionUnitOrderD},
      {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUSrcBE, VALUResultSrcE, VALUSelectE, VSubE, VLaneSelectE,
-      VShiftRightE, VShiftArithE, ExecutionUnitOrderE});
+      VShiftSelectE, ExecutionUnitOrderE});
 
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, InstrD, InstrE);
@@ -181,7 +181,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   mux2 #(P.VPU_INT_BLEN) vscrbmux(VRD2SelectedE, {XLENTOINTLANES{ForwardedSrcBE}}, VALUSrcBE, VSrcBE);
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE,
-                                         .VShiftRightE, .VShiftArithE, .LaneResult(VALUResultE));
+                                         .VShiftSelectE, .LaneResult(VALUResultE));
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~LocalStallM, VALUResultE, VALUResultM); // *** may need an enable
 

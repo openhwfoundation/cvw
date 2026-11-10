@@ -33,8 +33,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [2:0]        VALUSelectE,
   input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic              VSubE,
-  input  logic              VShiftRightE,    // shift right
-  input  logic              VShiftArithE,    // arithmetic shift
+  input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   output logic [P.ELEN-1:0] LaneResult       // lane result
 );
 
@@ -44,7 +43,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
 
-  vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftRightE), .SubArith(VShiftArithE));
+  vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
   always_comb
     case (VLaneSelectE)
