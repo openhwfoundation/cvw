@@ -31,27 +31,27 @@
 module valu import cvw::*; #(parameter cvw_t P)
   (
    input logic [P.ELEN-1:0] A, B,
-   input logic [5:0] Funct6E,
-   input logic [2:0] Funct3E,
-   output logic [P.ELEN-1:0] Sum
+   input logic [2:0] VALUSelect,
+   input logic VSub,
+   output logic [P.ELEN-1:0] VALUResult
    );
 
-  logic [P.ELEN-1:0] AddResultE, AndResultE, CondInvA;
-  logic vand, vsub;
+  logic [P.ELEN-1:0] AddResult, AndResult, OrResult;
+  logic [P.ELEN-1:0] CondInvA;
 
-  // *** simplest implementation for now, just add/sub/and, SEW = 64
-  // Operands: A = vs1 / imm / x[rs1], B = vs2
+  assign CondInvA = VSub ? ~A : A;
+  assign AddResult = B + CondInvA + {{(P.ELEN-1){1'b1}}, VSub};
+  assign AndResult = A & B;
+  assign OrResult = A | B;
 
-  // vsub.vv (OPIVV) and vsub.vx (OPIVX): vd = vs2 - vs1 = B - A = B + ~A + 1
-  assign vsub = (Funct6E == 6'b000010) & ((Funct3E == 3'b000) | (Funct3E == 3'b100));
+  always_comb
+    case (VALUSelect)
+      3'b000: VALUResult = AddResult;
+      3'b011: VALUResult = OrResult;
+      3'b101: VALUResult = AndResult;
+      default: VALUResult = AddResult;
+    endcase
 
-  mux2 #(P.ELEN) subinvmux(A, ~A, vsub, CondInvA);
-  assign AddResultE = B + CondInvA + {{(P.ELEN-1){1'b0}}, vsub};
 
-  assign AndResultE = A & B;
-
-  assign vand = (Funct6E == 6'b001001) & ((Funct3E == 3'b000) | (Funct3E == 3'b011) | (Funct3E == 3'b100));
-
-  mux2 #(P.ELEN) resultmux(AddResultE, AndResultE, vand, Sum);
 
 endmodule

@@ -33,6 +33,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   // Hazards
   input logic                       VectorStallD, VectorStallE, StallM, StallW,             // stall signals (from HZU)
   input logic                       VectorFlushD, VectorFlushE, VectorFlushM, FlushW, // flush signals (from HZU)
+  input logic                       StallE, FlushE, FlushM,                     // scalar pipeline, carries vset (from HZU)
   output logic                      VPUFrontEndBusyD,                           // Stall the decode stage (To HZU)
   output logic                      VPUBackEndBusyE,
 
@@ -47,26 +48,53 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input logic                       VectorD,                                    // This instruction is a vector
   // Execute state
   input logic [P.XLEN-1:0]          ForwardedSrcAE, ForwardedSrcBE,             // Integer/FP input for convert, move (from IEU)
+  output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
   output logic [P.VPU_LSU_BLEN-1:0] VWriteDataM,                                // Data to be written to memory (to LSU)
   output logic [P.XLEN-1:0]         VEUAdrM ,                                   // Data to be written to memory (to LSU)
   input logic [P.VPU_LSU_BLEN-1:0]  VReadDataM ,                                // Read data (from LSU)
+  output logic [P.XLEN-1:0]         VIntResM,                                   // vl for rd (to IEU)
   output logic                      IllegalVPUInstrD,                           // Is the instruction an illegal fpu instruction (to IFU)
   // Writeback stage
-  output logic [P.XLEN-1:0]         VIEUFPResultFinalW                          // Int or FP result for X or F regs.
+  output logic [P.XLEN-1:0]         VIEUFPResultFinalW,                         // Int or FP result for X or F regs
+  // CSR state
+  input logic [1:0]                 STATUS_VS,                                  // vector (VS) field in status register
+  input logic [P.XLEN-1:0]          VTYPE_REGW,                                 // vtype
+  input logic [P.XLEN-1:0]          VL_REGW,                                    // vl
+  // CSR updates from vset
+  output logic                      WriteVLVTYPEM,                              // vset writes vl and vtype
+  output logic [P.XLEN-1:0]         NewVLM,
+  output logic [7:0]                NewVTYPEM,
+  output logic                      NewVILLM,
+  output logic                      ClearVSTARTM                                // vector instruction resets vstart
 );
+
+  // vector floating point datapath parameters FP extracted from P
+  /* verilator lint_off UNUSEDPARAM */ // FP is unused until the vector floating point unit is instantiated
+  `include "vfpu-parameter-defs.vh"
+  /* verilator lint_on UNUSEDPARAM */
 
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
   logic [4:0] VdFinalD;                      // Vector Destination read (overwrite)
   logic       VMD;                            // 0 = mask enabled; 1 mask disabled
   logic [5:0] Funct6D;
   logic [2:0] Funct3D;
-  logic       RegWriteD;
+  logic       VWriteIntD;                     // writes integer register
+  logic       VWriteFPD;                      // writes floating-point register *** wire to FPU
   logic       VRegWriteD;
   logic [1:0] VALUSrcAD;
   logic       VALUSrcBD;
   logic       VALUResultSrcD;
+  logic [2:0] VALUSelectD;
+  logic       VSubD;
+  logic [1:0] VLaneSelectD;
+  logic        VsetD;                         // vsetvli, vsetivli, or vsetvl
+  logic        VsetvlD;                       // vsetvl (vtype from rs2)
+  logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
+  logic [10:0] VTYPEImmD;                     // vtype immediate
+  logic [P.XLEN-1:0] VTYPED;                  // vtype seen by Decode, forwarded from an older vset
+  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
   logic [P.VLEN-1:0] VResultFinalW;
@@ -107,9 +135,10 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
-                               .InstrD, .VectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                               .VMD, .Funct6D, .Funct3D, .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultSrcD, .IllegalVPUInstrD, .ControllerValidD, .ExecutionUnitReadyD,
+                               .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
+                               .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
+                               .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
+                               .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
                                .VPUFrontEndBusyD);
 
@@ -124,7 +153,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VIEUVdFinalW[i]));
@@ -172,5 +201,16 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
   assign VPUBackEndBusyE = (~&ExecutionUnitReadyD) & ~VPUFrontEndBusyD;
+
+  // vset runs in the scalar pipeline; vconfig computes vl and vtype in Execute and forwards vtype to Decode
+  vconfig #(P) vconfig(.clk, .reset, .StallE, .FlushE, .StallM, .FlushM,
+                       .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .Rs1D(InstrD[19:15]), .RdD(InstrD[11:7]), .VTYPED, .VLD,
+                       .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VTYPE_REGW, .VL_REGW,
+                       .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM);
+
+  assign VIntResM = NewVLM;
+
+  // TODO: every vector instruction resets vstart; only vset, which reaches the scalar Memory stage, does so for now
+  assign ClearVSTARTM = WriteVLVTYPEM;
 
 endmodule

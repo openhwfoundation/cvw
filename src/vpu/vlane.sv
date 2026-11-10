@@ -30,20 +30,18 @@
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.ELEN-1:0] SrcA, SrcB,    // lane operands
-  input  logic [5:0] Funct6E,
-  input  logic [2:0] Funct3E,
+  input  logic [2:0] VALUSelectE,
+  input  logic [1:0] VLaneSelectE,          // 00 = valu, 01 = vmul, 10 = move
+  input  logic VSubE,
   output logic [P.ELEN-1:0] LaneResult     // lane result
 );
 
   logic [P.ELEN-1:0] SumE, ProductE;
-  logic mul;  // whether the instruction is multiply
 
-  assign mul = (Funct6E == 6'b100101) & (Funct3E[1:0] == 2'b10);
-
-  valu #(P) valu(.A(SrcA), .B(SrcB), .Funct6E(Funct6E), .Funct3E(Funct3E), .Sum(SumE));
+  valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
 
   vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
 
-  mux2 #(P.ELEN) resultmux(SumE, ProductE, mul, LaneResult);
+  mux3 #(P.ELEN) eumux(SumE, ProductE, SrcA, VLaneSelectE, LaneResult);
 
 endmodule

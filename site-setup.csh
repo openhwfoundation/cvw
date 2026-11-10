@@ -25,6 +25,12 @@ extend PATH $SPYGLASS_HOME/bin
 # Synopsys Spyglass
 setenv SNPSLMD_QUEUE 1
 
+# Environmental variables for SoC
+setenv SYN_pdk /proj/models/tsmc28/libraries/28nmtsmc/tcbn28hpcplusbwp30p140_190a/
+setenv SYN_TLU /proj/models/tsmc28/libraries/psyn/TLU+
+setenv SYN_MW /proj/models/tsmc28/libraries/psyn/MW
+setenv SYN_memory /proj/models/tsmc28/libraries/psyn/WallyMem/rv64gc/
+
 # GCC
 if ( ! $?LD_LIBRARY_PATH ) then
     setenv LD_LIBRARY_PATH $RISCV/riscv64-unknown-elf/lib
@@ -54,6 +60,6 @@ endif
 # Use newer gcc version for older distros
 if ( -e $RISCV/gcc-13 ) then
     prepend PATH $RISCV/gcc-13/bin # SUSE Family
-elseif ( -e $RISCV/gcc-10 ) then
+else if ( -e $RISCV/gcc-10 ) then
     prepend PATH $RISCV/gcc-10/bin # Ubuntu 20.04 LTS
 endif

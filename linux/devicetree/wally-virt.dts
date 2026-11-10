@@ -7,8 +7,6 @@
   model = "wally-virt,qemu";
 
   chosen {
-    linux,initrd-end = <0x85c43a00>;
-    linux,initrd-start = <0x84200000>;
     bootargs = "root=/dev/vda ro";
     stdout-path = "/soc/uart@10000000";
   };

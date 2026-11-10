@@ -1,34 +1,22 @@
 ///////////////////////////////////////////
 // csri.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Ben Bracker, Rose Thompson, Kip Macsai-Goren, Harshini Srinath
 //
-// Purpose: Interrupt Control & Status Registers (IP, EI)
-//          See RISC-V Privileged Mode Specification 20190608 & 20210108 draft
+// Purpose: Interrupt pending and enable CSRs.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csri import cvw::*;  #(parameter cvw_t P) (
+module csri import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              CSRMWriteM, CSRSWriteM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
@@ -40,7 +28,7 @@ module csri import cvw::*;  #(parameter cvw_t P) (
   output logic [11:0]       MIP_REGW_writeable // only SEIP, STIP, SSIP are actually writeable; the rest are hardwired to 0
 );
 
-  logic [11:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK;
+  logic [11:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK, SIE_WRITE_MASK;
   logic                     WriteMIPM, WriteMIEM, WriteSIPM, WriteSIEM;
   logic                     STIP;
 
@@ -57,7 +45,7 @@ module csri import cvw::*;  #(parameter cvw_t P) (
 
   // Interrupt Pending and Enable Registers
   // MEIP, MTIP, MSIP are read-only
-  // SEIP, STIP, SSIP is writable in MIP if S mode exists
+  // SEIP, STIP, SSIP are writable in MIP if S mode exists
   // SSIP is writable in SIP if S mode exists
   if (P.S_SUPPORTED) begin : mask
     if (P.SSTC_SUPPORTED) begin
@@ -68,23 +56,25 @@ module csri import cvw::*;  #(parameter cvw_t P) (
       assign STIP = MIP_REGW_writeable[5];
     end
     assign SIP_WRITE_MASK = 12'h002 & MIDELEG_REGW; // SSIP is writeable in SIP (privileged 20210108-draft 4.1.3)
-    assign MIE_WRITE_MASK = 12'hAAA;
+    assign MIE_WRITE_MASK = 12'hAAA; // MEIE, SEIE, MTIE, STIE, MSIE, SSIE
+    assign SIE_WRITE_MASK = 12'h222 & MIDELEG_REGW; // Delegated supervisor interrupts are writable in SIE
   end else begin : mask
     assign MIP_WRITE_MASK = 12'h000;
     assign SIP_WRITE_MASK = 12'h000;
-    assign MIE_WRITE_MASK = 12'h888;
+    assign MIE_WRITE_MASK = 12'h888; // MEIE, MTIE, MSIE
+    assign SIE_WRITE_MASK = 12'h000;
     assign STIP = '0;
   end
   always_ff @(posedge clk)
     if (reset)          MIP_REGW_writeable <= 12'b0;
     else if (WriteMIPM) MIP_REGW_writeable <= (CSRWriteValM[11:0] & MIP_WRITE_MASK);
-    else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[11:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK);
+    else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[11:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK); // exclusion-tag: csri-write-sip
   always_ff @(posedge clk)
     if (reset)          MIE_REGW <= 12'b0;
     else if (WriteMIEM) MIE_REGW <= (CSRWriteValM[11:0] & MIE_WRITE_MASK); // MIE controls M and S fields
-    else if (WriteSIEM) MIE_REGW <= (CSRWriteValM[11:0] & 12'h222 & MIDELEG_REGW) | (MIE_REGW & 12'h888); // only S fields
+    else if (WriteSIEM) MIE_REGW <= (CSRWriteValM[11:0] & SIE_WRITE_MASK) | (MIE_REGW & ~SIE_WRITE_MASK); // only S fields // exclusion-tag: csri-write-sie
 
-  assign MIP_REGW = {MExtInt,   1'b0, SExtInt|MIP_REGW_writeable[9],  1'b0,
-                     MTimerInt, 1'b0, STIP,                           1'b0,
-                     MSwInt,    1'b0, MIP_REGW_writeable[1],          1'b0};
+  assign MIP_REGW = {MExtInt,   1'b0, SExtInt | MIP_REGW_writeable[9], 1'b0,
+                     MTimerInt, 1'b0, STIP,                            1'b0,
+                     MSwInt,    1'b0, MIP_REGW_writeable[1],           1'b0};
 endmodule

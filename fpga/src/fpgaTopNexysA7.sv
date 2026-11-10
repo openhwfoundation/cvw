@@ -246,16 +246,7 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
 
   // CDC synchronizer for DDR calib_complete signal
   logic ddr_ready;
-  (* ASYNC_REG = "TRUE" *) logic [1:0] ddr_ready_cpu_sync;
-
-  always_ff @(posedge CPUCLK or posedge south_reset) begin
-    if (south_reset) begin
-        ddr_ready_cpu_sync <= 2'b00;
-    end else begin
-        ddr_ready_cpu_sync <= {ddr_ready_cpu_sync[0], c0_init_calib_complete};
-    end
-  end
-  assign ddr_ready = ddr_ready_cpu_sync[1];
+  synchronizer ddrreadysync(.clk(CPUCLK), .d(c0_init_calib_complete), .q(ddr_ready));
 
   // reset controller XILINX IP
   sysrst sysrst
@@ -278,7 +269,7 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
                     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
                     .HCLK(HCLKOpen), .HRESETn(HRESETnOpen),
                     .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
-                    .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0),
+                    .HTRANS, .HMASTLOCK, .HREADY,
                     .GPIOIN, .GPIOOUT, .GPIOEN,
                     .UARTSin, .UARTSout, .SDCIn, .SDCCmd, .SDCCS(SDCCSin), .SDCCLK, .ExternalStall(RVVIStall));
 
@@ -534,8 +525,8 @@ module fpgaTop #(parameter logic RVVI_SYNTH_SUPPORTED = 0)
     assign InstrValidM    = fpgaTop.wallypipelinedsoc.core.ieu.InstrValidM;
     assign InstrRawD      = fpgaTop.wallypipelinedsoc.core.ifu.InstrRawD;
     assign PCM            = fpgaTop.wallypipelinedsoc.core.ifu.PCM;
-    assign Mcycle         = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[0];
-    assign Minstret       = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.counters.HPMCOUNTER_REGW[2];
+    assign Mcycle         = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.HPMCOUNTER_REGW[0];
+    assign Minstret       = fpgaTop.wallypipelinedsoc.core.priv.priv.csr.counters.HPMCOUNTER_REGW[2];
     assign TrapM          = fpgaTop.wallypipelinedsoc.core.TrapM;
     assign PrivilegeModeW = fpgaTop.wallypipelinedsoc.core.priv.priv.privmode.PrivilegeModeW;
     assign GPRAddr        = fpgaTop.wallypipelinedsoc.core.ieu.dp.regf.a3;

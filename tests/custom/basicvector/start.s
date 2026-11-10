@@ -46,6 +46,10 @@ _start:
   # set the stack pointer to the top of memory - 8 bytes (pointer size)
   li sp, 0x87FFFFF8
 
+  # turn on the vector unit: mstatus.VS = Initial (01), otherwise vector instructions are illegal
+  li t0, 0x200
+  csrs mstatus, t0
+
   jal ra, main
   jal ra, _halt
 

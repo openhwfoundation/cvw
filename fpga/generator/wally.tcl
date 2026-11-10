@@ -18,12 +18,13 @@ set board $::env(board)
 set ipName WallyFPGA
 
 create_project $ipName . -force -part $partNumber
-if {$boardName!="ArtyA7"} {
+if {$boardName!="ArtyA7" && $boardName!="qmtechk7" } {
     set_property board_part $boardName [current_project]
 }
 
 # read package first
 add_files  ../src/CopiedFiles_do_not_add_to_repo/cvw.sv
+add_files  ../src/CopiedFiles_do_not_add_to_repo/fpu_pkg.sv
 #read_verilog -sv  ../src/wallypipelinedsocwrapper.sv
 # then read top level
 if {$board=="ArtyA7"} {
@@ -32,6 +33,8 @@ if {$board=="ArtyA7"} {
     add_files  {../src/fpgaTopGenesys2.sv}
 } elseif {$board=="nexysa7"} {
     add_files  {../src/fpgaTopNexysA7.sv}
+} elseif {$board=="qmtechk7"} {
+    add_files  {../src/fpgaTopQmtechk7.sv}
 } else {
     add_files  {../src/fpgaTop.sv}
 }
@@ -41,7 +44,7 @@ import_ip IP/sysrst.srcs/sources_1/ip/sysrst/sysrst.xci
 import_ip IP/ahbaxibridge.srcs/sources_1/ip/ahbaxibridge/ahbaxibridge.xci
 import_ip IP/clkconverter.srcs/sources_1/ip/clkconverter/clkconverter.xci
 
-if {$board=="ArtyA7" || $board=="genesys2"} {
+if {$board=="ArtyA7" || $board=="genesys2" || $board=="qmtechk7"} {
     import_ip IP/ddr3.srcs/sources_1/ip/ddr3/ddr3.xci
     import_ip IP/mmcm.srcs/sources_1/ip/mmcm/mmcm.xci
 } elseif {$board=="nexysa7" } {
@@ -72,7 +75,7 @@ report_compile_order -constraints > reports/compile_order.rpt
 #synth_design -rtl -name rtl_1  -flatten_hierarchy none
 
 # apply timing constraint after elaboration
-if {$board=="ArtyA7" || $board=="genesys2" || $board=="nexysa7" } {
+if {$board=="ArtyA7" || $board=="genesys2" || $board=="nexysa7" || $board=="qmtechk7"} {
     add_files -fileset constrs_1 -norecurse ../constraints/constraints-$board.xdc
     set_property PROCESSING_ORDER NORMAL [get_files  ../constraints/constraints-$board.xdc]
 } else {
@@ -110,6 +113,8 @@ if {$board=="ArtyA7"} {
     source ../constraints/small-debug.xdc
 } elseif {$board=="nexysa7"} {
     source ../constraints/small-debug.xdc
+} elseif {$board=="qmtechk7"} {
+   source ../constraints/small-debug.xdc
 } else {
     #source ../constraints/vcu-small-debug.xdc
     #source ../constraints/small-debug.xdc
@@ -117,10 +122,18 @@ if {$board=="ArtyA7"} {
     source ../constraints/big-debug-spi.xdc
 }
 
-
 # set for RuntimeOptimized implementation
 #set_property "steps.place_design.args.directive" "RuntimeOptimized" [get_runs impl_1]
 #set_property "steps.route_design.args.directive" "RuntimeOptimized" [get_runs impl_1]
+
+# Further optimization tuning
+if {$board=="qmtechk7"} {
+    # best optimization strategy found: Performance_ExploreWithRemap
+    # set_property strategy Performance_ExploreWithRemap [get_runs impl_1]
+    # comment the line below for slower build with better results
+    # set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED false [get_runs impl_1]
+    # puts "Implementation strategy: Performance_ExploreWithRemap"
+}
 
 launch_runs impl_1 -jobs 16
 wait_on_run impl_1

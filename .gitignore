@@ -23,17 +23,10 @@ __pycache__/
 /**/gmon*
 
 # Tests
-tests/riscof/config32.ini
-tests/riscof/config32e.ini
-tests/riscof/config64.ini
-tests/riscof/riscof_work/
-tests/wally-riscv-arch-test/riscv-test-suite/*/I/*/**
 tests/fp/vectors/*.tv
 tests/fp/vectors/sed*
-tests/fp/combined_IF_vectors/IF_vectors/*.tv
 tests/custom/*/*/
 tests/custom/*/*/*.memfile
-sim/tests/riscvdv
 testbench/trek_files/*/uvm_output
 
 # Linux
@@ -86,6 +79,10 @@ benchmarks/embench/wally*.json
 benchmarks/embench/actual_embench_results/wally*.json
 benchmarks/embench/run*
 benchmarks/coremark/coremark_results.csv
+benchmarks/coremark/build/
+benchmarks/comparison/*/build/
+benchmarks/comparison/*/logs/
+benchmarks/comparison/embench/jobs.txt*
 
 # Simulation
 sim/*.svg
@@ -123,6 +120,9 @@ simv
 sim/vcs/logs
 sim/vcs/wkdir
 sim/vcs/ucdb
+sim/vcs/cov
+sim/vcs/fcov
+sim/vcs/fcov_ucdb
 sim/vcs/csrc
 sim/vcs/profileReport*
 sim/vcs/program.out
@@ -132,10 +132,13 @@ sim/vcs/ucli.key
 sim/vcs/verdi_config_file
 sim/vcs/vcdplus.vpd
 sim/vcs/simprofile*
+sim/vcs/.fsm.sch.verilog.xml
 
 # Verilator
 sim/verilator/logs
 sim/verilator/wkdir
+sim/verilator/fcov
+sim/verilator/fcov_dat
 
 # Examples
 examples/verilog/fulladder/csrc/
@@ -182,3 +185,4 @@ config/deriv
 sim/slack-notifier/slack-webhook-url.txt
 docs/docker/buildroot-config-src
 docs/docker/testvector-generation
+sim/*/testlists/
