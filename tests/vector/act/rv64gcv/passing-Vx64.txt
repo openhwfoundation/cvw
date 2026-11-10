@@ -15,5 +15,11 @@ vmv.x.s
 vor.vi
 vor.vv
 vor.vx
+vsll.vv
+vsll.vx
+vsra.vv
+vsra.vx
+vsrl.vv
+vsrl.vx
 vsub.vv
 vsub.vx
