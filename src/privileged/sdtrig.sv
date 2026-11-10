@@ -258,4 +258,40 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     endcase
   end
 
+logic [P.NUM_TRIGGERS-1:0] m, s, u;
+logic [P.NUM_TRIGGERS-1:0] PrivEnabledM;
+// Privilege match
+always_comb
+  for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+    // match field location depends on trigger type
+    case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
+      ICOUNT_TYPE: begin
+        m[i]  = TDATA1_REGW[i][9];
+        s[i]  = TDATA1_REGW[i][7];
+        u[i]  = TDATA1_REGW[i][6];
+      end
+      ITRIGGER_TYPE: begin
+        m[i]  = TDATA1_REGW[i][9];
+        s[i]  = TDATA1_REGW[i][7];
+        u[i]  = TDATA1_REGW[i][6];
+      end
+      ETRIGGER_TYPE: begin
+        m[i]  = TDATA1_REGW[i][9];
+        s[i]  = TDATA1_REGW[i][7];
+        u[i]  = TDATA1_REGW[i][6];
+      end
+      MCONTROL6_TYPE: begin
+        m[i]  = TDATA1_REGW[i][6];
+        s[i]  = TDATA1_REGW[i][4];
+        u[i]  = TDATA1_REGW[i][3];
+      end
+      default: begin // never match privilege
+        m[i] = 0; s[i] = 0; u[i] = 0;
+      end
+    endcase
+    PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & m[i]) |
+                    (PrivilegeModeW == P.S_MODE  & s[i])   |
+                    (PrivilegeModeW == P.U_MODE  & u[i]);
+  end
+
 endmodule
