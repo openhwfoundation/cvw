@@ -502,6 +502,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign FCvtIntStallD = FCvtIntE & MatchDE; // FPU to Integer transfers have single-cycle latency except fcvt
   // Vector instr leaves scalar pipeline in Decode and takes rs1/rs2 from IRF there, so it waits
   // until an older scalar that writes to them has reached Writeback.
+  // *** forward from Execute to a fixed EU and later vector instrs keep this stall
   assign VMatchDE = ((VReadRs1D & (Rs1D == RdE)) | (VReadRs2D & (Rs2D == RdE))) & (RdE != 5'b0);
   assign VMatchDM = ((VReadRs1D & (Rs1D == RdM)) | (VReadRs2D & (Rs2D == RdM))) & (RdM != 5'b0);
   assign VectorSrcStallD = VectorD & (VMatchDE & RegWriteE | VMatchDM & RegWriteM);
