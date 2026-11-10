@@ -182,6 +182,10 @@ derivconfigtests = [
         ["fdh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/Zfa"]],
         ["fdq_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/I", "rv64i/Zfa/Zfa-*", "rv64i/Zfa/ZfaD-*"]],
         ["fdqh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/I", "rv64i/Zfa"]], # "wally64q" when Q is supported again
+        # Vector configurations: scalar tests must still pass with vector enabled.
+        # priv/Ssstrict, priv/Sm and priv/S are skipped because they expect vector to be off.
+        ["rv64gcv", "rv64gc", ["rv64i/I", "rv64i/M", "rv64i/F", "rv64i/D", "rv64i/Zca", "rv64i/Zfh", "rv64i/Zkt", "rv64i/Zicsr", "priv/U", "priv/Exceptions"]],
+        ["rv32gcv", "rv32gc", ["rv32i/I", "rv32i/M", "rv32i/F", "rv32i/D", "rv32i/Zca", "rv32i/Zfh", "rv32i/Zkt", "rv32i/Zicsr", "priv/U", "priv/Exceptions"]],
     ]
 
 bpredtests = [

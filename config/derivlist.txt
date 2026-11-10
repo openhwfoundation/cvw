@@ -975,6 +975,19 @@ deriv fdqh_rv64gc rv64gc
 Q_SUPPORTED     1
 ZFH_SUPPORTED   1
 
+# Vector configurations: rv32gc/rv64gc with the vector extension enabled.
+# rv32gc/rv64gc keep vector off so tests for them don't fail before vector is fully implemented.
+deriv rv64gcv rv64gc
+ZVE32X_SUPPORTED  1
+ZVE32F_SUPPORTED  1
+ZVE64X_SUPPORTED  1
+ZVE64F_SUPPORTED  1
+ZVE64D_SUPPORTED  1
+ZVFHMIN_SUPPORTED 1
+ZVFH_SUPPORTED    1
+
+deriv rv32gcv rv32gc rv64gcv
+
 #### MORE DIVIDER variants
 
 #### F_only, RK variable

@@ -40,7 +40,7 @@ module valu import cvw::*; #(parameter cvw_t P)
   logic [P.ELEN-1:0] CondInvA;
 
   assign CondInvA = VSub ? ~A : A;
-  assign AddResult = B + CondInvA + {{(P.ELEN-1){1'b1}}, VSub};
+  assign AddResult = B + CondInvA + {{(P.ELEN-1){1'b0}}, VSub};
   assign AndResult = A & B;
   assign OrResult = A | B;
 
