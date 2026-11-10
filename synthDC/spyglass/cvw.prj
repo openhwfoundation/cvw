@@ -24,6 +24,7 @@ set_option incdir ${WALLY}/config/shared
 
 # main CVW
 read_file -type verilog ${WALLY}/src/cvw.sv
+read_file -type verilog ${WALLY}/src/fpu_pkg.sv
 read_file -type verilog ${WALLY}/testbench/wallywrapper.sv
 read_file -type awl ${WALLY}/synthDC/spyglass/waivers.tcl
 

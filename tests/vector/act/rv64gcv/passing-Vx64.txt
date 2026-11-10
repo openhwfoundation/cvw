@@ -1,0 +1,25 @@
+# Vx64 instructions implemented on rv64gcv whose base tests pass.  vector-act runs this
+# list; every entry must keep passing.  Only add instructions meant to work: vector-act <instr> --update
+vadd.vi
+vadd.vv
+vadd.vx
+vand.vi
+vand.vv
+vand.vx
+vmul.vv
+vmul.vx
+vmv.v.i
+vmv.v.v
+vmv.v.x
+vmv.x.s
+vor.vi
+vor.vv
+vor.vx
+vsll.vv
+vsll.vx
+vsra.vv
+vsra.vx
+vsrl.vv
+vsrl.vx
+vsub.vv
+vsub.vx

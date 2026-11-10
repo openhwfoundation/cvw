@@ -1,40 +1,27 @@
 ///////////////////////////////////////////
 // csr.sv
 //
-// Written: David_Harris@hmc.edu 9 January 2021
-// Modified:
-//          dottolia@hmc.edu 7 April 2021
+// Written:  David Harris David_Harris@hmc.edu 9 January 2021
+// Modified: Rose Thompson, Ben Bracker, Domenico Ottolia dottolia@hmc.edu, Udeema Shakya, Katherine Parry, Jordan Carlin
 //
-// Purpose: Counter Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Control and status registers.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csr import cvw::*;  #(parameter cvw_t P) (
+module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     clk, reset,
   input  logic                     FlushM, FlushW,
   input  logic                     StallE, StallM, StallW,
   input  logic [31:0]              InstrM,                    // current instruction
-  input  logic [31:0]              InstrOrigM,                // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
+  input  logic [31:0]              InstrOrigM,                // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0]        PCM,                       // program counter, next PC going to trap/return logic
   input  logic [P.XLEN-1:0]        PCSpillM,                  // program counter, next PC going to trap/return logic aligned after an instruction spill
   input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalM,       // SrcA and memory address from IEU
@@ -42,7 +29,6 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   input  logic                     TrapM,                     // trap is occurring
   input  logic                     mretM, sretM,              // return instruction
   input  logic                     InterruptM,                // interrupt is occurring
-  input  logic                     ExceptionM,                // interrupt is occurring
   input  logic                     MTimerInt,                 // timer interrupt
   input  logic                     MExtInt, SExtInt,          // external interrupt (from PLIC)
   input  logic                     MSwInt,                    // software interrupt
@@ -125,7 +111,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   logic                    UngatedCSRMWriteM;
   logic                    WriteFRMM, SetOrWriteFFLAGSM;
   logic                    ClearOrWriteVSTARTM, WriteVXRMM, SetOrWriteVXSATM;
-  logic [P.XLEN-1:0]       UnalignedNextEPCM, NextEPCM, NextMtvalM;
+  logic [P.XLEN-1:0]       UnalignedNextEPCM, NextEPCM, NextXtvalM;
   logic [5:0]              NextCauseM;
   logic [11:0]             CSRAdrM;
   logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM, IllegalCSRVAccessM;
@@ -133,7 +119,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   logic                    IllegalCSRMWriteReadonlyM;
   logic [P.XLEN-1:0]       CSRReadVal2M;
   logic [11:0]             MIP_REGW_writeable;
-  logic [P.XLEN-1:0]       TVecM,NextFaultMtvalM;
+  logic [P.XLEN-1:0]       TVecM, NextFaultXtvalM;
   logic                    MTrapM, STrapM;
   logic                    SelMtvecM;
   logic [P.XLEN-1:0]       TVecAlignedM;
@@ -148,16 +134,17 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
 
   ///////////////////////////////////////////
-  // MTVAL: gets value from PC, Instruction, or load/store address
+  // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
 
   always_comb
-    if (InterruptM)           NextFaultMtvalM = '0;
+    if (InterruptM)           NextFaultXtvalM = '0;
     else case (CauseM)
-      12, 1, 3:               NextFaultMtvalM = PCSpillM;  // Instruction page/access faults, breakpoint
-      2:                      NextFaultMtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultMtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults
-      default:                NextFaultMtvalM = '0; // Ecall, interrupts
+      12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
+      3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
+      2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
+      default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 
   ///////////////////////////////////////////
@@ -189,7 +176,7 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   ///////////////////////////////////////////
 
   always_comb begin
-    // Choose either rs1 or uimm[4:0] as source
+    // Choose either rs1 or uimm[4:0] as source; funct3[2] = InstrM[14] is 1 for csrrwi/csrrsi/csrrci
     CSRSrcM = InstrM[14] ? {{(P.XLEN-5){1'b0}}, InstrM[19:15]} : SrcAM;
 
     // CSR set and clear for MIP/SIP should only touch internal state, not interrupt inputs
@@ -197,10 +184,10 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
-    CSRRWM =   CSRSrcM;
-    CSRRSM =   CSRReadVal2M | CSRSrcM;
-    CSRRCM =   CSRReadVal2M & ~CSRSrcM;
-    case (InstrM[13:12])
+    CSRRWM = CSRSrcM;
+    CSRRSM = CSRReadVal2M | CSRSrcM;
+    CSRRCM = CSRReadVal2M & ~CSRSrcM;
+    case (InstrM[13:12]) // funct3[1:0]: 01 = csrrw(i), 10 = csrrs(i), 11 = csrrc(i)
       2'b01:   CSRWriteValM = CSRRWM;
       2'b10:   CSRWriteValM = CSRRSM;
       2'b11:   CSRWriteValM = CSRRCM;
@@ -215,14 +202,15 @@ module csr import cvw::*;  #(parameter cvw_t P) (
   assign CSRAdrM = InstrM[31:20];
   assign UnalignedNextEPCM = TrapM ? PCM : CSRWriteValM;
   assign NextEPCM = P.ZCA_SUPPORTED ? {UnalignedNextEPCM[P.XLEN-1:1], 1'b0} : {UnalignedNextEPCM[P.XLEN-1:2], 2'b00}; // 3.1.15 alignment
-  assign NextCauseM = TrapM ? {InterruptM, CauseM}: {CSRWriteValM[P.XLEN-1], CSRWriteValM[4:0]};
-  assign NextMtvalM = TrapM ? NextFaultMtvalM : CSRWriteValM;
+  assign NextCauseM = TrapM ? {InterruptM, CauseM} : {CSRWriteValM[P.XLEN-1], CSRWriteValM[4:0]};
+  assign NextXtvalM = TrapM ? NextFaultXtvalM : CSRWriteValM;
   assign UngatedCSRMWriteM = CSRWriteM & (PrivilegeModeW == P.M_MODE);
   assign CSRMWriteM = UngatedCSRMWriteM & InstrValidNotFlushedM;
   assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & InstrValidNotFlushedM;
-  assign CSRUWriteM = CSRWriteM  & InstrValidNotFlushedM;
-  assign MTrapM = TrapM & (NextPrivilegeModeM == P.M_MODE);
-  assign STrapM = TrapM & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
+  assign CSRUWriteM = CSRWriteM & InstrValidNotFlushedM;
+  // Record the trap only when it is taken, like mstatus and the privilege mode
+  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
+  assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
 
   ///////////////////////////////////////////
   // CSRs
@@ -246,21 +234,20 @@ module csr import cvw::*;  #(parameter cvw_t P) (
 
   csrm #(P) csrm(.clk, .reset,
     .UngatedCSRMWriteM, .CSRMWriteM, .MTrapM, .CSRAdrM,
-    .NextEPCM, .NextCauseM, .NextMtvalM, .MSTATUS_REGW, .MSTATUSH_REGW,
+    .NextEPCM, .NextCauseM, .NextXtvalM, .MSTATUS_REGW, .MSTATUSH_REGW,
     .CSRWriteValM, .CSRMReadValM, .MTVEC_REGW,
     .MEPC_REGW, .MCOUNTEREN_REGW, .MCOUNTINHIBIT_REGW,
-    .MEDELEG_REGW, .MIDELEG_REGW,.PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
+    .MEDELEG_REGW, .MIDELEG_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .MIP_REGW, .MIE_REGW, .WriteMSTATUSM, .WriteMSTATUSHM,
     .IllegalCSRMAccessM, .IllegalCSRMWriteReadonlyM,
     .MENVCFG_REGW);
-
 
   if (P.S_SUPPORTED) begin : csrs
     logic STCE;
     assign STCE = P.SSTC_SUPPORTED & (PrivilegeModeW == P.M_MODE | (MCOUNTEREN_REGW[1] & ENVCFG_STCE));
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
-      .NextEPCM, .NextCauseM, .NextMtvalM, .SSTATUS_REGW,
+      .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
       .STATUS_TVM,
       .CSRWriteValM, .PrivilegeModeW,
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
@@ -313,37 +300,34 @@ module csr import cvw::*;  #(parameter cvw_t P) (
     assign ClearOrWriteVSTARTM = 1'b0;
   end
 
-  if (P.ZICNTR_SUPPORTED) begin : counters
-    csrc #(P) counters(.clk, .reset, .StallE, .StallM, .FlushM,
-      .InstrValidNotFlushedM, .LoadStallD, .StoreStallD, .CSRWriteM, .CSRMWriteM,
-      .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM, .BPWrongM,
-      .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .sfencevmaM,
-      .InterruptM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
-      .CSRAdrM, .PrivilegeModeW, .CSRWriteValM,
-      .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW,
-      .MTIME_CLINT,  .CSRCReadValM, .IllegalCSRCAccessM);
-  end else begin
-    assign CSRCReadValM = '0;
-    assign IllegalCSRCAccessM = 1'b1; // counters aren't enabled
-  end
+  // counters are always instantiated but may read as zero if not supported
+  csrc #(P) counters(.clk, .reset, .StallE, .StallM, .StallW, .FlushM,
+    .InstrValidNotFlushedM, .LoadStallD, .StoreStallD, .CSRWriteM, .CSRMWriteM,
+    .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM, .BPWrongM,
+    .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .sfencevmaM,
+    .InterruptM, .TrapM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
+    .CSRAdrM, .PrivilegeModeW, .CSRWriteValM,
+    .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW,
+    .MTIME_CLINT,  .CSRCReadValM, .IllegalCSRCAccessM);
 
-   // Broadcast appropriate environment configuration based on privilege mode
-  assign ENVCFG_STCE =  MENVCFG_REGW[63]; // supervisor timer counter enable
+  // Broadcast appropriate environment configuration based on privilege mode
+  assign ENVCFG_STCE  = MENVCFG_REGW[63]; // supervisor timer counter enable
   assign ENVCFG_PBMTE = MENVCFG_REGW[62]; // page-based memory types enable
   assign ENVCFG_ADUE  = MENVCFG_REGW[61]; // Hardware A/D Update enable
-  assign ENVCFG_CBE =   (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
+  assign ENVCFG_CBE   = (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[7:4] :
-                                                                       (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
+                                                                        (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
   // FIOM presently doesn't do anything because Wally fences don't do anything
-  assign ENVCFG_FIOM =  (PrivilegeModeW == P.M_MODE) ? 1'b1 :
+  assign ENVCFG_FIOM  = (PrivilegeModeW == P.M_MODE) ? 1'b1 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[0] :
-                                                                       (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
+                                                                        (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
 
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM | CSRVReadValM;
   flopenrc #(P.XLEN) CSRValWReg(clk, reset, FlushW, ~StallW, CSRReadValM, CSRReadValW);
 
   // merge illegal accesses: illegal if none of the CSR addresses is legal or privilege is insufficient
+  // CSRAdrM[9:8] is the lowest privilege mode allowed to access the CSR (00: U, 01: S, 11: M)
   assign InsufficientCSRPrivilegeM = (CSRAdrM[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
                                      (CSRAdrM[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
   assign IllegalCSRAccessM = ((IllegalCSRCAccessM & IllegalCSRMAccessM &

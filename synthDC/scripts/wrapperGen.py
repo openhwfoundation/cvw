@@ -10,6 +10,7 @@ script that generates top-level wrappers for verilog modules to synthesize
 import argparse
 import glob
 import os
+import re
 
 #create argument parser
 parser = argparse.ArgumentParser()
@@ -34,7 +35,7 @@ with open(fin_path) as fin:
     moduleName = ""
 
     # string that will keep track of the running module header
-    buf = 'import cvw::*;\n`include "config.vh"\n`include "parameter-defs.vh"\n'
+    buf = ""
 
     # are we writing into the buffer
     writeBuf=False
@@ -46,18 +47,28 @@ with open(fin_path) as fin:
         if l.lstrip().find("module") == 0:
             lineModuleStart = index
             moduleName = l.split()[1]
+            moduleHeader = l
             writeBuf = True
             buf += f"module {moduleName}wrapper (\n"
             continue
         if (writeBuf):
-            buf += l
+            # ports of a module taking fpu_t P are sized by the wrapper's FP
+            buf += re.sub(r"\bP\.", "FP.", l) if re.search(r"\bfpu_t\s+P\b", moduleHeader) else l
         if l.lstrip().find (");") == 0:
             lineModuleEnd = index
             break
         index+=1
 
     # post-processing buffer: add DUT and endmodule lines
-    buf += f"\t{moduleName} #(P) dut(.*);\nendmodule"
+    # pass the configuration structs in the order the module header declares them
+    params = ", ".join({"cvw_t": "P", "fpu_t": "FP"}[t] for t in re.findall(r"\b(cvw_t|fpu_t)\b", moduleHeader))
+    buf += f"\t{moduleName} #({params}) dut(.*);\nendmodule"
+
+    # build the floating point datapath parameters FP only for modules that take them
+    includes = 'import cvw::*;\n`include "config.vh"\n`include "parameter-defs.vh"\n'
+    if "fpu_t" in moduleHeader:
+        includes += '`include "fpu-parameter-defs.vh"\n'
+    buf = includes + buf
 
     # path to wrapper
     wrapperPath = f"{args.HDLPATH}/{moduleName}wrapper.sv"

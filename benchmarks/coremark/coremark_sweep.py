@@ -10,22 +10,12 @@
 ## Documentation:
 
 # A component of the CORE-V-WALLY configurable RISC-V project.
-# https://github.com/openhwgroup/cvw
+# https://github.com/openhwfoundation/cvw
 
 # Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 #
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-# Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-# except in compliance with the License, or, at your option, the Apache License version 2.0. You
-# may obtain a copy of the License at
-
-# https://solderpad.org/licenses/SHL-2.1/
-
-# Unless required by applicable law or agreed to in writing, any work distributed under the
-# License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-# either express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
 ###########################################################################################
 
 
@@ -46,28 +36,32 @@ arch_list = [
     "rv32im_zicsr",
     "rv32imc_zicsr",
     "rv32im_zicsr_zba_zbb_zbs",
+    "rv32im_zicsr_zba_zbb_zbc_zbs",
     "rv32gc",
     "rv32gc_zba_zbb_zbs",
+    "rv32gc_zba_zbb_zbc_zbs",
     "rv64i_zicsr",
     "rv64im_zicsr",
     "rv64imc_zicsr",
     "rv64im_zicsr_zba_zbb_zbs",
+    "rv64im_zicsr_zba_zbb_zbc_zbs",
     "rv64gc",
-    "rv64gc_zba_zbb_zbs"
+    "rv64gc_zba_zbb_zbs",
+    "rv64gc_zba_zbb_zbc_zbs"
 ]
 
 # Define regular expressions to match the desired fields
-mt_regex = r"Elapsed MTIME: (\d+).*?Elapsed MINSTRET: (\d+).*?COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+).*?CPI: \d+ / \d+ = (\d+\.\d+).*?Load Stalls (\d+).*?Store Stalls (\d+).*?D-Cache Accesses (\d+).*?D-Cache Misses (\d+).*?I-Cache Accesses (\d+).*?I-Cache Misses (\d+).*?Branches (\d+).*?Branches Miss Predictions (\d+).*?BTB Misses (\d+).*?Jump and JR (\d+).*?RAS Wrong (\d+).*?Returns (\d+).*?BP Class Wrong (\d+)"
+mt_regex = r"Elapsed MCYCLE: (\d+).*?Elapsed MINSTRET: (\d+).*?COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+).*?CPI: \d+ / \d+ = (\d+\.\d+).*?Load Stalls (\d+).*?Store Stalls (\d+).*?D-Cache Accesses (\d+).*?D-Cache Misses (\d+).*?I-Cache Accesses (\d+).*?I-Cache Misses (\d+).*?Branches (\d+).*?Branches Miss Predictions (\d+).*?BTB Misses (\d+).*?Jump and JR (\d+).*?RAS Wrong (\d+).*?Returns (\d+).*?BP Class Wrong (\d+)"
 #cpi_regex = r"CPI: \d+ / \d+ = (\d+\.\d+)"
 #cmhz_regex = r"COREMARK/MHz Score: [\d,]+ / [\d,]+ = (\d+\.\d+)"
 # Open a CSV file to write the results
 resultfile = os.path.join(coremark_dir, 'coremark_results.csv')
 # resultfile = 'coremark_results.csv'
 with open(resultfile, mode='w', newline='') as csvfile:
-    fieldnames = ['Architecture', 'CM / MHz','CPI','MTIME','MINSTRET','Load Stalls','Store Stalls','D$ Accesses',
+    fieldnames = ['Architecture', 'CM / MHz','CPI','MCYCLE','MINSTRET','Load Stalls','Store Stalls','D$ Accesses',
                     'D$ Misses','I$ Accesses','I$ Misses','Branches','Branch Mispredicts','BTB Misses',
                     'Jump/JR','RAS Wrong','Returns','BP Class Pred Wrong']
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames, lineterminator='\n')  # LF, like expected_coremark_results.csv
 
     writer.writeheader()
 
@@ -108,7 +102,7 @@ with open(resultfile, mode='w', newline='') as csvfile:
         ret= mt_match.group(16)
         bpc= mt_match.group(17)
         #minstret = mt_instret_match.group(2)
-        writer.writerow({'Architecture': arch, 'CM / MHz':cmhz,'CPI':cpi, 'MTIME': mtime,'MINSTRET':minstret,
+        writer.writerow({'Architecture': arch, 'CM / MHz':cmhz,'CPI':cpi, 'MCYCLE': mtime,'MINSTRET':minstret,
                             'Load Stalls':lstalls,
                             'Store Stalls':swtalls,'D$ Accesses':dacc,'D$ Misses':dmiss,'I$ Accesses':iacc,'I$ Misses':imiss,
                             'Branches':br,'Branch Mispredicts':brm,'BTB Misses':btb,'Jump/JR':jmp,'RAS Wrong':ras,'Returns':ret,'BP Class Pred Wrong':bpc})

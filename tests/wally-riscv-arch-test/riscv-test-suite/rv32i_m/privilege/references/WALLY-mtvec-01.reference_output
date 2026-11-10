@@ -1,7 +1,0 @@
-00000aaa # Test 5.3.1.5: readback value of SIE after enabling all interrupts.
-80000007 # mcause from m time interrupt
-00000000 # mtval for mtime interrupt (0x0)
-00001880 # masked out mstatus.MPP = 11, mstatus.MPIE = 1, and mstatus.MIE = 0
-0000000b # mcause from M mode ecall from test termination
-00000000 # mtval of ecall (*** defined to be zero for now)
-00001880 # masked out mstatus.MPP = 11, mstatus.MPIE = 1, and mstatus.MIE = 0

@@ -1,15 +1,15 @@
 ///////////////////////////////////////////
 // decoder.sv
 //
-// Written: tfleming@hmc.edu & jtorrey@hmc.edu 7 April 2021
+// Written:  Thomas Fleming tfleming@hmc.edu, Jessica Torrey jtorrey@hmc.edu 7 April 2021
 // Modified:
 //
-// Purpose: Binary encoding to one-hot decoder
+// Purpose: Decodes a binary value into a one-hot output.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,

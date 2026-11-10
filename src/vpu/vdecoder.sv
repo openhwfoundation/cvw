@@ -54,6 +54,10 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
+  output logic [2:0]  VALUSelectD,
+  output logic        VSubD,
+  output logic [1:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  output logic [1:0]  VShiftSelectD,            // vlane shift: 00 sll, 10 srl, 11 sra
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -66,7 +70,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   logic [6:0] OpD;                             // Opcode in Decode stage
   logic       OPIVVD, OPFVVD, OPMVVD, OPIVID;
-  logic       OPIVXD, OPFVFD, OPMVXD, VSETD;
+  logic       OPIVXD, OPFVFD, OPMVXD, OPCFGD;
 
   logic [`VCTRLW-1:0] VControlsD;
 
@@ -85,7 +89,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign OPIVXD  = (OpD == 7'b1010111) & (Funct3D == 3'b100);
   assign OPFVFD  = (OpD == 7'b1010111) & (Funct3D == 3'b101);
   assign OPMVXD  = (OpD == 7'b1010111) & (Funct3D == 3'b110);
-  assign VSETD   = (OpD == 7'b1010111) & (Funct3D == 3'b111);
+  assign OPCFGD   = (OpD == 7'b1010111) & (Funct3D == 3'b111);
 
   // Vector load/store decode
   logic [2:0] NfD;                       // nf+1 fields per segment
@@ -166,9 +170,9 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // vset decoding
   logic VsetvliD;
 
-  assign VsetvliD  = VSETD & (InstrD[31] == 1'b0);             // vsetvli:  InstrD[31]    == 0       → vtype imm = InstrD[30:20], AVL = rs1   InstrD[19:15]
-  assign VsetivliD = VSETD & (InstrD[31:30] == 2'b11);         // vsetivli: InstrD[31:30] == 11      → vtype imm = InstrD[29:20], AVL = uimm5 InstrD[19:15]
-  assign VsetvlD   = VSETD & (InstrD[31:25] == 7'b1000000);    // vsetvl:   InstrD[31:25] == 1000000 → vtype rs2 = InstrD[24:20], AVL = rs1   InstrD[19:15]
+  assign VsetvliD  = OPCFGD & (InstrD[31] == 1'b0);             // vsetvli:  InstrD[31]    == 0       → vtype imm = InstrD[30:20], AVL = rs1   InstrD[19:15]
+  assign VsetivliD = OPCFGD & (InstrD[31:30] == 2'b11);         // vsetivli: InstrD[31:30] == 11      → vtype imm = InstrD[29:20], AVL = uimm5 InstrD[19:15]
+  assign VsetvlD   = OPCFGD & (InstrD[31:25] == 7'b1000000);    // vsetvl:   InstrD[31:25] == 1000000 → vtype rs2 = InstrD[24:20], AVL = rs1   InstrD[19:15]
   assign VTYPEImmD = VsetivliD ? {1'b0, InstrD[29:20]} : InstrD[30:20];
 
   // execution unit class
@@ -508,7 +512,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   always_comb
     if (STATUS_VS == 2'b00)                    // vector instr are illegal when VS is off
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
-    else if (VTYPED[P.XLEN-1] & ~VSETD)        // vtype.vill, only vset may execute
+    else if (VTYPED[P.XLEN-1] & ~OPCFGD)        // vtype.vill, only vset may execute
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;
     else begin
       VControlsD = `VCTRLW'b0_0_0_0_0_0_1;     // default illegal instr
@@ -531,11 +535,40 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
     end
 
   // control bits
+  logic VALUOpD;                                   // instruction uses Funct6 to select the valu operation
   logic IllegalVEncodingD;                         // not a supported vector encoding
   logic IllegalVOperandD;                          // an operand is reserved under the current vtype
 
   assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
+  assign VALUOpD = (OPIVVD | OPIVXD | OPIVID);
+  assign VSubD = Funct6D == 6'b000010 & VALUOpD; //***Update this later for vrsub
+  // VALU decoder
+  always_comb begin
+    VALUSelectD = 3'b000;
+    if (VALUOpD)
+      case (Funct6D)
+        6'b001001: VALUSelectD = 3'b101; // vand
+        6'b001010: VALUSelectD = 3'b011; // vor
+        default:   VALUSelectD = 3'b000;
+      endcase
+  end
+
+  // lane result select: 00 for alu, 01 for vmul, 10 for move, 11 for shift
+  always_comb begin
+    case (VOpClassD)
+      VOPCLASS_MUL: VLaneSelectD = 2'b01;
+      VOPCLASS_MOVE: VLaneSelectD = 2'b10; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
+      VOPCLASS_SHIFT: VLaneSelectD = 2'b11; // vsll, vsrl, vsra, vssrl, vssra
+      default:      VLaneSelectD = 2'b00;
+    endcase
+  end
+
+  // vshifter controls
+  // shift select: 00 = sll, 10 = srl, 11 = sra (01 reserved, e.g. rotate)
+  logic VShiftRightD;
+  assign VShiftRightD  = (Funct6D[5:2] == 4'b1010);         // vsrl, vsra, vssrl, vssra
+  assign VShiftSelectD = {VShiftRightD, VShiftRightD & Funct6D[0]};  // arithmetic is the LSB of funct6
 
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand
@@ -545,7 +578,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
 
   assign VdEnD  = VRegWriteD | (OpD == 7'b0100111);                                 // written, or store data
   assign Vs2EnD = VLoadStoreD ? MopD[0] :                                           // load/store: only the index
-                  (OpD == 7'b1010111) & ~VSETD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
+                  (OpD == 7'b1010111) & ~OPCFGD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
   assign Vs1EnD = (OPIVVD | OPMVVD | OPFVVD) & ~VUnaryD;
   assign VScalarMoveD = (OPMVXD | OPFVFD) & (Funct6D == 6'b010000) | VUnaryWriteIntD | VUnaryWriteFPD;
   assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[5];
@@ -563,7 +596,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   // second operand: 00 = vs1, 01 = imm, 10 = rs1 or fs1
   always_comb
     if      (OPIVID)                           VALUSrcAD = 2'b01;
-    else if (OPIVXD | OPFVFD | OPMVXD | VSETD) VALUSrcAD = 2'b10;
+    else if (OPIVXD | OPFVFD | OPMVXD | OPCFGD) VALUSrcAD = 2'b10;
     else                                       VALUSrcAD = 2'b00;
 
 endmodule
