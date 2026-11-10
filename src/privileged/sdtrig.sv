@@ -122,7 +122,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
   assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
   assign WriteTDATA2M     = CSRMWriteM & (CSRAdrM == TDATA2);
-  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
+  // tdata3 (textra) exists for every enabled trigger; tdata1 legalizes type to a supported one or disabled
+  logic       TDATA3ExistsM;
+  assign TDATA3ExistsM    = TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] != DISABLED_TYPE;
+  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3) & TDATA3ExistsM;
   assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
   assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
   assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
@@ -260,13 +263,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
       TDATA1:    CSRTReadValM = TDATA1_REGW[TSELECT_REGW];
       TDATA2:    CSRTReadValM = TDATA2_REGW[TSELECT_REGW];
-      TDATA3:    CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
+      TDATA3:    if (TDATA3ExistsM) CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
+                 else IllegalCSRTAccessM = 1'b1;
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end
-
-
-
-
 
 endmodule
