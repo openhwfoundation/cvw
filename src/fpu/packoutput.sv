@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module packoutput import cvw::*; #(parameter cvw_t P) (
+module packoutput import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
   input  logic [P.FMTBITS-1:0]    Fmt,       // output format
   output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
