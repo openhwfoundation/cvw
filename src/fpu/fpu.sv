@@ -248,16 +248,16 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
     .UmM, .FIntDivResultM);
 
   // compare: fmin/fmax, flt/fle/feq
-  fcmp #(P) fcmp (.Fmt(FmtE), .OpCtrl(OpCtrlE), .Zfa(ZfaE), .Xs(XsE), .Ys(YsE), .Xe(XeE), .Ye(YeE),
+  fcmp #(FP) fcmp (.Fmt(FmtE), .OpCtrl(OpCtrlE), .Zfa(ZfaE), .Xs(XsE), .Ys(YsE), .Xe(XeE), .Ye(YeE),
     .Xm(XmE), .Ym(YmE), .XZero(XZeroE), .YZero(YZeroE), .XNaN(XNaNE), .YNaN(YNaNE),
     .XSNaN(XSNaNE), .YSNaN(YSNaNE), .X(XE), .Y(YE), .CmpNV(CmpNVE),
     .CmpFpRes(CmpFpResE), .CmpIntRes(CmpIntResE));
 
   // sign injection: fsgnj/fsgnjx/fsgnjn
-  fsgninj #(P) fsgninj(.OpCtrl(OpCtrlE[1:0]), .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(FmtE), .SgnRes(SgnResE));
+  fsgninj #(FP) fsgninj(.OpCtrl(OpCtrlE[1:0]), .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(FmtE), .SgnRes(SgnResE));
 
   // classify: fclass
-  fclassify #(P) fclassify (.Xs(XsE), .XSubnorm(XSubnormE), .XZero(XZeroE), .XNaN(XNaNE),
+  fclassify #(FP) fclassify (.Xs(XsE), .XSubnorm(XSubnormE), .XZero(XZeroE), .XNaN(XNaNE),
     .XInf(XInfE), .XSNaN(XSNaNE), .ClassRes(ClassResE));
 
   // convert: fcvt.*.*
@@ -273,7 +273,7 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
     logic [P.FLEN-1:0] FliResE; // Zfa Floating-point load immediate value
 
     // fround
-    fround #(P) fround(.Xs(XsE), .Xe(XeE), .Xm(XmE),
+    fround #(FP) fround(.Xs(XsE), .Xe(XeE), .Xm(XmE),
                        .XNaN(XNaNE), .XSNaN(XSNaNE), .Fmt(FmtE), .Frm(FrmE), .Nf(NfE),
                        .ZfaFRoundNX(ZfaFRoundNXE),
                        .FRound(FRoundE), .FRoundNV(FRoundNVE), .FRoundNX(FRoundNXE));
@@ -281,7 +281,7 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
     // fli
     flopenrc #(5) Rs1EReg(clk, reset, FlushE, ~StallE, InstrD[19:15], Rs1E);
     flopenrc #(2) Fmt2EReg(clk, reset, FlushE, ~StallE, InstrD[26:25], Fmt2E);
-    fli #(P) fli(.Rs1(Rs1E), .Fmt(Fmt2E), .Imm(FliResE));
+    fli #(FP) fli(.Rs1(Rs1E), .Fmt(Fmt2E), .Imm(FliResE));
     mux2  #(P.FLEN) ZfaResMux(FRoundE, FliResE, OpCtrlE[0], ZfaResE);
   end else begin
     assign {FRoundNXE, FRoundNVE} = '0;

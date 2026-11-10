@@ -729,7 +729,7 @@ module testbench_fp;
   end
 
   if (TEST === "cmp" | TEST === "all") begin: fcmp
-    fcmp #(P) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal), .Zfa(1'b0), .Xs, .Ys, .Xe, .Ye,
+    fcmp #(FP) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal), .Zfa(1'b0), .Xs, .Ys, .Xe, .Ye,
       .Xm, .Ym, .XZero, .YZero, .CmpIntRes(CmpRes),
       .XNaN, .YNaN, .XSNaN, .YSNaN, .X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .CmpNV(CmpFlg[4]), .CmpFpRes(FpCmpRes));
   end
