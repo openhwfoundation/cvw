@@ -1,9 +1,9 @@
 ///////////////////////////////////////////
-// vmul.sv
+// vshifter.sv
 //
 // Written: Angela Zheng angela20061015@gmail.com
 // Created: 7 Nov 2026
-// Modified: 7 Nov 2026
+// Modified: 9 Nov 2026
 //
 // Purpose: RISC-V Vector Arithmetic/Logic Unit
 //
@@ -29,17 +29,26 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vshifter import cvw::*; #(parameter cvw_t P) (
-    input logic [P.ELEN-1:0] A, B,
-    input logic dir,    // 1 for right, 0 for left
-    input logic arith,
-    output logic [P.ELEN-1:0] Y
+    input logic [P.ELEN-1:0]                B,
+    input logic [$clog2(P.ELEN)-1:0]        Amt,                // Shift amount
+    input logic                             Right, SubArith,    // Shift right, arithmetic shift
+    output logic [P.ELEN-1:0]               Y
 );
-    logic [$clog2(P.ELEN)-1:0] shiftAmount;
-    assign shiftAmount = A[$clog2(P.ELEN)-1:0];
+    logic [2*P.ELEN-2:0]    Z, Zshift;
+    logic [P.ELEN-2:0]      Zero;                // ELEN copies of zero and sign
+    logic                   Sign;
 
+    assign Sign = B[P.ELEN-1] & SubArith;
+    assign Zero = '0;
     always_comb
-        if (~dir) Y = B << shiftAmount;
-        else if (arith) Y = $signed(B) >>> shiftAmount;
-        else Y = B >> shiftAmount;
+        case ({Right, SubArith})
+            2'b00: Z = {B[P.ELEN-1:0], Zero};
+            2'b01: Z = {B[P.ELEN-1:0], Zero};
+            2'b10: Z = {Zero, B[P.ELEN-1:0]};
+            2'b11: Z = {{(P.ELEN-1){Sign}}, B[P.ELEN-1:0]};
+        endcase
+
+    assign Zshift = Z >> Amt;
+    assign Y = Zshift[P.ELEN-1:0];
 
 endmodule
