@@ -73,6 +73,7 @@ localparam logic ZFA_SUPPORTED = 1;
 
 // privilege modes
 localparam logic S_SUPPORTED = 1; // Supervisor mode
+localparam logic H_SUPPORTED = 0; // Hypervisor (not implemented)
 localparam logic U_SUPPORTED = 1; // User mode
 
 // Supervisor level extensions
@@ -128,6 +129,15 @@ localparam logic IDIV_ON_FPU = 0;
 // Legal number of PMP entries are 0, 16, or 64
 localparam PMP_ENTRIES = 32'd16;
 // grain size should be a full cache line to avoid problems with accesses within a cache line
+// Sdtrig: number of debug triggers
+localparam NUM_TRIGGERS = 32'd4;
+localparam logic ICOUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
+localparam logic CONTEXT_SUPPORTED = 1; // mcontext/scontext registers
+localparam logic MCONTROL6_SUPPORTED = 1; // trigger types
+localparam logic ETRIGGER_SUPPORTED = 1;
+localparam logic ITRIGGER_SUPPORTED = 1;
+localparam logic ICOUNT_SUPPORTED = 1;
+
 // that span grain boundaries but are handled without a spill
 localparam PMP_G = 32'd4; // 64 bytes for 512-bit cache line
 

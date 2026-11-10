@@ -279,6 +279,7 @@ typedef struct packed {
   logic         M_SUPPORTED;
   logic         Q_SUPPORTED;
   logic         S_SUPPORTED;
+  logic         H_SUPPORTED;
   logic         U_SUPPORTED;
 
   // logarithm of XLEN, used for number of index bits to select
@@ -348,6 +349,16 @@ typedef struct packed {
   int           DIVBLEN;
   // integer division/remainder constants
   int           INTDIVb;
+
+  // sdtrig constants for implementation
+  int           NUM_TRIGGERS;
+  logic         ICOUNT_HARDWIRED_1;
+  logic         CONTEXT_SUPPORTED;
+  logic         MCONTROL6_SUPPORTED;
+  logic         ETRIGGER_SUPPORTED;
+  logic         ITRIGGER_SUPPORTED;
+  logic         ICOUNT_SUPPORTED;
+
 } cvw_t;
 
 endpackage

@@ -73,6 +73,7 @@ localparam logic ZFA_SUPPORTED = 0;
 
 // privilege modes
 localparam logic S_SUPPORTED = 0; // Supervisor mode
+localparam logic H_SUPPORTED = 0; // Hypervisor (not implemented)
 localparam logic U_SUPPORTED = 0; // User mode
 
 // Supervisor level extensions
@@ -127,6 +128,15 @@ localparam logic IDIV_ON_FPU = 0;
 // Legal number of PMP entries are 0, 16, or 64
 localparam PMP_ENTRIES = 32'd0;
 localparam PMP_G = 32'b0; // grain of 8 bytes is supported for uncached RV64
+// Sdtrig: number of debug triggers
+localparam NUM_TRIGGERS = 32'd0;
+localparam logic ICOUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
+localparam logic CONTEXT_SUPPORTED = 0; // mcontext/scontext registers
+localparam logic MCONTROL6_SUPPORTED = 0; // trigger types
+localparam logic ETRIGGER_SUPPORTED = 0;
+localparam logic ITRIGGER_SUPPORTED = 0;
+localparam logic ICOUNT_SUPPORTED = 0;
+
 
 // Address space
 localparam logic [63:0] RESET_VECTOR = 64'h0000000080000000;
