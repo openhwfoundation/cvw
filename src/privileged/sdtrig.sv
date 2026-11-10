@@ -77,7 +77,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam ICOUNT_MASK    = {{(P.XLEN-32){1'b0}}, P.H_SUPPORTED, P.H_SUPPORTED, 1'b1, COUNT_MASK, 2'b11, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
   localparam ITRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, P.H_SUPPORTED, P.H_SUPPORTED, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
   localparam ETRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, P.H_SUPPORTED, P.H_SUPPORTED, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
-  localparam MCONTROL6_MASK = {{(P.XLEN-32){1'b0}}, 2'b01, P.H_SUPPORTED, P.H_SUPPORTED, 18'b110011100001111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
+  localparam MCONTROL6_MASK = {{(P.XLEN-32){1'b0}}, 2'b01, P.H_SUPPORTED, P.H_SUPPORTED, 11'b11001110000, (P.MAX_CHAIN_LENGTH > 1), 6'b111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
   localparam DISABLED_MASK  = {(P.XLEN-5){1'b0}};
 
   // Trigger Module Registers
@@ -129,7 +129,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
     logic [3:0]        TDATA1WriteTypeM, TDATA1WriteLegalizedTypeM;
     logic              TDATA1WriteLegalizedDmodeM;
-    logic [P.XLEN-6:0] TDATA1WriteMaskM, TDATA1WriteOnesM;
+    logic [P.XLEN-6:0] TDATA1WriteMaskM, TDATA1WriteOnesM, TDATA1MControl6MaskM, TDATA1WriteLegalizedDataM;
+    logic              TDATA1MatchLegalM, TDATA1SizeLegalM;
     always_comb begin
       // Legalize Type: unsupported types become disabled
       TDATA1WriteTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
@@ -142,20 +143,36 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       endcase
       // Dmode is preserved except by debug mode writes
       TDATA1WriteLegalizedDmodeM = CSRDWriteM ? CSRWriteValM[P.XLEN-5] : TDATA1_REGW[t][P.XLEN-5];
+      // Legalize mcontrol6 WARL fields: an unsupported value masks its field to 0
+      case (CSRWriteValM[10:7]) // match: 6, 7, 10, 11, 14, 15 are reserved
+        4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd5, 4'd8, 4'd9, 4'd12, 4'd13: TDATA1MatchLegalM = 1'b1;
+        default: TDATA1MatchLegalM = 1'b0;
+      endcase
+      case (CSRWriteValM[18:16]) // size: only access sizes Wally can make
+        3'd0, 3'd1, 3'd2, 3'd3: TDATA1SizeLegalM = 1'b1;       // any, 8, 16, 32 bits
+        3'd5:                   TDATA1SizeLegalM = (P.XLEN == 64) | P.D_SUPPORTED; // 64 bits
+        3'd6:                   TDATA1SizeLegalM = P.Q_SUPPORTED; // 128 bits
+        default:                TDATA1SizeLegalM = 1'b0;       // 48-bit instructions, reserved
+      endcase
+      TDATA1MControl6MaskM = MCONTROL6_MASK;
+      if (~TDATA1MatchLegalM) TDATA1MControl6MaskM[10:7]  = '0;
+      if (~TDATA1SizeLegalM)  TDATA1MControl6MaskM[18:16] = '0;
+      if (t == P.NUM_TRIGGERS-1) TDATA1MControl6MaskM[11] = 1'b0; // last trigger has nothing to chain to
       // Mask data based on type
       case (TDATA1WriteLegalizedTypeM)
         ICOUNT_TYPE:    TDATA1WriteMaskM = ICOUNT_MASK;
         ITRIGGER_TYPE:  TDATA1WriteMaskM = ITRIGGER_MASK; // accomodate hit field
         ETRIGGER_TYPE:  TDATA1WriteMaskM = ETRIGGER_MASK; // accomodate hit field
-        MCONTROL6_TYPE: TDATA1WriteMaskM = MCONTROL6_MASK;
+        MCONTROL6_TYPE: TDATA1WriteMaskM = TDATA1MControl6MaskM;
         default:        TDATA1WriteMaskM = DISABLED_MASK;
       endcase
-      // some fields can be hardwired to 1 (e.g. count)
+      // Some fields can be hardwired to 1 (e.g. count)
       case (TDATA1WriteLegalizedTypeM)
         ICOUNT_TYPE:    TDATA1WriteOnesM = {{(P.XLEN-32){1'b0}}, ICOUNT_ONES};
         default:        TDATA1WriteOnesM = '0;
       endcase
-      TDATA1WriteValLegalizedM[t] = {TDATA1WriteLegalizedTypeM, TDATA1WriteLegalizedDmodeM, CSRWriteValM[P.XLEN-6:0] & TDATA1WriteMaskM | TDATA1WriteOnesM};
+      TDATA1WriteLegalizedDataM = CSRWriteValM[P.XLEN-6:0] & TDATA1WriteMaskM | TDATA1WriteOnesM;
+      TDATA1WriteValLegalizedM[t] = {TDATA1WriteLegalizedTypeM, TDATA1WriteLegalizedDmodeM, TDATA1WriteLegalizedDataM};
     end
     always_ff @(posedge clk) begin
       if (reset) TDATA1_REGW[t] <= {4'b1111, {(P.XLEN-4){1'b0}}}; // reset to disabled state

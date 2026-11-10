@@ -357,6 +357,7 @@ typedef struct packed {
   logic         ETRIGGER_SUPPORTED;
   logic         ITRIGGER_SUPPORTED;
   logic         ICOUNT_SUPPORTED;
+  int           MAX_CHAIN_LENGTH;
 
 } cvw_t;
 

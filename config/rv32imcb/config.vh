@@ -138,6 +138,7 @@ localparam logic MCONTROL6_SUPPORTED = 0; // trigger types
 localparam logic ETRIGGER_SUPPORTED = 0;
 localparam logic ITRIGGER_SUPPORTED = 0;
 localparam logic ICOUNT_SUPPORTED = 0;
+localparam MAX_CHAIN_LENGTH = 32'd0; // longest mcontrol6 trigger chain; < 2 means chaining unsupported
 
 
 // Address space

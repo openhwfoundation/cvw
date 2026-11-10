@@ -136,6 +136,7 @@ localparam logic MCONTROL6_SUPPORTED = 1; // trigger types
 localparam logic ETRIGGER_SUPPORTED = 1;
 localparam logic ITRIGGER_SUPPORTED = 1;
 localparam logic ICOUNT_SUPPORTED = 1;
+localparam MAX_CHAIN_LENGTH = 32'd4; // longest mcontrol6 trigger chain; < 2 means chaining unsupported
 
 // that span grain boundaries but are handled without a spill
 localparam PMP_G = 32'd4; // 64 bytes for 512-bit cache line
