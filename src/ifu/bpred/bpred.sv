@@ -166,6 +166,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     // Selects the BP or PC+2/4.
     mux2 #(P.XLEN) pcmux0(PCPlus2or4F, BPPCF, BPPCSrcF, PC0NextF);
     // If the prediction is wrong select the correct address. Execute correction has priority over Decode redirect.
+    // *** BPRedirectD corrects the predictor direction, but never un-learns the wrong entry. Must fix.
     mux3 #(P.XLEN) pcmux1(PC0NextF, PCPlus4D, PCCorrectE, {BPWrongE, BPRedirectD}, PC1NextF);
     // Correct branch/jump target.
     mux2 #(P.XLEN) pccorrectemux(PCLinkE, IEUAdrE, PCSrcE, PCCorrectE);
