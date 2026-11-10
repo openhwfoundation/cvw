@@ -131,7 +131,6 @@ localparam PMP_G = 32'b0; // grain of 8 bytes is supported for uncached RV64
 // Sdtrig: number of debug triggers
 localparam NUM_TRIGGERS = 32'd0;
 localparam logic ICOUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
-localparam logic CONTEXT_SUPPORTED = 0; // mcontext/scontext registers
 localparam logic MCONTROL6_SUPPORTED = 0; // trigger types
 localparam logic ETRIGGER_SUPPORTED = 0;
 localparam logic ITRIGGER_SUPPORTED = 0;

@@ -44,6 +44,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
 
+  localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
+  localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
+
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
   // hcontext (0x6A8) requires the H extension, which Wally lacks; accesses are illegal
@@ -84,8 +87,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] TDATA2_REGW[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0] TDATA3_REGW[P.NUM_TRIGGERS];
   logic [1:0] TCONTROL_REGW; // inflate from fewer bits
-  logic [31:0] SCONTEXT_REGW;
-  logic [13:0] MCONTEXT_REGW;
+  logic [SCONTEXT_LEN-1:0] SCONTEXT_REGW;
+  logic [MCONTEXT_LEN-1:0] MCONTEXT_REGW;
 
   // internal signals
   logic [15:0] TINFO_INFO;
@@ -118,7 +121,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
 
   genvar t;
-
 
   // TSELECT
   flopenr #(LOG_NUM_TRIGGERS) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM[LOG_NUM_TRIGGERS-1:0], TSELECT_REGW);
@@ -210,16 +212,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   flopenr #(2) TCONTROLreg(clk, reset, WriteTCONTROLM, TCONTROLWriteValM, TCONTROL_REGW);
 
   // context registers
-  if (P.CONTEXT_SUPPORTED) begin
-    flopenr #(14) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM[13:0], MCONTEXT_REGW);
-    if (P.S_SUPPORTED)
-      flopenr #(32) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM[31:0], SCONTEXT_REGW);
-    else assign SCONTEXT_REGW = '0;
-  end
-  else begin
-    assign SCONTEXT_REGW = '0;
-    assign MCONTEXT_REGW = '0;
-  end
+  flopenr #(MCONTEXT_LEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM[MCONTEXT_LEN-1:0], MCONTEXT_REGW);
+  if (P.S_SUPPORTED) begin : scontext
+    flopenr #(SCONTEXT_LEN) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM[SCONTEXT_LEN-1:0], SCONTEXT_REGW);
+  end else assign SCONTEXT_REGW = '0;
 
   // CSR Read Logic
   // tselect always holds an existing trigger, so tinfo never reads the nonexistent value 1
@@ -232,10 +228,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     CSRTReadValM = '0;
     IllegalCSRTAccessM = 1'b0;
     case (CSRAdrM)
-      SCONTEXT:  if (P.CONTEXT_SUPPORTED & P.S_SUPPORTED) CSRTReadValM = {{(P.XLEN-32){1'b0}}, SCONTEXT_REGW};
+      SCONTEXT:  if (P.S_SUPPORTED) CSRTReadValM = {{(P.XLEN-SCONTEXT_LEN){1'b0}}, SCONTEXT_REGW};
                  else IllegalCSRTAccessM = 1'b1;
-      MCONTEXT:  if (P.CONTEXT_SUPPORTED) CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW};
-                 else IllegalCSRTAccessM = 1'b1;
+      MCONTEXT:  CSRTReadValM = {{(P.XLEN-MCONTEXT_LEN){1'b0}}, MCONTEXT_REGW};
       TINFO:     CSRTReadValM = TINFOval;
       TCONTROL:  CSRTReadValM = TCONTROLval;
       TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};

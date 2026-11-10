@@ -353,7 +353,6 @@ typedef struct packed {
   // sdtrig constants for implementation
   int           NUM_TRIGGERS;
   logic         ICOUNT_HARDWIRED_1;
-  logic         CONTEXT_SUPPORTED;
   logic         MCONTROL6_SUPPORTED;
   logic         ETRIGGER_SUPPORTED;
   logic         ITRIGGER_SUPPORTED;

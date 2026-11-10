@@ -132,7 +132,6 @@ localparam PMP_ENTRIES = 32'd16;
 // Sdtrig: number of debug triggers
 localparam NUM_TRIGGERS = 32'd4;
 localparam logic ICOUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
-localparam logic CONTEXT_SUPPORTED = 1; // mcontext/scontext registers
 localparam logic MCONTROL6_SUPPORTED = 1; // trigger types
 localparam logic ETRIGGER_SUPPORTED = 1;
 localparam logic ITRIGGER_SUPPORTED = 1;
