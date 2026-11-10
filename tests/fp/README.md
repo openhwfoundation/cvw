@@ -44,13 +44,19 @@ The choices for `<test>` are as follows:
 
     cvtint - test integer conversion unit (fcvtint)
     cvtfp  - test floating-point conversion unit (fcvtfp)
-    cmp    - test comparison unit's LT, LE, EQ operations (fcmp)
+    cmp    - test comparison unit's LT, LE, EQ operations, and the Zfa quiet LE and LT (fleq, fltq) (fcmp)
     add    - test addition
     fma    - test fma
     mul    - test mult with fma
     sub    - test subtraction
     div    - test division
     sqrt   - test square root
+    round  - test Zfa round to integer, fround and froundnx (fround)
+    class  - test classify (fclassify); cover-float vectors only
+    sgnj   - test sign injection fsgnj, fsgnjn, fsgnjx (fsgninj); cover-float vectors only
+    minmax - test fmin and fmax (fcmp); cover-float vectors only
+
+TestFloat has no classify, sign injection or min/max operations, so those tests run only with a vector set that has them (`+VECTORS=`, below); `all` includes them when it does. TestFloat's `roundToInt` without and with `-exact` gives the fround and froundnx vectors, and `le_quiet` and `lt_quiet` the fleq and fltq vectors; the Zfa tests run on configurations with Zfa.
 
 Any config that includes floating point support can be used. Each test will test all its vectors for all precisions supported by the given config.
 
@@ -61,7 +67,7 @@ The FPU is also tested with the vectors of [cover-float](https://github.com/cove
 make coverfloat                                     # in $WALLY; COVERFLOAT_FLAGS=--partial-output for cover-float's smaller set
 wsim <config> all --tb testbench_fp --args +VECTORS=$WALLY/tests/fp/coverfloat/vectors/
 ```
-cover-float generates its vectors in `coverfloat/gen`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. The vectors for operations the testbench has no unit for (remainder, min/max, sign injection, classify, round to integer), BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
+cover-float generates its vectors in `coverfloat/gen`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. cover-float's round to integer gives both froundnx vectors and fround vectors (the same results with inexact cleared). Remainder, which RISC-V lacks, BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
 
 ### Testvector Count
 

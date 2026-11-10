@@ -31,8 +31,14 @@ eq := f16_eq f32_eq f64_eq f128_eq
 le := f16_le f32_le f64_le f128_le
 lt := f16_lt f32_lt f64_lt f128_lt
 mulAdd := f16_mulAdd f32_mulAdd f64_mulAdd f128_mulAdd
+# Zfa: fleq/fltq are quiet comparisons; fround/froundnx round to an integer without/with the inexact flag
+le_quiet := f16_le_quiet f32_le_quiet f64_le_quiet f128_le_quiet
+lt_quiet := f16_lt_quiet f32_lt_quiet f64_lt_quiet f128_lt_quiet
+roundToInt := f16_roundToInt f32_roundToInt f64_roundToInt f128_roundToInt
+roundToIntExact := f16_roundToIntExact f32_roundToIntExact f64_roundToIntExact f128_roundToIntExact
 
-tests := $(cvtfp) $(cvtint) $(add) $(sub) $(mul) $(div) $(sqrt) $(eq) $(le) $(lt) $(mulAdd)
+tests := $(cvtfp) $(cvtint) $(add) $(sub) $(mul) $(div) $(sqrt) $(eq) $(le) $(lt) $(mulAdd) \
+         $(le_quiet) $(lt_quiet) $(roundToInt) $(roundToIntExact)
 
 # Set rounding modes and extensions
 rne: ROUND_MODE := rnear_even
@@ -61,9 +67,9 @@ rnm: $(addsuffix _rnm.tv, $(tests))
 # Rule to generate individual test vectors
 %.tv: ${TESTFLOAT_GEN}
 	@echo Creating $@ vectors
-	@if [[ "$*" =~ "to" ]] || [[ "$*" =~ "sqrt" ]] ; then level=2 ; else level=1 ; fi
-	@if [[ "$*" =~ "to_i" ]] || [[ "$*" =~ "to_u" ]] ; then exact="-exact" ; else exact="" ; fi
-	${TESTFLOAT_GEN}  -tininessafter -level $$level $$exact -$(ROUND_MODE) $(patsubst %_$(ROUND_EXT).tv, %, $@) > $@
+	@if [[ "$*" =~ "to" ]] || [[ "$*" =~ "sqrt" ]] || [[ "$*" =~ "roundToInt" ]] ; then level=2 ; else level=1 ; fi
+	@if [[ "$*" =~ "to_i" ]] || [[ "$*" =~ "to_u" ]] || [[ "$*" =~ "roundToIntExact" ]] ; then exact="-exact" ; else exact="" ; fi
+	${TESTFLOAT_GEN}  -tininessafter -level $$level $$exact -$(ROUND_MODE) $(subst roundToIntExact,roundToInt,$(patsubst %_$(ROUND_EXT).tv, %, $@)) > $@
 	@sed -i 's/ /_/g' $@
 
 # Generate TestFloat first if necessary

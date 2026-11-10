@@ -11,8 +11,9 @@
 # f64_to_ui32_rz.tv, ...).
 #
 # A cover-float line is op_rm_a_b_c_operandFmt_result_resultFmt_flags (a, b, c and result are
-# 128-bit hex).  Operations testbench_fp has no harness for (remainder, class, min/max, sign
-# injection, round to integer), BF16 and round-to-odd are skipped and counted.
+# 128-bit hex).  Remainder (not a RISC-V operation), BF16 and round-to-odd are skipped and counted.
+# Round to integer becomes froundnx vectors (roundToIntExact) and fround vectors (roundToInt, the same
+# without the inexact flag); classify, min/max and sign injection get files TestFloat has no match for.
 #
 # usage: coverfloat2tv OUTDIR [--prefix PREFIX] B1_tv.txt B2_tv.txt ...
 ##################################
@@ -24,10 +25,11 @@ from pathlib import Path
 FMT = {"00": ("f16", 16), "01": ("f32", 32), "02": ("f64", 64), "03": ("f128", 128)}
 INT = {"81": ("i32", 32), "c1": ("ui32", 32), "82": ("i64", 64), "c2": ("ui64", 64)}
 RM = {"00": "rne", "01": "rz", "02": "rd", "03": "ru", "04": "rnm"}
-BINOP = {"00000010": "add", "00000020": "sub", "00000030": "mul", "00000040": "div"}
+BINOP = {"00000010": "add", "00000020": "sub", "00000030": "mul", "00000040": "div",
+         "000000e0": "min", "000000f0": "max", "00000101": "sgnj", "00000102": "sgnjn", "00000103": "sgnjx"}
 CMP = {"000000b1": "eq", "000000c1": "lt", "000000c2": "le"}
 FMAS = {"00000051", "00000052", "00000053", "00000054"}  # fmadd, fmsub, fnmadd, fnmsub
-SQRT, CFI, CFF, CIF = "00000060", "00000080", "00000090", "000000a0"
+SQRT, CFI, CFF, CIF, CLASS, RFI = "00000060", "00000080", "00000090", "000000a0", "000000d0", "00000110"
 
 
 def field(v, bits):
@@ -39,43 +41,48 @@ def neg(v, bits):
 
 
 def convert(line):
-    """Return (TestFloat file stem, .tv line), or (None, reason) for a vector that cannot be converted."""
+    """Return [(TestFloat file stem, .tv line), ...], or (None, reason) for a vector that cannot be converted."""
     op, rm, a, b, c, ofmt, res, rfmt, flags = line.lower().split("_")[:9]
     if rm not in RM:
         return None, f"rounding mode {rm}"
     r = RM[rm]
-    if op in BINOP or op in FMAS or op in CMP or op == SQRT:
+    if op in BINOP or op in FMAS or op in CMP or op in (SQRT, CLASS, RFI):
         if ofmt not in FMT:
             return None, f"op {op} format {ofmt}"
         name, w = FMT[ofmt]
         A, B, C, R = (field(x, w) for x in (a, b, c, res))
         if op in BINOP:
-            return f"{name}_{BINOP[op]}_{r}", f"{A}_{B}_{R}_{flags}"
+            return [(f"{name}_{BINOP[op]}_{r}", f"{A}_{B}_{R}_{flags}")]
         if op == SQRT:
-            return f"{name}_sqrt_{r}", f"{A}_{R}_{flags}"
+            return [(f"{name}_sqrt_{r}", f"{A}_{R}_{flags}")]
+        if op == CLASS:  # the 10-bit RISC-V class mask, in a field as wide as the format
+            return [(f"{name}_class_{r}", f"{A}_{R}_{flags}")]
+        if op == RFI:  # froundnx; fround returns the same result without raising inexact
+            return [(f"{name}_roundToIntExact_{r}", f"{A}_{R}_{flags}"),
+                    (f"{name}_roundToInt_{r}", f"{A}_{R}_{int(flags, 16) & ~1:02X}")]
         if op in CMP:
-            return f"{name}_{CMP[op]}_{r}", f"{A}_{B}_{int(res, 16) & 1:X}_{flags}"
+            return [(f"{name}_{CMP[op]}_{r}", f"{A}_{B}_{int(res, 16) & 1:X}_{flags}")]
         # fmsub = a*b-c, fnmadd = -(a*b)-c, fnmsub = -(a*b)+c: each is a fused multiply-add of negated operands
         if op in ("00000053", "00000054"):
             A = neg(A, w)
         if op in ("00000052", "00000053"):
             C = neg(C, w)
-        return f"{name}_mulAdd_{r}", f"{A}_{B}_{C}_{R}_{flags}"
+        return [(f"{name}_mulAdd_{r}", f"{A}_{B}_{C}_{R}_{flags}")]
     if op == CFI:
         if ofmt not in FMT or rfmt not in INT:
             return None, f"float to int {ofmt}->{rfmt}"
         (fn, fw), (iname, iw) = FMT[ofmt], INT[rfmt]
-        return f"{fn}_to_{iname}_{r}", f"{field(a, fw)}_{field(res, iw)}_{flags}"
+        return [(f"{fn}_to_{iname}_{r}", f"{field(a, fw)}_{field(res, iw)}_{flags}")]
     if op == CIF:
         if ofmt not in INT or rfmt not in FMT:
             return None, f"int to float {ofmt}->{rfmt}"
         (iname, iw), (fn, fw) = INT[ofmt], FMT[rfmt]
-        return f"{iname}_to_{fn}_{r}", f"{field(a, iw)}_{field(res, fw)}_{flags}"
+        return [(f"{iname}_to_{fn}_{r}", f"{field(a, iw)}_{field(res, fw)}_{flags}")]
     if op == CFF:
         if ofmt not in FMT or rfmt not in FMT:
             return None, f"float to float {ofmt}->{rfmt}"
         (fa, wa), (fb, wb) = FMT[ofmt], FMT[rfmt]
-        return f"{fa}_to_{fb}_{r}", f"{field(a, wa)}_{field(res, wb)}_{flags}"
+        return [(f"{fa}_to_{fb}_{r}", f"{field(a, wa)}_{field(res, wb)}_{flags}")]
     return None, f"op {op}"
 
 
@@ -83,7 +90,8 @@ def all_stems():
     """Every file testbench_fp may open, so that a configuration never stops on a missing file."""
     fmts = [f for f, _ in FMT.values()]
     ints = [i for i, _ in INT.values()]
-    ops = ["add", "sub", "mul", "div", "sqrt", "mulAdd", "eq", "lt", "le"]
+    ops = ["add", "sub", "mul", "div", "sqrt", "mulAdd", "eq", "lt", "le", "le_quiet", "lt_quiet",
+           "roundToInt", "roundToIntExact", "class", "min", "max", "sgnj", "sgnjn", "sgnjx"]
     names = [f"{f}_{op}" for f in fmts for op in ops]
     names += [f"{f}_to_{i}" for f in fmts for i in ints] + [f"{i}_to_{f}" for f in fmts for i in ints]
     names += [f"{f}_to_{g}" for f in fmts for g in fmts if f != g]
@@ -104,11 +112,12 @@ def main():
             for line in lines:
                 if line.startswith(("//", "#")) or not line.strip():
                     continue
-                stem, v = convert(line.strip())
-                if stem is None:
-                    skipped[v] += 1
+                converted = convert(line.strip())
+                if converted[0] is None:
+                    skipped[converted[1]] += 1
                 else:
-                    tv[stem].append(v)
+                    for stem, v in converted:
+                        tv[stem].append(v)
     for stem in all_stems():
         tv.setdefault(stem, [])
     for stem, lines in tv.items():

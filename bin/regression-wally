@@ -899,7 +899,7 @@ def selectTests(args, sims, coverStr):
         for config in testfloatconfigs + testfloatdivconfigs:
             tests = ["div", "sqrt", "cvtint", "cvtfp"]
             if config in testfloatconfigs:
-                tests.extend(["add", "sub", "mul", "fma", "cmp"])
+                tests.extend(["add", "sub", "mul", "fma", "cmp", "round"])
             if "f_" in config:
                 tests.remove("cvtfp")
             for test in tests:
