@@ -73,7 +73,6 @@ localparam logic ZFA_SUPPORTED = 1;
 
 // privilege modes
 localparam logic S_SUPPORTED = 1; // Supervisor mode
-localparam logic H_SUPPORTED = 0; // Hypervisor (not implemented)
 localparam logic U_SUPPORTED = 1; // User mode
 
 // Supervisor level extensions
