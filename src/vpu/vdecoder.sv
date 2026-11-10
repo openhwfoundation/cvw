@@ -55,6 +55,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
   output logic [2:0]  VALUSelectD,
+  output logic        VSubD,
   output logic [1:0]  VLaneSelectD,
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
@@ -540,6 +541,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign {VRegWriteD, VWriteIntD, VWriteFPD, VsetD, VALUResultSrcD, VALUSrcBD, IllegalVEncodingD} = VControlsD;
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
   assign VALUOpD = (OPIVVD | OPIVXD | OPIVID);
+  assign VSubD = Funct6D == 6'b000010 & VALUOpD; //***Update this later for vrsub
   // VALU decoder
   always_comb begin
     VALUSelectD = 3'b000;

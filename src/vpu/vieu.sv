@@ -56,6 +56,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [1:0]                   VALUSrcAD,
   input logic                         VALUResultSrcD,
   input logic [2:0]                   VALUSelectD,
+  input logic                         VSubD,
   input logic [1:0]                   VLaneSelectD,
    // datapath from vregfile
   input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
@@ -82,6 +83,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic       VALUResultSrcE;
   logic [2:0] VALUSelectE;
   logic [1:0] VLaneSelectE;
+  logic       VSubE;
 
   logic       RegWriteM;
   logic       VRegWriteM;
@@ -129,7 +131,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   // *** add vector length later
   assign vlE = 4;
-  assign VImmE = '0; // *** fix me
+  // simm5 from the vs1 field, sign-extended to ELEN
+  // *** make SEW-dependent when lanes support SEW < ELEN
+  // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
+  assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE, .NotConsummedW,
                        .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE, .vlE);
@@ -159,10 +164,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(24+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(25+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~LocalStallE & CaptureD,
-     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VLaneSelectD, ExecutionUnitOrderD},
-     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, VALUSelectE, VLaneSelectE, ExecutionUnitOrderE});
+     {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VSubD, VLaneSelectD, ExecutionUnitOrderD},
+     {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, VALUSelectE, VSubE, VLaneSelectE, ExecutionUnitOrderE});
 
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, InstrD, InstrE);
@@ -171,7 +176,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   assign VSrcBE = VRD2SelectedE;
 
-  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, VALUSelectE, VLaneSelectE, VALUResultE);
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (VSrcAE, VSrcBE, VALUSelectE, VLaneSelectE, VSubE, VALUResultE);
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~LocalStallM, VALUResultE, VALUResultM); // *** may need an enable
 
