@@ -56,7 +56,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VALUResultSrcD,
   output logic [2:0]  VALUSelectD,
   output logic        VSubD,
-  output logic [1:0]  VLaneSelectD,
+  output logic [1:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  output logic [1:0]  VShiftSelectD,            // vlane shift: 00 sll, 10 srl, 11 sra
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -553,14 +554,21 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
       endcase
   end
 
-  // lane result select: 00 for alu, 01 for vmul, 10 for move
+  // lane result select: 00 for alu, 01 for vmul, 10 for move, 11 for shift
   always_comb begin
     case (VOpClassD)
       VOPCLASS_MUL: VLaneSelectD = 2'b01;
       VOPCLASS_MOVE: VLaneSelectD = 2'b10; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
+      VOPCLASS_SHIFT: VLaneSelectD = 2'b11; // vsll, vsrl, vsra, vssrl, vssra
       default:      VLaneSelectD = 2'b00;
     endcase
   end
+
+  // vshifter controls
+  // shift select: 00 = sll, 10 = srl, 11 = sra (01 reserved, e.g. rotate)
+  logic VShiftRightD;
+  assign VShiftRightD  = (Funct6D[5:2] == 4'b1010);         // vsrl, vsra, vssrl, vssra
+  assign VShiftSelectD = {VShiftRightD, VShiftRightD & Funct6D[0]};  // arithmetic is the LSB of funct6
 
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand
