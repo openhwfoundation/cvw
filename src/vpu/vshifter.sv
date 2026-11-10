@@ -5,7 +5,7 @@
 // Created: 7 Nov 2026
 // Modified: 9 Nov 2026
 //
-// Purpose: RISC-V Vector Arithmetic/Logic Unit
+// Purpose: RISC-V Vector Shifter Unit
 //
 // Documentation: RISC-V System on Chip Design Volume 2
 //
