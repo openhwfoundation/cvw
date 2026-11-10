@@ -493,12 +493,6 @@ coverage exclude -scope /core/lsu -feccondrow $line 4
 set line [GetLineNum ${SRC}/lsu/lsu.sv "assign CacheRWM"]
 coverage exclude -scope /core/lsu -feccondrow $line 2
 
-# Exclude system reset case in ebu
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "BeatCounter\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "FinalBeatReg\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicElse"]
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line  -item bc 1
 

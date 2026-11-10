@@ -109,7 +109,7 @@ module ebu import cvw::*; #(parameter cvw_t P) (
   assign HWSTRB = LSUHWSTRB;
   // HRDATA is sent to all controllers at the core level.
 
-  ebufsmarb ebufsmarb(.HCLK, .HRESETn, .HBURST, .HREADY, .LSUReq, .IFUReq, .IFUSave,
+  ebufsmarb ebufsmarb(.HCLK, .HRESETn, .HREADY, .LSUReq, .IFUReq, .IFUSave,
     .IFURestore, .IFUDisable, .IFUSelect, .LSUDisable, .LSUSelect);
 
 endmodule
