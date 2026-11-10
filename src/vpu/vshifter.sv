@@ -35,6 +35,7 @@ module vshifter import cvw::*; #(parameter cvw_t P) (
     output logic [P.ELEN-1:0]               Y
 );
     logic [2*P.ELEN-2:0]    Z, Zshift;
+    logic [$clog2(P.ELEN)-1:0] Offset;           // funnel shift amount
     logic [P.ELEN-2:0]      Zero;                // ELEN copies of zero and sign
     logic                   Sign;
 
@@ -48,7 +49,9 @@ module vshifter import cvw::*; #(parameter cvw_t P) (
             2'b11: Z = {{(P.ELEN-1){Sign}}, B[P.ELEN-1:0]};
         endcase
 
-    assign Zshift = Z >> Amt;
+    // Shift right Amt for right shifts, and (~Amt) for left shifts
+    assign Offset = Right ? Amt : ~Amt;
+    assign Zshift = Z >> Offset;
     assign Y = Zshift[P.ELEN-1:0];
 
 endmodule
