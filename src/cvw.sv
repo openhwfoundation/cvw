@@ -351,6 +351,7 @@ typedef struct packed {
   int           INTDIVb;
 
   // sdtrig constants for implementation
+  logic         SDTRIG_SUPPORTED;
   int           NUM_TRIGGERS;
   logic         ICOUNT_HARDWIRED_1;
   logic         MCONTROL6_SUPPORTED;

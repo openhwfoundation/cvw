@@ -44,6 +44,13 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
 
+  if (P.SDTRIG_SUPPORTED & P.NUM_TRIGGERS == 0) begin : notriggers
+    $error("sdtrig: SDTRIG_SUPPORTED = 1 requires NUM_TRIGGERS > 0");
+  end
+  if (~P.SDTRIG_SUPPORTED & P.NUM_TRIGGERS != 0) begin : unusedtriggers
+    $error("sdtrig: NUM_TRIGGERS = %0d but SDTRIG_SUPPORTED = 0", P.NUM_TRIGGERS);
+  end
+
   localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
   localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
 

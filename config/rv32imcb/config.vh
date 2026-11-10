@@ -131,7 +131,8 @@ localparam logic IDIV_ON_FPU = 0;
 // Legal number of PMP entries are 0, 16, or 64
 localparam PMP_ENTRIES = 32'd0;
 localparam PMP_G = 32'b0; // grain of 4 bytes is supported for uncached RV32
-// Sdtrig: number of debug triggers
+// Sdtrig debug triggers; NUM_TRIGGERS must be 0 when SDTRIG_SUPPORTED = 0
+localparam logic SDTRIG_SUPPORTED = 0;
 localparam NUM_TRIGGERS = 32'd0;
 localparam logic ICOUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
 localparam logic MCONTROL6_SUPPORTED = 0; // trigger types
