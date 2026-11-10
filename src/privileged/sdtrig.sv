@@ -31,7 +31,7 @@
 
 module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              CSRSWriteM, CSRMWriteM, CSRHWriteM,
+  input  logic              CSRSWriteM, CSRMWriteM,
   input  logic [11:0]       CSRAdrM,
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [1:0]        PrivilegeModeW,
@@ -42,11 +42,11 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   // constants
   parameter VERSION = 8'b1;
   parameter LOG_NUM_TRIGGERS = $clog2(P.NUM_TRIGGERS);
-  parameter MASKMAX6 = P.XLEN;
+  parameter MASKMAX6 = P.XLEN-1;
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
-  localparam HCONTEXT  = 12'h6A8;
+  // hcontext (0x6A8) requires the H extension, which Wally lacks; accesses are illegal
   localparam MCONTEXT  = 12'h7A8;
   // mscontext (0x7AA) is deprecated and not supported; accesses are illegal
   localparam TSELECT   = 12'h7A0;
@@ -115,7 +115,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
   assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
   assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
-  assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT) | CSRHWriteM & (CSRAdrM == HCONTEXT);
+  assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
 
   genvar t;
 
@@ -232,9 +232,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     CSRTReadValM = '0;
     IllegalCSRTAccessM = 1'b0;
     case (CSRAdrM)
-      SCONTEXT:  CSRTReadValM = {{(P.XLEN-32){1'b0}}, SCONTEXT_REGW};
-      MCONTEXT:  CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW};
-      HCONTEXT:  CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW}; // alias of mcontext
+      SCONTEXT:  if (P.CONTEXT_SUPPORTED & P.S_SUPPORTED) CSRTReadValM = {{(P.XLEN-32){1'b0}}, SCONTEXT_REGW};
+                 else IllegalCSRTAccessM = 1'b1;
+      MCONTEXT:  if (P.CONTEXT_SUPPORTED) CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW};
+                 else IllegalCSRTAccessM = 1'b1;
       TINFO:     CSRTReadValM = TINFOval;
       TCONTROL:  CSRTReadValM = TCONTROLval;
       TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
@@ -244,6 +245,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end
+
+
+
 
 
 endmodule
