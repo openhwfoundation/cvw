@@ -642,6 +642,9 @@ def actElfDir(config):
 builtTargets = set()
 
 
+actConfig = None  # with --config, build only this configuration's ACT tests
+
+
 def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True):
     """Build the tests with the root Makefile, which rebuilds only what is out of date: the ACT ELFs
     for every configuration with an ACT configuration and the boot image a 64-bit IROM (rv64i) is
@@ -654,8 +657,9 @@ def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=Tr
     # ACT is its own uv project: drop the VIRTUAL_ENV that `uv run` set for this script so ACT's
     # uv uses ACT's environment without warning about the mismatch
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    print(f"Building tests: make -C {WALLY} {' '.join(targets)}", flush=True)
-    if subprocess.run(["make", "-C", WALLY, *targets], env=env).returncode:
+    makeVars = [f"ACT_CONFIGS={WALLY}/config/{actConfig}/act/test_config.yaml"] if actConfig and "act" in targets else []
+    print(f"Building tests: make -C {WALLY} {' '.join(targets + makeVars)}", flush=True)
+    if subprocess.run(["make", "-C", WALLY, *targets, *makeVars], env=env).returncode:
         print(f"{bcolors.FAIL}Error: building {' '.join(targets)} failed{bcolors.ENDC}")
         sys.exit(1)
     builtTargets.update(targets)
@@ -715,6 +719,8 @@ def run_test_case(config, dryrun: bool = False, timeout=None):
     if config.ucdb:
         removeCoverage(config.ucdb)
     failed = run_test_command(config, timeout)
+    if failed:
+        print(f"{bcolors.FAIL}Reproduce with: {shlex.join(config.cmd)}{bcolors.ENDC}", flush=True)
     if config.ucdb and os.path.exists(config.ucdb):
         if failed:
             removeCoverage(config.ucdb)
@@ -795,7 +801,42 @@ def parse_args():
     parser.add_argument("--dryrun", help="Print commands invoked to console without running regression", action="store_true")
     parser.add_argument("--benchmark", help="Check for performance changes or discrepancies in embench and coremark", action="store_true")
     parser.add_argument("--cache", help="Run cache performance validation tests", action="store_true")
+    parser.add_argument("--config", choices=standard_configs,
+                        help="Run only this configuration's standard tests (ACT and peripheral), building only its "
+                             "ACT tests; skips lint, which covers every configuration (run lint-wally for it)")
+    parser.add_argument("--ci", action="store_true",
+                        help="Run only what a GitHub-hosted runner can: Verilator simulations, without the commercial "
+                             "tools (Questa, VCS, ImperasDV lockstep, testfloat).  With --buildroot, the full Linux boot "
+                             "runs on Verilator without lockstep")
+    parser.add_argument("--shard", type=parseShard, metavar="I/N",
+                        help="With --config, run only the I-th of N equal shares of the configuration's simulations, "
+                             "so that CI can split a large configuration across N jobs")
     return parser.parse_args()
+
+
+def parseShard(text):
+    """Parse --shard I/N into (I, N), with 1 <= I <= N."""
+    match = re.fullmatch(r"(\d+)/(\d+)", text)
+    if not match or not 1 <= int(match[1]) <= int(match[2]):
+        raise argparse.ArgumentTypeError(f"expected I/N with 1 <= I <= N, not {text!r}")
+    return int(match[1]), int(match[2])
+
+
+def shardTests(configs, shard):
+    """Return the simulations of one shard: each simulation, largest first, goes to the shard with the
+    fewest ELFs so far (the lowest-numbered one on a tie).  The split depends only on the list of
+    simulations, so the N jobs of one configuration agree on it and together run every simulation once.
+    A run that is not a list of ELFs (the short buildroot boot) counts as none, so it goes last, to the
+    shard with the fewest ELFs."""
+    index, count = shard
+    loads = [0] * count
+    selected = []
+    for case in sorted(configs, key=lambda c: (-len(c.elfs or ()), c.name)):
+        target = loads.index(min(loads))
+        loads[target] += len(case.elfs or ())
+        if target == index - 1:
+            selected.append(case)
+    return selected
 
 
 def process_args(args):
@@ -803,7 +844,7 @@ def process_args(args):
     coveragesim = args.coveragesim
     coverStr = ""
     # exercise all simulators in nightly; can omit a sim if no license is available
-    sims = ["questa", "verilator", "vcs"] if args.nightly else [defaultsim]
+    sims = ["questa", "verilator", "vcs"] if args.nightly and not args.ci else [defaultsim]
     if args.ccov:
         sims = [coveragesim]
         coverStr = "--ccov"
@@ -831,20 +872,24 @@ def process_args(args):
 
 def selectTests(args, sims, coverStr):
     # Run Lint.  lint-wally also lints a derivative configuration, so generate config/deriv first.
-    buildTests(act=False, periph=False, deriv=True)
-    configs = [
-        TestCase(
+    configs = []
+    if not args.config:
+        buildTests(act=False, periph=False, deriv=True)
+        configs.append(TestCase(
             name="lints",
             variant="all",
             cmd=["lint-wally", *(["--nightly"] if args.nightly else [])],
             log=f"{regressionDir}/verilator/logs/all_lints.log",
-            grepstr="All lints passed with no errors or warnings")
-        ]
+            grepstr="All lints passed with no errors or warnings"))
 
     # run full buildroot boot simulation (slow) if buildroot flag is set.  Start it early to overlap with other tests
+    # The buildroot boots run the buildroot derivative configuration, so generate config/deriv first
     if args.buildroot:
-        # addTests(tests_buildrootboot, defaultsim) # non-lockstep with Verilator runs in about 2 hours
-        addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
+        buildTests(act=False, periph=False, deriv=True)
+        if args.ci:  # ImperasDV is not available: boot on Verilator without lockstep (about 2 hours)
+            addTests(tests_buildrootboot, defaultsim, coverStr, configs)
+        else:  # lockstep with Questa and ImperasDV runs overnight
+            addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs)
     # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
     # against the reference model (one simulation per ELF).
     # code coverage: the configuration runs its ACT tests, its coverage-targeted tests, and its peripheral tests
@@ -877,30 +922,34 @@ def selectTests(args, sims, coverStr):
     # Directories of more than 25 ELFs are split so that the largest ones do not set the length of the
     # run: one simulation per ELF finishes no sooner on a large host and takes far longer on a small one.
     if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker):
-        buildTests()
+        # The short buildroot boot runs on rv64gc, so only with rv64gc's tests; skip it if the full boot runs.
+        # It uses the buildroot derivative configuration, which --config alone does not generate.
+        buildrootShort = args.config in (None, "rv64gc") and not args.buildroot
+        buildTests(deriv=buildrootShort)
         for sim in sims:
-            if not (args.buildroot and sim == lockstepsim):  # skip short buildroot sim if running long one
+            if buildrootShort and not (args.ci and sim != defaultsim):
                 addTests(tests_buildrootshort, sim, coverStr, configs)
-            for config in standard_configs:
+            for config in [args.config] if args.config else standard_configs:
                 addTestsByDir(actElfDir(config), config, sim, coverStr, configs, chunk=25)
                 if config in periph_tests:
                     addTestGroup("periph", periphDir, periph_tests[config], config, sim, coverStr, configs)
     # run derivative configurations and lockstep tests in nightly regression
     if args.nightly:
         buildTests(periph=False, coverage=True, deriv=True)
-        addTestsByDir(coverageDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+        if not args.ci:  # lockstep needs ImperasDV
+            addTestsByDir(coverageDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
         addActTests(derivconfigtests, defaultsim, coverStr, configs)
         for config, tests in deriv_coverage_tests.items():
             addTestGroup("coverage", coverageDir("rv64gc"), tests, config, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
-    if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
+    if args.testfloat or (args.nightly and not args.ci): # for nightly, run testfloat along with others (it needs Questa)
         buildTests(periph=False, deriv=True, testfloat=True)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
         for config in testfloatconfigs + testfloatdivconfigs:
@@ -981,10 +1030,29 @@ def main(args):
         print(f"{bcolors.FAIL}Error: {', '.join(unmigrated)} not available yet: migration of these tests "
               f"to riscv-arch-test is still in progress{bcolors.ENDC}", file=sys.stderr)
         return 1
+    others = [f"--{mode}" for mode in ("nightly", "ccov", "fcov", "testfloat", "branch", "breker", "benchmark", "cache",
+                                        "buildroot") if getattr(args, mode)]
+    if args.config == "rv64gc" and others == ["--buildroot"]:
+        others = []  # the full buildroot boot is an rv64gc test, so it may run with rv64gc's standard tests
+    if args.config and others:
+        print(f"{bcolors.FAIL}Error: --config selects the standard tests and cannot be combined with "
+              f"{', '.join(others)}{bcolors.ENDC}", file=sys.stderr)
+        return 1
+    if args.shard and not args.config:
+        print(f"{bcolors.FAIL}Error: --shard splits one configuration's tests and needs --config{bcolors.ENDC}",
+              file=sys.stderr)
+        return 1
+    global actConfig
+    actConfig = args.config
     startTime = time.time()
     sims, coverStr, TIMEOUT_DUR = process_args(args)
     makeDirs(sims)
     configs = selectTests(args, sims, coverStr)
+    if args.shard:
+        total = len(configs)
+        configs = shardTests(configs, args.shard)
+        print(f"Shard {args.shard[0]}/{args.shard[1]}: running {len(configs)} of {total} simulations "
+              f"({sum(len(c.elfs or ()) for c in configs)} ELFs)", flush=True)
     if coverStr and not args.dryrun:
         # Merge only coverage that belongs to the tests selected now: drop the .ucdb of any test that
         # was renamed, removed, or run by hand outside the regression.  Coverage of the other

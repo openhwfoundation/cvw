@@ -49,11 +49,27 @@ else
     return 1
 fi
 
-if [ ! -e "${WALLY}/.git/hooks/pre-commit" ]; then
-    pushd "${WALLY}" || return 1
+# Activate mise, which provides cvw's tools (uv and prek; see .mise.toml), installing any this user lacks.
+# cvw's tools also go on PATH directly, so the scripts in $WALLY/bin find uv outside the cvw tree too.
+if command -v mise > /dev/null; then
+    export MISE_TRUSTED_CONFIG_PATHS="$WALLY${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+    mise install --cd "$WALLY" --quiet --yes
+    if [ -n "$ZSH_VERSION" ]; then
+        eval "$(mise activate zsh)"
+    else
+        eval "$(mise activate bash)"
+    fi
+    eval "$(mise env --cd "$WALLY" --shell bash)"
+else
+    echo -e "${FAIL_COLOR}mise not found in \$RISCV/bin. Rerun wally-tool-chain-install.sh to install it.${ENDC}"
+    return 1
+fi
+
+# Install the pre-commit hook unless there is one already (the hooks directory is shared by every worktree)
+hook=$(git -C "${WALLY}" rev-parse --path-format=absolute --git-path hooks/pre-commit 2> /dev/null)
+if [ -n "$hook" ] && [ ! -e "$hook" ]; then
     echo "Installing pre-commit hooks"
-    uv run pre-commit install
-    popd || return
+    (cd "${WALLY}" && prek install) || return 1
 fi
 
 echo "setup done"

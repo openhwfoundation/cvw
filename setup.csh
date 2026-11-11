@@ -39,4 +39,19 @@ else
     echo "site-setup.csh not found in \$RISCV directory. Rerun wally-toolchain-install.sh to automatically download it."
 endif
 
+# cvw's tools (uv and prek; see .mise.toml), installed with mise for this user if missing
+if ( `where mise` != "" ) then
+    if ( $?MISE_TRUSTED_CONFIG_PATHS ) then
+        setenv MISE_TRUSTED_CONFIG_PATHS "${WALLY}:${MISE_TRUSTED_CONFIG_PATHS}"
+    else
+        setenv MISE_TRUSTED_CONFIG_PATHS "${WALLY}"
+    endif
+    mise install --cd "$WALLY" --quiet --yes
+    foreach p (`mise bin-paths --cd "$WALLY"`)
+        prepend PATH $p
+    end
+else
+    echo "mise not found in \$RISCV/bin. Rerun wally-tool-chain-install.sh to install it."
+endif
+
 echo "setup done"
