@@ -35,8 +35,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   output logic [4:0]                     VfFlgM                             // fp flags
 );
 
-  logic [P.FMTBITS-1:0] Vs2Fmt, Vs1Fmt, OutFmt, XFmt, YFmt, ZFmt, YSrcFmt, ZSrcFmt;
-  logic [P.ELEN-1:0]    X, Y, Z;
+  logic [FP.FMTBITS-1:0] Vs2Fmt, Vs1Fmt, OutFmt, XFmt, YFmt, ZFmt, YSrcFmt, ZSrcFmt;
+  logic [P.ELEN-1:0]     X, Y, Z;
 
   logic                 FmaAddSubE;                                  // OpCtrl == 110 (add) or 111 (sub)
   logic                 FmaMulE;                                     // OpCtrl == 100 (mul)
@@ -54,13 +54,13 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign CmpNeE     = CmpOpE & (OpCtrlE == 3'b111);
 
   if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
-    assign Vs2Fmt = (Vs2EEWE == 3'b001) ? P.H_FMT : (Vs2EEWE == 3'b011) ? P.D_FMT : P.S_FMT;
-    assign Vs1Fmt = (Vs1EEWE == 3'b001) ? P.H_FMT : (Vs1EEWE == 3'b011) ? P.D_FMT : P.S_FMT;
-    assign OutFmt = (VdEEWE == 3'b001) ? P.H_FMT : (VdEEWE == 3'b011) ? P.D_FMT : P.S_FMT;
+    assign Vs2Fmt = (Vs2EEWE == 3'b001) ? FP.H_FMT : (Vs2EEWE == 3'b011) ? FP.D_FMT : FP.S_FMT;
+    assign Vs1Fmt = (Vs1EEWE == 3'b001) ? FP.H_FMT : (Vs1EEWE == 3'b011) ? FP.D_FMT : FP.S_FMT;
+    assign OutFmt = (VdEEWE == 3'b001) ? FP.H_FMT : (VdEEWE == 3'b011) ? FP.D_FMT : FP.S_FMT;
   end else begin
-    assign Vs2Fmt = (Vs2EEWE == 3'b011) ? P.D_FMT : P.S_FMT;
-    assign Vs1Fmt = (Vs1EEWE == 3'b011) ? P.D_FMT : P.S_FMT;
-    assign OutFmt = (VdEEWE  == 3'b011) ? P.D_FMT : P.S_FMT;
+    assign Vs2Fmt = (Vs2EEWE == 3'b011) ? FP.D_FMT : FP.S_FMT;
+    assign Vs1Fmt = (Vs1EEWE == 3'b011) ? FP.D_FMT : FP.S_FMT;
+    assign OutFmt = (VdEEWE  == 3'b011) ? FP.D_FMT : FP.S_FMT;
   end
 
   always_comb
@@ -74,63 +74,63 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign YFmt = (FmaAddSubE | RedCmpE) ? OutFmt : YSrcFmt;
   assign ZFmt = RedFmaE ? OutFmt : (FmaAddSubE ? YSrcFmt : (FmaMulE ? OutFmt : ZSrcFmt));
 
-  logic [P.FLEN-1:0] BoxedOne, BoxedZero;
+  logic [FP.FLEN-1:0] BoxedOne, BoxedZero;
   if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
-    assign BoxedOne  = (OutFmt == P.H_FMT)
-                       ? {{(P.FLEN-P.H_LEN){1'b1}}, 2'b00, {(P.H_NE-1){1'b1}}, {P.H_NF{1'b0}}}
-                       : (OutFmt == P.D_FMT)
-                       ? {{(P.FLEN-P.D_LEN){1'b1}}, 2'b00, {(P.D_NE-1){1'b1}}, {P.D_NF{1'b0}}}
-                       : {{(P.FLEN-P.S_LEN){1'b1}}, 2'b00, {(P.S_NE-1){1'b1}}, {P.S_NF{1'b0}}};
-    assign BoxedZero = (OutFmt == P.H_FMT) ? {{(P.FLEN-P.H_LEN){1'b1}}, {P.H_LEN{1'b0}}}
-                       : (OutFmt == P.D_FMT) ? {{(P.FLEN-P.D_LEN){1'b1}}, {P.D_LEN{1'b0}}}
-                       : {{(P.FLEN-P.S_LEN){1'b1}}, {P.S_LEN{1'b0}}};
+    assign BoxedOne  = (OutFmt == FP.H_FMT)
+                       ? {{(FP.FLEN-FP.H_LEN){1'b1}}, 2'b00, {(FP.H_NE-1){1'b1}}, {FP.H_NF{1'b0}}}
+                       : (OutFmt == FP.D_FMT)
+                       ? {{(FP.FLEN-FP.D_LEN){1'b1}}, 2'b00, {(FP.D_NE-1){1'b1}}, {FP.D_NF{1'b0}}}
+                       : {{(FP.FLEN-FP.S_LEN){1'b1}}, 2'b00, {(FP.S_NE-1){1'b1}}, {FP.S_NF{1'b0}}};
+    assign BoxedZero = (OutFmt == FP.H_FMT) ? {{(FP.FLEN-FP.H_LEN){1'b1}}, {FP.H_LEN{1'b0}}}
+                       : (OutFmt == FP.D_FMT) ? {{(FP.FLEN-FP.D_LEN){1'b1}}, {FP.D_LEN{1'b0}}}
+                       : {{(FP.FLEN-FP.S_LEN){1'b1}}, {FP.S_LEN{1'b0}}};
   end else begin
-    assign BoxedOne  = (OutFmt == P.D_FMT)
-                      ? {{(P.FLEN-P.D_LEN){1'b1}}, 2'b00, {(P.D_NE-1){1'b1}}, {P.D_NF{1'b0}}}
-                      : {{(P.FLEN-P.S_LEN){1'b1}}, 2'b00, {(P.S_NE-1){1'b1}}, {P.S_NF{1'b0}}};
-    assign BoxedZero = (OutFmt == P.D_FMT)
-                      ? {{(P.FLEN-P.D_LEN){1'b1}}, {P.D_LEN{1'b0}}}
-                      : {{(P.FLEN-P.S_LEN){1'b1}}, {P.S_LEN{1'b0}}};
+    assign BoxedOne  = (OutFmt == FP.D_FMT)
+                      ? {{(FP.FLEN-FP.D_LEN){1'b1}}, 2'b00, {(FP.D_NE-1){1'b1}}, {FP.D_NF{1'b0}}}
+                      : {{(FP.FLEN-FP.S_LEN){1'b1}}, 2'b00, {(FP.S_NE-1){1'b1}}, {FP.S_NF{1'b0}}};
+    assign BoxedZero = (OutFmt == FP.D_FMT)
+                      ? {{(FP.FLEN-FP.D_LEN){1'b1}}, {FP.D_LEN{1'b0}}}
+                      : {{(FP.FLEN-FP.S_LEN){1'b1}}, {FP.S_LEN{1'b0}}};
   end
 
 
-  logic              VReductionM;                                    // a reduction element is in the M stage
-  logic [P.FLEN-1:0] AccReg;                                         // result of the last completed reduction element
-  logic [P.FLEN-1:0] Accumulated;
+  logic               VReductionM;                                   // a reduction element is in the M stage
+  logic [FP.FLEN-1:0] AccReg;                                        // result of the last completed reduction element
+  logic [FP.FLEN-1:0] Accumulated;
 
   assign Accumulated = VReductionStartE ? Z : (VReductionM ? VfResM : AccReg);
 
-  logic [P.FLEN-1:0] FmaXin, FmaYin, FmaZin;
+  logic [FP.FLEN-1:0] FmaXin, FmaYin, FmaZin;
 
-  logic [P.FLEN-1:0] YUnboxed, ZUnboxed;
+  logic [FP.FLEN-1:0] YUnboxed, ZUnboxed;
 
   assign YUnboxed = FmaAddSubE ? BoxedOne : (RedCmpE ? Accumulated : Y);
   assign ZUnboxed = RedFmaE ? Accumulated : (FmaAddSubE ? Y : (FmaMulE ? BoxedZero : Z));
 
   if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
-    assign FmaXin = (XFmt == P.H_FMT) ? {{(P.FLEN-P.H_LEN){1'b1}}, X[P.H_LEN-1:0]}
-                  : (XFmt == P.D_FMT) ? X : {{(P.FLEN-P.S_LEN){1'b1}}, X[P.S_LEN-1:0]};
-    assign FmaYin = (YFmt == P.H_FMT) ? {{(P.FLEN-P.H_LEN){1'b1}}, YUnboxed[P.H_LEN-1:0]}
-                  : (YFmt == P.D_FMT) ? YUnboxed : {{(P.FLEN-P.S_LEN){1'b1}}, YUnboxed[P.S_LEN-1:0]};
-    assign FmaZin = (ZFmt == P.H_FMT) ? {{(P.FLEN-P.H_LEN){1'b1}}, ZUnboxed[P.H_LEN-1:0]}
-                  : (ZFmt == P.D_FMT) ? ZUnboxed : {{(P.FLEN-P.S_LEN){1'b1}}, ZUnboxed[P.S_LEN-1:0]};
+    assign FmaXin = (XFmt == FP.H_FMT) ? {{(FP.FLEN-FP.H_LEN){1'b1}}, X[FP.H_LEN-1:0]}
+                  : (XFmt == FP.D_FMT) ? X : {{(FP.FLEN-FP.S_LEN){1'b1}}, X[FP.S_LEN-1:0]};
+    assign FmaYin = (YFmt == FP.H_FMT) ? {{(FP.FLEN-FP.H_LEN){1'b1}}, YUnboxed[FP.H_LEN-1:0]}
+                  : (YFmt == FP.D_FMT) ? YUnboxed : {{(FP.FLEN-FP.S_LEN){1'b1}}, YUnboxed[FP.S_LEN-1:0]};
+    assign FmaZin = (ZFmt == FP.H_FMT) ? {{(FP.FLEN-FP.H_LEN){1'b1}}, ZUnboxed[FP.H_LEN-1:0]}
+                  : (ZFmt == FP.D_FMT) ? ZUnboxed : {{(FP.FLEN-FP.S_LEN){1'b1}}, ZUnboxed[FP.S_LEN-1:0]};
   end else begin
-    assign FmaXin = (XFmt == P.D_FMT) ? X : {{(P.FLEN-P.S_LEN){1'b1}}, X[P.S_LEN-1:0]};
-    assign FmaYin = (YFmt == P.D_FMT) ? YUnboxed : {{(P.FLEN-P.S_LEN){1'b1}}, YUnboxed[P.S_LEN-1:0]};
-    assign FmaZin = (ZFmt == P.D_FMT) ? ZUnboxed : {{(P.FLEN-P.S_LEN){1'b1}}, ZUnboxed[P.S_LEN-1:0]};
+    assign FmaXin = (XFmt == FP.D_FMT) ? X : {{(FP.FLEN-FP.S_LEN){1'b1}}, X[FP.S_LEN-1:0]};
+    assign FmaYin = (YFmt == FP.D_FMT) ? YUnboxed : {{(FP.FLEN-FP.S_LEN){1'b1}}, YUnboxed[FP.S_LEN-1:0]};
+    assign FmaZin = (ZFmt == FP.D_FMT) ? ZUnboxed : {{(FP.FLEN-FP.S_LEN){1'b1}}, ZUnboxed[FP.S_LEN-1:0]};
   end
 
   // Unpack all three per-operand format
-  logic              XEnE, YEnE, ZEnE;                               // operand is used by the current operation
-  logic              XsE, YsE, ZsE;
-  logic [P.NE-1:0]   XeE, YeE, ZeE;
-  logic [P.NF:0]     XmE, YmE, ZmE;
-  logic              XNaNE, YNaNE, ZNaNE;
-  logic              XSNaNE, YSNaNE, ZSNaNE;
-  logic              XZeroE, YZeroE, ZZeroE;
-  logic              XInfE, YInfE, ZInfE;
-  logic              XSubnormE;
-  logic [P.FLEN-1:0] XPostBoxE;
+  logic               XEnE, YEnE, ZEnE;                              // operand is used by the current operation
+  logic               XsE, YsE, ZsE;
+  logic [FP.NE-1:0]   XeE, YeE, ZeE;
+  logic [FP.NF:0]     XmE, YmE, ZmE;
+  logic               XNaNE, YNaNE, ZNaNE;
+  logic               XSNaNE, YSNaNE, ZSNaNE;
+  logic               XZeroE, YZeroE, ZZeroE;
+  logic               XInfE, YInfE, ZInfE;
+  logic               XSubnormE;
+  logic [FP.FLEN-1:0] XPostBoxE;
 
   assign XEnE = ~IntToFpE;                                           // integer input to convert is not a float
   assign YEnE = FmaOpE | CmpOpE | SgnOpE | (DivOpE & ~OpCtrlE[0]);
@@ -162,10 +162,10 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   ///////////////////////////////////////////////////////////////////////////////
 
   // vfma
-  logic                          AsE, PsE, SsE, FmaAStickyE;
-  logic [P.NE+1:0]               SeE;
-  logic [P.FMALEN-1:0]           SmE;
-  logic [$clog2(P.FMALEN+1)-1:0] SCntE;
+  logic                           AsE, PsE, SsE, FmaAStickyE;
+  logic [FP.NE+1:0]               SeE;
+  logic [FP.FMALEN-1:0]           SmE;
+  logic [$clog2(FP.FMALEN+1)-1:0] SCntE;
 
   fma #(FP) fma (
     .Xs(XsE), .Ys(YsE), .Zs(ZsE),
@@ -178,15 +178,15 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   );
 
   // vfdivsqrt
-  logic [P.NE-2:0]      BiasE;                                       // bias of the result format
-  logic [P.LOGFLEN-1:0] NfE;                                         // number of fraction bits in the result format
-  logic                 DivStartE;                                   // start a divide or square root
-  logic                 IFDivStartE;                                 // divider starting this cycle
-  logic                 SqrtM;                                       // square root rather than divide in the M stage
-  logic                 DivStickyM;                                  // divider sticky bit
-  logic [P.NE+1:0]      UeM;                                         // divsqrt exponent
-  logic [P.DIVb:0]      UmM;                                         // divsqrt significand
-  logic [P.ELEN-1:0]    FIntDivResultM;
+  logic [FP.NE-2:0]      BiasE;                                      // bias of the result format
+  logic [FP.LOGFLEN-1:0] NfE;                                        // number of fraction bits in the result format
+  logic                  DivStartE;                                  // start a divide or square root
+  logic                  IFDivStartE;                                // divider starting this cycle
+  logic                  SqrtM;                                      // square root rather than divide in the M stage
+  logic                  DivStickyM;                                 // divider sticky bit
+  logic [FP.NE+1:0]      UeM;                                        // divsqrt exponent
+  logic [P.DIVb:0]       UmM;                                        // divsqrt significand
+  logic [P.ELEN-1:0]     FIntDivResultM;
 
   assign DivStartE = FDivStartE & FPUActiveE & DivOpE;
 
@@ -199,11 +199,11 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     .UmM, .FIntDivResultM);
 
   // vfcvt
-  logic [2:0]             VfcvtOpCtrlE;
-  logic [P.NE:0]          CeE;
-  logic [P.LOGCVTLEN-1:0] CvtShiftAmtE;
-  logic                   CvtResSubnormUfE, CsE, IntZeroE;
-  logic [P.CVTLEN-1:0]    CvtLzcInE;
+  logic [2:0]              VfcvtOpCtrlE;
+  logic [FP.NE:0]          CeE;
+  logic [FP.LOGCVTLEN-1:0] CvtShiftAmtE;
+  logic                    CvtResSubnormUfE, CsE, IntZeroE;
+  logic [FP.CVTLEN-1:0]    CvtLzcInE;
 
   // OpCtrl[1:0] interpreted as Fmt for fp->fp conversion
   assign VfcvtOpCtrlE = FtoFE ? {1'b0, OutFmt} : OpCtrlE;
@@ -215,16 +215,16 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   );
 
   // compare: min/max and compare, the reduction compares against the accumulator
-  logic [P.FLEN-1:0] CmpFpResE;                                      // min/max result
-  logic              CmpNVE;                                         // compare invalid flag
-  logic [P.ELEN-1:0] CmpIntResE;                                     // compare result
-  logic [2:0]        CmpOpCtrlE;                                     // fcmp has no not equal
-  logic              CmpMaskE;                                       // compare result bit
+  logic [FP.FLEN-1:0] CmpFpResE;                                     // min/max result
+  logic               CmpNVE;                                        // compare invalid flag
+  logic [P.ELEN-1:0]  CmpIntResE;                                    // compare result
+  logic [2:0]         CmpOpCtrlE;                                    // fcmp has no not equal
+  logic               CmpMaskE;                                      // compare result bit
 
   assign CmpOpCtrlE = CmpNeE ? 3'b010 : OpCtrlE;
   assign CmpMaskE   = CmpIntResE[0] ^ CmpNeE;
 
-  fcmp #(P) fcmp (
+  fcmp #(FP) fcmp (
     .Fmt(OutFmt), .OpCtrl(CmpOpCtrlE), .Zfa(1'b0),
     .Xs(XsE), .Ys(YsE),
     .Xe(XeE), .Ye(YeE),
@@ -237,9 +237,9 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   );
 
   // sign injection
-  logic [P.FLEN-1:0] SgnResE;
+  logic [FP.FLEN-1:0] SgnResE;
 
-  fsgninj #(P) fsgninj(
+  fsgninj #(FP) fsgninj(
     .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(OutFmt), .OpCtrl(OpCtrlE[1:0]),
     .SgnRes(SgnResE)
   );
@@ -247,14 +247,14 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // classify
   logic [P.ELEN-1:0] ClassResE;
 
-  fclassify #(P) fclassify(
+  fclassify #(FP) fclassify(
     .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XSubnorm(XSubnormE), .XZero(XZeroE), .XInf(XInfE),
     .ClassRes(ClassResE)
   );
 
   // reciprocal and reciprocal square root
-  logic [P.FLEN-1:0] VfrecResE;
-  logic [4:0]        VfrecFlgE;
+  logic [FP.FLEN-1:0] VfrecResE;
+  logic [4:0]         VfrecFlgE;
 
   vfrecrsqrt7 #(FP) vfrecrsqrt7 (
     .IsSqrt(OpCtrlE[0]), .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XZero(XZeroE), .XInf(XInfE), .XSubnorm(XSubnormE),
@@ -263,9 +263,9 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   );
 
   // select the results that finish in the E stage
-  logic [P.FLEN-1:0] PreFpResE;                                      // sign injection, min/max, or rec7/rsqrt7 result
-  logic [P.ELEN-1:0] PreIntResE;                                     // classify or compare result
-  logic [4:0]        PreFlgE;                                        // flags of the above
+  logic [FP.FLEN-1:0] PreFpResE;                                     // sign injection, min/max, or rec7/rsqrt7 result
+  logic [P.ELEN-1:0]  PreIntResE;                                    // classify or compare result
+  logic [4:0]         PreFlgE;                                       // flags of the above
 
   assign PreFpResE  = SgnOpE ? SgnResE : (RecOpE ? VfrecResE : CmpFpResE);
   assign PreIntResE = ClassOpE ? {{(P.ELEN-10){1'b0}}, ClassResE[9:0]} : {{(P.ELEN-1){1'b0}}, CmpMaskE};
@@ -286,51 +286,51 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // E to M pipe registers
   ///////////////////////////////////////////////////////////////////////////////
 
-  logic                          StallUnpackedM;
-  logic [P.NF:0]                 XmM, YmM, ZmM;
-  logic                          XsM, YsM, XZeroM, YZeroM, XInfM, YInfM, ZInfM;
-  logic                          XNaNM, YNaNM, ZNaNM, XSNaNM, YSNaNM, ZSNaNM;
-  logic [P.FLEN-1:0]             PreFpResM, PostProcResM;
-  logic [P.ELEN-1:0]             PreIntResM, FCvtIntResM;
-  logic [4:0]                    PreFlgM, PostProcFlgM;
-  logic [P.FMALEN-1:0]           SmM;
-  logic                          AsM, PsM, SsM, FmaAStickyM;
-  logic [P.NE+1:0]               SeM;
-  logic [$clog2(P.FMALEN+1)-1:0] SCntM;
-  logic [P.NE:0]                 CeM;
-  logic [P.LOGCVTLEN-1:0]        CvtShiftAmtM;
-  logic                          CvtResSubnormUfM, CsM, IntZeroM;
-  logic [P.CVTLEN-1:0]           CvtLzcInM;
-  logic [1:0]                    PostProcSelM;
-  logic [2:0]                    PostOpCtrlM;
-  logic [P.FMTBITS-1:0]          FmtM;
-  logic [2:0]                    FrmM;
-  logic                          FpToIntM, UsePostProcM, ActiveM, IntSelM;
+  logic                           StallUnpackedM;
+  logic [FP.NF:0]                 XmM, YmM, ZmM;
+  logic                           XsM, YsM, XZeroM, YZeroM, XInfM, YInfM, ZInfM;
+  logic                           XNaNM, YNaNM, ZNaNM, XSNaNM, YSNaNM, ZSNaNM;
+  logic [FP.FLEN-1:0]             PreFpResM, PostProcResM;
+  logic [P.ELEN-1:0]              PreIntResM, FCvtIntResM;
+  logic [4:0]                     PreFlgM, PostProcFlgM;
+  logic [FP.FMALEN-1:0]           SmM;
+  logic                           AsM, PsM, SsM, FmaAStickyM;
+  logic [FP.NE+1:0]               SeM;
+  logic [$clog2(FP.FMALEN+1)-1:0] SCntM;
+  logic [FP.NE:0]                 CeM;
+  logic [FP.LOGCVTLEN-1:0]        CvtShiftAmtM;
+  logic                           CvtResSubnormUfM, CsM, IntZeroM;
+  logic [FP.CVTLEN-1:0]           CvtLzcInM;
+  logic [1:0]                     PostProcSelM;
+  logic [2:0]                     PostOpCtrlM;
+  logic [FP.FMTBITS-1:0]          FmtM;
+  logic [2:0]                     FrmM;
+  logic                           FpToIntM, UsePostProcM, ActiveM, IntSelM;
 
   assign StallUnpackedM = StallM | (FDivBusyE & ~IFDivStartE | FDivDoneE); // stall during divsqrt
 
-  flopenrc #(P.NF+1) EMFpRegX (clk, reset, FlushM, ~StallM, XmE, XmM);
-  flopenrc #(P.NF+1) EMFpRegY (clk, reset, FlushM, ~StallM, YmE, YmM);
-  flopenrc #(P.NF+1) EMFpRegZ (clk, reset, FlushM, ~StallM, ZmE, ZmM);
+  flopenrc #(FP.NF+1) EMFpRegX (clk, reset, FlushM, ~StallM, XmE, XmM);
+  flopenrc #(FP.NF+1) EMFpRegY (clk, reset, FlushM, ~StallM, YmE, YmM);
+  flopenrc #(FP.NF+1) EMFpRegZ (clk, reset, FlushM, ~StallM, ZmE, ZmM);
   flopenrc #(P.ELEN) EMFpRegPreInt (clk, reset, FlushM, ~StallM, PreIntResE, PreIntResM);
-  flopenrc #(P.FLEN) EMFpRegPreFp (clk, reset, FlushM, ~StallM, PreFpResE, PreFpResM);
+  flopenrc #(FP.FLEN) EMFpRegPreFp (clk, reset, FlushM, ~StallM, PreFpResE, PreFpResM);
   flopenr #(13) EMFpRegXYZ (clk, reset, ~StallUnpackedM,
     {XsE, YsE, XZeroE, YZeroE, XInfE, YInfE, ZInfE, XNaNE, YNaNE, ZNaNE, XSNaNE, YSNaNE, ZSNaNE},
     {XsM, YsM, XZeroM, YZeroM, XInfM, YInfM, ZInfM, XNaNM, YNaNM, ZNaNM, XSNaNM, YSNaNM, ZSNaNM});
   flopenrc #(5)  EMRegCmpFlg (clk, reset, FlushM, ~StallM, PreFlgE, PreFlgM);
-  flopenrc #(P.FMALEN) EMRegFmaSm(clk, reset, FlushM, ~StallM, SmE, SmM);
-  flopenrc #($clog2(P.FMALEN+1)+4+P.NE+2) EMRegFma(clk, reset, FlushM, ~StallM,
+  flopenrc #(FP.FMALEN) EMRegFmaSm(clk, reset, FlushM, ~StallM, SmE, SmM);
+  flopenrc #($clog2(FP.FMALEN+1)+4+FP.NE+2) EMRegFma(clk, reset, FlushM, ~StallM,
     {FmaAStickyE, SCntE, AsE, PsE, SsE, SeE},
     {FmaAStickyM, SCntM, AsM, PsM, SsM, SeM});
-  flopenrc #(P.NE+1+P.LOGCVTLEN+P.CVTLEN+3) EMRegCvt(clk, reset, FlushM, ~StallM,
+  flopenrc #(FP.NE+1+FP.LOGCVTLEN+FP.CVTLEN+3) EMRegCvt(clk, reset, FlushM, ~StallM,
     {CeE, CvtShiftAmtE, CvtResSubnormUfE, CsE, IntZeroE, CvtLzcInE},
     {CeM, CvtShiftAmtM, CvtResSubnormUfM, CsM, IntZeroM, CvtLzcInM});
-  flopenrc #(13+P.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
+  flopenrc #(13+FP.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
     {PostProcSelE, PostOpCtrlE, OutFmt, FrmE, FpToIntE, UsePostProcE, VReductionE, FPUActiveE, IntSelE},
     {PostProcSelM, PostOpCtrlM, FmtM, FrmM, FpToIntM, UsePostProcM, VReductionM, ActiveM, IntSelM});
 
   // reduction accumulator: holds the result of the last completed reduction element
-  flopenr #(P.FLEN) EMFpRegAcc(clk, reset, VReductionM & ~StallM, VfResM, AccReg);
+  flopenr #(FP.FLEN) EMFpRegAcc(clk, reset, VReductionM & ~StallM, VfResM, AccReg);
 
   assign SqrtM = PostOpCtrlM[0];
 
