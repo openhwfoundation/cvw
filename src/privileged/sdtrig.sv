@@ -11,22 +11,11 @@
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2026 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module sdtrig  import cvw::*;  #(parameter cvw_t P) (
@@ -113,7 +102,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.XLEN-1:0]       TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]       TDATA2WriteValM;
-  logic [1:0]              TCONTROLWriteValM;
 
   logic MTrapM;
   assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
@@ -306,127 +294,109 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     endcase
   end
 
-logic [P.NUM_TRIGGERS-1:0] m, s, u;
-logic [P.NUM_TRIGGERS-1:0] PrivEnabledM;
-// Privilege match
-always_comb
-  for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-    // match field location depends on trigger type
-    case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
-      ICOUNT_TYPE: begin
-        m[i]  = TDATA1_REGW[i][9];
-        s[i]  = TDATA1_REGW[i][7];
-        u[i]  = TDATA1_REGW[i][6];
-      end
-      ITRIGGER_TYPE: begin
-        m[i]  = TDATA1_REGW[i][9];
-        s[i]  = TDATA1_REGW[i][7];
-        u[i]  = TDATA1_REGW[i][6];
-      end
-      ETRIGGER_TYPE: begin
-        m[i]  = TDATA1_REGW[i][9];
-        s[i]  = TDATA1_REGW[i][7];
-        u[i]  = TDATA1_REGW[i][6];
-      end
-      MCONTROL6_TYPE: begin
-        m[i]  = TDATA1_REGW[i][6];
-        s[i]  = TDATA1_REGW[i][4];
-        u[i]  = TDATA1_REGW[i][3];
-      end
-      default: begin // never match privilege
-        m[i] = 0; s[i] = 0; u[i] = 0;
-      end
-    endcase
-    PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & m[i] & TCONTROL_REGW[0]) |
-                    (PrivilegeModeW == P.S_MODE  & s[i])   |
-                    (PrivilegeModeW == P.U_MODE  & u[i]);
-  end
-
-// tdata3 context matches
-// mhselect legal values without H extension are 0 and 4
-// sselect and svalue are tied to 0 when S-mode is not supported
-logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
-logic [P.ASID_BITS-1:0] SATP_ASID;
-assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
-if (P.XLEN == 32) begin : ctxmatch32
+  logic [P.NUM_TRIGGERS-1:0] MEnM, SEnM, UEnM; // trigger enabled in M, S, U mode
+  logic [P.NUM_TRIGGERS-1:0] PrivEnabledM;
+  // Privilege match
   always_comb
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-      casez (TDATA3_REGW[i][22:20]) // tdata3.mhselect
-        3'b000: mmatch[i] = 1; // ignore mhvalue
-        3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][28:23]); // mcontext
-        //3'b?01: mmatch[i] = (MCONTEXT_REGW[6:0] == TDATA3_REGW[i][28:22]); // mcontext_select
-        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][28:22]); // vmid_select
-        default: mmatch[i] = 0; // reserved values don't match
+      // match field location depends on trigger type
+      case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
+        ICOUNT_TYPE, ITRIGGER_TYPE, ETRIGGER_TYPE: begin
+          MEnM[i]  = TDATA1_REGW[i][9];
+          SEnM[i]  = TDATA1_REGW[i][7];
+          UEnM[i]  = TDATA1_REGW[i][6];
+        end
+        MCONTROL6_TYPE: begin
+          MEnM[i]  = TDATA1_REGW[i][6];
+          SEnM[i]  = TDATA1_REGW[i][4];
+          UEnM[i]  = TDATA1_REGW[i][3];
+        end
+        default: begin // never match privilege
+          MEnM[i] = 0; SEnM[i] = 0; UEnM[i] = 0;
+        end
       endcase
-      if (P.S_SUPPORTED)
-        case (TDATA3_REGW[i][1:0]) // tdata3.sselect
-          2'b00: smatch[i] = 1; // ignore svalue
-          2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]  == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][18]) &
-                            ((SCONTEXT_REGW[15:8] == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][19]); // scontext
-          2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
-          default: smatch[i] = 0; // reserved values don't match
-        endcase
-      else smatch[i] = 1;
-      ContextMatchM[i] = mmatch[i] & smatch[i];
+      PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & MEnM[i] & TCONTROL_REGW[0]) |
+                        (PrivilegeModeW == P.S_MODE  & SEnM[i])   |
+                        (PrivilegeModeW == P.U_MODE  & UEnM[i]);
     end
-end else begin : ctxmatch64
-  always_comb
-    for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-      casez (TDATA3_REGW[i][40:38]) // tdata3.mhselect
-        3'b000: mmatch[i] = 1; // ignore mhvalue
-        3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][53:41]); // mcontext
-        //3'b?01: mmatch[i] = (MCONTEXT_REGW[13:0] == TDATA3_REGW[i][53:40]); // mcontext_select
-        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][53:41]); // vmid_select
-        default: mmatch[i] = 0; // reserved values don't match
-      endcase
-      if (P.S_SUPPORTED)
-        case (TDATA3_REGW[i][1:0]) // tdata3.sselect
-          2'b00: smatch[i] = 1; // ignore svalue
-          2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][34]) &
-                              ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][35]) &
-                              ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][36]) &
-                              ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][37]); // scontext
-          2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
-          default: smatch[i] = 0; // reserved values don't match
+
+  // tdata3 context matches
+  // mhselect legal values without H extension are 0 and 4
+  // sselect and svalue are tied to 0 when S-mode is not supported
+  logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
+  logic [P.ASID_BITS-1:0] SATP_ASID;
+  assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
+  if (P.XLEN == 32) begin : ctxmatch32
+    always_comb
+      for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+        casez (TDATA3_REGW[i][22:20]) // tdata3.mhselect
+          3'b000: mmatch[i] = 1; // ignore mhvalue
+          3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][28:23]); // mcontext
+          default: mmatch[i] = 0; // reserved values don't match
         endcase
-      else smatch[i] = 1;
-      ContextMatchM[i] = mmatch[i] & smatch[i];
-    end
-end
-
-
-// Trigger matches
-logic [P.NUM_TRIGGERS-1:0] TriggerMatchM, IcountPendingM, TypeMatchM, mcontrol6match;
-always_comb
-  for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-    TriggerMatchM[i] = 0;
-    IcountPendingM[i] = 0;
-    TypeMatchM[i] = 0;
-    SetPendingM[i] = 0;
-    // behavior depends on trigger type
-    case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
-      ICOUNT_TYPE: begin
-        // Icount decrements when instruction retires or traps
-        TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // *** make sure stalls are handled, probably with stall to register
+        if (P.S_SUPPORTED)
+          case (TDATA3_REGW[i][1:0]) // tdata3.sselect
+            2'b00: smatch[i] = 1; // ignore svalue
+            2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]  == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][18]) &
+                              ((SCONTEXT_REGW[15:8] == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][19]); // scontext
+            2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
+            default: smatch[i] = 0; // reserved values don't match
+          endcase
+        else smatch[i] = 1;
+        ContextMatchM[i] = mmatch[i] & smatch[i];
       end
-      ITRIGGER_TYPE: begin
-        TypeMatchM[i] = (InterruptM & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)]);
+  end else begin : ctxmatch64
+    always_comb
+      for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+        casez (TDATA3_REGW[i][40:38]) // tdata3.mhselect
+          3'b000: mmatch[i] = 1; // ignore mhvalue
+          3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][53:41]); // mcontext
+          default: mmatch[i] = 0; // reserved values don't match
+        endcase
+        if (P.S_SUPPORTED)
+          case (TDATA3_REGW[i][1:0]) // tdata3.sselect
+            2'b00: smatch[i] = 1; // ignore svalue
+            2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][34]) &
+                                ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][35]) &
+                                ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][36]) &
+                                ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][37]); // scontext
+            2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
+            default: smatch[i] = 0; // reserved values don't match
+          endcase
+        else smatch[i] = 1;
+        ContextMatchM[i] = mmatch[i] & smatch[i];
       end
-      ETRIGGER_TYPE: begin
-        TypeMatchM[i] = ExceptionM & ~CommittedF & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)];
-      end
-      MCONTROL6_TYPE: begin
-        // *** add support for chain
-        // *** add support for hit
-        TypeMatchM[i] = mcontrol6match[i];
-      end
-      default: TypeMatchM[i] = 0;
-    endcase
-    // Match if the trigger condition is satisfied and the privilege mode is right
-    MatchM[i] = TypeMatchM[i] & PrivEnabledM[i] & ContextMatchM[i];
-    SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
   end
 
 
+  // Trigger matches
+  logic [P.NUM_TRIGGERS-1:0] TypeMatchM, mcontrol6match;
+  always_comb
+    for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+      TypeMatchM[i] = 0;
+      SetPendingM[i] = 0;
+      // behavior depends on trigger type
+      case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
+        ICOUNT_TYPE: begin
+          // Icount decrements when instruction retires or traps
+          TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // *** make sure stalls are handled, probably with stall to register
+        end
+        ITRIGGER_TYPE: begin
+          TypeMatchM[i] = (InterruptM & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)]);
+        end
+        ETRIGGER_TYPE: begin
+          TypeMatchM[i] = ExceptionM & ~CommittedF & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)];
+        end
+        MCONTROL6_TYPE: begin
+          // *** add support for chain
+          // *** add support for hit
+          TypeMatchM[i] = mcontrol6match[i];
+        end
+        default: TypeMatchM[i] = 0;
+      endcase
+      // Match if the trigger condition is satisfied and the privilege mode is right
+      MatchM[i] = TypeMatchM[i] & PrivEnabledM[i] & ContextMatchM[i];
+      SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
+    end
 
 endmodule
