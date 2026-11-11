@@ -30,7 +30,7 @@
 
 module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              StallD, StallE, StallM, StallW,
+  input  logic              StallF, StallD, StallE, StallM, StallW,
   input  logic              FlushD, FlushE, FlushM, FlushW,
   // CSR Reads and Writes, and values needed for traps
   input  logic              CSRReadM, CSRWriteM,                            // Read or write CSRs
@@ -164,7 +164,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   // CREATE DebugEBReak
   // NextHalt and DebugHaltFlush are the same signal. Consolidate?
   if (P.SDEXT_SUPPORTED) begin : debugmode
-    debugmode #(P) debugmode(.clk, .reset, .StallW, .InstrValidM, .InstrValidE,
+    debugmode #(P) debugmode(.clk, .reset, .StallF, .StallW, .InstrValidM, .InstrValidE,
       .DebugHaltReq, .DebugResumeReq, .DebugResetHaltReq,
       .DebugStep, .DebugEBreakM, .DebugEBreakS, .DebugEBreakU, .BreakpointFaultM, .PrivilegeModeW,
       .DebugHaveResetAck,

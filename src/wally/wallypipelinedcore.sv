@@ -333,7 +333,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   if (P.ZICSR_SUPPORTED) begin : priv
     privileged #(P) priv(
       .clk, .reset,
-      .FlushD, .FlushE, .FlushM, .FlushW, .StallD, .StallE, .StallM, .StallW,
+      .FlushD, .FlushE, .FlushM, .FlushW, .StallF, .StallD, .StallE, .StallM, .StallW,
       .CSRReadM, .CSRWriteM, .PCSrcE, .PCSrcM, .SrcAM, .NextValidPCE, .IEUAdrM, .PCM, .PCSpillM,
       .InstrM, .InstrOrigM, .CSRReadValM, .CSRReadValW, .EPCM, .TrapVectorM,
       .RetM, .TrapM, .sfencevmaM, .sfencevmaAllM, .InvalidateICacheM, .DCacheStallM, .ICacheStallF,

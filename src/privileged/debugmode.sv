@@ -1,6 +1,6 @@
 module debugmode import cvw::*;  #(parameter cvw_t P)(
   input  logic       clk, reset,
-  input  logic       StallW,
+  input  logic       StallF, StallW,
   input  logic       InstrValidM, InstrValidE,
   input  logic       DebugHaltReq, DebugResumeReq,
   input  logic       DebugResetHaltReq,
@@ -19,6 +19,7 @@ module debugmode import cvw::*;  #(parameter cvw_t P)(
 );
 
   logic  HaltCondition;
+  logic  ResumeHold;
 
   logic  ResetHaltReqCondition;
   logic  ResetHaltReqEnable;
@@ -101,18 +102,11 @@ module debugmode import cvw::*;  #(parameter cvw_t P)(
 
   // Flush before Halt while still running
   assign DebugHaltFlush = NextHalt;
-  assign DebugUseDPC = DebugResumeFlush;
+  assign DebugUseDPC = ResumeHold;
+  assign DebugResumeFlush = ResumeHold;
 
-  // Flush after halt when running again.
-  always_ff @(posedge clk) begin
-    if (reset) begin
-      DebugResumeFlush <= 0;
-    end else begin
-      DebugResumeFlush <= (state == HALTED) & (state_n == RUNNING);
-    end
-  end
+  flopenr #(1) resumeholdreg (clk, reset, NextResume | ~StallF, NextResume, ResumeHold);
 
-  //
   assign NextHalt   = (state == RUNNING) & (state_n == HALTED);
   assign NextResume = (state == HALTED)  & (state_n == RUNNING);
 
