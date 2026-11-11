@@ -94,7 +94,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [LOG_NUM_TRIGGERS-1:0] TSELECT_REGW;
   logic [P.XLEN-1:0] TDATA1_REGW[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0] TDATA2_REGW[P.NUM_TRIGGERS];
-  logic [P.XLEN-1:0] TDATA3_REGW[P.NUM_TRIGGERS];
+  logic [TDATA3_LEN-1:0] TDATA3_REGW[P.NUM_TRIGGERS]; // hardwired zeros not stored
   logic [1:0] TCONTROL_REGW; // inflate from fewer bits
   logic [SCONTEXT_LEN-1:0] SCONTEXT_REGW;
   logic [MCONTEXT_LEN-1:0] MCONTEXT_REGW;
@@ -103,6 +103,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [15:0] TINFO_INFO;
   logic [P.XLEN-1:0] TINFOval; // read-only
   logic [P.XLEN-1:0] TCONTROLval;
+  logic [P.XLEN-1:0] TDATA3val;
 
   // CSR Write Logic
   logic                    WriteTSELECTM;
@@ -228,7 +229,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   // textra32: bits 22:20 are 0.  textra64: bits 47:40 and 35:34 are 0
   logic [P.XLEN-1:0]     TDATA3WriteMaskM, TDATA3WriteValLegalizedM;
   logic [TDATA3_LEN-1:0] TDATA3WriteValM;
-  logic [TDATA3_LEN-1:0] TDATA3_STORED[P.NUM_TRIGGERS];
   logic                  TDATA3MhselectLegalM, TDATA3SselectLegalM;
   // Legalize tdata3 WARL fields: an unsupported value masks its field to 0
   always_comb begin
@@ -250,10 +250,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   if (P.XLEN == 32) assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[31:23], TDATA3WriteValLegalizedM[19:0]};
   else              assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[63:48], TDATA3WriteValLegalizedM[39:36], TDATA3WriteValLegalizedM[33:0]};
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
-    flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_STORED[t]);
-    // Expand hardwired zeros
-    if (P.XLEN == 32) assign TDATA3_REGW[t] = {TDATA3_STORED[t][28:20], 3'b0, TDATA3_STORED[t][19:0]};
-    else              assign TDATA3_REGW[t] = {TDATA3_STORED[t][53:38], 8'b0, TDATA3_STORED[t][37:34], 2'b0, TDATA3_STORED[t][33:0]};
+    flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_REGW[t]);
   end
 
   assign TCONTROLWriteValM = {CSRWriteValM[7], CSRWriteValM[3]};
@@ -271,6 +268,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign TINFOval = {{(P.XLEN-32){1'b0}}, VERSION, 8'b0, TINFO_INFO};
   // inflate 2 bits of TCONTROL state to XLEN-sized register.
   assign TCONTROLval = {{(P.XLEN-8){1'b0}}, TCONTROL_REGW[1], 3'b0, TCONTROL_REGW[0], 3'b0};
+  // restore the hardwired zeros of the selected tdata3
+  if (P.XLEN == 32) assign TDATA3val = {TDATA3_REGW[TSELECT_REGW][28:20], 3'b0, TDATA3_REGW[TSELECT_REGW][19:0]};
+  else              assign TDATA3val = {TDATA3_REGW[TSELECT_REGW][53:38], 8'b0, TDATA3_REGW[TSELECT_REGW][37:34], 2'b0, TDATA3_REGW[TSELECT_REGW][33:0]};
 
   always_comb begin:csrr
     CSRTReadValM = '0;
@@ -284,7 +284,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
       TDATA1:    CSRTReadValM = TDATA1_REGW[TSELECT_REGW];
       TDATA2:    CSRTReadValM = TDATA2_REGW[TSELECT_REGW];
-      TDATA3:    CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
+      TDATA3:    CSRTReadValM = TDATA3val;
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end
@@ -334,11 +334,11 @@ assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
 if (P.XLEN == 32) begin : ctxmatch32
   always_comb
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-      casez (TDATA3_REGW[i][25:23]) // tdata3.mhselect
+      casez (TDATA3_REGW[i][22:20]) // tdata3.mhselect
         3'b000: mmatch[i] = 1; // ignore mhvalue
-        3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][31:26]); // mcontext
-        //3'b?01: mmatch[i] = (MCONTEXT_REGW[6:0] == TDATA3_REGW[i][31:25]); // mcontext_select
-        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][31:25]); // vmid_select
+        3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][28:23]); // mcontext
+        //3'b?01: mmatch[i] = (MCONTEXT_REGW[6:0] == TDATA3_REGW[i][28:22]); // mcontext_select
+        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][28:22]); // vmid_select
         default: mmatch[i] = 0; // reserved values don't match
       endcase
       if (P.S_SUPPORTED)
@@ -355,20 +355,20 @@ if (P.XLEN == 32) begin : ctxmatch32
 end else begin : ctxmatch64
   always_comb
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-      casez (TDATA3_REGW[i][50:48]) // tdata3.mhselect
+      casez (TDATA3_REGW[i][40:38]) // tdata3.mhselect
         3'b000: mmatch[i] = 1; // ignore mhvalue
-        3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][63:51]); // mcontext
-        //3'b?01: mmatch[i] = (MCONTEXT_REGW[13:0] == TDATA3_REGW[i][63:50]); // mcontext_select
-        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][63:51]); // vmid_select
+        3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][53:41]); // mcontext
+        //3'b?01: mmatch[i] = (MCONTEXT_REGW[13:0] == TDATA3_REGW[i][53:40]); // mcontext_select
+        //3'b?10: mmatch[i] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[i][53:41]); // vmid_select
         default: mmatch[i] = 0; // reserved values don't match
       endcase
       if (P.S_SUPPORTED)
         case (TDATA3_REGW[i][1:0]) // tdata3.sselect
           2'b00: smatch[i] = 1; // ignore svalue
-          2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][36]) &
-                              ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][37]) &
-                              ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][38]) &
-                              ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][39]); // scontext
+          2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][34]) &
+                              ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][35]) &
+                              ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][36]) &
+                              ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][37]); // scontext
           2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
           default: smatch[i] = 0; // reserved values don't match
         endcase
