@@ -55,6 +55,13 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VSubD,
   output logic [1:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
+  output logic [2:0]                  VFUnitD, VFOpCtrlD,         // vflane unit and op control
+  output logic                        VFToIntD,                   // convert to integer
+  output logic [1:0]                  VFOperandOrderD,            // vflane operand order
+  output logic                        VFStaticRmD,                // VFRmD replaces frm (true for cvt)
+  output logic [2:0]                  VFRmD,                      // rounding mode of vfcvt.rtz and vfncvt.rod
+  output logic                        VFMoveD, VFMergeD,          // instr is vfmv/vfmerge, vfmerge
+  output logic                        VScalarMoveD,               // element 0 only
   output logic                        IllegalVPUInstrD,
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
@@ -99,8 +106,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
-                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
-                         .VShiftSelectD, .IllegalVPUInstrD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
+                         .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
+                         .VFMoveD, .VFMergeD, .VScalarMoveD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in

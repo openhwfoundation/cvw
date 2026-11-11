@@ -91,6 +91,13 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic       VSubD;
   logic [1:0] VLaneSelectD;                   // vlane result select
   logic [1:0] VShiftSelectD;                  // vlane shift: 00 sll, 10 srl, 11 sra
+  logic [2:0] VFUnitD, VFOpCtrlD;             // vflane unit and operation control *** wire to vfpeu
+  logic       VFToIntD;                       // convert to integer
+  logic [1:0] VFOperandOrderD;                // vflane operand order
+  logic       VFStaticRmD;                    // VFRmD replaces frm (true for cvt)
+  logic [2:0] VFRmD;                          // rounding mode of vfcvt.rtz and vfncvt.rod
+  logic       VFMoveD, VFMergeD;              // vfmv/vfmerge, vfmerge
+  logic       VScalarMoveD;                   // element 0 only (vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s)
   logic        VsetD;                         // vsetvli, vsetivli, or vsetvl
   logic        VsetvlD;                       // vsetvl (vtype from rs2)
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
@@ -140,6 +147,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
+                               .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
+                               .VFMoveD, .VFMergeD, .VScalarMoveD,
                                .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
