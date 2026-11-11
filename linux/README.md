@@ -38,7 +38,7 @@ They are built automatically using the main `make` command. To build the device 
 $ make devicetrees # optionally override BUILDROOT
 ```
 
-The .dts files will end up in the `<BUILDROOT>/output/images` folder of your chosen buildroot directory.
+The .dtb files will end up in the `<BUILDROOT>/output/images` folder of your chosen buildroot directory. If buildroot hasn't been built yet, `make devicetrees` builds it first, because building it creates that folder.
 
 ## Disassembling the Binaries for Debugging <a name="disassembly"></a>
 

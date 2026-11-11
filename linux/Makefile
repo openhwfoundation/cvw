@@ -54,7 +54,12 @@ build: $(BUILDROOT_OUTPUTS) devicetrees
 
 # Build buildroot itself
 # LD_LIBRARY_PATH must be unset to avoid conflicts between the host and cross compiler
-$(BUILDROOT_OUTPUTS) $(IMAGE_DIR): check_environment $(BUILDROOT)
+$(BUILDROOT_OUTPUTS): check_environment $(BUILDROOT)
+	bash -c "unset LD_LIBRARY_PATH; $(MAKE) -C $(BUILDROOT)"
+
+# Building buildroot creates the images directory. Its prerequisites are order-only, so buildroot is built only if
+# the directory doesn't exist yet, and "make devicetrees" on a built buildroot just runs dtc.
+$(IMAGE_DIR): | check_environment $(BUILDROOT)
 	bash -c "unset LD_LIBRARY_PATH; $(MAKE) -C $(BUILDROOT)"
 
 # Install buildroot to $RISCV
