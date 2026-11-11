@@ -57,6 +57,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam TINFO     = 12'h7A4;
   localparam TCONTROL  = 12'h7A5;
 
+  localparam TDATA3_LEN   = (P.XLEN == 32) ? 29 : 54;
+  localparam MHSELECT_LSB = (P.XLEN == 32) ? 23 : 48;
   localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
   localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
 
@@ -103,7 +105,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic                    WriteSCONTEXTM, WriteMCONTEXTM;
 
   logic [P.XLEN-1:0]       TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
-  logic [P.XLEN-1:0]       TDATA2WriteValM, TDATA3WriteValM;
+  logic [P.XLEN-1:0]       TDATA2WriteValM;
   logic [1:0]              TCONTROLWriteValM;
 
   logic                    CSRDWriteM;
@@ -219,11 +221,35 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   end
 
   // tdata3 write
-  if (P.XLEN == 32) assign TDATA3WriteValM = {CSRWriteValM[31:23], 3'b0, CSRWriteValM[19:0]};
-  else              assign TDATA3WriteValM = {CSRWriteValM[63:48], 8'b0, CSRWriteValM[39:36], 2'b0, CSRWriteValM[33:0]};
+  // textra32: bits 22:20 are 0.  textra64: bits 47:40 and 35:34 are 0
+  logic [P.XLEN-1:0]     TDATA3WriteMaskM, TDATA3WriteValLegalizedM;
+  logic [TDATA3_LEN-1:0] TDATA3WriteValM;
+  logic [TDATA3_LEN-1:0] TDATA3_STORED[P.NUM_TRIGGERS];
+  logic                  TDATA3MhselectLegalM, TDATA3SselectLegalM;
+  // Legalize tdata3 WARL fields: an unsupported value masks its field to 0
+  always_comb begin
+    case (CSRWriteValM[MHSELECT_LSB +: 3]) // mhselect: without H only 0 (ignore) and 4 (mcontext) are legal
+      3'd0, 3'd4: TDATA3MhselectLegalM = 1'b1;
+      default:    TDATA3MhselectLegalM = 1'b0;
+    endcase
+    case (CSRWriteValM[1:0]) // sselect: scontext and asid need S mode; 3 is reserved
+      2'd0:       TDATA3SselectLegalM = 1'b1;
+      2'd1, 2'd2: TDATA3SselectLegalM = P.S_SUPPORTED;
+      default:    TDATA3SselectLegalM = 1'b0;
+    endcase
+    TDATA3WriteMaskM = '1;
+    if (~TDATA3MhselectLegalM) TDATA3WriteMaskM[MHSELECT_LSB+2:MHSELECT_LSB] = '0;
+    if (~TDATA3SselectLegalM)  TDATA3WriteMaskM[1:0] = '0;
+  end
+  assign TDATA3WriteValLegalizedM = CSRWriteValM & TDATA3WriteMaskM;
+  // Drop hardwired zeros
+  if (P.XLEN == 32) assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[31:23], TDATA3WriteValLegalizedM[19:0]};
+  else              assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[63:48], TDATA3WriteValLegalizedM[39:36], TDATA3WriteValLegalizedM[33:0]};
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
-    // tdata3 has some fields hardwired to 0; form depends on XLEN
-    flopenr #(P.XLEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_REGW[t]);
+    flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_STORED[t]);
+    // Expand hardwired zeros
+    if (P.XLEN == 32) assign TDATA3_REGW[t] = {TDATA3_STORED[t][28:20], 3'b0, TDATA3_STORED[t][19:0]};
+    else              assign TDATA3_REGW[t] = {TDATA3_STORED[t][53:38], 8'b0, TDATA3_STORED[t][37:34], 2'b0, TDATA3_STORED[t][33:0]};
   end
 
   assign TCONTROLWriteValM = {CSRWriteValM[7], CSRWriteValM[3]};
