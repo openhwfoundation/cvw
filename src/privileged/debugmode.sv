@@ -23,7 +23,8 @@ module debugmode import cvw::*;  #(parameter cvw_t P)(
 
   logic  ResetHaltReqCondition;
   logic  ResetHaltReqEnable;
-  logic  ResetHaltReqValid;
+  logic  HaltOnReset;
+  logic  FirstInstrE;
 
   logic  BreakpointM;
   logic  BreakpointS;
@@ -35,8 +36,13 @@ module debugmode import cvw::*;  #(parameter cvw_t P)(
   dbg_state_e state, state_n;
 
   // Reset halt request signals. Conditions must be right for a reset halt request.
-  assign ResetHaltReqCondition = DebugResetHaltReq & DebugHaveReset;
-  assign ResetHaltReqValid = ResetHaltReqCondition & InstrValidE;
+  // FirstInstrE is 0 from reset (including ndmreset) until the first
+  // instruction reaches the Execute stage. A haltreq or resethaltreq
+  // seen in that window halts the hart before it executes anything
+  // (Sdext Reset).
+  flopenr #(1) firstinstrreg(clk, reset, InstrValidE, 1'b1, FirstInstrE);
+  assign ResetHaltReqCondition = DebugResetHaltReq & ~FirstInstrE;
+  assign HaltOnReset        = (ResetHaltReqCondition | DebugHaltReq & ~FirstInstrE) & InstrValidE;
   assign ResetHaltReqEnable = ResetHaltReqCondition & NextHalt;
 
   assign BreakpointM = BreakpointFaultM & DebugEBreakM & PrivilegeModeW == P.M_MODE;
@@ -62,7 +68,7 @@ module debugmode import cvw::*;  #(parameter cvw_t P)(
   assign HaltCondition = DebugHaltReq & InstrValidM & ~StallW |                  // Halt request
                          DebugEBreak & ~StallW |                                 // Ebreak
                          DebugStep & InstrValidM & ~DebugResumeFlush & ~StallW | // Stepping
-                         ResetHaltReqValid;                                      // Reset Halt Request (needs ~StallW?)
+                         HaltOnReset;                                            // Halt on reset + haltreq, or resethaltreq
 
   // Trying a simpler state machine logic
   always_comb begin

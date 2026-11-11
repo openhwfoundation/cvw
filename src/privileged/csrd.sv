@@ -161,7 +161,7 @@ module csrd import cvw::*;  #(parameter cvw_t P) (
       //DPCWriteValM = CSRWriteValM;
     end else if (DebugEBreak) begin
       DPCWriteValM = PCM;
-    end else if (step & NextHalt | DebugHaltReq & NextHalt) begin
+    end else if (NextHalt) begin
       if (TrapM) begin
         DPCWriteValM = TrapVectorM;
       end else if (mretM | sretM) begin
