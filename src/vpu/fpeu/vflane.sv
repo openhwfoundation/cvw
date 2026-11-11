@@ -12,17 +12,6 @@
 // Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
@@ -38,7 +27,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   input  logic                           ToIntE,                            // convert unit: is fp->int
   input  logic                           VReductionE,                       // reduction element: accumulator replaces Z (FMA) or Y (compare)
   input  logic                           VReductionStartE,                  // first element of a reduction: use Z rather than the accumulator
-  input  logic [2:0]                     FrmE,                              // rounding mode 000 = round to nearest, ties to even   001 = round twords zero  010 = round down  011 = round up  100 = round to nearest, ties to max magnitude  110 = round to odd
+  input  logic [2:0]                     FrmE,                              // rounding mode
   input  logic                           FPUActiveE,                        // kill inputs when FPU not active
   input  logic                           FDivStartE,                        // start a divide or square root
   output logic                           FDivBusyE, FDivDoneE,              // divide/sqrt is busy or finishing (to sequencer)
@@ -86,7 +75,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign ZFmt = RedFmaE ? OutFmt : (FmaAddSubE ? YSrcFmt : (FmaMulE ? OutFmt : ZSrcFmt));
 
   logic [P.FLEN-1:0] BoxedOne, BoxedZero;
-  if (P.ZVFH_SUPPORTED) begin
+  if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
     assign BoxedOne  = (OutFmt == P.H_FMT)
                        ? {{(P.FLEN-P.H_LEN){1'b1}}, 2'b00, {(P.H_NE-1){1'b1}}, {P.H_NF{1'b0}}}
                        : (OutFmt == P.D_FMT)
@@ -178,7 +167,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.FMALEN-1:0]           SmE;
   logic [$clog2(P.FMALEN+1)-1:0] SCntE;
 
-  fma #(P) fma (
+  fma #(FP) fma (
     .Xs(XsE), .Ys(YsE), .Zs(ZsE),
     .Xe(XeE), .Ye(YeE), .Ze(ZeE),
     .Xm(XmE), .Ym(YmE), .Zm(ZmE),
@@ -219,7 +208,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // OpCtrl[1:0] interpreted as Fmt for fp->fp conversion
   assign VfcvtOpCtrlE = FtoFE ? {1'b0, OutFmt} : OpCtrlE;
 
-  fcvt #(P) fcvt (
+  fcvt #(FP) fcvt (
     .Xs(XsE), .Xe(XeE), .Xm(XmE), .Int(X[P.ELEN-1:0]), .OpCtrl(VfcvtOpCtrlE),
     .ToInt(FpToIntE), .XZero(XZeroE), .Fmt(IntToFpE ? OutFmt : XFmt), .Ce(CeE), .ShiftAmt(CvtShiftAmtE),
     .ResSubnormUf(CvtResSubnormUfE), .Cs(CsE), .IntZero(IntZeroE), .LzcIn(CvtLzcInE)
@@ -267,7 +256,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.FLEN-1:0] VfrecResE;
   logic [4:0]        VfrecFlgE;
 
-  vfrecrsqrt7 #(P) vfrecrsqrt7 (
+  vfrecrsqrt7 #(FP) vfrecrsqrt7 (
     .IsSqrt(OpCtrlE[0]), .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XZero(XZeroE), .XInf(XInfE), .XSubnorm(XSubnormE),
     .Xe(XeE), .Xm(XmE), .Vsew(VdEEWE), .Frm(FrmE),
     .VfrecRes(VfrecResE), .VfrecFlg(VfrecFlgE)
@@ -288,7 +277,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic                  UsePostProcE;                               // result comes from the postprocessor
   logic                  IntSelE;
 
-  assign PostProcSelE = FmaOpE ? 2'b10 : (DivOpE ? 2'b01 : 2'b00);
+  assign PostProcSelE = FmaOpE ? POSTPROC_FMA : (DivOpE ? POSTPROC_DIV : POSTPROC_CVT);
   assign PostOpCtrlE  = FmaOpE ? OpCtrlE : (DivOpE ? {2'b00, OpCtrlE[0]} : VfcvtOpCtrlE);
   assign UsePostProcE = FmaOpE | DivOpE | CvtOpE;
   assign IntSelE      = ClassOpE | (CmpOpE & ~(OpCtrlE[2] & (OpCtrlE[1] ^ OpCtrlE[0])));
@@ -301,9 +290,9 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.NF:0]                 XmM, YmM, ZmM;
   logic                          XsM, YsM, XZeroM, YZeroM, XInfM, YInfM, ZInfM;
   logic                          XNaNM, YNaNM, ZNaNM, XSNaNM, YSNaNM, ZSNaNM;
-  logic [P.FLEN-1:0]             PreFpResM;
-  logic [P.ELEN-1:0]             PreIntResM;
-  logic [4:0]                    PreFlgM;
+  logic [P.FLEN-1:0]             PreFpResM, PostProcResM;
+  logic [P.ELEN-1:0]             PreIntResM, FCvtIntResM;
+  logic [4:0]                    PreFlgM, PostProcFlgM;
   logic [P.FMALEN-1:0]           SmM;
   logic                          AsM, PsM, SsM, FmaAStickyM;
   logic [P.NE+1:0]               SeM;
@@ -349,11 +338,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // M stage
   ///////////////////////////////////////////////////////////////////////////////
 
-  logic [P.FLEN-1:0] PostProcResM;                                   // postprocessor result
-  logic [4:0]        PostProcFlgM;                                   // postprocessor flags
-  logic [P.ELEN-1:0] FCvtIntResM;                                    // postprocessor integer result
-
-  postprocess #(P, 1) postproc (
+  postprocess #(FP) postproc (
     .Xs(XsM), .Ys(YsM),
     .Xm(XmM), .Ym(YmM), .Zm(ZmM),
     .Frm(FrmM),
