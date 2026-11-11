@@ -66,10 +66,10 @@ To flash a bootable sd card for Wally's bootloader, use the `flash-sd.sh` script
 
 ```bash
 $ cd sdcard
-$ ./flash-sd.sh -b <path/to/buildroot> -d <device tree name> <DEVICE>
+$ ./flash-sd.sh -b <path/to/buildroot> -d <path/to/device tree .dtb> <DEVICE>
 ```
 
 for example
 ```bash
-$ ./flash-sd.sh -b ~/repos/buildroot -d wally-vcu118.dtb /dev/sdb
+$ ./flash-sd.sh -b $RISCV/buildroot -d $RISCV/buildroot/output/images/wally-vcu108.dtb /dev/sdb
 ```

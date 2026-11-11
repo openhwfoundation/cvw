@@ -7,6 +7,9 @@
 # Base configuration
 --variant RV64GCK # for RV64GC
 
+# Little endian only, as in config.vh; drop this when BIGENDIAN_SUPPORTED is restored
+--override cpu/endianFixed=T
+
 # Bit manipulation
 --override cpu/add_Extensions=B
 --override cpu/misa_B_Zba_Zbb_Zbs=T
