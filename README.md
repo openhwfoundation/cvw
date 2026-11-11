@@ -23,18 +23,29 @@ Wally is described in a textbook, [*RISC-V System-on-Chip Design*](https://pages
 
 # Configurations
 
-Wally default configurations are listed below.  Synthesis results from TSMC 28HPC+ TT conditions (0.9 V, 25 °C), Design Compiler, no layout.  Embench results are without F and D.
+Wally default configurations are listed below.  Synthesis results are from TSMC 28HPC+ TT conditions (0.9 V, 25 °C), Design Compiler Y-2026.03-SP3 physical (topographical) synthesis, with timing that includes its estimated wire delays, before place and route.  The hierarchy is ungrouped automatically, and the clock frequency counts paths into the register files, which are written on the falling edge, as half-cycle paths.  Embench results are without F and D.
 
-| Config  | Features        | CoreMark/MHz | Embench Speed | Clock Frequency (MHz) | Area (mm^2) |
-| ------- | --------------- | -----------: | ------------: | --------------------: | ----------: |
-| rv32e   | Tiny Embedded   |         0.35 |          0.16 |                  2840 |      0.0062 |
-| rv32i   | RVI20U32        |         1.04 |          0.49 |                  2800 |      0.0083 |
-| rv32imc | Microcontroller |         2.79 |          0.92 |                  2050 |       0.029 |
-| rv32gc  | Like rv64gc     |         4.33 |          1.23 |                  1000 |        0.42 |
-| rv64i   | RVI20U64        |         0.88 |          0.53 |                  2600 |       0.015 |
-| rv64gc  | RVA22S64        |         3.86 |          1.38 |                   840 |        0.48 |
+|                       | rv32e             | rv32i               | rv32imc                           | rv32imcb                              | rv32gc                                                                                                                                       | rv64i      | rv64gc                                                                                                                                                                    |
+| --------------------- | ----------------- | ------------------- | --------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Features              | Tiny Embedded     | RVI20U32            | Microcontroller                   | Microcontroller with bit manipulation | Like rv64gc                                                                                                                                  | RVI20U64   | RVA22S64                                                                                                                                                                  |
+| Privilege Modes       | M                 | M                   | M, U                              | M, U                                  | M, S, U                                                                                                                                      | M          | M, S, U                                                                                                                                                                   |
+| Extensions            | E                 | I                   | IMC, Zicsr, Zicntr, Zihpm         | IMCB, Zbc, Zicsr, Zicntr, Zihpm       | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv32, Svadu, Svinval, Sstc | I          | IMAFDCB, Zbc, Zbkb, Zbkc, Zbkx, Zkn, Zkt, Zfh, Zfa, Zcb, Zicond, Zicbom, Zicboz, Zicbop, Zifencei, Zicntr, Zihpm, Sv39, Sv48, Sv57, Svadu, Svinval, Svnapot, Svpbmt, Sstc |
+| Memory                | Bus               | IROM, DTIM          | IROM, DTIM                        | IROM, DTIM                            | 16 KB I$, 16 KB D$                                                                                                                           | IROM, DTIM | 16 KB I$, 16 KB D$                                                                                                                                                        |
+| Branch Predictor      | None              | None                | Static (backward taken)           | Static (backward taken)               | 1K gshare, 1K BTB, 16 RAS                                                                                                                    | None       | 1K gshare, 1K BTB, 16 RAS                                                                                                                                                 |
+| Peripherals           | No                | No                  | CLINT, PLIC, UART, GPIO, SPI, PWM | CLINT, PLIC, UART, GPIO, SPI, PWM     | CLINT, PLIC, UART, GPIO, SPI, PWM                                                                                                            | No         | CLINT, PLIC, UART, GPIO, SPI, PWM                                                                                                                                         |
+| External bus (AHB)    | Yes               | No                  | Yes                               | Yes                                   | Yes                                                                                                                                          | No         | Yes                                                                                                                                                                       |
+| CoreMark/MHz          | 0.35              | 1.04                | 3.54                              | 4.06                                  | 4.33                                                                                                                                         | 0.91       | 4.20                                                                                                                                                                      |
+| Embench Speed         | 0.20              | 0.63                | 1.58                              | 1.65                                  | 1.70                                                                                                                                         | 0.70       | 2.03                                                                                                                                                                      |
+| Clock Frequency (MHz) | 2800              | 2780                | 1880                              | 1890                                  | 920                                                                                                                                          | 2540       | 770                                                                                                                                                                       |
+| Total Area (mm^2)     | 0.0058            | 0.0065              | 0.020                             | 0.021                                 | 0.43                                                                                                                                         | 0.016      | 0.48                                                                                                                                                                      |
+| Logic Area (mm^2)     | 0.0058            | 0.0065              | 0.020                             | 0.021                                 | 0.11                                                                                                                                         | 0.016      | 0.17                                                                                                                                                                      |
+| Flip-Flops            | 573 + 495 latches | 573 + 1,023 latches | 1,792 + 1,023 latches             | 1,801 + 1,023 latches                 | 16,496                                                                                                                                       | 3,026      | 24,416                                                                                                                                                                    |
+| Gates                 | 3,650             | 4,495               | 14,583                            | 16,122                                | 89,945                                                                                                                                       | 10,309     | 139,072                                                                                                                                                                   |
+| RAM Bits              | 0                 | 0                   | 0                                 | 0                                     | 312,320                                                                                                                                      | 0          | 356,352                                                                                                                                                                   |
 
-CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, and rv64i using the AHB bus in place of the IROM and DTIM.  The rv32gc and rv64gc areas include 0.31 mm^2 of SRAM macros (43.5 KB, including I$ and D$ data and tags, BTB, and PHT).  rv32gc uses the same macros, though its narrower tags and BTB entries need only 38 KB.
+CoreMark and Embench (speed-optimized, scored per MHz) are compiled for each configuration's ISA and simulated with Verilator.  With F and D, the compiler optimizes away much of the timed work in the Embench nbody, st, and minver benchmarks, so Embench is compiled without F and D for every configuration, and its floating-point benchmarks use software floating point rather than the FPU.  rv32e, rv32i, and rv64i add performance counters to time the benchmarks.  Synthesis is of `wallypipelinedcore`, with rv32i, rv32imc, rv32imcb, and rv64i using the AHB bus in place of the IROM and DTIM.  The clock frequency is the best of three synthesis targets, and the area is from that run.  Flip-flops and gates are standard cells; gates exclude buffers and inverters.  rv32e, rv32i, rv32imc, and rv32imcb build the integer register file from latches (`LATCH_BASED_REGISTERFILE`), counted separately, including a clock-gate latch for each register.  RAM bits are the SRAM bits used for I$ and D$ data and tags, BTB, and PHT; the SRAM macros take 0.31 mm^2 in rv32gc and rv64gc.
+
+See also [comparison to other cores](docs/comparison.adoc).
 
 # Verification
 
@@ -73,7 +84,7 @@ Then fork and clone the repo, source setup, make the tests and run regression
 > [!NOTE]
 > If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration), then come back here.
 
-7. Run the setup script to update your `PATH` and activate the python virtual environment.
+7. Run the setup script to set `$WALLY` and `$RISCV` and add `$WALLY/bin` to your `PATH`.
 
   ```bash
   $ source ./setup.sh
@@ -133,26 +144,26 @@ Additionally, Buildroot Linux is built for Wally and linux test-vectors are gene
 
 ### Installation
 
-The tools can be installed by running
+The tools can be installed by running this from your `cvw` directory (`$WALLY` is not set until `setup.sh` has been sourced, and `setup.sh` needs the tools installed first)
 
 ```bash
-$ $WALLY/bin/wally-tool-chain-install.sh
+$ ./bin/wally-tool-chain-install.sh
 ```
 If this script is run as root or using `sudo`, it will also install all of the prerequisite packages using the system package manager. The default installation directory when run in this manner is `/opt/riscv`.
 
 If a user-level installation is desired, the script can instead be run by any user without `sudo` and the installation directory will be `~/riscv`. In this case, the prerequisite packages must first be installed by running
 
 ```bash
-$ sudo $WALLY/bin/wally-package-install.sh
+$ sudo ./bin/wally-package-install.sh
 ```
 
 In either case, the installation directory can be overridden by passing the desired directory as an argument to the installation script. For example,
 
 ```bash
-$ sudo $WALLY/bin/wally-tool-chain-install.sh /home/riscv
+$ sudo ./bin/wally-tool-chain-install.sh /home/riscv
 ```
 
-See `wally-tool-chain-install.sh` and the scripts in the `$WALLY/bin/installation` directory for a detailed description of each component, or to issue the commands one at a time to install on the command line.
+See `wally-tool-chain-install.sh` and the scripts in the `bin/installation` directory for a detailed description of each component, or to issue the commands one at a time to install on the command line.
 
 > [!NOTE]
 > The complete installation process requires ~55 GB of free space. If the `--clean` flag is passed to the installation script then the final consumed space is only ~26 GB. The `--clean` flag removes source files and build directories.
@@ -183,6 +194,13 @@ regression-wally
 ```
 
 Running code coverage simulations or lock-step presently requires commercial tools; functional coverage also runs on Verilator.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+
+Measure code and functional coverage of the rv64gc, rv32gc, or rv32imc configuration with Questa (add `--coveragesim vcs` to use VCS):
+
+```
+regression-wally --ccov rv64gc    # report in sim/questa/cov/rv64gc_uncovered_hierarchical.rpt
+regression-wally --fcov rv64gc    # report in sim/questa/fcov/rv64gc_fcov.uncovered.log
+```
 
 Note: Some EDA tools utilize `LM_LICENSE_FILE` for their environmental variable to point to their license server.  Some operating systems may also utilize `MGLS_LICENSE_FILE` instead, therefore, it is important to read the user manual on the preferred environmental variable required to point to a user’s license file.  Although there are different mechanisms to allow licenses to work, many companies commonly utilize the FlexLM (i.e., Flex-enabled) license server manager that runs off a node locked license.
 
@@ -247,7 +265,7 @@ If you want to add a cronjob you can do the following:
 2) Enter `crontab -e` into a terminal
 3) add this code to test cloning CVW, making CVW's tests, then running `regression-wally --nightly --buildroot` every day at 21:30 in your local time
 ```bash
-30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
+30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | uv run --script - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email {YOUR_EMAIL}
 ```
 This utility will take up approximately 100 GB on your hard drive. You can also run the script directly from `bin/nightly_build.py`.
 
@@ -290,7 +308,7 @@ wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 Run one ELF in the Questa gui
 
 ```bash
-wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-00.elf --gui
 ```
 
 Run several ELFs back-to-back with Verilator
@@ -302,7 +320,7 @@ wsim rv32gc $WALLY/tests/periph/rv32/WALLY-gpio-01.elf $WALLY/tests/periph/rv32/
 Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires a single elf.
 
 ```bash
-wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-00.elf --lockstep --gui
 ```
 
 Collect functional coverage over a directory of tests (add `--sim vcs` to use VCS).

@@ -42,6 +42,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0]        IEUAdrM,                                  // The branch/jump target address
   output logic [P.XLEN-1:0]        PCE,                                      // Execution stage instruction address
   output logic                     BPWrongE,                                 // Prediction is wrong
+  output logic                     BPRedirectD,                              // Decode-stage predictor redirects fetch; flush the instruction in Fetch
   output logic                     BPWrongM,                                 // Prediction is wrong
   // Mem
   output logic                     CommittedF,                               // I$ or bus memory operation started, delay interrupts
@@ -148,6 +149,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic [P.XLEN-1:0] PCIncrM;
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
+      .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
       .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
       .IFUCacheBusStallF, .ITLBMissOrUpdateRawF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
       .PostSpillInstrRawF, .CompressedF);
@@ -193,7 +195,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
-         .Size(2'b10),
+         .Size(3'b010),
          .PTE(PTE),
          .PageTypeWriteVal(PageType),
          .TLBWrite(ITLBWriteF),
@@ -380,7 +382,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
                 .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE,
                 .BranchD, .BranchE, .JumpD, .JumpE,
                 .InstrD, .PCNextF, .PCPlus2or4F, .PC1NextF, .PCE, .PCM, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCF, .NextValidPCE,
-                .PCD, .PCLinkE, .IClassM, .BPWrongE, .PostSpillInstrRawF, .BPWrongM,
+                .PCD, .PCLinkE, .IClassM, .BPWrongE, .BPRedirectD, .PostSpillInstrRawF, .BPWrongM,
                 .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM);
 
   end else begin : bpred
@@ -389,6 +391,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic CallD, CallE, CallM, CallW;
     logic ReturnD, ReturnE, ReturnM, ReturnW;
     assign BPWrongE = PCSrcE;
+    assign BPRedirectD = 1'b0;
     icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
       .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,

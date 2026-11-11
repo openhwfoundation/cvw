@@ -64,7 +64,9 @@ module ahbapbbridge import cvw::*; #(parameter cvw_t P,
 
   // AHB Data phase signal doesn't need delay.  Note that they are guaranteed to remain stable until READY is asserted
   assign PWDATA = HWDATA;
-  assign PSTRB  = HWSTRB;
+  // APB requires all strobes low on reads.  PWRITE is aligned with the AHB data phase; HWRITE
+  // can already describe the next transfer while this APB transfer is active.
+  assign PSTRB  = HWSTRB & {(P.XLEN/8){PWRITE}};
 
   // enable logic: goes high a cycle after initTrans, then back low on cycle after desired PREADY is asserted
   // cycle1: AHB puts HADDR, HWRITE, HSEL on bus.  initTrans is 1, and these are captured

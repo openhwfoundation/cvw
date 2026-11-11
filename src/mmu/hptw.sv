@@ -49,6 +49,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              ITLBMissOrUpdateAF,
   input  logic              DTLBMissOrUpdateDAM,
   input  logic              FlushW,
+  input  logic              CommittedF,             // IFU fetch in flight: a potential trap is deferred, so hold a faulting walk until it ends
   input  logic [3:0]        CMOpM,
   output logic [P.XLEN-1:0] PTE,                    // page table entry to TLBs
   output logic [2:0]        PageType,               // page type to TLBs
@@ -113,6 +114,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   logic                     InvalidPTEFaultM;
   logic                     WalkPageFaultM;
   logic                     HPTWFaultM;
+  logic                     HPTWAccessFaultEn;
 
   // map hptw access faults onto either the original LSU load/store fault or instruction access fault
   assign LSUAccessFaultM         = LSULoadAccessFaultM | LSUStoreAmoAccessFaultM;
@@ -125,10 +127,13 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   assign HPTWStoreAmoPageFault   = WalkPageFaultM & DTLBWalk & (MemRWM[0] | (|CMOpM));
   assign HPTWInstrPageFault      = WalkPageFaultM & ~DTLBWalk;
 
-  flopr #(6) HPTWAccessFaultReg(clk, reset, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
-                                             HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
-                                {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
-                                 HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
+  assign HPTWAccessFaultEn = WalkerState != FAULT;
+
+  // The fault registers hold while the walker waits in FAULT for a committed IFU fetch to finish.
+  flopenr #(6) HPTWAccessFaultReg(clk, reset, HPTWAccessFaultEn, {HPTWLoadAccessFault, HPTWStoreAmoAccessFault, HPTWInstrAccessFault,
+                                               HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault},
+                                  {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
+                                   HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
 
   assign TakeHPTWFault = WalkerState != IDLE;
 
@@ -366,7 +371,10 @@ module hptw import cvw::*; #(parameter cvw_t P) (
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
                   else if (DCacheBusStallM)                                NextWalkerState = UPDATE_PTE; // exclusion-tag: hptw-update-pte-wait
                   else                                                     NextWalkerState = LEAF;
-      FAULT:                                                               NextWalkerState = IDLE;
+      //  A potential TrapM waits while the IFU has a committed fetch. Hold the fault rather than returning to
+      // IDLE, where the DTLB miss would start the same walk again (issue #845).
+      FAULT:      if (CommittedF)                                          NextWalkerState = FAULT;
+                  else                                                     NextWalkerState = IDLE;
       default:                                                             NextWalkerState = IDLE; // Should never be reached
     endcase // case (WalkerState)
 

@@ -16,7 +16,7 @@
 module ramxdetector #(parameter XLEN, LLEN) (
   input  logic            clk,
   input  logic            MemReadM,
-  input  logic            LSULoadAccessFaultM,
+  input  logic            TrapM,              // a load that traps reads nothing and writes no register
   input  logic [LLEN-1:0] ReadDataM,
   input  logic [XLEN-1:0] PCM,
   input  logic [31:0]     InstrM,
@@ -27,9 +27,9 @@ module ramxdetector #(parameter XLEN, LLEN) (
 
   always_ff @(posedge clk)
     /* verilator lint_off WIDTHXZEXPAND */
-    if (MemReadM & ~LSULoadAccessFaultM & ~StallW & (ReadDataM === 'bx)) begin
+    if (MemReadM & ~TrapM & ~StallW & (ReadDataM === 'bx)) begin
       /* verilator lint_on WIDTHXZEXPAND */
-      $display("WARNING: Attempting to read from uninitialized RAM.  Processor may go haywire if it uses x value. But this is normal in WALLY-mmu and ExceptionInstr tests.");
+      $display("WARNING: Attempting to read from uninitialized RAM.  Processor may go haywire if it uses x value.");
       $display("  PCM = %x InstrM = %x (%s), IEUAdrM = %x", PCM, InstrM, InstrMName, IEUAdrM);
       //$stop;
     end

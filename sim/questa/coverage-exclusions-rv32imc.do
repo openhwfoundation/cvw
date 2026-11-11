@@ -77,8 +77,10 @@ coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-arb
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-ifuselect] -item b 1
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-lsuselect] -item b 1
 # The beat-count resets (~HRESETn | BeatCntReset [| FinalBeat]) need BeatCntReset = 0, i.e. NextState =
-# ARBITRATE; their HRESETn_0 rows need that during reset too, when the arbiter is held in IDLE.
-ExcludeRows $ARB e {HRESETn_0 HRESETn_1 BeatCntReset_0 BeatCntReset_1 FinalBeat_0 FinalBeat_1}
+# ARBITRATE; their HRESETn_0 rows need that during reset too, when the arbiter is held in IDLE.  In the
+# counter reset, the FinalBeat rows need BeatCntReset = 0 too, but BeatCntReset_1 is reachable: FinalBeat =
+# (BeatCount == Threshold) & HREADY is 0 whenever a slave holds HREADY low.
+ExcludeRows $ARB e {HRESETn_0 HRESETn_1 BeatCntReset_0 FinalBeat_0 FinalBeat_1}
 ExcludeRows $ARB e {HRESETn_0 HRESETn_1 BeatCntReset_0} [TagLine ${SRC}/ebu/ebufsmarb.sv arb-finalbeat-reset]
 
 # The EBU disables the LSU's HREADY only in the cycle after an IFU request (LSUDisable = IFUReqDelay).
@@ -89,14 +91,14 @@ ExcludeRows /core/priv/priv/trap e {CommittedF_1} [TagLine ${SRC}/privileged/tra
 ExcludeRows /core/priv/priv/trap e {CommittedF_1} [TagLine ${SRC}/privileged/trap.sv trap-trapm]
 
 # The spill decision's IFUCacheBusStallF term is the IFU bus stall (there is no I$), always 0.  In the same
-# expression, ITLBMissOrUpdateRawF and InstrPageFaultF need virtual memory (VIRTMEM_SUPPORTED = 0), and
-# InstrAccessFaultF_1 needs a faulting first half whose bits [1:0] are 11: a faulting fetch is never from the
-# IROM, so its bits come from the IFU fetch buffer, which resets to 0 and is never written, and
-# EarlyCompressedF = 1 masks the term.
-ExcludeRows /core/ifu/Spill/spill e {IFUCacheBusStallF_1 ITLBMissOrUpdateRawF_1 InstrPageFaultF_1 InstrAccessFaultF_1}
-# The spill FSM's (CurrState == STATE_SPILL) & IFUCacheBusStallF rows are reported hit by
-# tests/coverage32imc/iromtopspill: its second-half fetch at 0x80800000 makes BusRW pulse for zero time before
-# IFUFaultF settles, and the IFU bus FSM never sees the request.  Those glitch hits are left as reported.
+# expression, ITLBMissOrUpdateRawF and InstrPageFaultF need virtual memory (VIRTMEM_SUPPORTED = 0).
+ExcludeRows /core/ifu/Spill/spill e {IFUCacheBusStallF_1 ITLBMissOrUpdateRawF_1 InstrPageFaultF_1}
+# Glitch hits, left as reported: tests/coverage32imc/iromtopspill and iromtopstall fetch the second half of a
+# spill from 0x80800000, just past the IROM, where InstrAccessFaultF, SelIROM and InstrRawF change in the same
+# cycle.  The spill FSM's (CurrState == STATE_SPILL) & IFUCacheBusStallF rows are hit because BusRW pulses for
+# zero time before IFUFaultF settles (the IFU bus FSM never sees the request).  The spill decision's
+# InstrAccessFaultF_1 row is hit before EarlyCompressedF settles: once settled, a faulting fetch is never from
+# the IROM, so its bits come from the IFU fetch buffer, which is never written (0), and EarlyCompressedF = 1.
 
 ######################################################################################################
 # LSUHREADY0: the LSU never requests while HREADY is low
@@ -242,9 +244,10 @@ ExcludeRows /core/ieu/c e {FCvtIntE_1 MatchDE_0 MatchDE_1}
 ExcludeRows /core/ieu/c e {FCvtIntStallD_1}
 coverage exclude -scope /core/lsu -linerange [TagLine ${SRC}/lsu/lsu.sv lsu-fp-size] -item b 1
 coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty] -item bs 1
+ExcludeRows /core/priv/priv/csr/csrsr c {FRegWriteM_1 WriteFRMM_1 SetOrWriteFFLAGSM_1} [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty]
 
-# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a branch predictor
-# (BPRED_SUPPORTED = 0, so BPWrongE = PCSrcE, never 1 for a divide); FDivBusyE needs an FPU.
+# FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a BTB predictor
+# (BP_STATIC predicts only branches and JAL, so BPWrongE is never 1 for a divide); FDivBusyE needs an FPU.
 ExcludeRows /core/hzu e {DivBusyE_1 FDivBusyE_1} [TagLine ${SRC}/hazard/hazard.sv hzu-flushe-cause]
 
 ######################################################################################################
@@ -291,8 +294,8 @@ ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 WriteAccessM_0 Write
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 ReadAccessM_1 ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-rx]
 ExcludeRows $IMMU/pmachecker e {AccessRWXC_0 AtomicAccessM_1 AtomicAllowed_0 AtomicAllowed_1}
 ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-instr-fault]
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMAAccessFault_0 PMAAccessFault_1}
-ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMAAccessFault_0 PMAAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 WriteAccessM_1 ReadAccessM_1 PMADataAccessFault_0 PMADataAccessFault_1}
+ExcludeRows $IMMU/pmachecker e {WriteAccessM_1 |CMOpM_1 PMADataAccessFault_0 PMADataAccessFault_1}
 ExcludeRows $IMMU e {ReadAccessM_1 WriteAccessM_0 WriteAccessM_1}
 ExcludeRows $IMMU e [list {VAdr\[0\]_1}]
 ExcludeRows $IMMU e {DataMisalignedM_0 DataMisalignedM_1 ReadNoAmoAccessM_1}
