@@ -76,7 +76,10 @@ done
 IMAGES=$BUILDROOT/output/images
 FW_JUMP=$IMAGES/fw_jump.bin
 LINUX_KERNEL=$IMAGES/Image
-#DEVICE_TREE=$IMAGES/$DEVICE_TREE
+# -d names a device tree file, or one in the images directory
+if [ ! -e "$DEVICE_TREE" ] ; then
+    DEVICE_TREE=$IMAGES/$(basename "$DEVICE_TREE")
+fi
 
 SDCARD=${ARGS[0]}
 
@@ -114,11 +117,17 @@ else
     fi
 fi
 
-# Ensure device tree binaries exist
-if [ ! -e $DEVICE_TREE ] ; then
-    echo -e "$NAME $ERRORTEXT Missing device tree files"
-    echo -e "$NAME generating all device tree files into buildroot"
-    make -C ../ generate BUILDROOT=$BUILDROOT
+# Ensure the device tree binary exists, compiling it from linux/devicetree if it doesn't
+if [ ! -e "$DEVICE_TREE" ] ; then
+    DTS="$(dirname "$(readlink -f "$0")")/../devicetree/$(basename "$DEVICE_TREE" .dtb).dts"
+    if [ ! -e "$DTS" ] ; then
+        echo -e "$NAME $ERRORTEXT Device tree $DEVICE_TREE does not exist, and there is no $DTS to compile it from."
+        exit 1
+    fi
+    DEVICE_TREE=$(mktemp --suffix=.dtb)
+    trap 'rm -f "$DEVICE_TREE"' EXIT
+    echo -e "$NAME Compiling $DTS"
+    dtc -I dts -O dtb "$DTS" -o "$DEVICE_TREE" || abort "Failed to compile $DTS"
 fi
 
 # Calculate partition information =====================================
