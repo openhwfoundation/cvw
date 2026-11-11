@@ -48,6 +48,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input logic                       VectorD,                                    // This instruction is a vector
   // Execute state
   input logic [P.XLEN-1:0]          ForwardedSrcAE, ForwardedSrcBE,             // Integer/FP input for convert, move (from IEU)
+  input logic [P.XLEN-1:0]          R1D, R2D,                                   // Scalar rs1/rs2 read in Decode
   output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
@@ -72,6 +73,11 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   output logic                      ClearVSTARTM                                // vector instruction resets vstart
 );
 
+  // vector floating point datapath parameters FP extracted from P
+  /* verilator lint_off UNUSEDPARAM */ // FP is unused until the vector floating point unit is instantiated
+  `include "vfpu-parameter-defs.vh"
+  /* verilator lint_on UNUSEDPARAM */
+
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
   logic [4:0] VdFinalD;                      // Vector Destination read (overwrite)
   logic       VMD;                            // 0 = mask enabled; 1 mask disabled
@@ -83,6 +89,10 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [1:0] VALUSrcAD;
   logic       VALUSrcBD;
   logic       VALUResultSrcD;
+  logic [2:0] VALUSelectD;
+  logic       VSubD;
+  logic [1:0] VLaneSelectD;                   // vlane result select
+  logic [1:0] VShiftSelectD;                  // vlane shift: 00 sll, 10 srl, 11 sra
   logic        VsetD;                         // vsetvli, vsetivli, or vsetvl
   logic        VsetvlD;                       // vsetvl (vtype from rs2)
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
@@ -132,7 +142,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
                                .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultSrcD, .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
+                               .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
+                               .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
                                .VPUFrontEndBusyD);
@@ -148,8 +159,9 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD,
-                   .VRD1D, .VRD2D, .VRD3D, .v0D, .ForwardedSrcAE, .ForwardedSrcBE, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
+                   .VShiftSelectD,
+                   .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
                    .VIEUVdFinalW(VVdFinalW[i]));
   end
@@ -196,12 +208,33 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   assign VPUBackEndBusyE = (~&ExecutionUnitReadyD) & ~VPUFrontEndBusyD;
 
   // vset runs in the scalar pipeline; vconfig computes vl and vtype in Execute and forwards vtype to Decode
+  // vmv.x.s, vcpop.m, vfirst.m write rd: once the VPU has drained, the result is computed in Decode and carried down the
+  // scalar pipeline to rd like vl from vset.  vmv.x.s reads element 0 of vs2 and sign-extends it from SEW; SEW > XLEN
+  // keeps the low XLEN bits.  *** vcpop.m and vfirst.m need their own result; only vmv.x.s is computed here
+  logic              VUnaryWriteIntD, VUnaryWriteIntE, VUnaryWriteIntM, VsetWriteIntE;
+  logic [63:0]       Element0D;
+  logic [P.XLEN-1:0] VUnaryResE, VUnaryResM;
+
+  assign VUnaryWriteIntD = VWriteIntD & ~VsetD & ~IllegalVPUInstrD;
+
+  always_comb
+    case (VTYPED[4:3])
+      2'b00:   Element0D = {{56{VRD2D[7]}},  VRD2D[7:0]};
+      2'b01:   Element0D = {{48{VRD2D[15]}}, VRD2D[15:0]};
+      2'b10:   Element0D = {{32{VRD2D[31]}}, VRD2D[31:0]};
+      default: Element0D = 64'(signed'(VRD2D[P.ELEN-1:0]));
+    endcase
+
+  flopenrc #(1+P.XLEN) VUnaryEReg(clk, reset, FlushE, ~StallE, {VUnaryWriteIntD, Element0D[P.XLEN-1:0]}, {VUnaryWriteIntE, VUnaryResE});
+  flopenrc #(1+P.XLEN) VUnaryMReg(clk, reset, FlushM, ~StallM, {VUnaryWriteIntE, VUnaryResE},             {VUnaryWriteIntM, VUnaryResM});
+
   vconfig #(P) vconfig(.clk, .reset, .StallE, .FlushE, .StallM, .FlushM,
                        .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .Rs1D(InstrD[19:15]), .RdD(InstrD[11:7]), .VTYPED, .VLD,
-                       .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE, .VTYPE_REGW, .VL_REGW,
+                       .ForwardedSrcAE, .ForwardedSrcBE, .VWriteIntE(VsetWriteIntE), .VTYPE_REGW, .VL_REGW,
                        .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM);
 
-  assign VIntResM = NewVLM;
+  assign VWriteIntE = VsetWriteIntE | VUnaryWriteIntE;
+  mux2 #(P.XLEN) vintresmux(NewVLM, VUnaryResM, VUnaryWriteIntM, VIntResM);
 
   // TODO: every vector instruction resets vstart; only vset, which reaches the scalar Memory stage, does so for now
   assign ClearVSTARTM = WriteVLVTYPEM;

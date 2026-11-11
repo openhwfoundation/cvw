@@ -1,30 +1,19 @@
 ///////////////////////////////////////////
 // fhazard.sv
 //
-// Written: me@KatherineParry.com 19 May 2021
-// Modified:
+// Written:  Katherine Parry me@KatherineParry.com 19 May 2021
+// Modified: Rose Thompson
 //
-// Purpose: Determine forwarding, stalls and flushes for the FPU
+// Purpose: Floating-point hazard detection and forwarding.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fhazard(
@@ -52,23 +41,23 @@ module fhazard(
 
     // if the needed value is in the memory stage - input 1
     if ((Adr1E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardXE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there (FResSel = 00, PreFpResM)
+      if (FResSelM == 2'b00) ForwardXE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr1E == RdW) & FRegWriteW) ForwardXE = 2'b01; // choose FResult64W
+    end else if ((Adr1E == RdW) & FRegWriteW) ForwardXE = 2'b01; // choose FResultW
 
     // if the needed value is in the memory stage - input 2
     if ((Adr2E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardYE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardYE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr2E == RdW) & FRegWriteW) ForwardYE = 2'b01; // choose FResult64W
+    end else if ((Adr2E == RdW) & FRegWriteW) ForwardYE = 2'b01; // choose FResultW
 
     // if the needed value is in the memory stage - input 3
     if ((Adr3E == RdM) & FRegWriteM) begin
-      // if the result will be FResM (can be taken from the memory stage)
-      if(FResSelM == 2'b00) ForwardZE = 2'b10; // choose FResM
+      // forward from the memory stage only if the result is already available there
+      if (FResSelM == 2'b00) ForwardZE = 2'b10; // choose PreFpResM
       // if the needed value is in the writeback stage
-    end else if ((Adr3E == RdW) & FRegWriteW) ForwardZE = 2'b01; // choose FResult64W
+    end else if ((Adr3E == RdW) & FRegWriteW) ForwardZE = 2'b01; // choose FResultW
   end
 endmodule

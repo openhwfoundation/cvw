@@ -22,6 +22,7 @@ testvector:
         or  t1, t2, t3
         vand.vv v12, v8, v16
         vand.vv v4, v0, v12
+        vor.vv v4, v8, v12
         vmul.vv v12, v8, v16
         vmul.vv v4, v0, v12
         add t1, t2, t3

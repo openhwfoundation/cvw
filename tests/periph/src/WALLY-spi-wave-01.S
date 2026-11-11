@@ -1,0 +1,121 @@
+///////////////////////////////////////////
+// WALLY-spi-wave-01.S
+//
+// Purpose: SPI transfers over the configuration space that shapes the waveform: sckdiv (0 to the
+//          maximum), all four sckmode settings, every fmt.len from 1 to 8 with both endians, the
+//          cssck/sckcs/intercs/interxfr delays, csmode AUTO/HOLD/OFF, csid, and csdef.  The
+//          signature holds the frames received in loopback; for fmt.len < 8 only the frame's bits
+//          are kept (left-aligned for MSB-first, right-aligned for LSB-first, FE310-G002 19.11/19.12).
+//          Each scenario is bracketed by markers written to the reserved offset 0x08, so a pin probe
+//          (SPICLK, SPICS, SPIOut) can check the waveform against 19.4-19.10 offline.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+///////////////////////////////////////////
+
+#include "WALLY-TEST-LIB.h"
+#include "WALLY-spi.h"
+
+INIT_TESTS
+
+TRAP_HANDLER m
+
+EXPECT_BEGIN
+
+    li s0, SPI
+
+// ---------------- sckdiv x sckmode, AUTO, default delays, len 8 MSB ----------------
+//      id    div   mode csid csdef csmode delay0      delay1      len lsb n  frames
+    SCEN 0x00, 0,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xA5, 0x3C
+    SCEN 0x01, 0,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xA5, 0x3C
+    SCEN 0x02, 0,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xA5, 0x3C
+    SCEN 0x03, 0,   3,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xA5, 0x3C
+    SCEN 0x04, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x96, 0x0F
+    SCEN 0x05, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x96, 0x0F
+    SCEN 0x06, 1,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x96, 0x0F
+    SCEN 0x07, 1,   3,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x96, 0x0F
+    SCEN 0x08, 2,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x81, 0x7E
+    SCEN 0x09, 2,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x81, 0x7E
+    SCEN 0x0A, 2,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x81, 0x7E
+    SCEN 0x0B, 2,   3,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0x81, 0x7E
+    SCEN 0x0C, 7,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xC3, 0x55
+    SCEN 0x0D, 7,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xC3, 0x55
+    SCEN 0x0E, 7,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xC3, 0x55
+    SCEN 0x0F, 7,   3,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xC3, 0x55, tail=800
+
+// ---------------- fmt.len 1-8, MSB and LSB first ----------------
+    SCEN 0x10, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 1,  0,  2, 0xB4, 0x4B
+    SCEN 0x11, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 2,  0,  2, 0xB4, 0x4B
+    SCEN 0x12, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 3,  0,  2, 0xB4, 0x4B
+    SCEN 0x13, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 4,  0,  2, 0xB4, 0x4B
+    SCEN 0x14, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 5,  0,  2, 0xB4, 0x4B
+    SCEN 0x15, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 6,  0,  2, 0xB4, 0x4B
+    SCEN 0x16, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 7,  0,  2, 0xB4, 0x4B
+    SCEN 0x17, 1,   0,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  2, 0xB4, 0x4B
+    SCEN 0x18, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 1,  1,  2, 0xB5, 0x4A
+    SCEN 0x19, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 2,  1,  2, 0xB5, 0x4A
+    SCEN 0x1A, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 3,  1,  2, 0xB5, 0x4A
+    SCEN 0x1B, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 4,  1,  2, 0xB5, 0x4A
+    SCEN 0x1C, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 5,  1,  2, 0xB5, 0x4A
+    SCEN 0x1D, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 6,  1,  2, 0xB5, 0x4A
+    SCEN 0x1E, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 7,  1,  2, 0xB5, 0x4A
+    SCEN 0x1F, 1,   1,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  1,  2, 0xB5, 0x4A
+    SCEN 0x20, 0,   3,   0,   0xF,  0,     0x00010001, 0x00000001, 3,  1,  2, 0x06, 0x01
+    SCEN 0x21, 0,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 5,  0,  2, 0x58, 0xA0
+
+// ---------------- Delays (19.9), AUTO ----------------
+    SCEN 0x30, 1,   0,   0,   0xF,  0,     0x00000000, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x31, 1,   1,   0,   0xF,  0,     0x00000000, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x32, 1,   0,   0,   0xF,  0,     0x00000003, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x33, 1,   1,   0,   0xF,  0,     0x00000003, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x34, 1,   0,   0,   0xF,  0,     0x00030000, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x35, 1,   1,   0,   0xF,  0,     0x00030000, 0x00000000, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x36, 1,   0,   0,   0xF,  0,     0x00000000, 0x00000004, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x37, 1,   1,   0,   0xF,  0,     0x00000000, 0x00000004, 8,  0,  2, 0xE1, 0x1E
+    SCEN 0x38, 1,   0,   0,   0xF,  0,     0x00050002, 0x00000003, 8,  0,  3, 0xE1, 0x1E, 0x69
+    SCEN 0x39, 1,   1,   0,   0xF,  0,     0x00050002, 0x00000003, 8,  0,  3, 0xE1, 0x1E, 0x69
+    SCEN 0x3A, 0,   2,   0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  3, 0xE1, 0x1E, 0x69
+    SCEN 0x3B, 3,   3,   0,   0xF,  0,     0x00FF00FF, 0x000000FF, 8,  0,  2, 0x5A, 0xC6, tail=6000
+
+// ---------------- HOLD and OFF, interxfr (19.8, 19.9) ----------------
+    SCEN 0x40, 1,   0,   0,   0xF,  2,     0x00010001, 0x00000001, 8,  0,  3, 0x12, 0x34, 0x56
+    SCEN 0x41, 1,   1,   0,   0xF,  2,     0x00010001, 0x00000001, 8,  0,  3, 0x12, 0x34, 0x56
+    SCEN 0x42, 1,   0,   0,   0xF,  2,     0x00010001, 0x00020001, 8,  0,  3, 0x12, 0x34, 0x56
+    SCEN 0x43, 1,   1,   0,   0xF,  2,     0x00010001, 0x00020001, 8,  0,  3, 0x12, 0x34, 0x56
+    SCEN 0x44, 1,   0,   0,   0xF,  3,     0x00010001, 0x00000001, 8,  0,  2, 0x78, 0x9A
+    SCEN 0x45, 1,   1,   0,   0xF,  3,     0x00010001, 0x00030001, 8,  0,  2, 0x78, 0x9A
+
+// ---------------- csid and csdef (19.6, 19.7) ----------------
+    SCEN 0x50, 1,   0,   0,   0xE,  0,     0x00010001, 0x00000001, 8,  0,  1, 0xBC
+    SCEN 0x51, 1,   0,   1,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  1, 0xBC
+    SCEN 0x52, 1,   0,   2,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  1, 0xBC
+    SCEN 0x53, 1,   0,   3,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  1, 0xBC
+    SCEN 0x54, 1,   0,   2,   0x5,  0,     0x00010001, 0x00000001, 8,  0,  1, 0xBC
+    SCEN 0x55, 1,   0,   3,   0x5,  2,     0x00010001, 0x00000001, 8,  0,  2, 0xBC, 0xDE
+
+// ---------------- Large divisors ----------------
+    SCEN 0x60, 0x200, 0, 0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  1, 0x6D, tail=4000
+    SCEN 0x61, 0xFFF, 1, 0,   0xF,  0,     0x00010001, 0x00000001, 8,  0,  1, 0x92, tail=30000
+
+    // back to reset values
+    SPIW SPI_SCKDIV, 3
+    SPIW SPI_SCKMODE, 0
+    SPIW SPI_CSID, 0
+    SPIW SPI_CSDEF, 0xF
+    SPIW SPI_CSMODE, 0
+    SPIW SPI_DELAY0, 0x00010001
+    SPIW SPI_DELAY1, 0x00000001
+    SPIW SPI_FMT, 0x00080000
+    MARK 0x5CFFFFFF
+
+END_TESTS
+
+SPI_HELPERS
+
+TEST_STACK_AND_DATA
+
+EXPECT_END

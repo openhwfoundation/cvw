@@ -33,8 +33,9 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   // Decode stage control signals
   input  logic        VectorStallD, VectorFlushD,          // Stall, flush Decode stage
   input  logic        VectorD,                 // This instruction is a vector
+  input  logic        VHazardD,                // an older vector instruction has not written back yet
   input  logic [4:0]  Vs1D, Vs2D, VdD,
-  input  logic [6:0]  lmulDecodedD,
+  input  logic [3:0]  MicroOpsD,
   // EU requirements
   input  logic [2:0]  VEUTypeD,                // type of EU an instruction needs (INT, FP, LSU)
   input  logic [4:0]  VOpClassD,               // execution block requirement for EU
@@ -43,6 +44,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0] ControllerValidD,
   input  logic [P.VPU_EU-1:0] ExecutionUnitReadyD,
   output logic MicroOpNotLastD,
+  output logic VHazardStallD,
   // output micro vector instruction
   output logic MicroVectorD,
   output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD
@@ -83,11 +85,11 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   assign AnyExecutionUnitReadyD = |AvailableD;
 
   lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD, .VectorFlushD,
-                                   .VectorD, .Vs1D, .Vs2D, .VdD, .lmulDecodedD,
+                                   .VectorD, .Vs1D, .Vs2D, .VdD, .MicroOpsD,
                                    .AnyExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                              .MicroVectorD, .MicroOpNotLastD);
+                              .MicroVectorD, .MicroOpNotLastD, .VHazardD, .VHazardStallD);
 
-  assign ControllerValidD = SelectedD & {P.VPU_EU{MicroVectorD}}; // demux to selected EU
+  assign ControllerValidD = SelectedD & {P.VPU_EU{MicroVectorD & ~VectorStallD}}; // demux to selected EU; hold while Decode is stalled
   //assign MicroVectorD = |ControllerValidD;
 
 endmodule

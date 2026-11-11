@@ -1,43 +1,31 @@
 ///////////////////////////////////////////
 // amoalu.sv
 //
-// Written: David_Harris@hmc.edu
-// Created: 10 March 2021
-// Modified: 18 January 2023
+// Written:  David Harris David_Harris@hmc.edu 10 March 2021
+// Modified:
 //
-// Purpose: Performs AMO operations
+// Purpose: AMO ALU.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module amoalu import cvw::*;  #(parameter cvw_t P) (
+module amoalu import cvw::*; #(parameter cvw_t P, parameter bit ZABHA_SUPPORTED = 0) (
   input  logic [P.XLEN-1:0] ReadDataM,    // LSU's ReadData
   input  logic [P.XLEN-1:0] IHWriteDataM, // LSU's WriteData
   input  logic [6:0]        LSUFunct7M,   // ALU Operation
-  input  logic [2:0]        LSUFunct3M,   // Memoy access width
+  input  logic [2:0]        LSUFunct3M,   // Memory access width
   output logic [P.XLEN-1:0] AMOResultM    // ALU output
 );
 
   logic [P.XLEN-1:0] a, b, y;
-  logic               lt, cmp, sngd, sngd32, eq32, lt32, w64;
+  logic              ltAMO, lt, cmp, sngd, sngd32, eq32, lt32, w64;
 
   // Rename inputs
   assign a = ReadDataM;
@@ -59,7 +47,18 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
     assign lt = w64 ? lt32 : lt64;
   end
 
-  assign cmp = lt ^ LSUFunct7M[4]; // flip sense of comparison for maximums
+  // Optional narrow comparisons use the operand's sign bit, not XLEN's sign bit.
+  // Zabha adds byte/halfword comparators and selection logic.
+  if (ZABHA_SUPPORTED) begin : byteamo
+    logic eq8, lt8, eq16, lt16;
+    comparator #(8) cmp8(a[7:0], b[7:0], sngd, {eq8, lt8});
+    comparator #(16) cmp16(a[15:0], b[15:0], sngd, {eq16, lt16});
+    mux4 #(1) ltMux(lt8, lt16, lt, lt, LSUFunct3M[1:0], ltAMO);
+  end else begin : wordamo
+    assign ltAMO = lt;
+  end
+
+  assign cmp = ltAMO ^ LSUFunct7M[4]; // flip sense of comparison for maximums
 
   // AMO ALU
   always_comb
@@ -76,15 +75,7 @@ module amoalu import cvw::*;  #(parameter cvw_t P) (
       default:  y = 'x;          // undefined
     endcase
 
-  // sign extend output if necessary for w64
-  if (P.XLEN == 32) begin : sext
-    assign AMOResultM = y;
-  end else begin : sext // P.XLEN = 64
-    always_comb
-      if (w64) begin // sign-extend word-length operations
-        AMOResultM = {{32{y[31]}}, y[31:0]};
-      end else begin
-        AMOResultM = y;
-      end
-  end
+  // Only the low operand-width bits are stored; subwordwrite replicates those bits.
+  // Register writeback uses the separately formatted OLD memory value in the LSU.
+  assign AMOResultM = y;
 endmodule

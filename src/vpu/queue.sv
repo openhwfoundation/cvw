@@ -59,36 +59,19 @@ module queue  #(parameter DEPTH=3, WIDTH=8)
       for(i = 0; i < 2**DEPTH; i++) mem[i] <= '0;
     else if (enqueue & ~full) mem[waddr] <= wdata;
 
-  // write and read are enabled
+  // An enqueue to a full queue and a dequeue from an empty queue are ignored.  Full and empty are
+  // computed from both pointers every cycle, so each reflects an enqueue and a dequeue in the same cycle.
   always_ff @(posedge clk)
     if (reset) begin
       rptr <= '0;
       wptr <= '0;
-      full <= 1'b0;
-      empty <= 1'b0;
     end else begin
-      if (enqueue) begin
-
-        if (~full) wptr  <= wptrnext;
-      end
-      if (dequeue) begin
-        if (~empty) rptr <= rptrnext;
-      end
-      if(enqueue & dequeue) begin
-        full <= ({~wptrnext[DEPTH], wptrnext[DEPTH-1:0]} == rptrnext);
-        empty <= wptr == rptr;
-        end
-      else if(enqueue) begin
-        full <= ({~wptrnext[DEPTH], wptrnext[DEPTH-1:0]} == rptr);
-        empty <= wptrnext == rptr;
-      end
-      else if(dequeue) begin
-        full <= ({~wptr[DEPTH], wptr[DEPTH-1:0]} == rptrnext);
-        empty <= wptr == rptrnext;
-      end
+      if (enqueue & ~full)  wptr <= wptrnext;
+      if (dequeue & ~empty) rptr <= rptrnext;
     end
 
-
+  assign full  = ({~wptr[DEPTH], wptr[DEPTH-1:0]} == rptr);
+  assign empty = (wptr == rptr);
 
   assign raddr = rptr[DEPTH-1:0];
   assign rptrnext = rptr + {{(DEPTH){1'b0}}, 1'b1};

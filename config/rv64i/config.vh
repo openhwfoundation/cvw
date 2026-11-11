@@ -12,20 +12,7 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-`include "BranchPredictorType.vh"
 
 // RV32 or RV64: XLEN = 32 or 64
 localparam XLEN = 32'd64;
@@ -111,7 +98,7 @@ localparam logic SSTC_SUPPORTED = 0; // Supervisor-mode timer interrupts
 // Hardware performance counters
 localparam logic ZICNTR_SUPPORTED = 0;
 localparam logic ZIHPM_SUPPORTED  = 0;
-localparam COUNTERS = 12'd0;
+localparam COUNTERS = 12'd3;
 
 // Cache-management operation extensions
 localparam logic ZICBOM_SUPPORTED = 0;
@@ -184,6 +171,9 @@ localparam logic UNCORE_RAM_PRELOAD = 1'b0;
 localparam logic EXT_MEM_SUPPORTED = 0;
 localparam logic [63:0] EXT_MEM_BASE     = 64'h80000000;
 localparam logic [63:0] EXT_MEM_RANGE    = 64'h07FFFFFF;
+localparam logic EXT_IO_SUPPORTED = 0;
+localparam logic [63:0] EXT_IO_BASE      = 64'h00000000;
+localparam logic [63:0] EXT_IO_RANGE     = 64'h00000000;
 localparam logic CLINT_SUPPORTED = 0;
 localparam logic [63:0] CLINT_BASE       = 64'h02000000;
 localparam logic [63:0] CLINT_RANGE      = 64'h0000FFFF;
@@ -202,6 +192,9 @@ localparam logic [63:0] SDC_RANGE        = 64'h00000FFF;
 localparam logic SPI_SUPPORTED = 0;
 localparam logic [63:0] SPI_BASE         = 64'h10040000;
 localparam logic [63:0] SPI_RANGE        = 64'h00000FFF;
+localparam logic PWM_SUPPORTED = 0;
+localparam logic [63:0] PWM_BASE         = 64'h10020000;
+localparam logic [63:0] PWM_RANGE        = 64'h000000FF;
 
 // Bus Interface width
 localparam AHBW = (XLEN);
@@ -218,19 +211,21 @@ localparam logic SPI_LOOPBACK_TEST  = 1;
 
 // Hardware configuration
 localparam UART_PRESCALE = 32'd1;
+localparam PWM_WIDTH = 32'd16;
 
 // Interrupt configuration
-localparam PLIC_NUM_SRC = 32'd10;
+localparam PLIC_NUM_SRC = 32'd14;
 // comment out the following if >=32 sources
 localparam PLIC_NUM_SRC_LT_32 = (PLIC_NUM_SRC < 32);
 localparam PLIC_GPIO_ID = 32'd3;
 localparam PLIC_UART_ID = 32'd10;
 localparam PLIC_SPI_ID = 32'd6;
 localparam PLIC_SDC_ID = 32'd9;
+localparam PLIC_PWM_ID = 32'd11; // base of a contiguous block of 4, one per PWM comparator
 
 // Branch prediction
 localparam logic BPRED_SUPPORTED = 0;
-localparam BPRED_TYPE = `BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT
+localparam cvw::bpred_type_t BPRED_TYPE = cvw::BP_GSHARE; // BP_GSHARE_BASIC, BP_GLOBAL, BP_GLOBAL_BASIC, BP_TWOBIT, BP_STATIC
 localparam BPRED_SIZE = 32'd10;
 localparam BPRED_NUM_LHR = 32'd6;
 localparam BTB_SIZE = 32'd10;
@@ -243,5 +238,6 @@ localparam DIVCOPIES = 32'd4;
 
 // Memory synthesis configuration
 localparam logic USE_SRAM = 0;
+localparam logic LATCH_BASED_REGISTERFILE = 0; // integer register file built from latches for smaller ASIC area, or flops for FPGAs
 
 `include "config-shared.vh"

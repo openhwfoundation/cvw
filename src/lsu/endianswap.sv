@@ -1,31 +1,19 @@
 ///////////////////////////////////////////
 // endianswap.sv
 //
-// Written: David_Harris@hmc.edu
-// Created: 7 May 2022
-// Modified: 18 January 2023
+// Written:  David Harris David_Harris@hmc.edu 7 May 2022
+// Modified:
 //
-// Purpose: Swap byte order for Big-Endian accesses
+// Purpose: Big-endian byte swap.
 //
 // Documentation: RISC-V System on Chip Design
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.
-// https://github.com/openhwgroup/cvw
+// https://github.com/openhwfoundation/cvw
 //
-// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module endianswap #(parameter LEN) (
@@ -34,7 +22,7 @@ module endianswap #(parameter LEN) (
   output logic [LEN-1:0]  y
 );
 
-  if(LEN == 128) begin
+  if (LEN == 128) begin
     always_comb
       if (BigEndianM) begin // swap endianness
         y[127:120] = a[7:0];
@@ -54,7 +42,7 @@ module endianswap #(parameter LEN) (
         y[15:8]    = a[119:112];
         y[7:0]     = a[127:120];
       end else y = a;
-  end else if(LEN == 64) begin
+  end else if (LEN == 64) begin
     always_comb
       if (BigEndianM) begin // swap endianness
         y[63:56] = a[7:0];

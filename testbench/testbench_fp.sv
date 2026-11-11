@@ -9,17 +9,6 @@
 // Copyright (C) 2021 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
-//
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `include "config.vh"
@@ -34,6 +23,7 @@ module testbench_fp;
   parameter string TEST_SIZE="all";
 
   `include "parameter-defs.vh"
+  `include "fpu-parameter-defs.vh"
 
   parameter MAXVECTORS = 8388610;
 
@@ -688,7 +678,7 @@ module testbench_fp;
   end
 
   // extract the inputs (X, Y, Z, SrcA) and the output (Ans, AnsFlg) from the current test vector
-  readvectors #(P) readvectors (.clk, .Fmt(FmtVal), .ModFmt, .TestVector(TestVectors[VectorNum]),
+  readvectors #(P, FP) readvectors (.clk, .Fmt(FmtVal), .ModFmt, .TestVector(TestVectors[VectorNum]),
                                 .VectorNum, .Ans(Ans), .AnsFlg(AnsFlg), .SrcA,
                                 .Xs, .Ys, .Zs, .Unit(UnitVal),
                                 .Xe, .Ye, .Ze, .TestNum, .OpCtrl(OpCtrlVal),
@@ -712,7 +702,7 @@ module testbench_fp;
 
   // instantiate devices under test
   if (TEST === "fma"| TEST === "mul" | TEST === "add" | TEST === "sub" | TEST === "all") begin : fma
-    fma #(P) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
+    fma #(FP) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
       .Xe(Xe), .Ye(Ye), .Ze(Ze),
       .Xm(Xm), .Ym(Ym), .Zm(Zm),
       .XZero, .YZero, .ZZero, .Ss, .Se,
@@ -720,7 +710,7 @@ module testbench_fp;
       .ASticky);
   end
 
-  postprocess #(P) postprocess(.Xs(Xs), .Ys(Ys), .PostProcSel(UnitVal[1:0]),
+  postprocess #(FP) postprocess(.Xs(Xs), .Ys(Ys), .PostProcSel(UnitVal[1:0]),
     .OpCtrl(OpCtrlVal), .DivUm(Quot), .DivUe(DivCalcExp),
     .Xm(Xm), .Ym(Ym), .Zm(Zm), .CvtCe(CvtCalcExpE), .DivSticky(DivSticky), .FmaSs(Ss),
     .XNaN(XNaN), .YNaN(YNaN), .ZNaN(ZNaN), .CvtResSubnormUf(CvtResSubnormUfE),
@@ -732,14 +722,14 @@ module testbench_fp;
     .PostProcFlg(Flg), .PostProcRes(FpRes), .FCvtIntRes(IntRes), .Zfa(1'b0));
 
   if (TEST === "cvtfp" | TEST === "cvtint" | TEST === "all") begin : fcvt
-    fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
+    fcvt #(FP) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
       .XZero(XZero), .OpCtrl(OpCtrlVal), .IntZero,
       .Fmt(ModFmt), .Ce(CvtCalcExpE), .ShiftAmt(CvtShiftAmtE),
       .ResSubnormUf(CvtResSubnormUfE), .Cs(CvtResSgnE), .LzcIn(CvtLzcInE));
   end
 
   if (TEST === "cmp" | TEST === "all") begin: fcmp
-    fcmp #(P) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal), .Zfa(1'b0), .Xs, .Ys, .Xe, .Ye,
+    fcmp #(FP) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal), .Zfa(1'b0), .Xs, .Ys, .Xe, .Ye,
       .Xm, .Ym, .XZero, .YZero, .CmpIntRes(CmpRes),
       .XNaN, .YNaN, .XSNaN, .YSNaN, .X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .CmpNV(CmpFlg[4]), .CmpFpRes(FpCmpRes));
   end
@@ -1024,7 +1014,7 @@ module testbench_fp;
 endmodule
 
 
-module readvectors import cvw::*; #(parameter cvw_t P) (
+module readvectors import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
   input  logic clk,
   input  logic [P.Q_LEN*4+7:0] TestVector,
   input  logic [P.FMTBITS-1:0] ModFmt,
@@ -1387,7 +1377,7 @@ module readvectors import cvw::*; #(parameter cvw_t P) (
   assign ZEn = (Unit == `FMAUNIT);
   assign FPUActive = 1'b1;
 
-  unpack #(P) unpack(.X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .Z(Z[P.FLEN-1:0]), .Fmt(ModFmt), .FPUActive, .Xs, .Ys, .Zs, .Xe, .Ye, .Ze,
+  unpack #(FP) unpack(.X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .Z(Z[P.FLEN-1:0]), .Fmt(ModFmt), .FPUActive, .Xs, .Ys, .Zs, .Xe, .Ye, .Ze,
                      .Xm, .Ym, .Zm, .XNaN, .YNaN, .ZNaN, .XSNaN, .YSNaN, .ZSNaN,
                      .XSubnorm, .XZero, .YZero, .ZZero, .XInf, .YInf, .ZInf,
                      .XEn, .YEn, .ZEn, .XExpMax, .XPostBox, .Bias(BiasE), .Nf(NfE));
