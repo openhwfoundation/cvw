@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module controller import cvw::*; #(parameter cvw_t P) (
+module controller import cvw::*; #(parameter cvw_t P, parameter OTHER_IS_YOUNGER = 1) (
   input  logic        clk, reset,
   // Decode stage control signals
   input  logic        StallD, FlushD,          // Stall, flush Decode stage
@@ -29,12 +29,19 @@ module controller import cvw::*; #(parameter cvw_t P) (
   output logic        JumpD,                   // Jump instruction
   output logic        BranchD,                 // Branch instruction
   output logic        StructuralStallD,        // Structural stalls detected by controller
+  output logic        StructuralStall1D,       // Slot 1 (superscalar) depends on a result that is not ready to forward
+  output logic        SlowResultE,             // This slot's Execute-stage result is not ready to forward from Memory
   output logic        LoadStallD,              // Structural stalls for load, sent to performance counters
   output logic        StoreStallD,             // load after store hazard
   output logic [4:0]  Rs1D, Rs2D, Rs2E,        // Register sources to read in Decode or Execute stage
+  output logic [1:0]  MemRWD,                  // Mem read/write decoded, for the superscalar bundle's memory hazards
+  input  logic [4:0]  Rs1_1D, Rs2_1D,          // The other issue slot's register sources in Decode
+  input  logic        FuseLoadD,               // This add is fused with the load after it: also do the load
   // Execute stage control signals
   input  logic        StallE, FlushE,          // Stall, flush Execute stage
   input  logic [1:0]  FlagsE,                  // Comparison flags ({eq, lt})
+  input  logic        LateBrE,                 // This branch's direction is checked in Memory, by the late ALU
+  input  logic        PredTakenE,              // ... so until then it goes the way fetch went
   input  logic        FWriteIntE,              // Write integer register, coming from FPU controller
   input  logic        FCvtIntE,                // FPU convert float to int
   output logic        PCSrcE,                  // Select signal to choose next PC (for datapath and Hazard unit)
@@ -58,7 +65,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]  CMOpM,                   // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   output logic        IFUPrefetchE,            // instruction prefetch
   output logic        LSUPrefetchM,            // data prefetch
-  output logic [1:0]  ForwardAE, ForwardBE,    // Select signals for forwarding multiplexers
+  output logic [2:0]  ForwardAE, ForwardBE,    // Select signals for forwarding multiplexers
   // Memory stage control signals
   input  logic        StallM, FlushM,          // Stall, flush Memory stage
   output logic [1:0]  MemRWE,                  // Mem read/write: MemRWE[1] = 1 for read, MemRWE[0] = 1 for write
@@ -69,18 +76,24 @@ module controller import cvw::*; #(parameter cvw_t P) (
   output logic        InvalidateICacheM, FlushDCacheM, // Invalidate I$, flush D$
   output logic        InstrValidD, InstrValidE, InstrValidM, // Instruction is valid
   output logic        FWriteIntM,              // FPU controller writes integer register file
+  output logic        IllegalBaseInstrM,       // Illegal instruction, carried to Memory so a superscalar
+                                               //   slot 1 can be replayed and trap as an unpaired instruction
+  output logic        RegWriteM,               // Instruction writes a register in Memory
+  input  logic        RegWriteOtherM,          // The other issue slot writes a register in Memory
   // Writeback stage control signals
   input  logic        StallW, FlushW,          // Stall, flush Writeback stage
   output logic        RegWriteW, IntDivW,      // Instruction writes a register, is an integer divide
+  input  logic        RegWriteOtherW,          // The other issue slot writes a register in Writeback
   output logic [2:0]  ResultSrcW,              // Select source of result to write back to register file
   // Stall during CSRs
   output logic        CSRWriteFenceM,          // CSR write or fence instruction; needs to flush the following instructions
   output logic [4:0]  RdE, RdM,                // Pipelined destination registers
+  input  logic [4:0]  RdOtherM, RdOtherW,      // The other slot's destination registers in Memory and Writeback
   // Forwarding controls
   output logic [4:0]  RdW                      // Destination register in Writeback stage
 );
 
-  logic [4:0] Rs1E;                            // pipelined register sources
+
   logic [6:0] OpD;                             // Opcode in Decode stage
   logic [2:0] Funct3D;                         // Funct3 field in Decode stage
   logic [6:0] Funct7D;                         // Funct7 field in Decode stage
@@ -94,8 +107,13 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // pipelined control signals
   logic        RegWriteD, RegWriteE;           // RegWrite (register will be written)
   logic [2:0]  ResultSrcD, ResultSrcE, ResultSrcM; // Select which result to write back to register file
+  logic [1:0]  BaseMemRWD;                     // Memory read/write and result source as decoded from InstrD,
+  logic [2:0]  BaseResultSrcD;                 //   before an indexed-load fusion turns the add into a load
   logic [2:0]  PreImmSrcD;                     // Immediate source format (before amending for prefetches)
-  logic [1:0]  MemRWD;                         // Mem read/write: MemRWD[1] = 1 for read, MemRWD[0] = 1 for write
+                                                // MemRWD is an output port: the superscalar bundle's
+                                                // memory hazards in ieu.sv need both slots' Decode-stage
+                                                // read/write, since either slot may hold the memory op.
+  logic        IllegalBaseInstrE;               // Illegal instruction, pipelined towards Memory
   logic        ALUOpD;                         // 0 for address generation, 1 for all other operations (must use Funct3)
   logic        BaseW64D;                       // W64 for Base instructions specifically
   logic        BaseRegWriteD;                  // Indicates if Base instruction register write instruction
@@ -129,7 +147,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic        SFenceVmaD;                     // sfence.vma instruction
   logic        SFenceInvalIrD;                 // sfence.inval.ir instruction
   logic        IntDivM;                        // Integer divide instruction
-  logic        RegWriteM;                      // Instruction writes a register (needed for Hazard unit)
   logic [1:0]  CZeroD;
   logic        IFunctD, RFunctD, MFunctD;      // Detect I, R, and M-type RV32IM/RV64IM instructions
   logic        LFunctD, SFunctD, BFunctD;      // Detect load, store, branch instructions
@@ -148,6 +165,8 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
   logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
+  logic [4:0]  Rs1E;                           // pipelined register source
+  logic        MatchD1E;                       // Same, for the other slot's source registers
   logic        FCvtIntStallD, MDUStallD, CSRRdStallD; // Stall due to fcvt to integer, multiply/divide, CSR read
   logic        FunctCZeroD;                    // Funct7 and Funct3 indicate czero.* (not including Op check)
   logic        BUW64D;                         // Indicates if it is a .uw type B instruction in Decode Stage
@@ -296,9 +315,18 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Squash control signals if coming from an illegal compressed instruction
   // On RV32E, can't write to upper 16 registers.  Checking reads to upper 16 is more costly so disregard them.
   assign IllegalERegAdrD = P.E_SUPPORTED & P.ZICSR_SUPPORTED & ControlsD[`CTRLW-1] & InstrD[11];
-  assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, MemRWD,
-          ResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
+  assign {BaseRegWriteD, PreImmSrcD, ALUSrcAD, BaseALUSrcBD, BaseMemRWD,
+          BaseResultSrcD, BranchD, ALUOpD, JumpD, ALUResultSrcD, BaseW64D, CSRReadD,
           PrivilegedD, FenceXD, MDUD, AtomicD, CMOD, unused} = IllegalIEUFPUInstrD ? '0 : ControlsD;
+
+  // Indexed-load fusion (issue.sv).  InstrD is the add; the fused op is the add with the load's memory
+  // read and writeback merged in.  Everything else stays the add's: its sources, its ALU operation (the
+  // sum is the address, as rs1 + imm is for a plain load) and its rd, which the load also writes.
+  //   add a0, a1, a2 ; ld a0, 0(a0)   ->   read a1, a2;  ALU a1 + a2;  MemRW = read;  a0 = memory data
+  // From here on the fused op is an ordinary load to the rest of this controller: the load-use stall,
+  // the store-then-load stall and SlowResultE all see MemRW = 10.  The load's access width comes from ieu.sv.
+  assign MemRWD     = FuseLoadD ? 2'b10  : BaseMemRWD;       // 10: read memory, as a load
+  assign ResultSrcD = FuseLoadD ? 3'b001 : BaseResultSrcD;   // 001: write back the memory data (ReadDataW)
 
   assign CSRZeroSrcD = (Rs1D == 0);                                     // Is a CSR instruction using zero as the source?
   assign CSRWriteD = CSRReadD & !(CSRZeroSrcD & InstrD[13]);            // Don't write if setting or clearing zeros
@@ -417,9 +445,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   flopenrc #(1)  controlregD(clk, reset, FlushD, ~StallD, 1'b1, InstrValidD);
 
   // Execute stage pipeline control register and logic
-  flopenrc #(45) controlregE(clk, reset, FlushE, ~StallE,
-                             {ALUSelectD, RegWriteD, ResultSrcD, MemRWD, JumpD, BranchD, ALUSrcAD, ALUSrcBD, ALUResultSrcD, CSRReadD, CSRWriteD, PrivilegedD, Funct3D, Funct7D, W64D, BUW64D, SubArithD, MDUD, AtomicD, InvalidateICacheD, FlushDCacheD, FenceD, CMOpD, IFUPrefetchD, LSUPrefetchD, CZeroD, InstrValidD},
-                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, InstrValidE});
+  flopenrc #(46) controlregE(clk, reset, FlushE, ~StallE,
+                             {ALUSelectD, RegWriteD, ResultSrcD, MemRWD, JumpD, BranchD, ALUSrcAD, ALUSrcBD, ALUResultSrcD, CSRReadD, CSRWriteD, PrivilegedD, Funct3D, Funct7D, W64D, BUW64D, SubArithD, MDUD, AtomicD, InvalidateICacheD, FlushDCacheD, FenceD, CMOpD, IFUPrefetchD, LSUPrefetchD, CZeroD, IllegalBaseInstrD, InstrValidD},
+                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, IllegalBaseInstrE, InstrValidE});
   flopenrc #(5)  Rs1EReg(clk, reset, FlushE, ~StallE, Rs1D, Rs1E);
   flopenrc #(5)  Rs2EReg(clk, reset, FlushE, ~StallE, Rs2D, Rs2E);
   flopenrc #(5)  RdEReg(clk, reset, FlushE, ~StallE, RdD, RdE);
@@ -431,7 +459,10 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign {eqE, ltE} = FlagsE;
   mux2 #(1) branchflagmux(eqE, ltE, Funct3E[2], BranchFlagE); // Funct3[2]: 0 for beq/bne, 1 for blt/bge/bltu/bgeu
   assign BranchTakenE = BranchFlagE ^ Funct3E[0];              // Funct3[0] inverts the flag for bne/bge/bgeu
-  assign PCSrcE = JumpE | BranchE & BranchTakenE;
+  // A late branch (see ieu.sv) cannot be resolved here: one operand is still a load, multiply or
+  // similar.  It is taken to go the way fetch already went, so it neither redirects nor updates the
+  // predictor on its direction now; the Memory stage checks it and corrects both if needed.
+  assign PCSrcE = JumpE | BranchE & (LateBrE ? PredTakenE : BranchTakenE);
 
   // Other execute stage controller signals
   assign MemReadE = MemRWE[1];
@@ -441,9 +472,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign IntDivE = MDUE & Funct3E[2]; // Integer division operation
 
   // Memory stage pipeline control register
-  flopenrc #(25) controlregM(clk, reset, FlushM, ~StallM,
-                             {RegWriteE, ResultSrcE, MemRWE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, FWriteIntE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, InstrValidE, IntDivE, CMOpE, LSUPrefetchE},
-                             {RegWriteM, ResultSrcM, MemRWM, CSRReadM, CSRWriteM, PrivilegedM, Funct3M, FWriteIntM, AtomicM, InvalidateICacheM, FlushDCacheM, FenceM, InstrValidM, IntDivM, CMOpM, LSUPrefetchM});
+  flopenrc #(26) controlregM(clk, reset, FlushM, ~StallM,
+                             {RegWriteE, ResultSrcE, MemRWE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, FWriteIntE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, InstrValidE, IntDivE, CMOpE, LSUPrefetchE, IllegalBaseInstrE},
+                             {RegWriteM, ResultSrcM, MemRWM, CSRReadM, CSRWriteM, PrivilegedM, Funct3M, FWriteIntM, AtomicM, InvalidateICacheM, FlushDCacheM, FenceM, InstrValidM, IntDivM, CMOpM, LSUPrefetchM, IllegalBaseInstrM});
   flopenrc #(5)  RdMReg(clk, reset, FlushM, ~StallM, RdE, RdM);
 
   // Writeback stage pipeline control register
@@ -455,17 +486,50 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Flush F, D, and E stages on a CSR write or Fence.I or SFence.VMA
   assign CSRWriteFenceM = CSRWriteM | FenceM;
 
-  // Forwarding logic: 10 forwards IFResultM from Memory stage, 01 forwards ResultW from Writeback stage
+  // Forwarding logic
+  // Each slot instantiates this controller and forwards for itself, so the four producers are
+  // named relative to this slot: its own result in Memory and Writeback, and the other slot's.
+  // The select encoding is relative too, and datapath.sv cross-wires each slot's mux5 inputs to
+  // match: 000 no forward, 001 own Writeback, 010 own Memory, 011 other Writeback, 100 other Memory.
+  //
+  // Memory is tested before Writeback because it is the newer bundle.  Within a stage the two slots
+  // are in the same bundle, and they may both write the same register, so the younger -- slot 1 -- is
+  // tested first.  OTHER_IS_YOUNGER says which that is: the other slot for slot 0's controller (the
+  // default), this slot for slot 1's.
+  //
+  // There is deliberately no bypass from the other slot in Execute: that would chain one ALU into
+  // the other within a cycle, and the issue logic refuses to pair instructions that would need it.
   always_comb begin
-    ForwardAE = 2'b00;
-    ForwardBE = 2'b00;
+    ForwardAE = 3'b000;
+    ForwardBE = 3'b000;
+
     if (Rs1E != 5'b0)
-      if      ((Rs1E == RdM) & RegWriteM) ForwardAE = 2'b10;
-      else if ((Rs1E == RdW) & RegWriteW) ForwardAE = 2'b01;
+      if (OTHER_IS_YOUNGER)
+        if      ((Rs1E == RdOtherM) & RegWriteOtherM) ForwardAE = 3'b100;
+        else if ((Rs1E == RdM)      & RegWriteM)      ForwardAE = 3'b010;
+        else if ((Rs1E == RdOtherW) & RegWriteOtherW) ForwardAE = 3'b011;
+        else if ((Rs1E == RdW)      & RegWriteW)      ForwardAE = 3'b001;
+        else                                          ForwardAE = 3'b000;
+      else
+        if      ((Rs1E == RdM)      & RegWriteM)      ForwardAE = 3'b010;
+        else if ((Rs1E == RdOtherM) & RegWriteOtherM) ForwardAE = 3'b100;
+        else if ((Rs1E == RdW)      & RegWriteW)      ForwardAE = 3'b001;
+        else if ((Rs1E == RdOtherW) & RegWriteOtherW) ForwardAE = 3'b011;
+        else                                          ForwardAE = 3'b000;
 
     if (Rs2E != 5'b0)
-      if      ((Rs2E == RdM) & RegWriteM) ForwardBE = 2'b10;
-      else if ((Rs2E == RdW) & RegWriteW) ForwardBE = 2'b01;
+      if (OTHER_IS_YOUNGER)
+        if      ((Rs2E == RdOtherM) & RegWriteOtherM) ForwardBE = 3'b100;
+        else if ((Rs2E == RdM)      & RegWriteM)      ForwardBE = 3'b010;
+        else if ((Rs2E == RdOtherW) & RegWriteOtherW) ForwardBE = 3'b011;
+        else if ((Rs2E == RdW)      & RegWriteW)      ForwardBE = 3'b001;
+        else                                          ForwardBE = 3'b000;
+      else
+        if      ((Rs2E == RdM)      & RegWriteM)      ForwardBE = 3'b010;
+        else if ((Rs2E == RdOtherM) & RegWriteOtherM) ForwardBE = 3'b100;
+        else if ((Rs2E == RdW)      & RegWriteW)      ForwardBE = 3'b001;
+        else if ((Rs2E == RdOtherW) & RegWriteOtherW) ForwardBE = 3'b011;
+        else                                          ForwardBE = 3'b000;
   end
 
   // Stall on dependent operations that finish in Mem Stage and can't bypass in time
@@ -477,4 +541,14 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign MDUStallD = MDUE & MatchDE; // Int mult/div is at least two cycle latency, even when coming from the FDIV
   assign FCvtIntStallD = FCvtIntE & MatchDE; // FPU to Integer transfers have single-cycle latency except fcvt
   assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD;
+
+  // The same hazards, for the superscalar slot 1.  Slot 1 needs this for the same reason slot 0
+  // does: a result that is not ready in the Memory stage cannot be forwarded, so the bundle has to
+  // wait a cycle.  Without it, slot 1 would forward a load's address instead of its data.
+  // This is computed here rather than in the slot 1 controller because the producer it must be
+  // compared against, RdE, belongs to the real pipeline that only this instance has.
+  // The store-then-load hazard, which slot 1's loads and stores also take part in, is ieu.sv's BundleStoreStallD.
+  assign MatchD1E = ((Rs1_1D == RdE) | (Rs2_1D == RdE)) & (RdE != 5'b0);
+  assign SlowResultE = (MemReadE | SCE) | CSRReadE | MDUE | FCvtIntE;
+  assign StructuralStall1D = SlowResultE & MatchD1E;
 endmodule

@@ -29,6 +29,7 @@ module fpu import cvw::*; #(parameter cvw_t P) (
   input  logic [2:0]           FRM_REGW,                           // Rounding mode (from CSR)
   // Decode stage
   input  logic [31:0]          InstrD,                             // instruction (from IFU)
+  input  logic [31:0]          Instr1D,                            // superscalar slot 1 instruction (from IFU); decoded but not issued
   // Execute stage
   input  logic [2:0]           Funct3E,                            // Funct fields of instruction specify type of operations
   input  logic                 IntDivE, W64E,                      // Integer division on FPU
@@ -75,6 +76,13 @@ module fpu import cvw::*; #(parameter cvw_t P) (
   logic                        FPUActiveE;                         // FP instruction being executed
   logic                        ZfaE, ZfaM;                         // Zfa variants of instructions (fli, fminm, fmaxm, fround, froundnx, fleq, fltq, fmvh, fmvp, fcvtmod.w.d)
   logic                        ZfaFRoundNXE;                       // Zfa froundnx variant
+
+  // Slot 1 (superscalar) Decode-stage signals: the same decode results fctrl and the register file
+  // produce for slot 0.  Slot 1 does not issue yet, so these are observed by the testbench only.
+  logic [4:0]                  Adr1_1D, Adr2_1D, Adr3_1D;          // Slot 1 register addresses of each input
+  logic                        XEn1D, YEn1D, ZEn1D;                // Slot 1 X, Y, Z inputs used
+  logic                        IllegalFPUInstr1D;                  // Slot 1 is an illegal FP instruction
+  logic [P.FLEN-1:0]           FRD1_1D, FRD2_1D, FRD3_1D;          // Slot 1 read data from FP register file
 
   // regfile signals
   logic [P.FLEN-1:0]           FRD1D, FRD2D, FRD3D;                // Read Data from FP register - decode stage
@@ -171,11 +179,30 @@ module fpu import cvw::*; #(parameter cvw_t P) (
               .FResSelE, .FResSelM, .FResSelW, .FPUActiveE, .PostProcSelE, .PostProcSelM, .FCvtIntW,
               .Adr1D, .Adr2D, .Adr3D, .Adr1E, .Adr2E, .Adr3E);
 
+  // Slot 1 FP control (superscalar).  A second copy of fctrl decodes Instr1D in the Decode stage.
+  // Only its Decode-stage outputs are used; slot 1 does not issue, so its Execute/Memory/Writeback
+  // outputs are left unconnected and its Execute-stage feedback inputs are tied off.
+  if (P.SUPERSCALAR_SUPPORTED) begin : slot1fctrl
+    fctrl #(P) fctrl1 (.Funct7D(Instr1D[31:25]), .OpD(Instr1D[6:0]), .Rs2D(Instr1D[24:20]), .Funct3D(Instr1D[14:12]),
+                .IntDivE(1'b0), .InstrD(Instr1D),
+                .StallE, .StallM, .StallW, .FlushE, .FlushM, .FlushW, .FRM_REGW, .STATUS_FS, .FDivBusyE(1'b0),
+                .reset, .clk, .FRegWriteE(), .FRegWriteM(), .FRegWriteW(), .ZfaE(), .ZfaM(), .ZfaFRoundNXE(), .FrmE(), .FrmM(), .FmtE(), .FmtM(),
+                .FDivStartE(), .IDivStartE(), .FWriteIntE(), .FCvtIntE(), .FWriteIntM(), .OpCtrlE(), .OpCtrlM(), .FpLoadStoreM(),
+                .IllegalFPUInstrD(IllegalFPUInstr1D), .XEnD(XEn1D), .YEnD(YEn1D), .ZEnD(ZEn1D), .XEnE(), .YEnE(), .ZEnE(),
+                .FResSelE(), .FResSelM(), .FResSelW(), .FPUActiveE(), .PostProcSelE(), .PostProcSelM(), .FCvtIntW(),
+                .Adr1D(Adr1_1D), .Adr2D(Adr2_1D), .Adr3D(Adr3_1D), .Adr1E(), .Adr2E(), .Adr3E());
+  end else begin : noslot1fctrl
+    assign {IllegalFPUInstr1D, XEn1D, YEn1D, ZEn1D} = '0;
+    assign {Adr1_1D, Adr2_1D, Adr3_1D} = '0;
+  end
+
   // FP register file
-  fregfile #(P.FLEN) fregfile (.clk, .reset, .we4(FRegWriteW),
+  fregfile #(P.FLEN, P.SUPERSCALAR_SUPPORTED) fregfile (.clk, .reset, .we4(FRegWriteW),
     .a1(InstrD[19:15]), .a2(InstrD[24:20]), .a3(InstrD[31:27]),
+    .a5(Instr1D[19:15]), .a6(Instr1D[24:20]), .a7(Instr1D[31:27]),     // slot 1
     .a4(RdW), .wd4(FResultW),
-    .rd1(FRD1D), .rd2(FRD2D), .rd3(FRD3D));
+    .rd1(FRD1D), .rd2(FRD2D), .rd3(FRD3D),
+    .rd5(FRD1_1D), .rd6(FRD2_1D), .rd7(FRD3_1D));                      // slot 1
 
   // D/E pipeline registers
   flopenrc #(P.FLEN) DEReg1(clk, reset, FlushE, ~StallE, FRD1D, FRD1E);

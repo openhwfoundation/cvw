@@ -27,7 +27,8 @@ module gshare import cvw::*; #(parameter cvw_t P,
   output logic            BPDirWrongE,
   // update
   input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
-  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE
+  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE,
+  input  logic            LateBrM, LateBrTakenM      // Branch in Memory resolved there; PCSrcE was only assumed
 );
 
   logic                   MatchD, MatchE, MatchM, MatchW;
@@ -35,6 +36,8 @@ module gshare import cvw::*; #(parameter cvw_t P,
 
   logic [1:0]             PHTBPDirF, BPDirD, BPDirE, FwdNewBPDirF;
   logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+  logic [1:0]             BPDirM, NewBPDirLateM, NewBPDirFixM;
+  logic                   PCSrcFixM;
 
   logic [k-1:0]           IndexNextF, IndexF, IndexD, IndexE, IndexM, IndexW;
 
@@ -60,13 +63,13 @@ module gshare import cvw::*; #(parameter cvw_t P,
 
   assign MatchD = BranchD & ~FlushE & (IndexF == IndexD);
   assign MatchE = BranchE & ~FlushM & (IndexF == IndexE);
-  assign MatchM = BranchM & ~FlushW & (IndexF == IndexM);
+  assign MatchM = BranchM & ~FlushW & (IndexF == IndexM);   // forwards NewBPDirM, below corrected for a late branch
   assign MatchW = BranchW & ~FlushW & (IndexF == IndexW);
   assign MatchX = MatchD | MatchE | MatchM | MatchW;
 
   assign FwdNewBPDirF = MatchD ? {2{BPDirD[1]}} :
                         MatchE ? {NewBPDirE} :
-                        MatchM ? {NewBPDirM} :
+                        MatchM ? {NewBPDirFixM} :
                         NewBPDirW;
 
   assign BPDirF = MatchX ? FwdNewBPDirF : PHTBPDirF;
@@ -76,7 +79,7 @@ module gshare import cvw::*; #(parameter cvw_t P,
     .ra1(IndexNextF),
     .rd1(PHTBPDirF),
     .wa2(IndexM),
-    .wd2(NewBPDirM),
+    .wd2(NewBPDirFixM),
     .we2(BranchM),
     .bwe2(1'b1));
 
@@ -85,7 +88,15 @@ module gshare import cvw::*; #(parameter cvw_t P,
 
   satCounter2 BPDirUpdateE(.BrDir(PCSrcE), .OldState(BPDirE), .NewState(NewBPDirE));
   flopenrc #(2) NewPredictionRegM(clk, reset, FlushM, ~StallM, NewBPDirE, NewBPDirM);
-  flopenrc #(2) NewPredictionRegW(clk, reset, FlushW, ~StallW, NewBPDirM, NewBPDirW);
+  flopenrc #(2) NewPredictionRegW(clk, reset, FlushW, ~StallW, NewBPDirFixM, NewBPDirW);
+
+  // A late branch (ieu.sv) is resolved in Memory, and Execute trained the counter and the history with
+  // the direction fetch assumed.  Both writes happen from Memory, so the real direction replaces it here:
+  // the counter is recomputed from the prediction it started with, and the committed history takes it.
+  flopenrc #(2) PredictionRegM(clk, reset, FlushM, ~StallM, BPDirE, BPDirM);
+  satCounter2 BPDirUpdateLateM(.BrDir(LateBrTakenM), .OldState(BPDirM), .NewState(NewBPDirLateM));
+  assign NewBPDirFixM = LateBrM ? NewBPDirLateM : NewBPDirM;
+  assign PCSrcFixM    = LateBrM ? LateBrTakenM  : PCSrcM;
 
   assign BPDirWrongE = PCSrcE != BPDirE[1] & BranchE;
 
@@ -94,9 +105,9 @@ module gshare import cvw::*; #(parameter cvw_t P,
   assign GHRNextF = BPBranchF ? {BPDirF[1], GHRF[k-1:1]} : GHRF;
   assign GHRF = BranchD ? {BPDirD[1], GHRD[k-1:1]} : GHRD;
   assign GHRD = BranchE ? {PCSrcE, GHRE[k-1:1]} : GHRE;
-  assign GHRE = BranchM ? {PCSrcM, GHRM[k-1:1]} : GHRM;
+  assign GHRE = BranchM ? {PCSrcFixM, GHRM[k-1:1]} : GHRM;
 
-  assign GHRNextM = {PCSrcM, GHRM[k-1:1]};
+  assign GHRNextM = {PCSrcFixM, GHRM[k-1:1]};
 
   flopenr #(k) GHRReg(clk, reset, ~StallW & ~FlushW & BranchM, GHRNextM, GHRM);
   flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);

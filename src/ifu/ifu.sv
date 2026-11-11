@@ -40,6 +40,11 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic                     PCSrcE,                                   // Execution stage branch is taken
   input  logic [P.XLEN-1:0]        IEUAdrE,                                  // The branch/jump target address
   input  logic [P.XLEN-1:0]        IEUAdrM,                                  // The branch/jump target address
+  input  logic                     Branch1D, Branch1E,                       // Slot 1 is a conditional branch (Branch1D before the issue decision)
+  input  logic                     Jump1D, Jump1E,                           // ... or a jal
+  input  logic                     PCSrc1E,                                  // ... that resolved taken (always, for a jal)
+  input  logic [P.XLEN-1:0]        IEUAdr1E,                                 // ... to this target
+  output logic [P.XLEN-1:0]        PCLink1E,                                 // The address following slot 1: a slot 1 jal's link value
   output logic [P.XLEN-1:0]        PCE,                                      // Execution stage instruction address
   output logic                     BPWrongE,                                 // Prediction is wrong
   output logic                     BPRedirectD,                              // Decode-stage predictor redirects fetch; flush the instruction in Fetch
@@ -50,6 +55,19 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0]        TrapVectorM,                              // Trap vector, from privileged unit
   input  logic                     RetM, TrapM,                              // return instruction, or trap
   output logic [31:0]              InstrD,                                   // The decoded instruction in Decode stage
+  output logic [31:0]              Instr1D,                                  // Second decoded instruction in Decode stage (superscalar slot 1)
+  output logic                     Issue1D, Issue1E,                         // Slot 1 issues alongside slot 0 in Decode / Execute
+  output logic                     LateA1D, LateB1D,                         // Slot 1's rs1 / rs2 is slot 0's rd (late ALU bypass)
+  output logic                     LateOK1D,                                 // Slot 1 is an operation the late ALU implements
+  output logic                     Fuse1D,                                   // The pair is fused into one indexed load (issue.sv)
+  output logic                     FuseBr1D,                                 // The pair is fused into one ALU op + branch (issue.sv)
+  output logic                     FuseBrAdd1D,                              // ... and slot 0 is an add (else a logic op)
+  output logic                     Issue1M, Issue1W,                         // ... and in Memory / Writeback, where it commits
+  input  logic                     Replay1M,                                 // Slot 1's memory operation faulted; refetch it alone
+  output logic                     PredTakenE,                               // Fetch went to slot 0's predicted target
+  input  logic                     LateBrM, LateBrTakenM,                    // Slot 0's branch was checked in Memory, and its direction
+  input  logic                     LateBrWrongM,                             // ... which is not the way fetch went
+  output logic                     IllegalComp1M,                            // Slot 1 is an illegal compressed instruction; replay it
   output logic [31:0]              InstrM,                                   // The decoded instruction in Memory stage
   output logic [31:0]              InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   output logic [P.XLEN-1:0]        PCM,                                      // Memory stage instruction address
@@ -95,28 +113,55 @@ module ifu import cvw::*; #(parameter cvw_t P) (
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
   localparam                   LINELEN = P.ICACHE_SUPPORTED ? P.ICACHE_LINELENINBITS : P.XLEN;
+  localparam                   FETCHWIDTH = P.SUPERSCALAR_SUPPORTED ? 64 : 32; // Two 32-bit instruction slots per cycle for superscalar, else one
 
   logic [P.XLEN-1:0]           PCNextF;                                  // Next PCF, selected from Branch predictor, Privilege, or PC+2/4
   logic [P.XLEN-1:0]           PC1NextF;                                 // Branch predictor next PCF
   logic [P.XLEN-1:0]           PC2NextF;                                 // Selected PC between branch prediction and next valid PC if CSRWriteFence
   logic [P.XLEN-1:0]           UnalignedPCNextF;                         // The next PCF, but not aligned to 2 bytes.
   logic                        InstrMisalignedFaultE;                    // Branch/jump target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
-  logic [P.XLEN-1:0]           PCPlus2or4F;                              // PCF + 2 (CompressedF) or PCF + 4 (Non-compressed)
+  logic [P.XLEN-1:0]           PCPlus2or4F;                              // PCF + 2 (CompressedF) or PCF + 4 (Non-compressed): the address of slot 1
+  logic [P.XLEN-1:0]           PCNextSeqF;                               // Fall-through PC: the first instruction not executed this cycle (PCPlus2or4F, or PCF + 8 when both slots issue)
   logic [P.XLEN-1:0]           PCSpillNextF;                             // Next PCF after possible + 2 to handle spill
   logic [P.XLEN-1:2]           PCPlus4F;                                 // PCPlus4F is always PCF + 4.  Fancy way to compute PCPlus2or4F
   logic [P.XLEN-1:0]           PCD;                                      // Decode stage instruction address
   logic [P.XLEN-1:0]           NextValidPCE;                             // The PC of the next valid instruction in the pipeline after csr write or fence
+  logic [P.XLEN-1:0]           RedirectPCM;                              // Memory stage redirect target: csr write / fence, or a slot 1 replay
   logic [P.XLEN-1:0]           PCF;                                      // Fetch stage instruction address
   logic [P.PA_BITS-1:0]        PCPF;                                     // Physical address after address translation
   logic [P.XLEN+1:0]           PCFExt;
 
   logic [31:0]                 IROMInstrF;                               // Instruction from the IROM
-  logic [31:0]                 ICacheInstrF;                             // Instruction from the I$
-  logic [31:0]                 InstrRawF;                                // Instruction from the IROM, I$, or bus
-  logic                        CompressedF, CompressedE;                 // The fetched instruction is compressed
+  logic [FETCHWIDTH-1:0]       ICacheInstrF;                             // Two instruction slots from the I$: [31:0] at PCSpillF, [63:32] the next 32 bits
+  logic [FETCHWIDTH-1:0]       FetchDataF;                               // Fetch window from the IROM, I$, or bus: [31:0] instr at PCSpillF, [63:32] next 32 bits
+  logic [31:0]                 InstrRawF;                                // First fetched instruction (slot 0) from the IROM, I$, or bus
+  logic                        CompressedF, CompressedE, CompressedM;    // The fetched instruction is compressed
+  logic                        Compressed1F, Compressed1E;               // Slot 1 is a 16-bit instruction
+  logic                        IllegalCompInstr1D;                       // Slot 1's decompressor rejected its encoding
+  logic [P.XLEN-1:0]           PCBundleEndF;                             // Address just past both slots of the bundle
   logic [31:0]                 PostSpillInstrRawF;                       // Fetch instruction after merge two halves of spill
   logic [31:0]                 InstrRawD;                                // Non-decompressed instruction in the Decode stage
   logic                        IllegalIEUInstrD;                         // IEU Instruction (regular or compressed) is not good
+
+  // Slot 1 (superscalar).  Slot 1 is the instruction following slot 0 in the fetch window.
+  // It is decoded in parallel with slot 0 but not yet issued to Execute.
+  logic [31:0]                 Instr1RawF;                               // Slot 1 raw instruction, aligned to start at bit 0
+  logic                        Instr1ValidF;                             // Slot 1 holds a complete instruction from the I$
+  logic [31:0]                 Instr1RawD;                               // Slot 1 raw instruction in the Decode stage
+  logic [P.XLEN-1:0]           Instr1PCD;                                // Slot 1 instruction address in the Decode stage
+  logic                        Instr1ValidD;                             // Slot 1 in Decode holds a complete instruction
+  logic                        Issue1F;                                  // Both slots may issue together
+  logic                        PredTakenD;                               // Fetch went to slot 0's predicted target
+  logic [P.XLEN-1:0]           RedirectSeqPCM;                           // Memory stage redirect, before a late branch's target
+  logic                        LateA1F, LateB1F;                         // ... and which of slot 1's operands are slot 0's result
+  logic                        LateOK1F;                                 // ... and whether slot 1 could run on the late ALU
+  logic                        Fuse1F;                                   // ... and whether the pair fuses into one indexed load
+  logic                        FuseBr1F;                                 // ... or into one ALU op + branch
+  logic                        FuseBrAdd1F;                              // ... whose slot 0 is an add
+  logic                        Kill1E;                                   // Slot 1 issued but must not commit
+  logic                        Commit1E;                                 // Slot 1 issued and will commit
+  logic                        BPPCSrcF;                                 // Branch predictor says this fetch is a taken branch or jump
+  logic                        SelSpillF;                                // Fetching the second half of an instruction that spills across a line
 
   logic [1:0]                  IFURWF;                                   // IFU always reads: IFURWF = 10
   logic [31:0]                 InstrE;                                   // Instruction in the Execution stage
@@ -131,7 +176,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        CacheCommittedF;                          // I$ memory operation started, delay interrupts
   logic                        SelIROM;                                  // PMA indicates instruction address is in the IROM
   logic [LINELEN-1:0]          FetchBuffer;
-  logic [31:0]                 ShiftUncachedInstr;
+  logic [FETCHWIDTH-1:0]       ShiftUncachedInstr;                       // Uncached fetch window; slot 1 has an instruction/value only when the bus is 64 bits
   logic                        ITLBMissF;
   logic                        InstrUpdateAF;                            // ITLB hit needs to update dirty or access bits
   logic                        IFUFaultF;                                // Fetch failed the PMA or PMP check, so it must not access the cache or bus
@@ -147,7 +192,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
 
   if (P.ZCA_SUPPORTED) begin : Spill
     logic [P.XLEN-1:0] PCIncrM;
-    logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
+    logic              SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
       .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
       .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
@@ -167,7 +212,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PCSpillNextF = PCNextF;
     assign PCSpillF = PCF;
     assign PostSpillInstrRawF = InstrRawF;
-    assign {SelSpillNextF, CompressedF} = '0;
+    assign {SelSpillNextF, SelSpillF, CompressedF} = '0;
     assign PCSpillM = PCM;
     assign InstrPageFaultF = InstrPageFaultRawF;
     assign InstrAccessFaultF = InstrAccessFaultRawF;
@@ -277,7 +322,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
       cache #(.P(P), .PA_BITS(P.PA_BITS), .LINELEN(P.ICACHE_LINELENINBITS),
               .NUMSETS(P.ICACHE_WAYSIZEINBYTES*8/P.ICACHE_LINELENINBITS),
               .OFFSETLEN(OFFSETLEN), .SETLEN(SETLEN),
-              .NUMWAYS(P.ICACHE_NUMWAYS), .LOGBWPL(AHBWLOGBWPL), .WORDLEN(32), .MUXINTERVAL(16), .READ_ONLY_CACHE(1))
+              .NUMWAYS(P.ICACHE_NUMWAYS), .LOGBWPL(AHBWLOGBWPL), .WORDLEN(FETCHWIDTH), .MUXINTERVAL(16), .READ_ONLY_CACHE(1))
       icache(.clk, .reset, .FlushStage(FlushD), .Stall(GatedStallD),
              .FetchBuffer, .CacheBusAck(ICacheBusAck),
              .CacheBusAdr(ICacheBusAdr), .CacheStall(ICacheStallF),
@@ -304,8 +349,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
             .BusRW, .Stall(GatedStallD),
             .BusStall, .BusCommitted(BusCommittedF));
 
-      mux3 #(32) UnCachedDataMux(.d0(ICacheInstrF), .d1(ShiftUncachedInstr), .d2(IROMInstrF),
-                                 .s({SelIROM, ~CacheableF}), .y(InstrRawF[31:0]));
+      mux3 #(FETCHWIDTH) UnCachedDataMux(.d0(ICacheInstrF), .d1(ShiftUncachedInstr), .d2(FETCHWIDTH'(IROMInstrF)),
+                                         .s({SelIROM, ~CacheableF}), .y(FetchDataF));
     end else begin : passthrough
       assign IFUHADDR = PCPF;
       logic [1:0] BusRW;
@@ -318,22 +363,72 @@ module ifu import cvw::*; #(parameter cvw_t P) (
         .Stall(GatedStallD), .BusStall, .BusCommitted(BusCommittedF), .FetchBuffer(FetchBuffer));
 
       assign CacheCommittedF = '0;
-      if (P.IROM_SUPPORTED) mux2 #(32) UnCachedDataMux2(ShiftUncachedInstr, IROMInstrF, SelIROM, InstrRawF);
-      else assign InstrRawF = ShiftUncachedInstr;
+      if (P.IROM_SUPPORTED) mux2 #(FETCHWIDTH) UnCachedDataMux2(ShiftUncachedInstr, FETCHWIDTH'(IROMInstrF), SelIROM, FetchDataF);
+      else assign FetchDataF = ShiftUncachedInstr;
       assign IFUHBURST = 3'b0;
       assign {ICacheMiss, ICacheAccess, ICacheStallF} = '0;
     end
 
-    // mux between the alignments of uncached reads.
-    if (P.XLEN == 64) mux4 #(32) UncachedShiftInstrMux(FetchBuffer[32-1:0], FetchBuffer[48-1:16],
-                                                       FetchBuffer[64-1:32], {16'b0, FetchBuffer[64-1:48]},
-                                                       PCSpillF[2:1], ShiftUncachedInstr);
-    else mux2 #(32) UncachedShiftInstrMux(FetchBuffer[32-1:0], {16'b0, FetchBuffer[32-1:16]}, PCSpillF[1], ShiftUncachedInstr);
+    // mux between the alignments of uncached reads.  An uncached fetch is a single bus beat, so the
+    // window is shifted so the halfword at PCSpillF lands at bit 0 and zero-filled above the beat.
+    // Each alignment is formed 64 bits wide and cut to the fetch window, so a single-issue core keeps 32.
+    logic [63:0] UncachedShift0, UncachedShift1, UncachedShift2, UncachedShift3;
+    if (P.XLEN == 64) begin : uncshift64
+      assign UncachedShift0 = FetchBuffer[64-1:0];
+      assign UncachedShift1 = {16'b0, FetchBuffer[64-1:16]};
+      assign UncachedShift2 = {32'b0, FetchBuffer[64-1:32]};
+      assign UncachedShift3 = {48'b0, FetchBuffer[64-1:48]};
+      mux4 #(FETCHWIDTH) UncachedShiftInstrMux(UncachedShift0[FETCHWIDTH-1:0], UncachedShift1[FETCHWIDTH-1:0],
+                                               UncachedShift2[FETCHWIDTH-1:0], UncachedShift3[FETCHWIDTH-1:0],
+                                               PCSpillF[2:1], ShiftUncachedInstr);
+    end else begin : uncshift32
+      assign UncachedShift0 = {32'b0, FetchBuffer[32-1:0]};
+      assign UncachedShift1 = {48'b0, FetchBuffer[32-1:16]};
+      assign {UncachedShift2, UncachedShift3} = '0;
+      mux2 #(FETCHWIDTH) UncachedShiftInstrMux(UncachedShift0[FETCHWIDTH-1:0], UncachedShift1[FETCHWIDTH-1:0], PCSpillF[1], ShiftUncachedInstr);
+    end
   end else begin : nobus // block: bus
     assign {IFUHADDR, IFUHWRITE, IFUHSIZE, IFUHBURST, IFUHTRANS,
             BusStall, CacheCommittedF, BusCommittedF, FetchBuffer} = '0;
     assign {ICacheStallF, ICacheMiss, ICacheAccess} = '0;
-    assign InstrRawF = IROMInstrF;
+    assign FetchDataF = FETCHWIDTH'(IROMInstrF);
+  end
+
+  // Split the fetch window into its two instruction slots.
+  // Slot 0 is the instruction at PCSpillF; the I$ aligns it to bit 0 at halfword granularity.
+  // Slot 1 follows it: it starts at bit 16 if slot 0 is compressed, else at bit 32.
+  // Each slot is then expanded by its own decompressor in the Decode stage.
+  assign InstrRawF  = FetchDataF[31:0];
+  assign Compressed1F = P.ZCA_SUPPORTED & ~&Instr1RawF[1:0];
+  if (P.SUPERSCALAR_SUPPORTED) begin : instr1
+    mux2 #(32) instr1mux(FetchDataF[63:32], FetchDataF[47:16], CompressedF, Instr1RawF);
+  end else begin : noinstr1
+    assign Instr1RawF = '0;
+  end
+
+  // Slot 0 is always complete (the spill logic fetches a second line when it straddles one).
+  // Slot 1 has no spill yet, so it is only valid when it comes from the I$ and lies entirely within
+  // the current cache line; past the end of the line the window is zero-padded.  Uncached, IROM, and
+  // spill fetches deliver a single instruction.
+  if (P.ICACHE_SUPPORTED & P.SUPERSCALAR_SUPPORTED) begin : instr1valid
+    localparam LINEBYTES = P.ICACHE_LINELENINBITS/8;
+    localparam OFFSETLEN = $clog2(LINEBYTES);
+    logic [OFFSETLEN:0] Instr1OffsetF;                                    // Byte offset of slot 1 within the line
+    logic [OFFSETLEN:0] Instr1EndF;                                       // Byte offset just past the end of slot 1
+    assign Instr1OffsetF = {1'b0, PCF[OFFSETLEN-1:0]} + (CompressedF ? 'd2 : 'd4);
+    assign Instr1EndF    = Instr1OffsetF + (Compressed1F ? 'd2 : 'd4);
+    assign Instr1ValidF  = CacheableF & ~SelIROM & ~SelSpillF & (Instr1EndF <= LINEBYTES[OFFSETLEN:0]);
+  end else begin : instr1valid
+    assign Instr1ValidF = 1'b0;
+  end
+
+  // Decide in Fetch whether both slots may issue together.  This has to happen here rather than in
+  // Decode because the PC advance below depends on it: a bundle of two advances the PC by both
+  // lengths at once.  When Issue1F is low the core behaves exactly as single-issue Wally.
+  if (P.SUPERSCALAR_SUPPORTED) begin : dualissue
+    issue #(P) issue(.Instr0F(InstrRawF), .Instr1F(Instr1RawF), .Instr1ValidF, .BPPCSrcF, .Issue1F, .LateA1F, .LateB1F, .LateOK1F, .Fuse1F, .FuseBr1F, .FuseBrAdd1F);
+  end else begin : singleissue
+    assign {Issue1F, LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F} = '0;
   end
 
   assign IFUCacheBusStallF = ICacheStallF | BusStall;
@@ -345,13 +440,46 @@ module ifu import cvw::*; #(parameter cvw_t P) (
 
   flopenl #(32) AlignedInstrRawDFlop(clk, reset | FlushD, ~StallD, PostSpillInstrRawF, nop, InstrRawD);
 
+  // Slot 1 Fetch -> Decode registers, mirroring slot 0's (instruction, PC) plus a valid bit.
+  // Slot 1's PC is PCPlus2or4F: the address right after slot 0.
+  if (P.SUPERSCALAR_SUPPORTED) begin : slot1fd
+    flopenl  #(32)     AlignedInstr1RawDFlop(clk, reset | FlushD, ~StallD, Instr1RawF, nop, Instr1RawD);
+    flopenrc #(P.XLEN) Instr1PCDReg(clk, reset, FlushD, ~StallD, PCPlus2or4F, Instr1PCD);
+    flopenrc #(1)      Instr1ValidDReg(clk, reset, FlushD, ~StallD, Instr1ValidF, Instr1ValidD);
+    flopenrc #(1)      Issue1DReg(clk, reset, FlushD, ~StallD, Issue1F, Issue1D);
+    flopenrc #(6)      Late1DReg(clk, reset, FlushD, ~StallD, {LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F}, {LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D});
+  end else begin : noslot1fd
+    assign Instr1RawD = '0;
+    assign Instr1PCD  = '0;
+    assign {Instr1ValidD, Issue1D, LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D} = '0;
+  end
+  // Which way fetch went after slot 0: a late branch (ieu.sv) keeps that direction until Memory checks it.
+  if (P.LATE_ALU_SUPPORTED) begin : predtaken
+    flopenrc #(1)      PredTakenDReg(clk, reset, FlushD, ~StallD, BPPCSrcF, PredTakenD);
+    flopenrc #(1)      PredTakenEReg(clk, reset, FlushE, ~StallE, PredTakenD, PredTakenE);
+  end else begin : nopredtaken
+    assign {PredTakenD, PredTakenE} = '0;
+  end
+
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // PCNextF logic
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  if (P.ZICSR_SUPPORTED | P.ZIFENCEI_SUPPORTED)
+  // All redirects here come from the Memory stage.  A replay sends fetch back to slot 1's own PC,
+  // which is PCM advanced by slot 0's length -- 2 when slot 0 was compressed, 4 otherwise.  A late
+  // branch (ieu.sv) found to go the other way goes to its target, or to that same address when it
+  // turned out not taken: fetch only assumed taken when slot 0 was predicted taken, which never pairs,
+  // so nothing issued beside it.  At most one select is high: CSRWriteFenceM means slot 0 is a CSR
+  // write or a fence, which neither pairs nor is a branch, and core.sv suppresses Replay1M under a
+  // late branch misprediction, since slot 1 was on the wrong path.
+  if ((P.ZICSR_SUPPORTED | P.ZIFENCEI_SUPPORTED) & ~P.SUPERSCALAR_SUPPORTED & ~P.LATE_ALU_SUPPORTED) begin
+    // Single issue, no late ALU: only CSR writes and fences redirect from Memory, as in single-issue Wally.
     mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(NextValidPCE), .s(CSRWriteFenceM), .y(PC2NextF));
-  else assign PC2NextF = PC1NextF;
+  end else if (P.ZICSR_SUPPORTED | P.ZIFENCEI_SUPPORTED) begin
+    mux2 #(P.XLEN) pcredirectmux(NextValidPCE, PCM + (CompressedM ? 'd2 : 'd4), Replay1M | LateBrWrongM, RedirectSeqPCM);
+    mux2 #(P.XLEN) latebrtargetmux(RedirectSeqPCM, IEUAdrM, LateBrWrongM & LateBrTakenM, RedirectPCM);
+    mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(RedirectPCM), .s(CSRWriteFenceM | Replay1M | LateBrWrongM), .y(PC2NextF));
+  end else assign PC2NextF = PC1NextF;   // ieu.sv makes no late branches without this path
 
   mux3 #(P.XLEN) pcmux3(PC2NextF, EPCM, TrapVectorM, {TrapM, RetM}, UnalignedPCNextF);
   mux2 #(P.XLEN) pcresetmux({UnalignedPCNextF[P.XLEN-1:1], 1'b0}, P.RESET_VECTOR[P.XLEN-1:0], reset, PCNextF);
@@ -373,32 +501,83 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PCPlus2or4F = {PCPlus4F, PCF[1:0]}; // always add 4 if compressed instructions are not supported
   end
 
+  // When both slots issue, fetch continues after the pair rather than after slot 0.  A bundle is 4, 6
+  // or 8 bytes depending on each slot's length, so the end is slot 1's own address advanced by slot
+  // 1's length.  PCPlus2or4F stays the address of slot 1 itself, which is what the Decode-stage slot 1
+  // PC register needs.
+  if (P.SUPERSCALAR_SUPPORTED) begin : bundleend
+    assign PCBundleEndF = PCPlus2or4F + (Compressed1F ? 'd2 : 'd4);
+    mux2 #(P.XLEN) pcnextseqmux(PCBundleEndF, PCPlus2or4F, ~Issue1F, PCNextSeqF);
+  end else begin : nobundleend
+    assign PCBundleEndF = PCPlus2or4F;
+    assign PCNextSeqF   = PCPlus2or4F;
+  end
+
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Branch and Jump Predictor
   ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // The bundle's control transfer.  issue.sv admits at most one branch or jal per bundle, in either
+  // slot, so the predictor sees one per bundle whichever slot holds it.  It keeps slot 0's PCs: a
+  // slot 1 branch or jal is predicted and trained at the bundle's address, which is where fetch looks
+  // it up, so the BTB and the direction predictor need no slot field.  Kill1E stays on slot 0's
+  // PCSrcE -- a taken slot 1 branch or jal does not kill itself.
+  //   0x100 addi a0,a0,1 ; 0x104 j loop     JumpBE = 1, IEUAdrBE = loop, trained at PC 0x100
+  //
+  // InstrBD is the instruction icpred looks at to tell a call from a plain jump (jal ra vs j): slot 1's
+  // when slot 1 is the jump.  Only the jump's own rd matters there, so slot 0 is never needed then.
+  //
+  // IEUAdrBM is the target the BTB is written with in Memory.  It has its own register rather than
+  // reusing the load/store unit's IEUAdrM, because the bundle's memory operation may be in the other
+  // slot and then IEUAdrM holds its address, not the target:
+  //   beq a0,a1,L ; lw a2,0(a3)      IEUAdrM = a3 + 0, IEUAdrBM = L
+  //   sw  a0,0(a1); jal ra,f         IEUAdrM = a1 + 0, IEUAdrBM = f
+  logic              BranchBD, BranchBE, JumpBD, JumpBE, PCSrcBE;
+  logic [31:0]       InstrBD;
+  logic [P.XLEN-1:0] IEUAdrBE, IEUAdrBM;
+  assign BranchBD = BranchD | Branch1D & Issue1D;
+  assign BranchBE = BranchE | Branch1E;
+  assign JumpBD   = JumpD | Jump1D & Issue1D;
+  assign JumpBE   = JumpE | Jump1E;
+  assign PCSrcBE  = PCSrcE | PCSrc1E;
+  if (P.SUPERSCALAR_SUPPORTED) begin : bundlebr
+    mux2 #(32)     instrbdmux(InstrD, Instr1D, Jump1D & Issue1D, InstrBD);
+    mux2 #(P.XLEN) ieuadrbemux(IEUAdrE, IEUAdr1E, Branch1E | Jump1E, IEUAdrBE);
+    flopenrc #(P.XLEN) IEUAdrBMReg(clk, reset, FlushM, ~StallM, IEUAdrBE, IEUAdrBM);
+  end else begin : slot0br
+    assign InstrBD  = InstrD;
+    assign IEUAdrBE = IEUAdrE;
+    assign IEUAdrBM = IEUAdrM;   // the LSU's address register holds slot 0's target, since slot 0 owns the LSU
+  end
+
   if (P.BPRED_SUPPORTED) begin : bpred
     bpred #(P) bpred(.clk, .reset,
                 .StallF, .StallD, .StallE, .StallM, .StallW,
-                .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE,
-                .BranchD, .BranchE, .JumpD, .JumpE,
-                .InstrD, .PCNextF, .PCPlus2or4F, .PC1NextF, .PCE, .PCM, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCF, .NextValidPCE,
+                .FlushD, .FlushE, .FlushM, .FlushW, .InstrValidD, .InstrValidE, .Commit1E, .PCLink1E,
+                .BranchD(BranchBD), .BranchE(BranchBE), .JumpD(JumpBD), .JumpE(JumpBE),
+                .InstrD(InstrBD), .PCNextF, .PCPlus2or4F, .PCNextSeqF, .PC1NextF, .BPPCSrcF, .PCE, .PCM, .PCSrcE(PCSrcBE),
+                .IEUAdrE(IEUAdrBE), .IEUAdrM(IEUAdrBM), .PCF, .NextValidPCE,
                 .PCD, .PCLinkE, .IClassM, .BPWrongE, .BPRedirectD, .PostSpillInstrRawF, .BPWrongM,
-                .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM);
+                .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .IClassWrongM, .LateBrM, .LateBrTakenM);
 
   end else begin : bpred
-    mux2 #(P.XLEN) pcmux1(.d0(PCPlus2or4F), .d1(IEUAdrE), .s(PCSrcE), .y(PC1NextF));
+    mux2 #(P.XLEN) pcmux1(.d0(PCNextSeqF), .d1(IEUAdrBE), .s(PCSrcBE), .y(PC1NextF));
+    // No predictor: the next PC is sequential until a branch resolves taken in Execute, which is the
+    // same behaviour as predicting not-taken.  So branches may pair here too, and Kill1E catches the
+    // taken case.  BPPCSrcF still needs a driver in this branch because bpred is not instantiated.
+    assign BPPCSrcF = 1'b0;
     logic BranchM, JumpM, BranchW, JumpW;
     logic CallD, CallE, CallM, CallW;
     logic ReturnD, ReturnE, ReturnM, ReturnW;
-    assign BPWrongE = PCSrcE;
+    assign BPWrongE = PCSrcBE;
     assign BPRedirectD = 1'b0;
     icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
-      .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
+      .PostSpillInstrRawF, .InstrD(InstrBD), .BranchD(BranchBD), .BranchE(BranchBE), .JumpD(JumpBD), .JumpE(JumpBE), .BranchM, .BranchW, .JumpM, .JumpW,
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
       .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),
       .BTBBranchF(1'b0), .BPCallF(), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
       .BPReturnWrongD(), .BPReturnD(), .BPCallD());
-    flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, BPWrongM);
+    flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcBE, BPWrongM);
     assign RASPredPCWrongM = 1'b0;
     assign BPDirWrongM = BPWrongM;
     assign BTAWrongM = BPWrongM;
@@ -418,9 +597,28 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic IllegalCompInstrD;
     decompress #(P) decomp(.InstrRawD, .InstrD, .IllegalCompInstrD);
     assign IllegalIEUInstrD = IllegalBaseInstrD | IllegalCompInstrD; // illegal if bad 32 or 16-bit instr
+    // Slot 1 gets its own decompressor.  Slot 0's illegal flag joins IllegalIEUInstrD above, but
+    // slot 1 has no such path -- the privileged unit describes only slot 0 -- so an illegal
+    // compressed instruction in slot 1 is sent down the replay route instead, exactly as an illegal
+    // 32-bit one is.  Carried to Memory so it reaches Replay1M, with the Execute register flushed
+    // for an unpaired slot 1 (mirroring controller c1) and the result qualified by Issue1M, so a
+    // slot 1 abandoned in Execute never triggers a replay.
+    if (P.SUPERSCALAR_SUPPORTED) begin : decomp1
+      logic IllegalCompInstr1E, IllegalCompInstr1M;
+      decompress #(P) decomp1(.InstrRawD(Instr1RawD), .InstrD(Instr1D), .IllegalCompInstrD(IllegalCompInstr1D));
+      flopenrc #(1) IllegalComp1EReg(clk, reset, FlushE | ~Issue1D, ~StallE, IllegalCompInstr1D, IllegalCompInstr1E);
+      flopenrc #(1) IllegalComp1MReg(clk, reset, FlushM, ~StallM, IllegalCompInstr1E, IllegalCompInstr1M);
+      assign IllegalComp1M = IllegalCompInstr1M & Issue1M;
+    end else begin : nodecomp1
+      assign Instr1D = '0;
+      assign {IllegalCompInstr1D, IllegalComp1M} = '0;
+    end
   end else begin : decomp
     assign InstrD = InstrRawD;
     assign IllegalIEUInstrD = IllegalBaseInstrD;
+    assign Instr1D = Instr1RawD;
+    assign IllegalComp1M = 1'b0;
+    assign IllegalCompInstr1D = 1'b0;
   end
   // Illegal only if the IEU decoder rejects it and the FPU decoder also rejects it (or there is no FPU)
   assign IllegalIEUFPUInstrD = IllegalIEUInstrD & (IllegalFPUInstrD | !P.F_SUPPORTED);
@@ -442,6 +640,24 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   mux2    #(32)     FlushInstrEMux(InstrD, nop, FlushE, NextInstrD);
   flopenr #(32)     InstrEReg(clk, reset, ~StallE, NextInstrD, InstrE);
   flopenr #(P.XLEN) PCEReg(clk, reset, ~StallE, PCD, PCE);
+  // Issue1E is a validity bit, not data: on a flush slot 1 must not issue, so it is cleared
+  // (unlike PCE above, which may safely go stale because InstrValidE tracks validity separately).
+  flopenrc #(1)     Issue1EReg(clk, reset, FlushE, ~StallE, Issue1D, Issue1E);
+  // Slot 1 may have to be abandoned after it has already issued: slot 0 can be a conditional branch,
+  // and if it resolves taken then slot 1, the fall-through, is on the wrong path.  PCSrcE is that
+  // resolved outcome (JumpE | BranchE & BranchTakenE), so it is exactly the kill condition.
+  // This gates the register's *input*.  FlushE would be the wrong mechanism: it stops the Decode
+  // instruction from entering Execute and does nothing to an instruction already in Execute.
+  assign Kill1E   = PCSrcE;
+  assign Commit1E = Issue1E & ~Kill1E;
+  // Carrying Issue1 to Writeback is what gates slot 1's register write.  Because these clear on
+  // flush, a trap or a misprediction that flushes the bundle also stops slot 1 from committing.
+  // Replay1M is the Memory-stage equivalent of Kill1E: slot 1's memory operation faulted, so it is
+  // abandoned here and refetched to run alone.  It cannot use FlushW, which would also discard slot 0.
+  flopenrc #(1)     Issue1MReg(clk, reset, FlushM, ~StallM, Commit1E, Issue1M);
+  // A late branch found taken in Memory abandons the slot 1 beside it, the fall-through, as Kill1E
+  // does for a branch resolved in Execute.
+  flopenrc #(1)     Issue1WReg(clk, reset, FlushW, ~StallW, Issue1M & ~Replay1M & ~LateBrWrongM, Issue1W);
 
   // InstrM is only needed with CSRs or atomic operations
   if (P.ZICSR_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZALRSC_SUPPORTED) begin
@@ -456,18 +672,34 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // If compressed instructions are supported, increment PCLink by 2 or 4 for a jal.  Otherwise, just by 4
   if (P.ZCA_SUPPORTED) begin
     logic CompressedD;  // instruction is compressed
+    logic Compressed1D; // slot 1 is compressed
     flopenrc #(1) CompressedDReg(clk, reset, FlushD, ~StallD, CompressedF, CompressedD);
     flopenrc #(1) CompressedEReg(clk, reset, FlushE, ~StallE, CompressedD, CompressedE);
     assign PCLinkE = PCE + (CompressedE ? 'd2 : 'd4); // 'd4 means 4 but stops Design Compiler complaining about signed to unsigned conversion
+    // Slot 1's length, carried alongside slot 0's, gives the address just past slot 1.  Slot 1 starts
+    // at PCLinkE, so:
+    //   0x100 addi a0,a0,1 ; 0x104 jal ra,f      PCLink1E = 0x108   (0x106 if the jal is a c.jal)
+    // It is a slot 1 jal's link value (datapath.sv) and, whenever slot 1 commits, the bundle's
+    // fall-through address (bpred.sv).
+    if (P.SUPERSCALAR_SUPPORTED) begin : link1
+      flopenrc #(1) Compressed1DReg(clk, reset, FlushD, ~StallD, Compressed1F, Compressed1D);
+      flopenrc #(1) Compressed1EReg(clk, reset, FlushE, ~StallE, Compressed1D, Compressed1E);
+      assign PCLink1E = PCLinkE + (Compressed1E ? 'd2 : 'd4);
+    end else begin : nolink1
+      assign {Compressed1D, Compressed1E} = '0;
+      assign PCLink1E = '0;
+    end
   end else begin
     assign CompressedE = 1'b0;
+    assign Compressed1E = 1'b0;
     assign PCLinkE = PCE + 'd4;
+    assign PCLink1E = PCLinkE + 'd4;
   end
 
   // pipeline original compressed instruction in case it is needed for XTVAL on an illegal instruction exception
-  // Only csr reads InstrOrigM, and it differs from InstrM only for compressed instructions
-  if (P.ZICSR_SUPPORTED & P.ZCA_SUPPORTED) begin
-    logic        CompressedM; // instruction is compressed
+  // Only csr reads InstrOrigM, and it differs from InstrM only for compressed instructions.  The block
+  // is always generated because the slot 1 replay redirect also reads CompressedM, declared above.
+  if (P.ZICSR_SUPPORTED & P.ZCA_SUPPORTED | 1) begin
     logic [15:0] InstrRawE, InstrRawM;
     flopenrc #(16) InstrRawEReg(clk, reset, FlushE, ~StallE, InstrRawD[15:0], InstrRawE);
     flopenrc #(16) InstrRawMReg(clk, reset, FlushM, ~StallM, InstrRawE, InstrRawM);

@@ -1,0 +1,265 @@
+#!/usr/bin/env -S uv run --script
+#
+# ppa
+# Run CoreMark and Design Compiler synthesis, and append the results to a history file so that
+# successive versions of the core can be compared against each other.
+# usage: ppa [--sim-only] [--config CONFIG] [--note "text"]
+# example: ppa --sim-only --note "baseline"
+# example: ppa --note "3c compressed pairs"
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+import argparse
+import csv
+import os
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
+
+WALLY = Path(os.environ.get("WALLY", Path(__file__).resolve().parent.parent))
+HISTORY = WALLY / "benchmarks" / "ppa_history.csv"
+
+# Pinned synthesis settings.  These are deliberately not command-line options: changing any of them
+# makes the numbers incomparable with every row already in the history file.  FREQ is an unreachable
+# target on purpose, so Design Compiler optimizes as hard as it can and then reports the best it
+# achieved, rather than stopping as soon as an easy target is met.
+FREQ = 10000
+MAXCORES = 8
+# MAXOPT is recorded per row rather than pinned, because it is a real tradeoff:
+#   0 = keeps the module hierarchy, so per_module_timing.rep shows which unit holds the critical
+#       path (the question we actually care about), at the cost of weaker optimization
+#   1 = ungroup -all -flatten + compile_ultra -retime, best area and Fmax, but the hierarchy is
+#       gone so there is nothing left to attribute the critical path to
+# Only compare rows that share the same maxopt.
+
+FIELDS = ["date", "githash", "branch", "dirty", "note", "config", "xlen", "tech", "freq_mhz",
+          "maxopt", "coremark_ticks", "minstret", "cm_per_mhz", "retired", "paired",
+          "dual_issue_pct", "cycles", "design_area", "crit_path_ns", "fmax_mhz", "exec_time_ms",
+          "crit_unit", "unit_paths"]
+
+
+def sh(cmd, cwd=None):
+    """Run a command, returning (exitcode, combined output)."""
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, errors="ignore")
+    return r.returncode, r.stdout + r.stderr
+
+
+def grab(pattern, text, cast=float):
+    """First capture group of pattern in text, or None.  Commas are stripped from numbers."""
+    m = re.search(pattern, text)
+    if not m:
+        return None
+    try:
+        return cast(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def git_state():
+    _, h = sh("git rev-parse --short HEAD", cwd=WALLY)
+    _, b = sh("git rev-parse --abbrev-ref HEAD", cwd=WALLY)
+    # Only the design and testbench matter for reproducing a measurement
+    _, d = sh("git status --porcelain src testbench config", cwd=WALLY)
+    return h.strip(), b.strip(), "yes" if d.strip() else "no"
+
+
+def run_coremark(config, xlen):
+    """Build CoreMark for this width if needed, run it, and pull the counters out of the log."""
+    elf = WALLY / "benchmarks" / "coremark" / "work" / "coremark.bare.riscv"
+    _, info = sh(f"file {elf}") if elf.exists() else (0, "")
+    if f"ELF {xlen}-bit" not in info:
+        print(f"  rebuilding CoreMark for RV{xlen} (work/ currently holds a different width)")
+        # -B: the targets do not depend on XLEN, so make would otherwise call the old width up to date
+        rc, out = sh(f"make -B -C {WALLY}/benchmarks/coremark XLEN={xlen}")
+        if rc:
+            raise RuntimeError(f"CoreMark build failed:\n{out[-2000:]}")
+
+    print(f"  running CoreMark on {config} ...")
+    rc, out = sh(f"wsim {config} --elf {elf} --test coremark --sim verilator", cwd=WALLY)
+    if "Correct operation validated" not in out:
+        raise RuntimeError(f"CoreMark did not validate:\n{out[-2000:]}")
+
+    # The testbench prints total instructions retired and how many of those came from slot 1.
+    # The rate is expressed per retiring *cycle*, matching the percentage the testbench itself
+    # reports: a cycle that issued two instructions contributes one to paired and two to retired.
+    retired = grab(r"issuerate: (\d+) instructions retired", out, int)
+    paired = grab(r"retired, (\d+) of them paired", out, int)
+    cycles = retired - paired if (retired and paired is not None) else None
+    return {
+        "coremark_ticks": grab(r"Total ticks\s*:\s*(\d+)", out, int),
+        "minstret": grab(r"Elapsed MINSTRET:\s*(\d+)", out, int),
+        "cm_per_mhz": grab(r"COREMARK/MHz Score:.*=\s*([\d.]+)", out),
+        "retired": retired,
+        "paired": paired,
+        "dual_issue_pct": round(100 * paired / cycles, 2) if cycles else None,
+        # Whole-program cycle count.  Record it alongside Total ticks because the two answer
+        # different questions: Total ticks is MTIME elapsed across CoreMark's timed region only, and
+        # the two have been seen to move in opposite directions for the same change.  Use cycles when
+        # comparing design changes, and Total ticks as the CoreMark score.
+        "cycles": grab(r"overhead: (\d+) cycles", out, int),
+    }
+
+
+def run_synth(config, tech, maxopt):
+    """Synthesize the core and read area and critical path out of the QoR report."""
+    synthdc = WALLY / "synthDC"
+    print(f"  synthesizing {config} at FREQ={FREQ} MAXOPT={maxopt} (this takes a while) ...")
+    rc, out = sh(f"make synth DESIGN=wallypipelinedcore CONFIG={config} TECH={tech} "
+                 f"FREQ={FREQ} MAXOPT={maxopt} MAXCORES={MAXCORES}", cwd=synthdc)
+
+    # OUTPUTDIR embeds a timestamp and git hash, so it cannot be predicted: take the newest run.
+    # Match on the config too -- the run name does not encode MAXOPT, and a bare wallypipelinedcore_*
+    # glob would happily pick up a different config's run launched alongside this one.
+    runs = sorted((synthdc / "runs").glob(f"wallypipelinedcore_{config}_*"),
+                  key=lambda p: p.stat().st_mtime)
+    qor = runs[-1] / "reports" / "qor.rep" if runs else None
+    if not qor or not qor.exists():
+        raise RuntimeError(f"synthesis produced no qor.rep (exit {rc}):\n{out[-3000:]}")
+
+    rep = qor.read_text(errors="ignore")
+    crit = grab(r"Critical Path Length:\s*([\d.]+)", rep)
+    units = unit_paths(runs[-1])
+    ranked = sorted(units.items(), key=lambda kv: -kv[1])
+    return {
+        "design_area": grab(r"Design Area:\s*([\d.]+)", rep),
+        "crit_path_ns": crit,
+        "fmax_mhz": round(1000 / crit, 1) if crit else None,
+        "crit_unit": ranked[0][0] if ranked else "",
+        "unit_paths": " ".join(f"{u}={t:.2f}" for u, t in ranked) if ranked else "",
+    }
+
+
+def unit_paths(rundir):
+    """Worst path through each unit, from per_module_timing.rep.  Empty when MAXOPT=1 flattened
+    the hierarchy away, since the report's -through {ifu/*} filters then match nothing."""
+    rep = rundir / "reports" / "per_module_timing.rep"
+    if not rep.exists():
+        return {}
+    paths = {}
+    # The file is a series of "//// Critical paths through <unit> ////" sections.  Splitting on a
+    # pattern with a capture group yields [preamble, unit, body, unit, body, ...].
+    parts = re.split(r"////\s*Critical paths through\s+(\S+)[^/]*////", rep.read_text(errors="ignore"))
+    for unit, body in zip(parts[1::2], parts[2::2]):
+        t = grab(r"data arrival time\s+([\d.]+)", body)
+        if t:
+            paths[unit] = t
+    return paths
+
+
+def history():
+    if not HISTORY.exists():
+        return []
+    with HISTORY.open() as f:
+        return list(csv.DictReader(f))
+
+
+def append(row):
+    new = not HISTORY.exists()
+    HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    with HISTORY.open("a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=FIELDS)
+        if new:
+            w.writeheader()
+        w.writerow(row)
+
+
+def fmt(v):
+    """Thousands separators for whole numbers, whether they arrived as numbers or as CSV strings."""
+    if v in (None, ""):
+        return "-"
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return f"{int(f):,}" if f.is_integer() else f"{f:g}"
+
+
+def compare(row, prev):
+    """Print this run beside the most recent comparable earlier run."""
+    print(f"\n  results -> {HISTORY.relative_to(WALLY)}\n")
+    label_prev = f"prev ({prev['githash']})" if prev else "prev"
+    print(f"  {'':<24}{label_prev:>18}{'this (' + row['githash'] + ')':>18}{'delta':>12}")
+    for key, name in [("coremark_ticks", "coremark ticks"), ("dual_issue_pct", "dual-issue %"),
+                      ("design_area", "design area"), ("fmax_mhz", "Fmax (MHz)"),
+                      ("cycles", "whole-prog cycles"),
+                      ("exec_time_ms", "exec time (ms)"), ("crit_unit", "critical path in")]:
+        now, before = row.get(key), (prev or {}).get(key)
+        delta = "-"
+        if now not in (None, "") and before not in (None, ""):
+            try:
+                a, b = float(before), float(now)
+                if a:
+                    delta = f"{100 * (b - a) / a:+.1f}%"
+            except ValueError:
+                pass
+        star = "   <-- figure of merit" if key == "exec_time_ms" else ""
+        print(f"  {name:<24}{fmt(before):>18}{fmt(now):>18}{delta:>12}{star}")
+
+
+def relaunch_detached(argv):
+    """Re-run ourselves in a new session so the shell returns immediately."""
+    log = WALLY / "benchmarks" / "ppa_logs" / f"ppa_{datetime.now():%Y%m%d_%H%M%S}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    keep = [a for a in argv if a not in ("-b", "--background")]
+    with log.open("w") as f:
+        subprocess.Popen([str(Path(__file__).resolve()), *keep], stdout=f,
+                         stderr=subprocess.STDOUT, cwd=WALLY, start_new_session=True)
+    print(f"  started in background -> {log.relative_to(WALLY)}")
+    print(f"  follow with: tail -f {log}")
+
+
+def main():
+    p = argparse.ArgumentParser(description="CoreMark + Design Compiler, tracked across iterations")
+    p.add_argument("--sim-only", action="store_true", help="CoreMark only, skip synthesis")
+    p.add_argument("--config", default="rv32gc", help="simulation config (default rv32gc)")
+    p.add_argument("--synth-config", default=None, help="synthesis config (default syn_<config>)")
+    p.add_argument("--tech", default="sky130", help="synthesis technology (default sky130)")
+    p.add_argument("--maxopt", type=int, choices=(0, 1), default=0,
+                   help="0 keeps hierarchy so the critical path can be attributed to a unit "
+                        "(default); 1 flattens and retimes for best area/Fmax")
+    p.add_argument("--note", default="", help="label for this row")
+    p.add_argument("-b", "--background", action="store_true",
+                   help="detach and return immediately, logging to benchmarks/ppa_logs/")
+    args = p.parse_args()
+
+    if args.background:
+        relaunch_detached(sys.argv[1:])
+        return
+
+    xlen = 64 if "64" in args.config else 32
+    synth_config = args.synth_config or f"syn_{args.config}"
+    githash, branch, dirty = git_state()
+    if dirty == "yes":
+        print("  note: src/testbench/config have uncommitted changes; row flagged dirty")
+
+    row = {f: "" for f in FIELDS}
+    row.update(date=datetime.now().strftime("%Y-%m-%d %H:%M"), githash=githash, branch=branch,
+               dirty=dirty, note=args.note, config=args.config, xlen=xlen, tech=args.tech,
+               freq_mhz=FREQ, maxopt=args.maxopt)
+    # CoreMark and synthesis are independent -- one touches sim/ and benchmarks/, the other
+    # synthDC/ -- so run them at the same time rather than waiting for CoreMark first.
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        cm = ex.submit(run_coremark, args.config, xlen)
+        syn = None if args.sim_only else ex.submit(run_synth, synth_config, args.tech, args.maxopt)
+        try:
+            row.update(cm.result())
+            if syn:
+                row.update(syn.result())
+        except RuntimeError as e:
+            sys.exit(f"\n  {e}")
+
+    # Cycles alone can improve while execution time gets worse, so report the product.
+    if row.get("coremark_ticks") and row.get("fmax_mhz"):
+        row["exec_time_ms"] = round(row["coremark_ticks"] / (row["fmax_mhz"] * 1000), 3)
+
+    prior = [r for r in history()
+             if r["config"] == args.config and str(r.get("maxopt", "")) == str(args.maxopt)]
+    append(row)
+    compare(row, prior[-1] if prior else None)
+
+
+if __name__ == "__main__":
+    main()

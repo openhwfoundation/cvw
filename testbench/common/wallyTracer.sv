@@ -50,6 +50,11 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [P.XLEN-1:0]     PCNextF, PCF, PCD, PCE, PCM, PCW;
   logic [31:0]           InstrRawD, InstrRawE, InstrRawM, InstrRawW;
   logic                  InstrValidM, InstrValidW;
+  // Superscalar slot 1: its own instruction, PC, and the bit saying it really issued
+  logic [31:0]           Instr1RawD, Instr1RawE, Instr1RawM, Instr1RawW;
+  logic [P.XLEN-1:0]     Instr1PCD, Instr1PCE, Instr1PCM, Instr1PCW;
+  logic                  Issue1D, Issue1E, Issue1M, Issue1W;
+  logic                  valid1;
   logic                  StallE, StallM, StallW;
   logic                  GatedStallW;
   logic                  FlushD, FlushE, FlushM, FlushW;
@@ -60,6 +65,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   logic [NUM_REGS-1:0]   rf_wb;
   logic [4:0]            rf_a3;
   logic                  rf_we3;
+  logic [4:0]            rf_a6;                  // superscalar slot 1's write port
+  logic                  rf_we6;
+  logic [NUM_REGS-1:0]   rf1_wb;
   logic [P.FLEN-1:0]     frf[32];
   logic [31:0]           frf_wb;
   logic [4:0]            frf_a4;
@@ -281,11 +289,34 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   assign rf_a3  = testbench.dut.core.ieu.dp.regf.a3;
   assign rf_we3 = testbench.dut.core.ieu.dp.regf.we3;
+  // The second write port belongs to slot 1, so its write is reported against slot 1's record and
+  // must not be attributed to slot 0.
+  assign rf_a6  = testbench.dut.core.ieu.dp.regf.a6;
+  assign rf_we6 = testbench.dut.core.ieu.dp.regf.we6;
+  // When both slots write the same register, the register file ends the cycle holding slot 1's value,
+  // so slot 0's record must report what slot 0 wrote, taken from its own write port.
+  logic [P.XLEN-1:0] rf_wd3;
+  logic              rf_samerd;
+  assign rf_wd3    = testbench.dut.core.ieu.dp.regf.wd3;
+  assign rf_samerd = rf_we3 & rf_we6 & (rf_a3 == rf_a6);
+  // A fused indexed load (ieu.sv) retires two instructions but writes rd once, on slot 0's port, with the
+  // load data.  The add's record reports the sum it would have written, which is still in IFResultW, and
+  // the load's record reports the write.  Issue1W is low when the pair was replayed unfused: then slot 0
+  // really did write the sum, and the load has not retired.
+  logic FuseW, FusedW;
+  flopenrc #(1) FuseWReg(clk, reset, FlushW, ~StallW, testbench.dut.core.ieu.FuseM, FuseW);
+  assign FusedW = FuseW & Issue1W;
 
   always_comb begin
     rf_wb = 0;
     if(rf_we3)
       rf_wb[rf_a3] = 1'b1;
+  end
+
+  always_comb begin
+    rf1_wb <= 0;
+    if(rf_we6)
+      rf1_wb[rf_a6] <= 1'b1;
   end
 
   // Floating-point register file
@@ -316,12 +347,26 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign CSRWriteM = 1'b0;
   end
 
+  // Superscalar slot 1.  Instr1RawD is the undecompressed slot 1 instruction and Instr1PCD its
+  // address; both are already registered into Decode by the IFU.  Issue1W comes from the core rather
+  // than being re-derived here, so the record is emitted exactly when the hardware committed slot 1.
+  assign Instr1RawD = testbench.dut.core.ifu.Instr1RawD;
+  assign Instr1PCD  = testbench.dut.core.ifu.Instr1PCD;
+  assign Issue1W    = testbench.dut.core.ifu.Issue1W;
+
   // pipeline to writeback stage
   flopenrc #(32)    InstrRawEReg (clk, reset, FlushE, ~StallE, InstrRawD, InstrRawE);
   flopenrc #(32)    InstrRawMReg (clk, reset, FlushM, ~StallM, InstrRawE, InstrRawM);
   flopenrc #(32)    InstrRawWReg (clk, reset, FlushW & ~TrapM, ~StallW, InstrRawM, InstrRawW);
   flopenrc #(P.XLEN)PCWReg       (clk, reset, FlushW & ~TrapM, ~StallW, PCM, PCW);
   flopenrc #(1)     InstrValidMReg (clk, reset, FlushW & ~TrapM, ~StallW, InstrValidM, InstrValidW);
+  // Slot 1's instruction and PC follow slot 0's path so the two records line up in the same cycle
+  flopenrc #(32)    Instr1RawEReg(clk, reset, FlushE, ~StallE, Instr1RawD, Instr1RawE);
+  flopenrc #(32)    Instr1RawMReg(clk, reset, FlushM, ~StallM, Instr1RawE, Instr1RawM);
+  flopenrc #(32)    Instr1RawWReg(clk, reset, FlushW & ~TrapM, ~StallW, Instr1RawM, Instr1RawW);
+  flopenrc #(P.XLEN) Instr1PCEReg(clk, reset, FlushE, ~StallE, Instr1PCD, Instr1PCE);
+  flopenrc #(P.XLEN) Instr1PCMReg(clk, reset, FlushM, ~StallM, Instr1PCE, Instr1PCM);
+  flopenrc #(P.XLEN) Instr1PCWReg(clk, reset, FlushW & ~TrapM, ~StallW, Instr1PCM, Instr1PCW);
   flopenrc #(1)     TrapWReg (clk, reset, 1'b0, ~StallW, TrapM, TrapW);
   flopenrc #(1)     InterruptWReg (clk, reset, 1'b0, ~StallW, InterruptM, InterruptW);
   flopenrc #(1)     HaltWReg (clk, reset, 1'b0, ~StallW, HaltM, HaltW);
@@ -505,11 +550,18 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
 
   // count the number of valid instructions to provide ordering to RVVI tracer
+  // Two instructions can retire in one cycle, so order advances by one or two.  Slot 0 keeps the
+  // lower number: within a bundle slot 1 is the later instruction in program order.
+  // Start at 1: ImperasDV's trace2api uses order 0 as "no event yet" when sorting a cycle's
+  // retirements, so a dual-issued first bundle numbered 0/1 drops slot 0 and reports a mismatch.
   always @(posedge clk)
-    if (reset) order <= 0;
-    else if (valid) order <= order + 1;
+    if (reset) order <= 1;
+    else if (valid) order <= order + (valid1 ? 64'd2 : 64'd1);
 
   assign valid  = ((InstrValidW | TrapW) & ~StallW) & ~reset;
+  // Slot 1 retires only alongside slot 0, and never on a trap: a trap squashes the whole bundle and
+  // that cycle's record belongs to the trapping instruction.
+  assign valid1 = valid & Issue1W & ~TrapW;
   assign rvvi.clk = clk;
   assign rvvi.valid[0][0]    = valid;
   assign rvvi.order[0][0]    = order;
@@ -529,13 +581,42 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
                                ~FlushD ? PCF : PCNextF;
 
   for(genvar index = 0; index < NUM_REGS; index += 1) begin
-    assign rvvi.x_wdata[0][0][index] = rf[index];
+    assign rvvi.x_wdata[0][0][index] = (rf_samerd & (rf_a3 == index)) ? rf_wd3 :
+                                       (FusedW & (rf_a3 == index)) ? testbench.dut.core.ieu.dp.IFResultW : rf[index];
     assign rvvi.x_wb[0][0][index]    = rf_wb[index];
   end
   for(genvar index = 0; index < 32; index += 1) begin
     assign rvvi.f_wdata[0][0][index] = frf[index];
     assign rvvi.f_wb[0][0][index]    = frf_wb[index];
   end
+
+  // Superscalar slot 1 fills the second retirement record, [0][1].  It is always the instruction
+  // right after slot 0 and the issue rules restrict it to a plain ALU operation, so it never traps,
+  // halts, takes an interrupt, changes privilege, writes a CSR or touches a floating-point register.
+  assign rvvi.valid[0][1]    = valid1;
+  assign rvvi.order[0][1]    = order + 64'd1;
+  assign rvvi.insn[0][1]     = Instr1RawW;
+  assign rvvi.pc_rdata[0][1] = Instr1PCW;
+  assign rvvi.trap[0][1]     = 1'b0;
+  assign rvvi.halt[0][1]     = 1'b0;
+  assign rvvi.intr[0][1]     = 1'b0;
+  assign rvvi.mode[0][1]     = PrivilegeModeW;
+  assign rvvi.ixl[0][1]      = rvvi.ixl[0][0];
+  // Slot 1 may branch, so its next PC is the next instruction still in the pipeline, as for slot 0.
+  assign rvvi.pc_wdata[0][1] = rvvi.pc_wdata[0][0];
+
+  for(genvar index = 0; index < NUM_REGS; index += 1) begin
+    assign rvvi.x_wdata[0][1][index] = rf[index];
+    assign rvvi.x_wb[0][1][index]    = rf1_wb[index] | (FusedW & rf_wb[index]);
+  end
+  for(genvar index = 0; index < 32; index += 1) begin
+    assign rvvi.f_wdata[0][1][index] = frf[index];
+    assign rvvi.f_wb[0][1][index]    = '0;
+  end
+  // Slot 1 never writes a CSR, but the fields still have to be driven or the reference model would
+  // compare against X.  Mirror slot 0's values with no writeback flagged.
+  assign rvvi.csr[0][1]    = rvvi.csr[0][0];
+  assign rvvi.csr_wb[0][1] = '0;
 
   // *** implementation only cancel? so sc does not clear?
   assign rvvi.lrsc_cancel[0][0] = 0;
