@@ -211,7 +211,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   always_comb begin
     TDATA2WriteValM = CSRWriteValM; // default: write full value
     // for mcontrol6 when match=napot, tdata2 is WARL, if bits maskmax6-1:0 are written with 1s then bit masmax6-1 will be set to 0.
-    if ((TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & (TDATA1_REGW[TSELECT_REGW][9:7] == 3'b001) & (CSRWriteValM[MASKMAX6-1:0] == '1))
+    if ((TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & (TDATA1_REGW[TSELECT_REGW][10:7] == 4'b0001) & (CSRWriteValM[MASKMAX6-1:0] == '1))
         TDATA2WriteValM[MASKMAX6-1] = 1'b0; // clear the bit at the top of the mask
   end
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
