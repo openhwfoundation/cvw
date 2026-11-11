@@ -89,9 +89,33 @@ if [ "$#" -eq "0" ] ; then
     usage
 fi
 
-# Check to make sure sd card device exists
-if [ ! -e "$SDCARD" ] ; then
-    echo -e "$NAME $ERRORTEXT SD card device does not exist."
+# Resolve symlinks to the real device node (e.g. /dev/disk/by-id/... -> /dev/mmcblk0)
+SDCARD_REAL="$(readlink -f -- "$SDCARD" 2>/dev/null || echo "$SDCARD")"
+if [ "$SDCARD_REAL" != "$SDCARD" ] ; then
+    echo -e "$NAME Resolved symlink: $SDCARD -> $SDCARD_REAL"
+fi
+SDCARD="$SDCARD_REAL"
+DEVNAME="$(basename "$SDCARD")"
+
+# Must be a real block device
+if [ ! -b "$SDCARD" ] ; then
+    echo -e "$NAME $ERRORTEXT '$SDCARD' is not a block device."
+    echo "       Check what type of file it is with 'ls -l $SDCARD'"
+    exit 1
+fi
+
+# Must be a whole disk (or a loop device), not a partition
+case "$(lsblk -dno TYPE "$SDCARD" 2>/dev/null)" in
+    disk|loop) ;;
+    *) echo -e "$NAME $ERRORTEXT '$SDCARD' must be a whole-disk block device"
+       echo "       (e.g. /dev/mmcblk0 or /dev/sdb), not a partition."
+       exit 1
+       ;;
+esac
+
+# If the size is 0, no card is inserted
+if [ ! "$(cat "/sys/block/$DEVNAME/size" 2>/dev/null || echo 0)" -gt 0 ] ; then
+    echo -e "$NAME $ERRORTEXT no SD card is inserted in '$SDCARD'."
     exit 1
 fi
 
@@ -128,6 +152,19 @@ if [ ! -e "$DEVICE_TREE" ] ; then
     trap 'rm -f "$DEVICE_TREE"' EXIT
     echo -e "$NAME Compiling $DTS"
     dtc -I dts -O dtb "$DTS" -o "$DEVICE_TREE" || abort "Failed to compile $DTS"
+fi
+
+# dd has created regular files in place of partitions before (issue 1614), so stop if any are there
+failed=0
+for part in "${SDCARD}"?* ; do
+    if [ -e "$part" ] && [ ! -b "$part" ] ; then
+        echo -e "$NAME $ERRORTEXT '$part' is not a block device."
+        echo "       Remove it; it must be a real device node, not a regular file or anything else in /dev."
+        failed=1
+    fi
+done
+if [ "$failed" -eq 1 ] ; then
+    exit 1
 fi
 
 # Calculate partition information =====================================
@@ -189,6 +226,11 @@ if [[ $REPLY =~ ^[Yy]$ ]] ; then
     # Inform OS about the partition table change
     sudo partprobe $SDCARD
     sleep 3
+
+    # dd would create a regular file in place of a partition the kernel hasn't made a device node for
+    for i in 1 2 3 4 ; do
+        [ -b "${SDCARD}${PART_PREFIX}$i" ] || abort "Partition ${SDCARD}${PART_PREFIX}$i is not a block device."
+    done
 
     echo -e "$NAME Copying binaries into their partitions."
     DD_FLAGS="bs=4k iflag=direct,fullblock oflag=dsync conv=fsync status=progress"
