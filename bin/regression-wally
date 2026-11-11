@@ -877,7 +877,9 @@ def selectTests(args, sims, coverStr):
             grepstr="All lints passed with no errors or warnings"))
 
     # run full buildroot boot simulation (slow) if buildroot flag is set.  Start it early to overlap with other tests
+    # The buildroot boots run the buildroot derivative configuration, so generate config/deriv first
     if args.buildroot:
+        buildTests(act=False, periph=False, deriv=True)
         if args.ci:  # ImperasDV is not available: boot on Verilator without lockstep (about 2 hours)
             addTests(tests_buildrootboot, defaultsim, coverStr, configs)
         else:  # lockstep with Questa and ImperasDV runs overnight
@@ -914,10 +916,12 @@ def selectTests(args, sims, coverStr):
     # Directories of more than 25 ELFs are split so that the largest ones do not set the length of the
     # run: one simulation per ELF finishes no sooner on a large host and takes far longer on a small one.
     if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker):
-        buildTests()
+        # The short buildroot boot runs on rv64gc, so only with rv64gc's tests; skip it if the full boot runs.
+        # It uses the buildroot derivative configuration, which --config alone does not generate.
+        buildrootShort = args.config in (None, "rv64gc") and not args.buildroot
+        buildTests(deriv=buildrootShort)
         for sim in sims:
-            # The short buildroot boot runs on rv64gc, so only with rv64gc's tests; skip it if the full boot runs
-            if args.config in (None, "rv64gc") and not args.buildroot and not (args.ci and sim != defaultsim):
+            if buildrootShort and not (args.ci and sim != defaultsim):
                 addTests(tests_buildrootshort, sim, coverStr, configs)
             for config in [args.config] if args.config else standard_configs:
                 addTestsByDir(actElfDir(config), config, sim, coverStr, configs, chunk=25)
