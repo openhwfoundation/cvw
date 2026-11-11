@@ -67,13 +67,13 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   assign ReadyD = 1'b1; // *** TODO: This is a placeholder value, need to implement a ready signal for the LSU interface
 
   // memory read/write control and destination register travel with the instruction to writeback
-  flopr #(2) vmemrwE(clk, reset, VMemRWD & {2{ValidD}}, VMemRWE);
-  flopr #(2) vmemrwM(clk, reset, VMemRWE, VMemRWM);
-  flopr #(2) vmemrwW(clk, reset, VMemRWM, VMemRWW);
+  flopr #(2) vmemrwereg(clk, reset, VMemRWD & {2{ValidD}}, VMemRWE);
+  flopr #(2) vmemrwmreg(clk, reset, VMemRWE, VMemRWM);
+  flopr #(2) vmemrwwreg(clk, reset, VMemRWM, VMemRWW);
 
-  flopr #(5) vdE(clk, reset, VdFinalD, VdE);
-  flopr #(5) vdM(clk, reset, VdE, VdM);
-  flopr #(5) vdW(clk, reset, VdM, VdW);
+  flopr #(5) vdereg(clk, reset, VdFinalD, VdE);
+  flopr #(5) vdmreg(clk, reset, VdE, VdM);
+  flopr #(5) vdwreg(clk, reset, VdM, VdW);
 
   assign ValidW = VMemRWW[1];
 
@@ -82,10 +82,10 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   flopr #(P.XLEN) adrreg(clk, reset, VEUAdrE, VEUAdrM);
 
   // write data flops (D -> E -> M); single beat, so assumes VLEN == VPU_LSU_BLEN for now
-  flopr #(P.VLEN) vwriteE(clk, reset, Vs3D, VWriteDataE);
-  flopr #(P.VLEN) vwriteM(clk, reset, VWriteDataE, VWriteDataM);
+  flopr #(P.VLEN) vwriteereg(clk, reset, Vs3D, VWriteDataE);
+  flopr #(P.VLEN) vwritemreg(clk, reset, VWriteDataE, VWriteDataM);
 
   // read data flop (M -> W); single beat, so assumes VLEN == VPU_LSU_BLEN for now
-  flopr #(P.VLEN) vreaddataW(clk, reset, VReadDataM, VReadDataW);
+  flopr #(P.VLEN) vreaddatawreg(clk, reset, VReadDataM, VReadDataW);
 
 endmodule
