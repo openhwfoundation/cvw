@@ -56,32 +56,19 @@ coverage exclude -scope /core/ifu/bus/passthrough/ahbinterface -recursive
 coverage exclude -scope /core/ebu/ebu/IFUInput -recursive
 
 # With no IFU request the arbiter never sees both masters at once (both = LSUReq & IFUReq), so it stays in
-# IDLE: the ARBITRATE state, the beat counter and final-beat register (enabled only in ARBITRATE), the IFU
-# select/save/restore controls and the LSU disable (IFUReqDelay) never act.  The beat counter and final-beat
-# register instances are excluded whole; their only hits are their reset.
-coverage exclude -scope $ARB/BeatCounter -recursive
-coverage exclude -scope $ARB/FinalBeatReg -recursive
+# IDLE: the ARBITRATE state, the IFU select/save/restore controls and the LSU disable (IFUReqDelay) never act.
 ExcludeRows $ARB e {LSUReq_1 IFUReq_1}
-ExcludeRows $ARB c {both_0 both_1 HREADY_0 HREADY_1 FinalBeatD_0 FinalBeatD_1}
+ExcludeRows $ARB c {both_0 both_1 HREADY_0 HREADY_1}
 ExcludeRows $ARB e [list "(CurrState == IDLE)_0" "(CurrState == IDLE)_1" both_1]
 ExcludeRows $ARB e [list "(CurrState == ARBITRATE)_1"]
 ExcludeRows $ARB e [list "(NextState == ARBITRATE)_1"] [TagLine ${SRC}/ebu/ebufsmarb.sv arb-ifuselect]
 ExcludeRows $ARB e [list "(NextState == ARBITRATE)_1"] [TagLine ${SRC}/ebu/ebufsmarb.sv arb-lsuselect]
-ExcludeRows $ARB e [list "(NextState == ARBITRATE)_1" HREADY_0 HREADY_1]
 ExcludeRows $ARB e [list "(CurrState != ARBITRATE)_0" "(CurrState != ARBITRATE)_1" IFUReqDelay_1]
-ExcludeRows $ARB e [list "(NextState == IDLE)_0"]
-ExcludeRows $ARB e [list "(BeatCount == Threshold)_0"]
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-idle] -item b 2
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-idle] -item s 1
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-arbitrate-exit]-[TagLine ${SRC}/ebu/ebufsmarb.sv arb-arbitrate-hold] -code bs
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-ifuselect] -item b 1
 coverage exclude -scope $ARB -linerange [TagLine ${SRC}/ebu/ebufsmarb.sv arb-lsuselect] -item b 1
-# The beat-count resets (~HRESETn | BeatCntReset [| FinalBeat]) need BeatCntReset = 0, i.e. NextState =
-# ARBITRATE; their HRESETn_0 rows need that during reset too, when the arbiter is held in IDLE.  In the
-# counter reset, the FinalBeat rows need BeatCntReset = 0 too, but BeatCntReset_1 is reachable: FinalBeat =
-# (BeatCount == Threshold) & HREADY is 0 whenever a slave holds HREADY low.
-ExcludeRows $ARB e {HRESETn_0 HRESETn_1 BeatCntReset_0 FinalBeat_0 FinalBeat_1}
-ExcludeRows $ARB e {HRESETn_0 HRESETn_1 BeatCntReset_0} [TagLine ${SRC}/ebu/ebufsmarb.sv arb-finalbeat-reset]
 
 # The EBU disables the LSU's HREADY only in the cycle after an IFU request (LSUDisable = IFUReqDelay).
 ExcludeRows /core/ebu/ebu/LSUInput e {Disable_1}
@@ -259,8 +246,6 @@ ExcludeRows /core/ieu/c e {FenceXD_1}
 ExcludeRows $CNT e {InvalidateICacheM_1 InstrValidNotFlushedM_0 InstrValidNotFlushedM_1}
 ExcludeRows /core/lsu e {DCacheStallM_1}
 ExcludeRows /core/ifu e {ICacheStallF_1}
-# HBURST is nonzero only for cache line bursts.
-ExcludeRows $ARB c [list {(HBURST\[2:1\] == 0)_0}]
 
 ######################################################################################################
 # HPM events that cannot fire on rv32imc

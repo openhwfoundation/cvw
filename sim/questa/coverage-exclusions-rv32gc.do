@@ -362,12 +362,10 @@ coverage exclude -scope $DCBUS/AHBBuscachefsm -ftrans CurrState DATA_PHASE->ADR_
 ExcludeRows $DCBUS/AHBBuscachefsm e {Flush_1 {+BusRW\[1\]*}}
 
 # Reset (HRESETn = 0) with BeatCntReset = 0 needs a bus request pending during reset.  The testbench asserts reset
-# only between programs, when the LSU has no request, so BeatCntReset (NextState == ADR_PHASE, or IDLE in the
-# arbiter) is 1 throughout reset.
+# only between programs, when the LSU has no request, so BeatCntReset (NextState == ADR_PHASE) is 1 throughout
+# reset.
 ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-beat-count-reset]
 ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-beat-count-delayed-reset]
-ExcludeRows /core/ebu/ebu/ebufsmarb e {HRESETn_0 +FinalBeat_*}
-ExcludeRows /core/ebu/ebu/ebufsmarb e {HRESETn_0} [TagLine ${SRC}/ebu/ebufsmarb.sv arb-finalbeat-reset]
 
 ######################################################################################################
 # MMU (instruction and data) and page table walker
