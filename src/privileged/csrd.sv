@@ -139,7 +139,7 @@ module csrd import cvw::*;  #(parameter cvw_t P) (
 
   // Write enables for each register.
   assign WriteDCSR = CSRDWriteM & (CSRAdrM == DCSR) | NextHalt;
-  assign WriteDPC  = CSRDWriteM & (CSRAdrM == DPC) | NextHalt | NextHalt & TrapM;
+  assign WriteDPC  = CSRDWriteM & (CSRAdrM == DPC) | NextHalt;
 
   always_comb
    case (CSRWriteValM[1:0])
@@ -191,8 +191,8 @@ module csrd import cvw::*;  #(parameter cvw_t P) (
   ////////////////////////////////////////////////////////////////////
 
   assign ebreakm = DCSR_REGW[dcsrwidth-1];
-  assign ebreaks = DCSR_REGW[dcsrwidth-2];
-  assign ebreaku = DCSR_REGW[dcsrwidth-3];
+  assign ebreaks = DCSR_REGW[dcsrwidth-2] & P.S_SUPPORTED;
+  assign ebreaku = DCSR_REGW[dcsrwidth-3] & P.U_SUPPORTED;
   assign stepie = DCSR_REGW[dcsrwidth-4];
   assign stopcount = DCSR_REGW[dcsrwidth-5];
   assign cause = DCSR_REGW[dcsrwidth-6:dcsrwidth-8];

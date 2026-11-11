@@ -97,3 +97,4 @@ halt
 
 # Test should finish after this.
 resume
+shutdown
