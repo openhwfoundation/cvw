@@ -38,6 +38,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] SATP_REGW,
   input  logic              InstrValidNotFlushedM,
   input  logic              TrapM, InterruptM, ExceptionM,
+  input  logic              StallW, mretM,
+  input  logic [1:0]        NextPrivilegeModeM,
   input  logic [4:0]        CauseM,
   input  logic              CommittedF,
   output logic [P.XLEN-1:0] CSRTReadValM,
@@ -48,8 +50,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam VERSION = 8'b1;
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
-
-
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
@@ -114,6 +114,9 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]       TDATA2WriteValM;
   logic [1:0]              TCONTROLWriteValM;
+
+  logic MTrapM;
+  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
 
   logic                    CSRDWriteM;
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
@@ -253,8 +256,22 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_REGW[t]);
   end
 
-  assign TCONTROLWriteValM = {CSRWriteValM[7], CSRWriteValM[3]};
-  flopenr #(2) TCONTROLreg(clk, reset, WriteTCONTROLM, TCONTROLWriteValM, TCONTROL_REGW);
+  // tcontrol: mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it
+  logic mpte, mte;
+  always_ff @(posedge clk)
+    if (reset) begin
+      mpte <= 1'b0;
+      mte  <= 1'b0;
+    end else if (WriteTCONTROLM) begin
+      mpte <= CSRWriteValM[7];
+      mte  <= CSRWriteValM[3];
+    end else if (MTrapM) begin
+      mpte <= mte;
+      mte  <= 1'b0;
+    end else if (mretM & ~StallW) begin
+      mte  <= mpte;
+    end
+  assign TCONTROL_REGW = {mpte, mte};
 
   // context registers
   flopenr #(MCONTEXT_LEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM[MCONTEXT_LEN-1:0], MCONTEXT_REGW);
@@ -320,7 +337,7 @@ always_comb
         m[i] = 0; s[i] = 0; u[i] = 0;
       end
     endcase
-    PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & m[i]) |
+    PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & m[i] & TCONTROL_REGW[0]) |
                     (PrivilegeModeW == P.S_MODE  & s[i])   |
                     (PrivilegeModeW == P.U_MODE  & u[i]);
   end
