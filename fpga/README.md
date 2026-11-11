@@ -43,16 +43,16 @@ Insert the flash card into the reader and `ls /dev/sd*` or `/dev/mmc*` again.  T
 cd $WALLY/linux/sdcard
 ```
 
-This following script requires root.  `-d` takes the path to the board's device tree from the table above; building Linux (see [the Linux README](../linux/README.md)) puts the device trees in `<path to buildroot>/output/images`.
+This following script requires root.  `-d` takes the board's device tree from the table above, either as a name in `<path to buildroot>/output/images`, where building Linux (see [the Linux README](../linux/README.md)) puts it, or as the path to a `.dtb` file. Without `-d`, the script uses `wally-vcu108.dtb`, and it compiles a device tree from `linux/devicetree` if the images directory doesn't have it.
 
 ```bash
-./flash-sd.sh -b <path to buildroot> -d <path to compiled device tree file> <flash card device>
+./flash-sd.sh -b <path to buildroot> -d <device tree> <flash card device>
 ```
 
 Example with vcu108, buildroot installed to `/opt/riscv/buildroot`, and the flash card is device `/dev/sdc`
 
 ```bash
-./flash-sd.sh -b /opt/riscv/buildroot -d /opt/riscv/buildroot/output/images/wally-vcu108.dtb /dev/sdc
+./flash-sd.sh -b /opt/riscv/buildroot -d wally-vcu108.dtb /dev/sdc
 ```
 
 Wait until the script completes then remove the card.
