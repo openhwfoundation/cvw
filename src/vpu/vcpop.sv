@@ -28,24 +28,16 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Larger module needed for all Mask scan and count instructions, just adding vcpop with this commit
+// ***Larger module needed for all Mask scan and count instructions, just adding vcpop with this commit
 
 module vcpop import cvw::*; #(parameter cvw_t P) (
 input logic [P.ELEN-1:0] B,           // mask source register, vs2 = B
 input logic [P.ELEN-1:0] v0,            // mask register
-output logic [$clog2(P.ELEN):0] VPopCnt // 7 bit scalar result (up to 64)
+//output logic [$clog2(P.ELEN):0] VPopCnt // 7 bit scalar result (up to 64)
+output logic VPopCnt
 );
 
-  logic [P.ELEN-1:0] active;
-  assign active = B & v0; // anding active elements before counting ***assuming that B and v0 have been passed through ElemMask and TailMask in vieu.sv
-
-  logic [$clog2(P.ELEN):0] sum;
- always_comb begin
-    sum = '0;
-    for (int i=0; i<P.ELEN; i++) begin : loop
-      sum = (active[i]) ? sum + 1 : sum;
-    end
-  end
-
-assign VPopCnt = sum;
+  logic active;
+  assign active = B[0] & v0[0]; // anding active elements before counting ***assuming that B and v0 have been passed through ElemMask and TailMask in vieu.sv
+  assign VPopCnt = active;
 endmodule
