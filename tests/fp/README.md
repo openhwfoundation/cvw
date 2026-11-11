@@ -64,10 +64,10 @@ Any config that includes floating point support can be used. Each test will test
 
 The FPU is also tested with the vectors of [cover-float](https://github.com/cover-float/cover-float) (submodule `addins/cover-float`), which are generated to hit the corner cases of its floating-point coverage models.
 ```bash
-make coverfloat                                     # in $WALLY; COVERFLOAT_FLAGS=--partial-output for cover-float's smaller set
+make coverfloat                                     # in $WALLY; AGGRESSIVENESS=0 for cover-float's smaller set
 wsim <config> all --tb testbench_fp --args +VECTORS=$WALLY/tests/fp/coverfloat/vectors/
 ```
-cover-float generates its vectors in `coverfloat/gen`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. cover-float's round to integer gives both froundnx vectors and fround vectors (the same results with inexact cleared). Remainder, which RISC-V lacks, BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
+cover-float generates its vectors in `addins/cover-float/tests/testvectors`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. cover-float's round to integer gives both froundnx vectors and fround vectors (the same results with inexact cleared). Remainder, which RISC-V lacks, BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
 
 ### Testvector Count
 

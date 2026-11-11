@@ -38,6 +38,7 @@ module testbench_fp;
   logic [31:0] TestNum=0;                      // index for the test
   logic [31:0] errors=0;                       // how many errors
   logic [31:0] VectorNum=0;                    // index for test vector
+  // A vector holds up to four Q_LEN-bit fields (X, Y, Z, Ans) above an 8-bit field (two hex digits) of flags
   logic [P.Q_LEN*4+7:0]  TestVector;          // current test vector, streamed from the .tv file
   int          fd;                             // test vector file
 
@@ -936,7 +937,7 @@ module testbench_fp;
 `ifdef QUESTA
       $stop;  // if this is changed to $finish for Questa, wally.do terminates without allowing GUI debug
 `else
-      $finish;
+      $fatal(1, "TestFloat vector mismatch");
 `endif
     end
   endtask

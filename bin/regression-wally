@@ -40,7 +40,6 @@ def coverageDir(config):
 coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
-testfloatsim = "verilator" # Simulator for the TestFloat tests (wsim --tb testbench_fp)
 rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 
 ##################################
@@ -808,7 +807,7 @@ def process_args(args):
     elif args.buildroot:
         TIMEOUT_DUR = 60*3600 # 2.5 days
     elif args.testfloat:
-        sims = [testfloatsim]
+        sims = [defaultsim]
         TIMEOUT_DUR = 60*60 # seconds; the fma tests of the largest FPUs take more than half an hour
     elif args.branch or args.cache:
         TIMEOUT_DUR = 120*60 # seconds
@@ -909,11 +908,11 @@ def selectTests(args, sims, coverStr):
                          if letter in config.split("_")[0]] if test == "fma" else [None]
                 for size in sizes:
                     name = f"{test}_{size}" if size else test
-                    sim_log = f"{regressionDir}/{testfloatsim}/logs/{config}_{name}.log"
+                    sim_log = f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log"
                     tc = TestCase(
                             name=name,
                             variant=config,
-                            cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test,
+                            cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
                                  *(["--args", f"+TEST_SIZE={size}"] if size else [])],
                             log=sim_log,
                             grepstr="All Tests completed with          0 errors")
@@ -926,9 +925,9 @@ def selectTests(args, sims, coverStr):
                 tc = TestCase(
                         name=name,
                         variant=config,
-                        cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test,
+                        cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
                              "--args", f"+VECTORS={WALLY}/tests/fp/coverfloat/vectors/"],
-                        log=f"{regressionDir}/{testfloatsim}/logs/{config}_{name}.log",
+                        log=f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log",
                         grepstr="All Tests completed with          0 errors")
                 configs.append(tc)
 
