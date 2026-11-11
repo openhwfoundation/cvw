@@ -36,6 +36,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [1:0]        PrivilegeModeW,
   input  logic [P.XLEN-1:0] SATP_REGW,
+  input  logic              InstrValidNotFlushedM,
+  input  logic              TrapM, InterruptM, ExceptionM,
+  input  logic [4:0]        CauseM,
+  input  logic              CommittedF,
   output logic [P.XLEN-1:0] CSRTReadValM,
   output logic              IllegalCSRTAccessM
 );
@@ -44,6 +48,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   localparam VERSION = 8'b1;
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
+
+
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
@@ -112,8 +118,6 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
 
   assign CSRDWriteM  = 1'b0; // debug mode not supported
-  assign MatchM      = '0;   // *** driven by trigger match logic
-  assign SetPendingM = '0;   // *** driven by icount logic
 
   assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
   assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
@@ -324,7 +328,7 @@ always_comb
 // tdata3 context matches
 // mhselect legal values without H extension are 0 and 4
 // sselect and svalue are tied to 0 when S-mode is not supported
-logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, Tdata3MatchM;
+logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
 logic [P.ASID_BITS-1:0] SATP_ASID;
 assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
 if (P.XLEN == 32) begin : ctxmatch32
@@ -346,7 +350,7 @@ if (P.XLEN == 32) begin : ctxmatch32
           default: smatch[i] = 0; // reserved values don't match
         endcase
       else smatch[i] = 1;
-      Tdata3MatchM[i] = mmatch[i] & smatch[i];
+      ContextMatchM[i] = mmatch[i] & smatch[i];
     end
 end else begin : ctxmatch64
   always_comb
@@ -369,11 +373,42 @@ end else begin : ctxmatch64
           default: smatch[i] = 0; // reserved values don't match
         endcase
       else smatch[i] = 1;
-      Tdata3MatchM[i] = mmatch[i] & smatch[i];
+      ContextMatchM[i] = mmatch[i] & smatch[i];
     end
 end
 
 
+// Trigger matches
+logic [P.NUM_TRIGGERS-1:0] TriggerMatchM, IcountPendingM, TypeMatchM, mcontrol6match;
+always_comb
+  for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+    TriggerMatchM[i] = 0;
+    IcountPendingM[i] = 0;
+    TypeMatchM[i] = 0;
+    SetPendingM[i] = 0;
+    // behavior depends on trigger type
+    case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
+      ICOUNT_TYPE: begin
+        // Icount decrements when instruction retires or traps
+        TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // *** make sure stalls are handled, probably with stall to register
+      end
+      ITRIGGER_TYPE: begin
+        TypeMatchM[i] = (InterruptM & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)]);
+      end
+      ETRIGGER_TYPE: begin
+        TypeMatchM[i] = ExceptionM & ~CommittedF & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)];
+      end
+      MCONTROL6_TYPE: begin
+        // *** add support for chain
+        // *** add support for hit
+        TypeMatchM[i] = mcontrol6match[i];
+      end
+      default: TypeMatchM[i] = 0;
+    endcase
+    // Match if the trigger condition is satisfied and the privilege mode is right
+    MatchM[i] = TypeMatchM[i] & PrivEnabledM[i] & ContextMatchM[i];
+    SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
+  end
 
 
 
