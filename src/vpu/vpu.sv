@@ -172,12 +172,13 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   vlsuif #(P) vlsuif(.clk, .reset, .ForwardedSrcAE, .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
                       .ReadyW(ControllerWBReadyW[P.VPU_INT_EU]), .ValidD(ControllerValidD[P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[P.VPU_INT_EU]),
+                      .ExecutionUnitOrderD(ExecutionUnitOrderD[P.VPU_INT_EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[P.VPU_INT_EU]),
+                      .VRegWriteW(VIEUVRegWriteW[P.VPU_INT_EU]),
                       .VMemRWD, .Vs3D(VRD3D), .VMemRWE, .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM, .VReadDataW(VResultW[P.VPU_INT_EU]));
 
   //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
   //assign VIEUResultW[i+P.VPU_INT_EU] = '0;
   assign VIEURegWriteW[P.VPU_INT_EU] = '0;
-  assign VIEUVRegWriteW[P.VPU_INT_EU] = '0;
 
   for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
     // *** add FPU

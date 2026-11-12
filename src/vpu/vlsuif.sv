@@ -41,6 +41,9 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
 
   input logic                         ValidD,                         // valid signal from the controller that there is a new operation
   output logic                        ReadyD,                         // ready signal from VLSUIF to controller that it can accept a new operation
+  input logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderD,            // program-order tag assigned by the controller
+  output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW,            // order tag returned to the controller for in-order commit
+  output logic                        VRegWriteW,                     // write the vregfile (loads only)
 
   input logic [1:0]                   VMemRWD,                        // vector memory read/write: [1] = read, [0] = write
 
@@ -59,9 +62,10 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   output logic [P.VLEN-1:0]           VReadDataW                      // Read data (to vregfile)
 );
 
-  logic [1:0]        VMemRWW;
-  logic [4:0]        VdE, VdM;
-  logic [P.VLEN-1:0] VWriteDataE;
+  logic [1:0]                   VMemRWW;
+  logic [4:0]                   VdE, VdM, PreVdW;
+  logic [P.VLEN-1:0]            VWriteDataE, PreVReadDataW;
+  logic [P.VPU_QUEUEDEPTH-1:0]  OrderE, OrderM;
 
   assign VSizeM = 3'b110; // *** TODO: This is a placeholder value, need to accomodate multiple element sizes
   assign ReadyD = 1'b1; // *** TODO: This is a placeholder value, need to implement a ready signal for the LSU interface
@@ -73,9 +77,17 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
 
   flopr #(5) vdereg(clk, reset, VdFinalD, VdE);
   flopr #(5) vdmreg(clk, reset, VdE, VdM);
-  flopr #(5) vdwreg(clk, reset, VdM, VdW);
+  flopr #(5) vdwreg(clk, reset, VdM, PreVdW);
 
-  assign ValidW = VMemRWW[1];
+  // order tag travels with the instruction so the controller can match it against the head of the order queue
+  flopr #(P.VPU_QUEUEDEPTH) ordereg(clk, reset, ExecutionUnitOrderD, OrderE);
+  flopr #(P.VPU_QUEUEDEPTH) ordermreg(clk, reset, OrderE, OrderM);
+  flopr #(P.VPU_QUEUEDEPTH) orderwreg(clk, reset, OrderM, ExecutionUnitOrderW);
+
+  // both loads and stores occupy an order-queue entry, so both must report valid to be dequeued;
+  // only loads write the vregfile
+  assign ValidW     = |VMemRWW;
+  assign VRegWriteW = ReadyW & VMemRWW[1];
 
   // address flop
   assign VEUAdrE = ForwardedSrcAE;
@@ -86,6 +98,10 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   flopr #(P.VLEN) vwritemreg(clk, reset, VWriteDataE, VWriteDataM);
 
   // read data flop (M -> W); single beat, so assumes VLEN == VPU_LSU_BLEN for now
-  flopr #(P.VLEN) vreaddatawreg(clk, reset, VReadDataM, VReadDataW);
+  flopr #(P.VLEN) vreaddatawreg(clk, reset, VReadDataM, PreVReadDataW);
+
+  // AND part of the AO-muxes in vpu: drive zero unless the controller selected this EU this cycle
+  assign VdW        = ReadyW ? PreVdW        : '0;
+  assign VReadDataW = ReadyW ? PreVReadDataW : '0;
 
 endmodule
