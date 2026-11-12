@@ -346,7 +346,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   assign IFUStallF = IFUCacheBusStallF | SelSpillNextF | ITLBMissOrUpdateAF;
   assign GatedStallD = StallD & ~SelSpillNextF;
 
-  flopenl #(32) AlignedInstrRawDFlop(clk, reset | FlushD, ~StallD, (IFUFaultF ? nop : PostSpillInstrRawF), nop, InstrRawD);
+  flopenl #(32) AlignedInstrRawDFlop(clk, reset | FlushD, ~StallD, PostSpillInstrRawF, nop, InstrRawD);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // PCNextF logic
