@@ -72,8 +72,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] VIEUBeatW,           // beat number of result
   output logic [4:0]                  VIEUVdFinalW
 );
-  // might have to bring back notconsummedW and the localStall back when later making svrf entries less than EU numbers
-  
+  // might have to bring back notconsummedW and the localStall back when later making svrf entries less than EU number
+
   localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
   //localparam VLBITLEN = $clog2(P.VLEN);
   localparam XLENTOINTLANES = P.VPU_INT_BLEN / P.XLEN;
