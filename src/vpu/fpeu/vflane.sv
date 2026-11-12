@@ -184,8 +184,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic                 IFDivStartE;                                 // divider starting this cycle
   logic                 SqrtM;                                       // square root rather than divide in the M stage
   logic                 DivStickyM;                                  // divider sticky bit
-  logic [P.NE+1:0]      UeM;                                         // divsqrt exponent
-  logic [P.DIVb:0]      UmM;                                         // divsqrt significand
+  logic [FP.NE+1:0]      UeM;                                         // divsqrt exponent
+  logic [FP.DIVb:0]      UmM;                                         // divsqrt significand
   logic [P.ELEN-1:0]    FIntDivResultM;
 
   assign DivStartE = FDivStartE & FPUActiveE & DivOpE;
