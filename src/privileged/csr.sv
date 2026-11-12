@@ -426,7 +426,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   if (P.H_SUPPORTED) begin: status_vs
     assign STATUS_MXR = VirtModeW ? VSSTATUS_MXR : STATUS_MXR_INT;
     assign STATUS_SUM = VirtModeW ? VSSTATUS_SUM : STATUS_SUM_INT;
-    assign STATUS_FS  = VirtModeW ? VSSTATUS_FS : STATUS_FS_INT;
+    assign STATUS_FS  = VirtModeW ? ((STATUS_FS_INT == 2'b00) ? 2'b00 : VSSTATUS_FS) : STATUS_FS_INT;
   end else begin: status_noh
     assign STATUS_MXR = STATUS_MXR_INT;
     assign STATUS_SUM = STATUS_SUM_INT;

@@ -176,8 +176,8 @@ module trap import cvw::*; #(parameter cvw_t P) (
     else if (P.H_SUPPORTED & ValidIntsM[2])                       CauseM = 5'd2;  // delegated Virtual Supervisor Software Int
     else if (P.H_SUPPORTED & ValidIntsM[6])                       CauseM = 5'd6;  // delegated Virtual Supervisor Timer Int
     else if (BothInstrPageFaultM)                                 CauseM = 5'd12; // Instruction page fault // exclusion-tag: trap-instr-page-fault
-    else if (P.H_SUPPORTED & VirtualInstrFaultM)                  CauseM = 5'd22; // Virtual Instruction Fault
     else if (BothInstrAccessFaultM)                               CauseM = 5'd1;  // Instruction access fault
+    else if (P.H_SUPPORTED & VirtualInstrFaultM)                  CauseM = 5'd22; // Virtual Instruction Fault
     else if (IllegalInstrFaultM)                                  CauseM = 5'd2;  // Illegal instruction
     // coverage off
     // Misaligned instructions cannot occur in rv64gc
