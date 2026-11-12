@@ -31,7 +31,6 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   input  logic                     CAMHit,
   input  logic                     Misaligned,
   input  logic                     NAPOT4,             // pte.ppn[3:0] = 1000, indicating 64 KiB contiguous NAPOT region
-  input  logic                     PointerMaskApplicable, PMLen16Sel,
   output logic                     TLBMiss,
   output logic                     TLBHit,
   output logic                     TLBPageFault,
@@ -61,7 +60,7 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   assign TLBAccess = ReadAccess | WriteAccess | (|CMOpM);
 
   // Check that upper bits are legal (all 0s or all 1s)
-  vm64check #(P) vm64check(.SATP_MODE, .VAdr, .PointerMaskApplicable, .PMLen16Sel, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
+  vm64check #(P) vm64check(.SATP_MODE, .VAdr, .SV39Mode, .SV48Mode, .UpperBitsUnequal);
 
   // unswizzle useful PTE bits
   assign PTE_N = PTEAccessBits[11];

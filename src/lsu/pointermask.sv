@@ -36,13 +36,13 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
     input logic [1:0]                EffectivePrivilegeModeW,
     input logic                      STATUS_MXR,
     input logic [1:0]                MemRWM,
-    input logic [3:0]                CMOpMUngated,
+    input logic [3:0]                CMOpM,
     output logic                     PointerMaskApplicable, PMLen16Sel
 );
 
   logic MaskApplicableInstr;
   // Determine if instruction is mask-applicable (explicit memory access)
-  assign MaskApplicableInstr = |(MemRWM) | |(CMOpMUngated);
+  assign MaskApplicableInstr = |(MemRWM) | |(CMOpM);
 
   // Determine if mask should be applied based on CSR configuration PMM bits and current privilege level
   always_comb

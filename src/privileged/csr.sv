@@ -58,7 +58,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InvalidateICacheM,
   input  logic                     DivBusyE,                  // integer divide busy
   input  logic                     FDivBusyE,                 // floating point divide busy
-  input  logic                     PointerMaskApplicable, PMLen16Sel, // pointer masking applies to the access in the M stage, and selects PMLEN 16
   // outputs from CSRs
   output logic [1:0]               STATUS_MPP,
   output logic                     STATUS_SPP, STATUS_TSR, STATUS_TVM,
@@ -131,23 +130,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   ///////////////////////////////////////////
   // XTVAL: gets value from PC, Instruction, or load/store address (for MTVAL/STVAL)
   ///////////////////////////////////////////
-  /*
-  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:xtvalpm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
-    logic [1:0]        EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
-    logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
-    logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
-    assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
-    assign PhysicalAdrM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
-    assign PM7AdrM = PhysicalAdrM ? {7'b0, IEUAdrxTvalM[56:0]} : {{7{IEUAdrxTvalM[56]}}, IEUAdrxTvalM[56:0]};
-    if (P.PMLEN16_SUPPORTED) begin : pmlen16
-      logic [P.XLEN-1:0] PM16AdrM;
-      assign PM16AdrM = PhysicalAdrM ? {16'b0, IEUAdrxTvalM[47:0]} : {{16{IEUAdrxTvalM[47]}}, IEUAdrxTvalM[47:0]};
-      assign PMAdrM = PMLen16Sel ? PM16AdrM : PM7AdrM;
-    end else
-      assign PMAdrM = PM7AdrM;
-    assign MaskedIEUAdrxTvalM = PointerMaskApplicable ? PMAdrM : IEUAdrxTvalM;
-  end else assign MaskedIEUAdrxTvalM = IEUAdrxTvalM;
-  */
+
   always_comb
     if (InterruptM)           NextFaultXtvalM = '0;
     else case (CauseM)

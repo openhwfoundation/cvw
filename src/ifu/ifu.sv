@@ -194,7 +194,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
 
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
     immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-         .MSECCFG_PMM(2'b0), .MENVCFG_PMM(2'b0), .SENVCFG_PMM(2'b0), .MemRWM(2'b0), .CMOpMUngated(4'b0),
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(3'b010),
@@ -211,7 +210,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
-         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable(), .PMLen16Sel());
+         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .EffectivePrivilegeModeW());
 
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 

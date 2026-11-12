@@ -19,8 +19,6 @@
 module vm64check import cvw::*; #(parameter cvw_t P) (
   input  logic [P.SVMODE_BITS-1:0]  SATP_MODE,
   input  logic [P.XLEN-1:0]         VAdr,
-  input  logic                      PointerMaskApplicable,
-  input  logic                      PMLen16Sel,
   output logic                      SV39Mode,
   output logic                      SV48Mode,
   output logic                      UpperBitsUnequal
@@ -44,35 +42,10 @@ module vm64check import cvw::*; #(parameter cvw_t P) (
     assign all0_63_56 = ~|VAdr[63:56];
     assign all1_63_56 =  &VAdr[63:56];
 
-    // Without pointer masking, bits 63 down to the top bit of the virtual address must all equal it.  The result
-    // matters only when the access is translated, so with satp.MODE = Bare it is never used.
-    logic Unequal;
-    assign Unequal =
-        SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56 ) | (all1_46_38 & all1_55_47 & all1_63_56 ) ) :  // SV39 Mode
-        (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56 ))) :                             // SV48 Mode
-                    (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56))));                                                             // SV57 Mode
-    /*
-    if (ITLB == 1 | !P.ZPM_SUPPORTED) begin : nopm // Instruction fetches are not pointer masked
-      assign UpperBitsUnequal = Unequal;
-
-    end else begin : pm
-      // With pointer masking, the masked bits are ignored, and the bits above the top of the virtual address must
-      // equal the new top bit instead: bit 56 with PMLEN 7 (Sv57 has nothing left to check), or bit 47 with PMLEN 16
-      // (Sv48 has nothing left to check, and PMLEN 16 is never supported with Sv57).
-      logic Unequal7, MaskedUnequal;
-      assign Unequal7 =
-          SV39Mode ? ~((all0_46_38 & all0_55_47 & ~VAdr[56]) | (all1_46_38 & all1_55_47 & VAdr[56])) :          // SV39 Mode
-                     (SV48Mode & P.SV48_SUPPORTED & ~((all0_55_47 & ~VAdr[56]) | (all1_55_47 & VAdr[56])));       // SV48 Mode
-      if (P.PMLEN16_SUPPORTED) begin : pmlen16
-        logic Unequal16;
-        assign Unequal16 = SV39Mode & ~((all0_46_38 & ~VAdr[47]) | (all1_46_38 & VAdr[47]));
-        assign MaskedUnequal = PMLen16Sel ? Unequal16 : Unequal7;
-      end else
-        assign MaskedUnequal = Unequal7;
-      assign UpperBitsUnequal = PointerMaskApplicable ? MaskedUnequal : Unequal;
-    end
-  */
-    assign UpperBitsUnequal = Unequal;
+    assign UpperBitsUnequal =
+      SV39Mode  ?                     ~((all0_46_38 & all0_55_47 & all0_63_56) | (all1_46_38 & all1_55_47 & all1_63_56)) :     // SV39 Mode
+      (SV48Mode ? (P.SV48_SUPPORTED & ~((all0_55_47 & all0_63_56) | (all1_55_47 & all1_63_56))) :                              // SV48 Mode
+                  (P.SV57_SUPPORTED & ~((all0_63_56 | all1_63_56))));                                                          // SV57 Mode
   end else begin
     assign SV39Mode = 1'b0;
     assign SV48Mode = 1'b0;
