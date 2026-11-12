@@ -394,12 +394,10 @@ ExcludeRows $IMMU/pmachecker e {ReadAccessM_0} [TagLine ${SRC}/mmu/pmachecker.sv
 ExcludeRows $IMMU/pmachecker e {AtomicAllowed_* +AtomicAccessM_*}
 ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 PMADataAccessFault_* +ReadAccessM_*}
 ExcludeRows $IMMU/pmachecker e {PMADataAccessFault_* +|CMOpM_*}
-# A fetch without a PMA fault is from the boot ROM or RAM, both cacheable, and RV32 has no Svpbmt to make a page
-# uncached, so the IMMU never sees ~PMAAccessFault & ~Cacheable: the (Size > 2)_0 row is unreachable.
-ExcludeRows $IMMU/pmachecker e {{(Size > 2)_0}}
-# Every fetch is a word (Size = 2), no wider than the bus, so the IMMU never checks an access wider than the bus
-# against Cacheable: (Size > 2)_1 and the Cacheable rows, whose non-masking condition needs it, cannot be reached.
-ExcludeRows $IMMU/pmachecker e {{(Size > 2)_1} Cacheable_*}
+# Every fetch is a word (Size = 2), so Size > 2 is never 1, and a fetch that does not fault is always cacheable:
+# rv32gc fetches only from the boot ROM and RAM, both cacheable, and Sv32 has no Svpbmt to make a page uncacheable.
+# So (Size > 2)_0, which needs a fetch with neither, (Size > 2)_1 and the Cacheable rows, which need Size > 2, cannot be reached.
+ExcludeRows $IMMU/pmachecker e {{(Size > 2)_*} Cacheable_*}
 ExcludeTermRows $IMMU/pmp/pmpchecker e {ReadAccessM_1 WriteAccessM_1 ExecuteAccessF_0 {|CMOpM\[2:0\]_1} {CMOpM\[3\]_1}
   PMPCBOMAccessFault_1 PMPCBOZAccessFault_1 PMPCMOAccessFault_1}
 ExcludeRows $IMMU/pmp/pmpchecker e {MatchingR_* EnforcePMP_* {+|CMOpM\[2:0\]*}}

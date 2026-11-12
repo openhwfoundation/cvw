@@ -125,7 +125,9 @@ localparam logic BUS_SUPPORTED = 1;
 localparam logic DCACHE_SUPPORTED = 1;
 localparam logic ICACHE_SUPPORTED = 1;
 localparam logic VECTORED_INTERRUPTS_SUPPORTED = 1;
-localparam logic BIGENDIAN_SUPPORTED = 1;
+// Little-endian only until Sail and riscv-arch-test can test big-endian accesses.
+// Restore BIGENDIAN_SUPPORTED = 1 (and the *_MODE_ENDIANNESS: dynamic params in act/cvw-rv32gc.yaml) when they can.
+localparam logic BIGENDIAN_SUPPORTED = 0;
 
 // TLB configuration.  Entries should be a power of 2
 localparam ITLB_ENTRIES = 32'd32;

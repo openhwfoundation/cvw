@@ -6,6 +6,10 @@
 
 # Base configuration
 --variant RV64GCK # for RV64GC
+
+# Little endian only, as in config.vh; drop this when BIGENDIAN_SUPPORTED is restored
+--override iss/cpu0/endianFixed=T
+
 --override iss/cpu0/simulateexceptions=T
 --override iss/cpu0/defaultsemihost=F
 --override iss/cpu0/ec/onWriteToHost=T

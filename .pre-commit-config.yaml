@@ -46,3 +46,22 @@ repos:
       # Run the linter.
       - id: ruff-check
         args: [ --fix ]
+      # Python scripts with no .py extension that start with #!/usr/bin/env -S uv run --script.
+      # Pre-commit doesn't recognize that shebang as Python, so they are listed here.
+      - id: ruff-check
+        name: ruff check (uv scripts)
+        args: [ --fix ]
+        types_or: [text]
+        files: &uv_scripts ^(bin/(actconfig-sync|elf2hex|iterelf|lint-wally|regression-wally|wsim)|fpga/(generator/probe|probe|proberange|probes)|sim/vcs/(exclusions2el|run_vcs))$
+
+  - repo: local
+    hooks:
+      # Fail on a uv script that the ruff hook above doesn't lint
+      - id: uv-scripts-linted
+        name: uv scripts are listed for ruff
+        language: pygrep
+        entry: '\A#!/usr/bin/env -S uv run --script'
+        args: [ --multiline ]
+        types: [text]
+        exclude_types: [python]
+        exclude: *uv_scripts

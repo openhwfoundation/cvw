@@ -72,7 +72,7 @@ module busfsm #(
   assign BusCommitted = (CurrState != ADR_PHASE) & ~(READ_ONLY & CurrState == MEM3);
 
   assign HTRANS = (CurrState == ADR_PHASE & HREADY & |BusRW & ~Flush) |
-                  (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic) ? AHB_NONSEQ : AHB_IDLE;
+                  (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic & HREADY) ? AHB_NONSEQ : AHB_IDLE;
   assign HWRITE = (BusRW[0] & ~BusAtomic) | (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic);
 
   assign CaptureEn = CurrState == DATA_PHASE;
