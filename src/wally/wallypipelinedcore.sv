@@ -95,6 +95,9 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          FRegWriteM;
   logic                          FpLoadStoreM;
   logic [4:0]                    SetFflagsM;
+  logic [4:0]                    VSetFflagsW;
+  logic [P.FLEN-1:0]             FRD1D;
+  logic                          VReadFPD;
   logic [P.XLEN-1:0]             FIntDivResultW;
 
   // memory management unit signals
@@ -318,7 +321,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .InstrMisalignedFaultM, .IllegalIEUFPUVPUInstrD,
       .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
-      .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
+      .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM, .VSetFflagsW,
       .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .SetVXSATM, .ClearVSTARTM,
       .VTYPE_REGW, .VL_REGW, .VSTART_REGW, .VXRM_REGW,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
@@ -372,11 +375,12 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .FDivBusyE,                          // Is the divide/sqrt unit busy (stall execute stage)
       .IllegalFPUInstrD,                   // Is the instruction an illegal fpu instruction
       .SetFflagsM,                         // FPU flags (to privileged unit)
+      .VReadFPD, .FRD1D,                   // vector .vf reads fs1
       .FIntDivResultW);
   end else begin                           // no F_SUPPORTED or D_SUPPORTED; tie outputs low
     assign {FPUStallD, FWriteIntE, FCvtIntE, FIntResM, FCvtIntW, FRegWriteM,
             IllegalFPUInstrD, SetFflagsM, FpLoadStoreM,
-            FWriteDataM, FCvtIntResW, FIntDivResultW, FDivBusyE} = '0;
+            FWriteDataM, FCvtIntResW, FIntDivResultW, FDivBusyE, FRD1D} = '0;
   end
 
   // *** fix me replace with driver from LSU
@@ -386,13 +390,13 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     vpu #(P) vpu(.clk, .reset, .VectorStallD, .VectorStallE, .StallM, .StallW,
                  .VectorFlushD, .VectorFlushE, .VectorFlushM, .FlushW, .StallE, .FlushE, .FlushM,
                  .VPUFrontEndBusyD, .VPUBackEndBusyE,
-                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .R1D, .R2D, .VWriteIntE, .VIntResM,
-                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW,
-                 .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
+                 .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .R1D, .R2D, .FRD1D, .VReadFPD, .VWriteIntE, .VIntResM,
+                 .VWriteDataM, .VEUAdrM, .IllegalVPUInstrD, .VReadDataM, .VIEUFPResultFinalW, .VSetFflagsW,
+                 .STATUS_VS, .VTYPE_REGW, .VL_REGW, .FRM_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin
     assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD, VWriteIntE, VIntResM,
-            WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM} = '0;
+            WriteVLVTYPEM, NewVLM, NewVTYPEM, NewVILLM, ClearVSTARTM, VReadFPD, VSetFflagsW} = '0;
   end
 
 endmodule

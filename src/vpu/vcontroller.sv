@@ -62,6 +62,8 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [2:0]                  VFRmD,                      // rounding mode of vfcvt.rtz and vfncvt.rod
   output logic                        VFMoveD, VFMergeD,          // instr is vfmv/vfmerge, vfmerge
   output logic                        VScalarMoveD,               // element 0 only
+  output logic                        VReductionD,                // instr is a reduction op
+  output logic [2:0]                  VdEEWD, Vs2EEWD, Vs1EEWD,   // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
   output logic                        IllegalVPUInstrD,
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
@@ -88,8 +90,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
   logic [5:0]  VLSModeD;                  // addressing modes for load/store
-  logic        VReductionD;               // instr is a reduction op
-  logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
+  logic        FflagsCSRD;                // csr instruction reads/writes fflags/fcsr
 
   // Micro-ops from LMUL in vtype; fractional LMUL fits in one register
   always_comb
@@ -155,7 +156,11 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   assign AnyMatchW = | MatchW;
 
-  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
+  // fflags and fcsr accesses, need to wait for older vector fp instr to set their flags in W
+  assign FflagsCSRD = (InstrD[6:0] == 7'b1110011) & (InstrD[14:12] != 3'b000) & (InstrD[31:20] == 12'h001 | InstrD[31:20] == 12'h003);
+
+  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD |
+                            (FflagsCSRD & ~InstrOrderQueueEmptyD); // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 
 
 endmodule

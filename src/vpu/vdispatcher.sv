@@ -60,11 +60,10 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   // or specific sub categories.
   // The decoder specifies the EU requirements (e.g. type, operation class, addressing mode for load/store).
   // EU selector compares the requirements to the capabilities of each EU.
-  // For this initial version All EUs will accept all instructions. *** fix me later.
+  // For this initial version each EU accepts every class and mode of its type. *** fix me later.
 
   // *** move to configuration when EU are instantiated
   // EU capabilities, Index: [EU][capability]
-  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = '1;   // integer, floating point, memory
   localparam logic [P.VPU_EU-1:0][31:0] VEU_CLASSES = '1;   // operation classes, indexed by VOpClassD
   localparam logic [P.VPU_EU-1:0][5:0]  VEU_MODES   = '1;   // load/store addressing modes
 
@@ -75,7 +74,10 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   genvar               i;
 
   for (i = 0; i < P.VPU_EU; i++) begin : eligibility
-    assign EligibleD[i] = |(VEUTypeD & VEU_TYPES[i]) & VEU_CLASSES[i][VOpClassD] &
+    // EU order: integer (001), load/store (100), floating point (010)
+    // *** integer EU take memory until LSU is built
+    localparam logic [2:0] VEU_TYPE = (i < P.VPU_INT_EU) ? 3'b101 : (i < P.VPU_INT_EU + P.VPU_LSU_EU) ? 3'b000 : 3'b010;
+    assign EligibleD[i] = |(VEUTypeD & VEU_TYPE) & VEU_CLASSES[i][VOpClassD] &
                           ((VLSModeD & ~VEU_MODES[i]) == 6'b0);
   end
 

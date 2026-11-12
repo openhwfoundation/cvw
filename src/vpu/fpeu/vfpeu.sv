@@ -200,6 +200,7 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
     logic [P.ELEN-1:0]  VRD1ElemE [3:0], VRD2ElemE [3:0], VRD3ElemE [3:0]; // element at 8, 16, 32 and 64 bits
     logic [P.ELEN-1:0]  VRD1SelectedE, VRD2SelectedE, VRD3SelectedE, VSrcAE, VSrcBE;
     logic               MaskBitE, ScalarSelE;
+    logic [4:0]         VfFlgM;
 
     assign ElementE      = ElementBaseE + LOGVLEN'(i);
     assign GroupElementE = GroupBaseE + ElementE;
@@ -246,7 +247,10 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
       .FmaOpE, .DivOpE, .CvtOpE, .CmpOpE, .SgnOpE, .ClassOpE, .RecOpE, .OpCtrlE(VFOpCtrlE), .ToIntE(VFToIntE),
       .VReductionE(VReductionE & ActiveE[i]), .VReductionStartE(VReductionE & ~ReductionStartedE), .FrmE(FrmFinalE),
       .FPUActiveE(ActiveE[i]), .FDivStartE(DivStartE), .FDivBusyE(LaneDivBusyE[i]), .FDivDoneE(),
-      .VfResM(BeatResultM[i*P.ELEN +: P.ELEN]), .VfFlgM(LaneFlagsM[i]));
+      .VfResM(BeatResultM[i*P.ELEN +: P.ELEN]), .VfFlgM(VfFlgM));
+
+    // only active elements set flags
+    assign LaneFlagsM[i] = VfFlgM & {5{ActiveM[i]}};
   end
 
   assign DivBusyE = |LaneDivBusyE;

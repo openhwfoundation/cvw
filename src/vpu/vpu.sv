@@ -49,6 +49,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   // Execute state
   input logic [P.XLEN-1:0]          ForwardedSrcAE, ForwardedSrcBE,             // Integer/FP input for convert, move (from IEU)
   input logic [P.XLEN-1:0]          R1D, R2D,                                   // Scalar rs1/rs2 read in Decode
+  input logic [P.FLEN-1:0]          FRD1D,                                      // Scalar fs1 read in Decode (from FPU)
+  output logic                      VReadFPD,                                   // .vf instruction reads fs1 (to FPU)
   output logic                      VWriteIntE,                                 // vset writes vl to rd (to IEU)
   // Memory stage
   // TODO *** Cannot use decoded control from IEU because the there are overlapping vector instructions?
@@ -59,10 +61,12 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   output logic                      IllegalVPUInstrD,                           // Is the instruction an illegal fpu instruction (to IFU)
   // Writeback stage
   output logic [P.XLEN-1:0]         VIEUFPResultFinalW,                         // Int or FP result for X or F regs
+  output logic [4:0]                VSetFflagsW,                                // vector FP flags (to privileged unit)
   // CSR state
   input logic [1:0]                 STATUS_VS,                                  // vector (VS) field in status register
   input logic [P.XLEN-1:0]          VTYPE_REGW,                                 // vtype
   input logic [P.XLEN-1:0]          VL_REGW,                                    // vl
+  input logic [2:0]                 FRM_REGW,                                   // rounding mode
   // CSR updates from vset
   output logic                      WriteVLVTYPEM,                              // vset writes vl and vtype
   output logic [P.XLEN-1:0]         NewVLM,
@@ -72,9 +76,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 );
 
   // vector floating point datapath parameters FP extracted from P
-  /* verilator lint_off UNUSEDPARAM */ // FP is unused until the vector floating point unit is instantiated
   `include "vfpu-parameter-defs.vh"
-  /* verilator lint_on UNUSEDPARAM */
 
   logic [4:0] Vs1FinalD, Vs2FinalD;               // Vector Source 1 and 2
   logic [4:0] VdFinalD;                      // Vector Destination read (overwrite)
@@ -98,17 +100,20 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [2:0] VFRmD;                          // rounding mode of vfcvt.rtz and vfncvt.rod
   logic       VFMoveD, VFMergeD;              // vfmv/vfmerge, vfmerge
   logic       VScalarMoveD;                   // element 0 only (vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s)
+  logic       VReductionD;                    // reduction
+  logic [2:0] VdEEWD, Vs2EEWD, Vs1EEWD;       // log2(EEW), 000 = mask
   logic        VsetD;                         // vsetvli, vsetivli, or vsetvl
   logic        VsetvlD;                       // vsetvl (vtype from rs2)
   logic        VsetivliD;                     // vsetivli (AVL from the uimm5)
   logic [10:0] VTYPEImmD;                     // vtype immediate
   logic [P.XLEN-1:0] VTYPED;                  // vtype seen by Decode, forwarded from an older vset
-  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
+  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet in vieu
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
   logic [P.VLEN-1:0] VResultFinalW;
 
-  logic [P.VLEN-1:0] VIEUResultW [P.VPU_INT_EU-1:0];
+  logic [P.VLEN-1:0] VIEUResultW [P.VPU_EU-1:0];    // *** change name, now also holds fp results
+  logic [4:0]        VFPEUFlagsW [P.VPU_FP_EU-1:0];
   logic [P.XLEN-1:0] VIEUResultToScalarW [P.VPU_INT_EU-1:0];
 
   //logic       IllegalVPUInstrD;
@@ -148,7 +153,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
                                .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
-                               .VFMoveD, .VFMergeD, .VScalarMoveD,
+                               .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                                .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
@@ -181,31 +186,37 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
     //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
-    //assign VIEUResultW[i+P.VPU_INT_EU] = '0;
+    assign VIEUResultW[i+P.VPU_INT_EU] = '0;
     assign VIEURegWriteW[i+P.VPU_INT_EU] = '0;
     assign VIEUVRegWriteW[i+P.VPU_INT_EU] = '0;
     assign VIEUVdFinalW[i+P.VPU_INT_EU] =  '0;
   end
 
   for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
-    // *** add FPU
-    //vfpeu #(P) vfpeu
-    assign ExecutionUnitReadyD[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '1;
-    assign ExecutionUnitResultValidW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-
-    //assign VIEUResultToScalarW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    //assign VIEUResultW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    assign VIEURegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    assign VIEUVRegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    assign VIEUVdFinalW[i+P.VPU_INT_EU+P.VPU_LSU_EU] =  '0;
-
+    localparam EU = i + P.VPU_INT_EU + P.VPU_LSU_EU;
+    vfpeu #(P, FP) vfpeu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
+                         .ControllerValidD(ControllerValidD[EU]), .ControllerWBReadyW(ControllerWBReadyW[EU]),
+                         .ExecutionUnitReadyD(ExecutionUnitReadyD[EU]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[EU]),
+                         .ExecutionUnitOrderD(ExecutionUnitOrderD[EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[EU]),
+                         .VMD, .VALUSrcAD, .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
+                         .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+                         .MicroOpD(3'b0), .VLD, .FrmD(FRM_REGW), .VdFinalD, .VRegWriteD,  // *** micro-op from the controller
+                         .VRD1D, .VRD2D, .VRD3D, .v0D, .FRD1D,
+                         .VFPEUResultW(VIEUResultW[EU]), .VFPEUFlagsW(VFPEUFlagsW[i]),
+                         .VFPEUVRegWriteW(VIEUVRegWriteW[EU]), .VFPEUVdFinalW(VIEUVdFinalW[EU]));
+    assign VIEURegWriteW[EU] = '0;  // *** don't write scalar reg yet so tied to 0
   end
+
+  or_rows #(P.VPU_FP_EU, 5) VFlagsAOMux(.a(VFPEUFlagsW), .y(VSetFflagsW));
+
+  // .vf reads fs1 in Decode; the FPU stalls it until an older write to fs1 reaches the register file
+  assign VReadFPD = (InstrD[6:0] == 7'b1010111) & (InstrD[14:12] == 3'b101);
 
 
 
   // the controller must select the correct EU to write back into the VRF so that instructions commit inorder.
 
-  or_rows #(P.VPU_INT_EU, P.VLEN) VEUResultAOMux(.a(VIEUResultW), .y(VResultFinalW));
+  or_rows #(P.VPU_EU, P.VLEN) VEUResultAOMux(.a(VIEUResultW), .y(VResultFinalW));
   or_rows #(P.VPU_INT_EU, P.XLEN) VIEUFPResultAOMux(.a(VIEUResultToScalarW), .y(VIEUFPResultFinalW));
   or_rows #(P.VPU_EU, 5) VdAOMux(.a(VIEUVdFinalW), .y(VdFinalW));
   //or_rows #(P.VPU_INT_EU, 5) RdAOMux(.a(VIEURegWriteW), .y(VRdFinalW));

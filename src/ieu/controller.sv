@@ -155,6 +155,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic        VReadRs1D, VReadRs2D;           // Vector instr reads rs1/rs2
   logic        VMatchDE, VMatchDM;             // Match between a vector instr's scalar source and destination register in Execute/Memory stage
   logic        VectorSrcStallD;                // Vector instr waits for an older scalar to write to rs1/rs2
+  logic        VectorFenceStallD;              // Vector instr waits for an older instr that flushes the pipeline
   logic        FCvtIntStallD, MDUStallD, CSRRdStallD; // Stall due to fcvt to integer, multiply/divide, CSR read
   logic        FunctCZeroD;                    // Funct7 and Funct3 indicate czero.* (not including Op check)
   logic        BUW64D;                         // Indicates if it is a .uw type B instruction in Decode Stage
@@ -506,5 +507,8 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign VMatchDE = ((VReadRs1D & (Rs1D == RdE)) | (VReadRs2D & (Rs2D == RdE))) & (RdE != 5'b0);
   assign VMatchDM = ((VReadRs1D & (Rs1D == RdM)) | (VReadRs2D & (Rs2D == RdM))) & (RdM != 5'b0);
   assign VectorSrcStallD = VectorD & (VMatchDE & RegWriteE | VMatchDM & RegWriteM);
-  assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD | VectorSrcStallD;
+  // vector instr dispatches in Decode, so make it wait until an older CSR write/fence/privileged instr cannot flush it
+  // *** trap not resolved yet
+  assign VectorFenceStallD = VectorD & (CSRWriteE | FenceE | PrivilegedE);
+  assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD | VectorSrcStallD | VectorFenceStallD;
 endmodule
