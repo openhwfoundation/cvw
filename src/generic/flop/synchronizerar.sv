@@ -1,0 +1,44 @@
+///////////////////////////////////////////
+// synchronizerar.sv
+//
+// Written: Jacob Pease jacobpease@protonmail.com
+// Created: November 10th, 2026
+// Modified:
+//
+// Purpose: Two-stage synchronizer with asynchronous reset
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+//
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
+// except in compliance with the License, or, at your option, the Apache License version 2.0. You
+// may obtain a copy of the License at
+//
+// https://solderpad.org/licenses/SHL-2.1/
+//
+// Unless required by applicable law or agreed to in writing, any work distributed under the
+// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+// either express or implied. See the License for the specific language governing permissions
+// and limitations under the License.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module synchronizerar (
+  input  logic clk, reset,
+  input  logic d,
+  output logic q);
+
+  logic mid;
+
+  always_ff @(posedge clk, posedge reset)
+    if (reset) begin
+      mid <= 1'b0;
+      q   <= 1'b0;
+    end else begin
+      mid <= d;
+      q   <= mid;
+    end
+endmodule

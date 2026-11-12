@@ -56,6 +56,7 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
   input  logic             BranchD, BranchE,
   input  logic             JumpD, JumpE,
   input  logic             PCSrcE,                    // Execution stage branch is taken
+  input  logic             PCSrcM,                    // M stage branch is taken
   input  logic [P.XLEN-1:0] IEUAdrE,                   // The branch/jump target address
   input  logic [P.XLEN-1:0] IEUAdrM,                   // The branch/jump target address
   input  logic [P.XLEN-1:0] PCLinkE,                   // The address following the branch instruction. (AKA Fall through address)
@@ -91,7 +92,6 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
   logic                    BranchW, JumpW, ReturnW, CallW;
   logic                    BPReturnWrongD;
   logic                    BPBTAWrongM;
-  logic                    PCSrcM;
 
   // Part 1 branch direction prediction
   if (P.BPRED_TYPE == `BP_TWOBIT) begin : Predictor
@@ -138,8 +138,6 @@ module bpred import cvw::*;  #(parameter cvw_t P) (
       .PCNextF, .PCE, .PCM, .BPDirD(BPDirF), .BPDirWrongE,
       .BranchD, .BranchE, .BranchM, .PCSrcE);
   end
-
-  flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
 
   // Part 2 Branch target address prediction
   // BTB contains target address for all CFI

@@ -57,6 +57,8 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [31:0]       MCOUNTINHIBIT_REGW, MCOUNTEREN_REGW, SCOUNTEREN_REGW,
   input  logic [63:0]       MTIME_CLINT,
+  input  logic              DebugStopCounters,
+  input  logic              DebugEBreak,
   output logic [P.XLEN-1:0] CSRCReadValM,
   output logic              IllegalCSRCAccessM
 );
@@ -102,7 +104,7 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   // Determine when to increment each counter
   assign CounterEvent[0]    = 1'b1;                                                      // MCYCLE always increments
   assign CounterEvent[1]    = 1'b0;                                                      // Counter 1 doesn't exist
-  assign CounterEvent[2]    = InstrValidNotFlushedM;                                     // MINSTRET instructions retired
+  assign CounterEvent[2]    = InstrValidNotFlushedM & ~DebugEBreak;                      // MINSTRET instructions retired
   if (P.COUNTERS > 3) begin : cevent                                                   // User-defined counters
     // Ideally all events would be counted in the M stage, but the pipelining is costly. The counters may
     // count an event in a previous pipeline stage.
@@ -140,8 +142,8 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
   for (i = 0; i < P.COUNTERS; i = i+1) begin : cntr
       assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i); // coverage tag: MTIME traps
       assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0];
-      if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
-      else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
+      if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & ~DebugStopCounters; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
+      else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0) & ~DebugStopCounters; // user-defined counters are incremented only if the event is enabled
       always_ff @(posedge clk)
         if (reset) HPMCOUNTER_REGW[i][P.XLEN-1:0] <= '0;
         else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
