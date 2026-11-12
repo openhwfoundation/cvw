@@ -192,7 +192,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
 
   fmtparams #(FP) fmtparams (.Fmt(OutFmt), .Bias(BiasE), .Nf(NfE));
 
-  fdivsqrt #(P) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrlE[0]), .SqrtM,
+  fdivsqrt #(FP) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrlE[0]), .SqrtM,
     .XInfE, .YInfE, .XZeroE, .YZeroE, .XNaNE, .YNaNE, .BiasE, .NfE, .FDivStartE(DivStartE), .IDivStartE(1'b0), .XsE,
     .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3E(3'b000), .Funct3M(3'b000), .IntDivE(1'b0), .W64E(1'b0),
     .StallM, .FlushE, .DivStickyM, .FDivBusyE, .IFDivStartE, .FDivDoneE, .UeM,
