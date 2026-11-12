@@ -20,11 +20,11 @@
 
 module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
-  input  logic              CSRSWriteM, CSRMWriteM,
-  input  logic [11:0]       CSRAdrM,
-  input  logic [P.XLEN-1:0] CSRWriteValM,
-  input  logic [1:0]        PrivilegeModeW,
-  input  logic [P.XLEN-1:0] SATP_REGW,
+  input  logic              CSRSWriteM, CSRMWriteM,       // CSR write
+  input  logic [11:0]       CSRAdrM,                      // CSR address
+  input  logic [P.XLEN-1:0] CSRWriteValM,                 // CSR data val
+  input  logic [1:0]        PrivilegeModeW,               // priv mode
+  input  logic [P.XLEN-1:0] SATP_REGW,                    // asid
   input  logic              InstrValidNotFlushedM,
   input  logic              TrapM, InterruptM, ExceptionM,
   input  logic              StallW, mretM,
@@ -103,12 +103,11 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]       TDATA2WriteValM;
 
-  logic MTrapM;
-  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
-
-  logic                    CSRDWriteM;
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
+  logic MTrapM;
+  logic CSRDWriteM;
 
+  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
   assign CSRDWriteM  = 1'b0; // debug mode not supported
 
   assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
@@ -118,6 +117,12 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
   assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
   assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
+
+  // mcontrol6 chain bits, used to limit chain length
+  logic [P.NUM_TRIGGERS-1:0] ChainedM; // trigger i is mcontrol6 with chain = 1
+  always_comb
+    for (int i = 0; i < P.NUM_TRIGGERS; i++)
+      ChainedM[i] = (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & TDATA1_REGW[i][11];
 
   genvar t;
 
@@ -129,7 +134,17 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     logic [3:0]        TDATA1WriteTypeM, TDATA1WriteLegalizedTypeM;
     logic              TDATA1WriteLegalizedDmodeM;
     logic [P.XLEN-6:0] TDATA1WriteMaskM, TDATA1WriteOnesM, TDATA1MControl6MaskM, TDATA1WriteLegalizedDataM;
-    logic              TDATA1MatchLegalM, TDATA1SizeLegalM;
+    logic              TDATA1MatchLegalM, TDATA1SizeLegalM, TDATA1ChainLegalM;
+    // Legalize Chain Writes
+    if (P.MAX_CHAIN_LENGTH > 1 && P.MAX_CHAIN_LENGTH < P.NUM_TRIGGERS) begin : chainlen
+      logic [P.NUM_TRIGGERS-1:0]                    ChainIfSetM;
+      logic [P.NUM_TRIGGERS-P.MAX_CHAIN_LENGTH-1:0] WindowFullM;
+      assign ChainIfSetM = ChainedM | (P.NUM_TRIGGERS'(1) << t); // potential chain
+      for (genvar k = 0; k < P.NUM_TRIGGERS-P.MAX_CHAIN_LENGTH; k++)
+        assign WindowFullM[k] = &ChainIfSetM[k+P.MAX_CHAIN_LENGTH-1:k];
+      assign TDATA1ChainLegalM = ~|WindowFullM;
+    end else assign TDATA1ChainLegalM = 1'b1; // no chain can exceed the max
+
     always_comb begin
       // Legalize Type: unsupported types become disabled
       TDATA1WriteTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
@@ -157,6 +172,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       if (~TDATA1MatchLegalM) TDATA1MControl6MaskM[10:7]  = '0;
       if (~TDATA1SizeLegalM)  TDATA1MControl6MaskM[18:16] = '0;
       if (t == P.NUM_TRIGGERS-1) TDATA1MControl6MaskM[11] = 1'b0; // last trigger has nothing to chain to
+      if (~TDATA1ChainLegalM) TDATA1MControl6MaskM[11] = 1'b0;    // chain would be too long
       // Mask data based on type
       case (TDATA1WriteLegalizedTypeM)
         ICOUNT_TYPE:    TDATA1WriteMaskM = ICOUNT_MASK;
@@ -185,7 +201,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
               TDATA1_REGW[t][23:10] <= TDATA1_REGW[t][23:10]-1;
             end
             if (TDATA1_REGW[t][8] & MatchM[t]) begin // fire when pending
-              TDATA1_REGW[t][8] <= 0; // clear
+              TDATA1_REGW[t][8] <= 0; // clear pending
               // *** do stuff to fire
             end
             else if (SetPendingM[t]) TDATA1_REGW[t][8] <= 1; // set pending
