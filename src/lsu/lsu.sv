@@ -159,11 +159,10 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
 
   /////////////////////////////////////////////////////////////////////////////////////////////
-  // Pipeline for IEUAdr E to M
-  // Zero-extend address to 34 bits for XLEN=32
+  // Pointer masking module
+  // If pointer mask is applicable, perform ignore transformation on IEUAdrM
   /////////////////////////////////////////////////////////////////////////////////////////////
-
-  if (P.ZPM_SUPPORTED) begin : pm
+  if (P.ZPM_SUPPORTED) begin : pm // pointermasking module determines if pointermasking should be applied based on config bits and privilege mode
   pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
                                 .STATUS_MXR, .MemRWM, .CMOpM, .PointerMaskApplicable, .PMLen16Sel);
   end else begin
@@ -171,7 +170,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign PMLen16Sel            = 1'b0;
   end
 
-  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
+  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, perform ignore transformation
     logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
     logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
     assign PhysicalAdrM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
@@ -185,7 +184,12 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign IEUAdrMMasked = PointerMaskApplicable ? PMAdrM : IEUAdrM;
   end else assign IEUAdrMMasked = IEUAdrM;
 
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  // Pipeline for IEUAdr E to M
+  // Zero-extend address to 34 bits for XLEN=32
+  /////////////////////////////////////////////////////////////////////////////////////////////
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
+
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
