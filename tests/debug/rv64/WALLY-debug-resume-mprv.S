@@ -51,7 +51,7 @@ park:
    # Entered from the debugger with dcsr.prv = U.
 u_code:
    lw   t3, 0(t1)                # must fault: U has no R permission
-   li   t3, 0xbad
+   li   t3, 0xbad                # only reached if resume ignored
    ebreak                        # halt #2 (buggy path, ebreakm)
 1: j 1b
 
