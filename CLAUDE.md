@@ -57,7 +57,7 @@ regression-wally --nightly              # extended nightly suite
 regression-wally --ccov rv64gc      # also rv32gc, rv32imc; results in sim/questa/cov/rv64gc_uncovered_hierarchical.rpt
 regression-wally --ccov rv64gc --coveragesim vcs   # VCS: sim/vcs/cov/rv64gc_coverage_hierarchical.rpt
 regression-wally --fcov rv64gc      # functional coverage; results in sim/questa/fcov/rv64gc_fcov.uncovered.log
-regression-wally --lockstep rv64gc --lockstepsim verilator  # ACT + coverage tests in lock step vs ImperasDV (also rv32gc, rv32imc, rv32imcb)
+regression-wally --lockstep rv64gc     # ACT + coverage tests in lock step vs ImperasDV (also rv32gc, rv32imc, rv32imcb)
 ```
 Also possible to run individual files and merge them into the overall coverage.  Each simulation writes its own database (`sim/questa/ucdb/*.ucdb`, or `sim/vcs/ucdb/*.vdb` with VCS); `make -C sim QuestaCodeCoverage` (or `VcsCodeCoverage`) merges them for one configuration (`CONFIG=rv64gc`, the default, `rv32gc` or `rv32imc`) and applies `sim/questa/coverage-exclusions-<config>.do`, which `sim/vcs/exclusions2el` translates into a URG exclusion file for VCS (`sim/vcs/cov/exclusions-<config>.log` says what each exclusion became).
 
@@ -122,7 +122,7 @@ Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stal
 
 ### Simulators
 
-- **Verilator**: Default for regression; open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`. Also runs lockstep (needs an ImperasDV license, and an ImperasDV whose `rvviTrace.sv` declares `client_id_next` without an initializer, or interrupts never reach the reference model; wsim warns otherwise); a lockstep Linux boot uses two threads.
+- **Verilator**: Default for regression; open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`. Also runs lockstep (needs an ImperasDV license); a lockstep Linux boot uses two threads.
 - **Questa** (Siemens): Required for testbench_fp and GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
 - **VCS** (Synopsys): Supports standard tests, lockstep, and code/functional coverage (merged and reported with `urg`).
 

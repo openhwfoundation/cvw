@@ -38,7 +38,6 @@ def coverageDir(config):
     return f'{WALLY}/tests/coverage{config.removeprefix("rv")}'
 coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
-lockstepsim = "questa"     # Simulator for lock-step runs against ImperasDV: questa, vcs or verilator (--lockstepsim)
 # Configurations with an ImperasDV configuration (config/<cfg>/imperas.ic), which regression-wally --lockstep can run
 lockstepConfigs = ["rv64gc", "rv32gc", "rv32imc", "rv32imcb"]
 testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
@@ -790,8 +789,6 @@ def parse_args():
     parser.add_argument("--coveragesim", help="Simulator for --ccov and --fcov", choices=["questa", "vcs"], default="questa")
     parser.add_argument("--lockstep", nargs="?", const="rv64gc", choices=lockstepConfigs, metavar="CONFIG",
                         help="Run the configuration's ACT and coverage tests in lock step with ImperasDV, one simulation per ELF (default rv64gc)")
-    parser.add_argument("--lockstepsim", help="Simulator for lock-step runs (--lockstep, --nightly, --buildroot)",
-                        choices=["questa", "vcs", "verilator"], default=lockstepsim)
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
     parser.add_argument("--testfloat", help="Include Testfloat floating-point unit tests", action="store_true")
@@ -804,9 +801,8 @@ def parse_args():
 
 
 def process_args(args):
-    global coveragesim, lockstepsim
+    global coveragesim
     coveragesim = args.coveragesim
-    lockstepsim = args.lockstepsim
     coverStr = ""
     # exercise all simulators in nightly; can omit a sim if no license is available
     sims = ["questa", "verilator", "vcs"] if args.nightly else [defaultsim]
@@ -821,7 +817,6 @@ def process_args(args):
     elif args.buildroot:
         TIMEOUT_DUR = 60*3600 # 2.5 days
     elif args.lockstep:
-        sims = [lockstepsim]
         TIMEOUT_DUR = 20*60 # per ELF
     elif args.testfloat:
         sims = [testfloatsim]
@@ -853,7 +848,7 @@ def selectTests(args, sims, coverStr):
     # run full buildroot boot simulation (slow) if buildroot flag is set.  Start it early to overlap with other tests
     if args.buildroot:
         # addTests(tests_buildrootboot, defaultsim) # non-lockstep with Verilator runs in about 2 hours
-        addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
+        addTests(tests_buildrootbootlockstep, defaultsim, coverStr, configs) # lockstep with ImperasDV; about 45 minutes on Verilator
     # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
     # against the reference model (one simulation per ELF).
     # code coverage: the configuration runs its ACT tests, its coverage-targeted tests, and its peripheral tests
@@ -879,9 +874,9 @@ def selectTests(args, sims, coverStr):
     # instruction by instruction against ImperasDV (the same tests the nightly regression runs in lock step)
     if args.lockstep:
         buildTests(periph=False, coverage=True)
-        addTestsByDir(actElfDir(args.lockstep), args.lockstep, lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir(args.lockstep), args.lockstep, defaultsim, coverStr, configs, lockstepMode=1)
         if os.path.isdir(coverageDir(args.lockstep)):  # rv32imcb has no coverage-targeted tests of its own
-            addTestsByDir(coverageDir(args.lockstep), args.lockstep, lockstepsim, coverStr, configs, lockstepMode=1)
+            addTestsByDir(coverageDir(args.lockstep), args.lockstep, defaultsim, coverStr, configs, lockstepMode=1)
      # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
@@ -895,7 +890,7 @@ def selectTests(args, sims, coverStr):
     if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker or args.lockstep):
         buildTests()
         for sim in sims:
-            if not (args.buildroot and sim == lockstepsim):  # skip short buildroot sim if running long one
+            if not (args.buildroot and sim == defaultsim):  # skip short buildroot sim if running long one
                 addTests(tests_buildrootshort, sim, coverStr, configs)
             for config in standard_configs:
                 addTestsByDir(actElfDir(config), config, sim, coverStr, configs, chunk=25)
@@ -904,13 +899,13 @@ def selectTests(args, sims, coverStr):
     # run derivative configurations and lockstep tests in nightly regression
     if args.nightly:
         buildTests(periph=False, coverage=True, deriv=True)
-        addTestsByDir(coverageDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv64gc"), "rv64gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv64gc"), "rv64gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32gc"), "rv32gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32gc"), "rv32gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imc"), "rv32imc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32imc"), "rv32imc", defaultsim, coverStr, configs, lockstepMode=1)
         addActTests(derivconfigtests, defaultsim, coverStr, configs)
         for config, tests in deriv_coverage_tests.items():
             addTestGroup("coverage", coverageDir("rv64gc"), tests, config, defaultsim, coverStr, configs)
@@ -1015,10 +1010,8 @@ def main(args):
             print(f"{bcolors.OKCYAN}Removed {len(stale)} coverage databases that no selected test writes{bcolors.ENDC}")
     # Scale the number of concurrent processes to the number of test cases, but
     # max out at a limited number of concurrent processes to not overwhelm the system
-    # lockstep tests (nightly, ccov, fcov, lockstep) each hold an ImperasDV license.  The CPUs this process may
-    # run on (os.sched_getaffinity) honor taskset, unlike multiprocessing.cpu_count().
-    ImperasDVLicenseCount = 16 if (args.nightly or args.ccov or args.fcov or args.lockstep) else 10000
-    with Pool(processes=min(len(configs), len(os.sched_getaffinity(0)), ImperasDVLicenseCount)) as pool:
+    # The CPUs this process may run on (os.sched_getaffinity) honor taskset, unlike multiprocessing.cpu_count().
+    with Pool(processes=min(len(configs), len(os.sched_getaffinity(0)))) as pool:
         num_fail = 0
         # Start the simulations of the most ELFs first, so that the longest ones do not start last; runs
         # that are not lists of ELFs (lint, buildroot, testfloat) keep their place at the front

@@ -384,28 +384,11 @@ def runQuesta(args, flags, env):
     return run(["vsim", *([] if args.gui else ["-c"]), "-do", run_do], sim_dir, env, successPattern(args))
 
 
-def checkRvviTraceOrder():
-    """Warn if ImperasDV's rvviTrace.sv initializes client_id_next in its declaration.  ImperasDV's RVVI
-    clients (trace2api, trace2log) register in static initializers of their own, and Verilator runs
-    rvviTrace's initializer after them, which drops every client: the interrupt nets then never reach the
-    reference model, and every test that takes an interrupt mismatches.  Questa and VCS run it first."""
-    rvviTrace = Path(os.environ.get("IMPERAS_HOME", "")) / "ImpPublic" / "source" / "host" / "rvvi" / "rvviTrace.sv"
-    if rvviTrace.is_file() and re.search(r"\bint\s+client_id_next\s*=", rvviTrace.read_text()):
-        print(f"Warning: {rvviTrace} initializes client_id_next in its declaration, so under Verilator the "
-              "reference model never receives interrupts.  Use an ImperasDV whose rvviTrace.sv declares "
-              "it without an initializer.", file=sys.stderr)
-
-
 def runVerilator(args, env):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
-    lockstep = args.lockstep or args.lockstepverbose
-    if lockstep:
-        checkRvviTraceOrder()
     speedopt = args.test == "buildroot"  # speed-optimized model only for Linux boots
-    # A lock-step build compiles ImperasDV's SystemVerilog from IMPERAS_HOME, so each ImperasDV gets its own build
-    imperas = os.environ.get("IMPERAS_HOME", "") if lockstep else ""
-    bhash = buildHash(args.params, args.define, fcovKey(args), "speedopt" if speedopt else "", imperas)
+    bhash = buildHash(args.params, args.define, fcovKey(args), "speedopt" if speedopt else "")
     workdir = sim_dir / "wkdir" / f"{args.config}_{args.tb}{'_' + bhash if bhash else ''}"
     binary = workdir / f"V{args.tb}"
 
@@ -419,7 +402,7 @@ def runVerilator(args, env):
         f"BUILD_HASH={bhash}",
         f"FCOV={int(args.fcov)}",
         f"SPEED_OPT={int(speedopt)}",
-        f"LOCKSTEP={int(lockstep)}",
+        f"LOCKSTEP={int(args.lockstep or args.lockstepverbose)}",
     ]
     target_mtime = targetMtime(binary)
     needs_compile = target_mtime is None or not isDesignUpToDate(binary, fcovDirs(args))
