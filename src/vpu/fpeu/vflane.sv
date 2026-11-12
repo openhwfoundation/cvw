@@ -185,9 +185,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic                  SqrtM;                                      // square root rather than divide in the M stage
   logic                  DivStickyM;                                 // divider sticky bit
   logic [FP.NE+1:0]      UeM;                                        // divsqrt exponent
-  logic [P.DIVb:0]       UmM;                                        // divsqrt significand
-  logic [P.ELEN-1:0]     FIntDivResultM;
-
+  logic [P.DIVb:0]       UmM;                                        // divsqrt significand, TODO: change to FP.DIVb when fdivsqrt uses FP
   assign DivStartE = FDivStartE & FPUActiveE & DivOpE;
 
   fmtparams #(FP) fmtparams (.Fmt(OutFmt), .Bias(BiasE), .Nf(NfE));
@@ -196,7 +194,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     .XInfE, .YInfE, .XZeroE, .YZeroE, .XNaNE, .YNaNE, .BiasE, .NfE, .FDivStartE(DivStartE), .IDivStartE(1'b0), .XsE,
     .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3E(3'b000), .Funct3M(3'b000), .IntDivE(1'b0), .W64E(1'b0),
     .StallM, .FlushE, .DivStickyM, .FDivBusyE, .IFDivStartE, .FDivDoneE, .UeM,
-    .UmM, .FIntDivResultM);
+    .UmM, .FIntDivResultM());
 
   // vfcvt
   logic [2:0]              VfcvtOpCtrlE;
@@ -356,9 +354,9 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     .FmaASticky(FmaAStickyM), .FmaSCnt(SCntM),
 
     // Divide signals
-    .DivSticky(DivStickyM),
+    .DivSticky(DivStickyM | (|(UmM << (FP.DIVb+1)))),              // TODO: drop second part of logic when fdivsqrt uses FP
     .DivUe(UeM),
-    .DivUm(UmM),
+    .DivUm(UmM[P.DIVb -: FP.DIVb+1]),                              // TODO: connect UmM directly when fdivsqrt uses FP
 
     // Convert signals
     .CvtCs(CsM),
