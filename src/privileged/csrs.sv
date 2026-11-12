@@ -131,16 +131,28 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   else
     assign STimerInt = 1'b0;
 
-  logic [1:0] LegalizedCBIE;
+  // SENVCFG register.  senvcfg is an SXLEN register; in Wally, SXL is hardwired to 64 on RV64.  Its lower
+  // 32 bits are the same at either XLEN, and RV64 adds PMM (Ssnpm) in bits 33:32.
+  logic [1:0]  LegalizedCBIE;
+  logic [31:0] SENVCFG_WriteValLowM;
   assign LegalizedCBIE = CSRWriteValM[5:4] == 2'b10 ? SENVCFG_REGW[5:4] : CSRWriteValM[5:4]; // Assume WARL for reserved CBIE = 10, keeps old value
-  assign SENVCFG_WriteValM = {
-    {(P.XLEN-8){1'b0}},
+  assign SENVCFG_WriteValLowM = {
+    24'b0,
     CSRWriteValM[7]   & P.ZICBOZ_SUPPORTED,
     CSRWriteValM[6]   & P.ZICBOM_SUPPORTED,
     LegalizedCBIE     & {2{P.ZICBOM_SUPPORTED}},
     3'b0,
     CSRWriteValM[0]   & P.VIRTMEM_SUPPORTED
   };
+
+  if (P.XLEN == 64) begin : senvcfgpmm
+    logic [1:0] LegalizedPMM;
+    assign LegalizedPMM = ((CSRWriteValM[33:32] == 2'b01) |
+                          (CSRWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
+                          SENVCFG_REGW[33:32] : CSRWriteValM[33:32];
+    assign SENVCFG_WriteValM = {30'b0, LegalizedPMM & {2{P.SSNPM_SUPPORTED}}, SENVCFG_WriteValLowM};
+  end else
+    assign SENVCFG_WriteValM = SENVCFG_WriteValLowM;
 
   flopenr #(P.XLEN) SENVCFGreg(clk, reset, WriteSENVCFGM, SENVCFG_WriteValM, SENVCFG_REGW);
 

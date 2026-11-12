@@ -37,6 +37,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   output logic                     WriteMSTATUSM, WriteMSTATUSHM,
   output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
   output logic [63:0]              MENVCFG_REGW,
+  output logic [63:0]              MSECCFG_REGW,
   output logic [63:0]              MSTATEEN0_REGW,
   output logic [3:1]               MSTATEENSE_REGW  // bit 63 (SE1-SE3) of mstateen1-3
 );
@@ -45,7 +46,6 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]               MISA_REGW, MHARTID_REGW;
   logic [P.XLEN-1:0]               MSCRATCH_REGW, MTVAL_REGW, MCAUSE_REGW;
   logic [P.XLEN-1:0]               MENVCFGH_REGW;
-  logic [63:0]                     MSECCFG_REGW;
   logic [P.XLEN-1:0]               TVECWriteValM;
   logic                            WriteMTVECM, WriteMEDELEGM, WriteMIDELEGM;
   logic                            WriteMSCRATCHM, WriteMEPCM, WriteMCAUSEM, WriteMTVALM;
@@ -87,6 +87,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   // ... up to 63 more at consecutive addresses
   localparam MSECCFG       = 12'h747;
   localparam MSECCFGH      = 12'h757;
+
   /* verilator lint_off UNUSEDPARAM */
   localparam TSELECT       = 12'h7A0;
   localparam TDATA1        = 12'h7A1;
@@ -194,14 +195,20 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     logic WriteMENVCFGM;
     logic [63:0] MENVCFG_PreWriteValM, MENVCFG_WriteValM;
     logic [1:0] LegalizedCBIE;
+    logic [1:0] LegalizedPMM;
     assign WriteMENVCFGM = CSRMWriteM & (CSRAdrM == MENVCFG);
     assign LegalizedCBIE = MENVCFG_PreWriteValM[5:4] == 2'b10 ? MENVCFG_REGW[5:4] : MENVCFG_PreWriteValM[5:4]; // Assume WARL for reserved CBIE = 10, keeps old value
+    assign LegalizedPMM = ((MENVCFG_PreWriteValM[33:32] == 2'b01) |
+                           (MENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
+                           MENVCFG_REGW[33:32] : MENVCFG_PreWriteValM[33:32];
     // MENVCFG is always 64 bits even for RV32
     assign MENVCFG_WriteValM = {
       MENVCFG_PreWriteValM[63]  & P.SSTC_SUPPORTED,
       MENVCFG_PreWriteValM[62]  & P.SVPBMT_SUPPORTED,
       MENVCFG_PreWriteValM[61]  & P.SVADU_SUPPORTED,
-      53'b0,
+      27'b0,
+      LegalizedPMM              & {2{P.SMNPM_SUPPORTED & (P.XLEN == 64)}},
+      24'b0,
       MENVCFG_PreWriteValM[7]   & P.ZICBOZ_SUPPORTED,
       MENVCFG_PreWriteValM[6]   & P.ZICBOM_SUPPORTED,
       LegalizedCBIE             & {2{P.ZICBOM_SUPPORTED}},
@@ -227,10 +234,9 @@ module csrm import cvw::*; #(parameter cvw_t P) (
 
   // MSECCFG register
   // mseccfg is 64 bits wide even in RV32, where the upper half is accessed as mseccfgh.
-  // It exists only if an extension defining one of its fields is implemented (P.MSECCFG_SUPPORTED);
-  // otherwise mseccfg and mseccfgh are illegal.  Wally does not yet support any of those
-  // extensions, so every field is presently read-only 0.  Uncomment the terms below as each
-  // extension is added.
+  // It exists if any extension that adds a field to it is implemented: Smepmp (MML, MMWP, RLB),
+  // Zkr (USEED, SSEED), Zicfilp (MLPE), or Smmpm (PMM); otherwise mseccfg and mseccfgh are illegal.
+  // Uncomment the terms below as each extension is added (and add it to MSECCFG_SUPPORTED in config-shared.vh).
   // Note that the Smepmp fields also need sticky/locking behavior: MML and MMWP cannot be
   // cleared once set, and RLB cannot be set once any pmpcfg entry has its L bit set, both
   // until a PMP reset.
@@ -238,19 +244,17 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     logic        WriteMSECCFGM;
     logic [63:0] MSECCFG_WriteValM;
     logic [63:0] MSECCFG_PreWriteValM;
-//  logic [1:0]  LegalizedPMM;
+    logic [1:0]  LegalizedPMM;
 
     assign WriteMSECCFGM = CSRMWriteM & (CSRAdrM == MSECCFG);
     // PMM is a WARL field: 00 = disabled, 10 = PMLEN 7, 11 = PMLEN 16, and 01 is reserved.
-    // Smmpm requires the largest supported address to fit in XLEN-PMLEN bits, so PMLEN 16 is
-    // unavailable with Sv57 or PA_BITS > 48.  Illegal writes keep the old value, as menvcfg.CBIE does.
-//  localparam PMLEN16_OK = !P.SV57_SUPPORTED & (P.PA_BITS <= 48);
-//  assign LegalizedPMM = ((MSECCFG_PreWriteValM[33:32] == 2'b01) |                 // reserved encoding
-//                         (MSECCFG_PreWriteValM[33:32] == 2'b11 & !PMLEN16_OK)) ?  // PMLEN 16 too wide
-//                        MSECCFG_REGW[33:32] : MSECCFG_PreWriteValM[33:32];
+    // PMLEN 16 is available only in PMLEN16_SUPPORTED configurations.  Illegal writes keep the old value, as menvcfg.CBIE does.
+    assign LegalizedPMM = ((MSECCFG_PreWriteValM[33:32] == 2'b01) |                         // reserved encoding
+                           (MSECCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // PMLEN 16 unsupported
+                          MSECCFG_REGW[33:32] : MSECCFG_PreWriteValM[33:32];
     assign MSECCFG_WriteValM = {
       30'b0,                                                       // 63:34 WPRI
-       2'b0,  // LegalizedPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}}, // 33:32 PMM (Smmpm); read-only 0 on RV32
+      LegalizedPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}},       // 33:32 PMM (Smmpm); read-only 0 on RV32
       21'b0,                                                       // 31:11 WPRI
        1'b0,  // MSECCFG_PreWriteValM[10] & P.ZICFILP_SUPPORTED,   //    10 MLPE (Zicfilp)
        1'b0,  // MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)

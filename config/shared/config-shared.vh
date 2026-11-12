@@ -14,8 +14,8 @@ localparam VPN_BITS = (SV57_SUPPORTED ? (5*VPN_SEGMENT_BITS) :
                        SV48_SUPPORTED ? (4*VPN_SEGMENT_BITS) :
                        SV39_SUPPORTED ? (3*VPN_SEGMENT_BITS) :
                                         (2*VPN_SEGMENT_BITS));
-localparam PPN_BITS    = (XLEN==32 ? 32'd22 : 32'd44);
-localparam PA_BITS     = (XLEN==32 ? 32'd34 : 32'd56);
+localparam PPN_BITS    = (PMLEN16_SUPPORTED ? 32'd36 : (XLEN==32 ? 32'd22 : 32'd44));
+localparam PA_BITS     = (PMLEN16_SUPPORTED ? 32'd48 : (XLEN==32 ? 32'd34 : 32'd56));
 localparam SVMODE_BITS = (XLEN==32 ? 32'd1  : 32'd4);
 localparam ASID_BASE   = (XLEN==32 ? 32'd22 : 32'd44);
 localparam ASID_BITS   = (XLEN==32 ? 32'd9  : 32'd16);
@@ -34,10 +34,11 @@ localparam logic A_SUPPORTED = (ZAAMO_SUPPORTED & ZALRSC_SUPPORTED);
 localparam logic B_SUPPORTED = ((ZBA_SUPPORTED & ZBB_SUPPORTED & ZBS_SUPPORTED));
 localparam logic C_SUPPORTED = ZCA_SUPPORTED & (D_SUPPORTED ? ZCD_SUPPORTED : 1) & (F_SUPPORTED ? ((XLEN == 32) ? ZCF_SUPPORTED : 1) : 1);
 localparam logic ZKN_SUPPORTED = (ZBKB_SUPPORTED & ZBKC_SUPPORTED & ZBKX_SUPPORTED & ZKND_SUPPORTED & ZKNE_SUPPORTED & ZKNH_SUPPORTED);
+localparam logic ZPM_SUPPORTED = (SMMPM_SUPPORTED | SSNPM_SUPPORTED | SMNPM_SUPPORTED);
 // mseccfg/mseccfgh exist only when an extension defining one of their fields is implemented
 // (Smepmp, Zkr, Zicfilp, Smmpm); otherwise accesses raise illegal instruction.
-// Wally supports none of them yet.  Replace the 0 with the OR of those parameters as they are added.
-localparam logic MSECCFG_SUPPORTED = 0; // SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED | SMMPM_SUPPORTED
+// Smmpm is the only one Wally supports; OR in the others as they are added.
+localparam logic MSECCFG_SUPPORTED = SMMPM_SUPPORTED; // | SMEPMP_SUPPORTED | ZKR_SUPPORTED | ZICFILP_SUPPORTED
 
 // Configure MISA based on supported extensions
 localparam MISA = {6'b0, 5'b0, U_SUPPORTED, 1'b0, S_SUPPORTED, 1'b0, Q_SUPPORTED, 3'b0, M_SUPPORTED, 3'b0, I_SUPPORTED, 2'b0,

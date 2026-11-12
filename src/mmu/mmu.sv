@@ -51,7 +51,8 @@ module mmu import cvw::*; #(parameter cvw_t P,
   input  logic [3:0]               CMOpM,                                                     // Cache management instructions
   input  logic                     AtomicAccessM, ExecuteAccessF, WriteAccessM, ReadAccessM,  // access type
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],                      // PMP configuration
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0]                      // PMP addresses
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],                     // PMP addresses
+  output logic [1:0]               EffectivePrivilegeModeW                                    // Effective privilege mode accounting for MPRV
 );
 
   logic [P.PA_BITS-1:0]        TLBPAdr;                  // physical address for TLB
@@ -68,9 +69,9 @@ module mmu import cvw::*; #(parameter cvw_t P,
   logic [1:0]                  PBMemoryType;             // PBMT field of PTE during TLB hit, or 00 otherwise
   logic                        MisalignedCausesAccessFaultM; // Misaligned access throws an access fault instead of a misaligned fault
   logic                        CrossesGranuleM;          // Misaligned access crosses a 16-byte boundary, so Zama16b does not make it atomic
-  logic [1:0]                  EffectivePrivilegeModeW;  // Effective privilege mode accounting for MPRV
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
   logic                        PAOutOfRange;             // Untranslated address has nonzero bits above PA_BITS
+  logic [P.XLEN+1:0]           MaskedVAdr;               // VAdr with pointer masking applied (PMLEN 16 configurations)
 
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode

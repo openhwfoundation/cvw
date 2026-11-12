@@ -133,6 +133,9 @@ SVPBMT_SUPPORTED    0
 SVNAPOT_SUPPORTED   0
 SVINVAL_SUPPORTED   0
 SVADU_SUPPORTED     0
+SMMPM_SUPPORTED     0
+SMNPM_SUPPORTED     0
+SSNPM_SUPPORTED     0
 deriv syn_sram_rv64gc_noPriv syn_sram_rv64gc_pmp0
 S_SUPPORTED         0
 SSSTATEEN_SUPPORTED 0
@@ -150,6 +153,9 @@ SVPBMT_SUPPORTED    0
 SVNAPOT_SUPPORTED   0
 SVINVAL_SUPPORTED   0
 SVADU_SUPPORTED     0
+SMMPM_SUPPORTED     0
+SMNPM_SUPPORTED     0
+SSNPM_SUPPORTED     0
 
 deriv syn_rv64gc_noFPU syn_rv64gc_noPriv
 F_SUPPORTED         0
@@ -944,13 +950,15 @@ SVPBMT_SUPPORTED  0
 SVNAPOT_SUPPORTED 0
 SVINVAL_SUPPORTED 0
 SVADU_SUPPORTED   0
+SSNPM_SUPPORTED   0
 
 deriv noU_rv32gc noS_rv32gc
 U_SUPPORTED    0
 SMSTATEEN_SUPPORTED 0
 
 deriv noU_rv64gc noS_rv64gc
-U_SUPPORTED    0
+U_SUPPORTED     0
+SMNPM_SUPPORTED 0
 SMSTATEEN_SUPPORTED 0
 
 # Floating-point modes supported
@@ -998,6 +1006,12 @@ ZFH_SUPPORTED   0
 
 deriv fdh_rv64gc rv64gc
 ZFH_SUPPORTED   1
+
+#Pointer masking length 16 supported
+
+deriv pm16 rv64gc
+SV57_SUPPORTED     0
+PMLEN16_SUPPORTED  1
 
 # EXT_IO PMA window test (tests/coverage64gc/extIOWindow.S): 64 KiB of external
 # memory at 0x90000000 with a 4 KiB uncached I/O window at 0x90008000.
