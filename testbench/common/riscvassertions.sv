@@ -44,7 +44,7 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert ((P.ZCA_SUPPORTED == 1) | (P.ZCD_SUPPORTED == 0 & P.ZCF_SUPPORTED == 0 & P.ZCB_SUPPORTED == 0)) else $fatal(1, "ZCB, ZCF, or ZCD requires ZCA");
     assert ((P.ZCF_SUPPORTED == 0) | ((P.F_SUPPORTED == 1) & (P.XLEN == 32))) else $fatal(1, "ZCF requires F and XLEN == 32");
     assert ((P.ZCD_SUPPORTED == 0) | (P.D_SUPPORTED == 1)) else $fatal(1, "ZCD requires D");
-    assert ((P.SV57_SUPPORTED == 0) | (P.PMLEN16_SUPPORTED == 0)) else $fatal(1, "PMLEN16 cannot be supported when SV57 is supported");
+    assert (((P.SV57_SUPPORTED == 0) & (P.PA_BITS <= 48)) | (P.PMLEN16_SUPPORTED == 0)) else $fatal(1, "PMLEN16 requires SV57 unsupported and <= 48 physical address bits");
     assert ((P.XLEN == 64) | ((P.SMMPM_SUPPORTED == 0) & (P.SSNPM_SUPPORTED == 0) & (P.SMNPM_SUPPORTED == 0))) else $fatal(1, "Pointer masking requires XLEN = 64");
     assert ((P.SSNPM_SUPPORTED == 0) | (P.S_SUPPORTED == 1)) else $fatal(1, "Ssnpm requires S_SUPPORTED");
     assert ((P.SMNPM_SUPPORTED == 0) | (P.U_SUPPORTED == 1)) else $fatal(1, "Smnpm requires U_SUPPORTED");

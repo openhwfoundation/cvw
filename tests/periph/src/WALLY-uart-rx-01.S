@@ -325,24 +325,45 @@ trig_loop:
     UW UART_LCR, 0x03
 
 // ---------------- Sweeps of register reads against character arrival and modem input changes ----------------
-// At divisor 1, a register read is placed k cycles (nops) after an event, for k = 0..511, which
-// covers the arrival of a character at every cycle offset.  A character's start bit is not aligned
-// to the baud clock, so its arrival time moves by up to a baud period with the cycle it is written
-// in; each sweep therefore runs four times, writing the character d = 0..3 cycles later.  Each sweep
-// gives two entries: the number of failing (d, k) (0) and the first failing k (-1 if none).
+// At divisor 1, a register read is placed k cycles (nops) after an event, for k over a 64-cycle window
+// centered on the cycle where the read meets the character's arrival: k = s1-62 (RBR), s1-56 (LSR
+// error), and s1-40 (LSR clear), where s1 is one character time (about 340 cycles).  Reads farther from
+// the arrival repeat the cases at the window's ends.  A character's start bit is not aligned to the baud
+// clock, which ticks every 2 cycles at divisor 1, so its arrival time depends on the cycle it is written
+// in; each sweep therefore runs twice, writing the character d = 0..1 cycles later.  Each sweep gives three
+// entries: the number of failing (d, k) (0), the first failing k (-1 if none), and a window check (0):
+// bit 0 is set if the character had already arrived at the first k, bit 1 if it had not yet arrived at
+// the last k, either of which means the window no longer covers the arrival.
+// WINDOW_CHECK: for k = s1-first .. s1-end-1, with t5 = 1 if the character had arrived at the read.
+// Uses t2, t3.
+.macro WINDOW_CHECK first, end
+    addi t2, s1, -\first
+    bne s2, t2, 1f
+    or s7, s7, t5                   // arrived before the first k
+1:
+    addi t2, s1, -(\end + 1)
+    bne s2, t2, 1f
+    xori t3, t5, 1
+    slli t3, t3, 1
+    or s7, s7, t3                   // not yet arrived at the last k
+1:
+.endm
     jal ra, uart_quiesce
     li a0, 1
     jal ra, uart_set_divisor
     jal ra, uart_calibrate
+    li a0, 1023
+    jal ra, uart_nops               // load the nop sled into the I$, so that k nops take k cycles from the start
 
 // RBR read against the arrival of the next character: A is in the FIFO, B is sent, and A is read k
 // cycles later.  A read must pop exactly one character whenever it happens.
     UW UART_FCR, 0x07
     li s3, 0
     li s4, -1
+    li s7, 0
     li s8, 0
 sweep_rbr_d:
-    li s2, 0
+    addi s2, s1, -94                // k = s1-94 .. s1-31
 sweep_rbr:
     UW UART_THR, 0x3C
     WAIT_LSR 0x01, 0x01             // A has arrived
@@ -350,6 +371,9 @@ sweep_rbr:
     UW UART_THR, 0xC3
     NOPS s2
     lbu s5, UART_RBR(s0)            // A
+    lbu t5, UART_LSR(s0)
+    andi t5, t5, 0x01               // B had arrived
+    WINDOW_CHECK 94, 30
     WAIT_LSR 0x40, 0x40
     WAIT_LSR 0x01, 0x01
     lbu s6, UART_RBR(s0)            // B
@@ -370,22 +394,24 @@ sweep_rbr:
     UW UART_FCR, 0x07
 6:
     addi s2, s2, 1
-    li t2, 512
+    addi t2, s1, -30
     bltu s2, t2, sweep_rbr
     addi s8, s8, 1
-    li t2, 4
+    li t2, 2
     bltu s8, t2, sweep_rbr_d
     SIGR s3                         // 91: 0
     SIGR s4                         // 92: -1
+    SIGR s7                         // 93: 0
 
 // LSR read against the arrival of a character with a parity error (FIFOs off): the error must be
 // seen with data ready, whether the read at k lands before or after the arrival.
     jal ra, uart_quiesce
     li s3, 0
     li s4, -1
+    li s7, 0
     li s8, 0
 sweep_lsr_err_d:
-    li s2, 0
+    addi s2, s1, -88                // k = s1-88 .. s1-25
 sweep_lsr_err:
     UW UART_LCR, 0x1B
     NOPS s8
@@ -394,10 +420,11 @@ sweep_lsr_err:
     UW UART_LCR, 0x0B               // checked as odd: parity error
     NOPS s2
     lbu s5, UART_LSR(s0)            // read at k
+    andi t5, s5, 0x01               // the character had arrived
+    WINDOW_CHECK 88, 24
     WAIT_HALF_CHARS 4
     lbu s6, UART_LSR(s0)            // read after the character
-    andi t2, s5, 0x01
-    bnez t2, 1f
+    bnez t5, 1f
     mv s5, s6                       // the read at k was before the arrival
 1:
     andi s5, s5, 0x05
@@ -410,22 +437,24 @@ sweep_lsr_err:
 6:
     jal ra, uart_quiesce
     addi s2, s2, 1
-    li t2, 512
+    addi t2, s1, -24
     bltu s2, t2, sweep_lsr_err
     addi s8, s8, 1
-    li t2, 4
+    li t2, 2
     bltu s8, t2, sweep_lsr_err_d
-    SIGR s3                         // 93: 0
-    SIGR s4                         // 94: -1
+    SIGR s3                         // 94: 0
+    SIGR s4                         // 95: -1
+    SIGR s7                         // 96: 0
 
 // LSR read against the arrival of the next, good character (FIFOs off): A (parity error) has been
 // read from RBR but its status not yet read; B is sent and LSR is read k cycles later.  That read
 // reports A's error and clears it, so the read after B must show no error.
     li s3, 0
     li s4, -1
+    li s7, 0
     li s8, 0
 sweep_lsr_clr_d:
-    li s2, 0
+    addi s2, s1, -72                // k = s1-72 .. s1-9
 sweep_lsr_clr:
     li a0, 0x01
     li a1, 0x1B
@@ -436,6 +465,8 @@ sweep_lsr_clr:
     UW UART_THR, 0x01               // B, odd parity: good
     NOPS s2
     lbu s5, UART_LSR(s0)            // read at k
+    andi t5, s5, 0x01               // B had arrived
+    WINDOW_CHECK 72, 8
     WAIT_HALF_CHARS 4
     lbu s6, UART_LSR(s0)            // read after B
     lbu t2, UART_RBR(s0)
@@ -450,13 +481,14 @@ sweep_lsr_clr:
 6:
     jal ra, uart_quiesce
     addi s2, s2, 1
-    li t2, 512
+    addi t2, s1, -8
     bltu s2, t2, sweep_lsr_clr
     addi s8, s8, 1
-    li t2, 4
+    li t2, 2
     bltu s8, t2, sweep_lsr_clr_d
-    SIGR s3                         // 95: 0
-    SIGR s4                         // 96: -1
+    SIGR s3                         // 97: 0
+    SIGR s4                         // 98: -1
+    SIGR s7                         // 99: 0
 
 // MSR read against a modem input change: MCR toggles RTS (looped back to CTS) and MSR is read n
 // nops later (n = 0..23, inline) and again right after.  DCTS must appear in exactly one of the two
@@ -480,8 +512,8 @@ sweep_lsr_clr:
     .irp n, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23
     MSR_TRY \n
     .endr
-    SIGR s3                         // 97: 0
-    SIGR s4                         // 98: -1
+    SIGR s3                         // 100: 0
+    SIGR s4                         // 101: -1
     j msr_done
 
 // a0, a1 = the two MSR reads, a2 = n.  Counts a failure in s3, first failing n in s4.
@@ -549,9 +581,9 @@ WORD 0xC1, 0xCC, 0x65, 0x66, 0x60           // 66: restarted by a new character
 WORD 0x04, 0x64, 0x01                       // 71: FIFOs off
 WORD 0xC1, 0xE1, 0x71, 0xC6, 0xE5, 0xC1, 0x01, 0x61, 0x61, 0x73, 0x60  // 74: errors in the FIFO
 WORD 0x65, 0x01, 0x60, 0x67, 0x01, 0x60     // 85: errors, FIFOs off
-WORD 0, -1                                  // 91: RBR read sweep
-WORD 0, -1                                  // 93: LSR error sweep
-WORD 0, -1                                  // 95: LSR clear sweep
-WORD 0, -1                                  // 97: MSR sweep
+WORD 0, -1, 0                               // 91: RBR read sweep
+WORD 0, -1, 0                               // 94: LSR error sweep
+WORD 0, -1, 0                               // 97: LSR clear sweep
+WORD 0, -1                                  // 100: MSR sweep
 WORD 0x0B                                   // ecall from test termination
 expected_signature_end:

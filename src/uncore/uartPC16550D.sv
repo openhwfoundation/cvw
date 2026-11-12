@@ -18,8 +18,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-/* verilator lint_off UNOPTFLAT */
-
 module uartPC16550D #(parameter UART_PRESCALE) (
   // Processor Interface
   input  logic       PCLK, PRESETn,                  // UART clock and active low reset

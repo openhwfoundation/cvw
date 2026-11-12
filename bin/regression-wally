@@ -73,6 +73,8 @@ deriv_coverage_tests = {
     "fdq_rv64gc": ["misalignedQuadSpill", "uncachedQuad"],
     # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
     "extio_rv64gc": ["extIOWindow"],
+    # uncached AMO racing an I$ fill with wait states on the RAM
+    **{f"ram_{r}_rv64gc": ["amoifill"] for r in ["1_0", "1_1", "2_0", "2_1"]},
 }
 
 # The tests below are a list with one element for each configuration
@@ -350,6 +352,12 @@ lockstepwaivers = [
     # misaligned exceptions in uncached regions; without Zam the reference takes an access fault instead.
     "Exceptions_Zaamo-00.elf", "Sv_ExceptionsZaamoSm_sv39_exceptions_Zaamo_mprv_S_Mmode-00.elf",
     "Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Smode-00.elf", "Sv_ExceptionsZaamo_sv39_exceptions_Zaamo_Umode-00.elf",
+
+    # A misaligned load to the CLINT or GPIO may raise address-misaligned or access fault.  rv64gc splits it
+    # and the I/O region faults the pieces (cause 5).  ImperasDV raises address-misaligned (4) when imperas.ic
+    # marks the region aligned-only, and otherwise completes the access, so neither setting matches Wally.
+    "rv64_WALLY-clint-access-01.elf",
+    "rv64_WALLY-gpio-stress-01.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and

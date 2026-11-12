@@ -631,11 +631,13 @@ ZICCLSM_SUPPORTED 1
 deriv nomisaligned_rv64gc rv64gc
 ZICCLSM_SUPPORTED 0
 
-deriv nobigendian_rv32gc rv32gc
-BIGENDIAN_SUPPORTED 0
+# rv32gc and rv64gc are little-endian until Sail and riscv-arch-test can test big-endian accesses, so these keep
+# the bi-endian RTL linted
+deriv bigendian_rv32gc rv32gc
+BIGENDIAN_SUPPORTED 1
 
-deriv nobigendian_rv64gc rv64gc
-BIGENDIAN_SUPPORTED 0
+deriv bigendian_rv64gc rv64gc
+BIGENDIAN_SUPPORTED 1
 
 deriv zaamo_rv32gc rv32gc
 ZALRSC_SUPPORTED    0

@@ -87,8 +87,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic                     ITLBWriteF,                           // Write PTE to ITLB
   output logic                     SelHPTW,                              // During a HPTW walk the effective privilege mode becomes S_MODE
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP configuration from privileged unit
-  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0], // PMP address from privileged unit
-  output logic                     PointerMaskApplicable, PMLen16Sel     // Pointer masking signals
+  input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0] // PMP address from privileged unit
 );
   localparam logic MISALIGN_SUPPORT = P.ZICCLSM_SUPPORTED & P.DCACHE_SUPPORTED;
   localparam MLEN = MISALIGN_SUPPORT ? 2*P.LLEN : P.LLEN; // widen buffer for misaligned accesses
@@ -155,18 +154,43 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
+  logic [P.XLEN-1:0]     IEUAdrMMasked;
+  logic [1:0]            EffectivePrivilegeModeW;                // Effective privilege mode accounting for MPRV
+  logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////
 
+  if (P.ZPM_SUPPORTED) begin : pm
+  pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
+                                .STATUS_MXR, .MemRWM, .CMOpM, .PointerMaskApplicable, .PMLen16Sel);
+  end else begin
+    assign PointerMaskApplicable = 1'b0;
+    assign PMLen16Sel            = 1'b0;
+  end
+
+  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, hardware writes of the address to xtval are pointer masked
+    logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
+    logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
+    assign PhysicalAdrM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+    assign PM7AdrM = PhysicalAdrM ? {7'b0, IEUAdrM[56:0]} : {{7{IEUAdrM[56]}}, IEUAdrM[56:0]};
+    if (P.PMLEN16_SUPPORTED) begin : pmlen16
+      logic [P.XLEN-1:0] PM16AdrM;
+      assign PM16AdrM = PhysicalAdrM ? {16'b0, IEUAdrM[47:0]} : {{16{IEUAdrM[47]}}, IEUAdrM[47:0]};
+      assign PMAdrM = PMLen16Sel ? PM16AdrM : PM7AdrM;
+    end else
+      assign PMAdrM = PM7AdrM;
+    assign IEUAdrMMasked = PointerMaskApplicable ? PMAdrM : IEUAdrM;
+  end else assign IEUAdrMMasked = IEUAdrM;
+
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
-    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
+    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM(IEUAdrMMasked), .Funct3M, .FpLoadStoreM,
                      .MemRWM,
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
@@ -175,14 +199,14 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign IEUAdrExtM = {2'b00, IEUAdrSpillM};
     assign IEUAdrExtE = {2'b00, IEUAdrSpillE};
   end else begin : zicclsm_align
-    assign IEUAdrExtM = {2'b00, IEUAdrM};
+    assign IEUAdrExtM = {2'b00, IEUAdrMMasked};
     assign IEUAdrExtE = {2'b00, IEUAdrE};
     assign SelSpillE = 1'b0;
     assign DCacheReadDataWordSpillM = DCacheReadDataWordM;
     assign ByteMaskSpillM = ByteMaskM;
     assign LSUWriteDataSpillM = LSUWriteDataM;
     assign {SpillStallM} = 1'b0;
-    assign IEUAdrxTvalM = IEUAdrM;
+    assign IEUAdrxTvalM = IEUAdrMMasked;
   end
 
   if (P.ZICBOZ_SUPPORTED) begin : cboz
@@ -269,7 +293,6 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
     dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
-      .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .MemRWM, .CMOpMUngated(CMOpM),
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .TLBFlushVA(sfencevmaAdrM), .TLBFlushASID(WriteDataM[P.ASID_BITS-1:0]), // WriteDataM holds rs2
@@ -281,7 +304,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .UpdateDA(DataUpdateDAM), .CMOpM(LSUCMOpM),
       .AtomicAccessM(|LSUAtomicM), .ExecuteAccessF(1'b0),
       .WriteAccessM, .ReadAccessM(PreLSURWM[1]),
-      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .PointerMaskApplicable, .PMLen16Sel);
+      .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .EffectivePrivilegeModeW);
 
     assign DTLBMissOrUpdateDAM = DTLBMissM | (P.SVADU_SUPPORTED & DataUpdateDAM);
   end else begin  // No MMU, so no PMA/page faults and no address translation
@@ -292,8 +315,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign CacheableM = 1'b1;
     assign SelDTIM = P.DTIM_SUPPORTED & ~P.BUS_SUPPORTED; // if no PMA then select dtim if there is a DTIM.  If there is
     // a bus then this is always 0. Cannot have both without PMA.
-    assign PointerMaskApplicable = 1'b0;
-    assign PMLen16Sel = 1'b0;
+    assign EffectivePrivilegeModeW = PrivilegeModeW;
   end
 
   /////////////////////////////////////////////////////////////////////////////////////////////

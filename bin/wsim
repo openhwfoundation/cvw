@@ -9,9 +9,9 @@
 # example: wsim rv64gc test.elf
 # example: wsim rv64gc addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 # example: wsim rv32gc a.elf b.elf c.elf -s verilator
-# example: wsim rv64gc buildroot
+# example: wsim buildroot buildroot
 # example: wsim rv64gc addins/riscv-arch-test/work/cvw-rv64gc/elfs/priv/Sv --fcov -s verilator
-# example: wsim fdqh_ieee_rv64gc add -t testbench_fp        # run TestFloat
+# example: wsim fdqh_rv64gc add -t testbench_fp             # run TestFloat
 #
 # SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
