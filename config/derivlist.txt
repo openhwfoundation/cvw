@@ -61,6 +61,10 @@ EXT_MEM_RANGE       64'h0FFFFFFF
 deriv fpgavcu108 fpga
 EXT_MEM_RANGE       64'h7FFFFFFF
 
+# The vcu118 device tree (linux/devicetree/wally-vcu118.dts) gives Linux 256 MB
+deriv fpgavcu118 fpga
+EXT_MEM_RANGE       64'h0FFFFFFF
+
 deriv fpganexysa7 fpga
 EXT_MEM_RANGE       64'h07FFFFFF
 
