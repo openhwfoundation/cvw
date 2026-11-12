@@ -42,7 +42,6 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // flow control
   input logic                         ControllerValidD,
   output logic                        ExecutionUnitReadyD,
-  input logic                         ControllerWBReadyW,
   output logic                        ExecutionUnitResultValidW,
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW,
   input logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderD,
@@ -66,9 +65,11 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // from/to the scalar core
   input logic [P.XLEN-1:0]            R1D,                            // Scalar rs1 read in Decode (from IEU)
   output logic [P.XLEN-1:0]           VIEUResultToScalarW,            // Int or FP result for
-  output logic [P.VLEN-1:0]           VIEUResultW,
+  output logic [P.VPU_INT_BLEN-1:0]   VIEUResultW,                    // result beat (to sVRF)
   // control output
   output logic                        VIEURegWriteW, VIEUVRegWriteW,
+  output logic                        VIEUBeatValidW,                 // result beat is valid
+  output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] VIEUBeatW,           // beat number of result
   output logic [4:0]                  VIEUVdFinalW
 );
 
@@ -112,22 +113,15 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   logic [P.VPU_INT_BLEN-1:0] VSrcAE, VSrcBE, VSrcCE;
   logic [P.VPU_INT_BLEN-1:0] VALUResultE, VALUResultM;
-  logic [P.VLEN-1:0]         VALUResultW;
 
   logic [4:0]                VdFinalE, VdFinalM;
 
-  logic                      EnableW, EnableBeatW;
-  logic                      ConsummedW;
 
   logic [31:0]               InstrE, InstrM, InstrW;
   logic [P.XLEN-1:0]         PCE, PCM, PCW;
 
 
-  logic [4:0]                PreVdFinalW;
-  logic                      PreRegWriteW, PreVRegWriteW;
-
-  logic                      LocalStallE, LocalStallM, LocalStallW;
-  logic                      NotConsummedW;
+  logic                      ResultValidW, BeatValidW;
 
 
 
@@ -138,15 +132,15 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
   assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
 
-  vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE, .NotConsummedW,
+  vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
                        .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE, .vlE);
   assign CaptureD = ControllerValidD & ExecutionUnitReadyD; // *** duplicated in vieufsm
 
-  flopenrc #(P.VLEN) VRD1EReg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, VRD1D, VRD1E);
-  flopenrc #(P.VLEN) VRD2EReg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, VRD2D, VRD2E);
-  flopenrc #(P.VLEN) VRD3EReg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, VRD3D, VRD3E);
-  flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~LocalStallE & CaptureD, v0D,   v0E);
-  flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~LocalStallE & CaptureD, R1D,   R1E);
+  flopenrc #(P.VLEN) VRD1EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD1D, VRD1E);
+  flopenrc #(P.VLEN) VRD2EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD2D, VRD2E);
+  flopenrc #(P.VLEN) VRD3EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD3D, VRD3E);
+  flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, v0D,   v0E);
+  flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, R1D,   R1E);
 
   // convert to index format
   genvar index;
@@ -167,14 +161,14 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // controll is routed to different EUs.
 
   flopenrc #(27+P.VPU_QUEUEDEPTH) contrlregE
-    (clk, reset, VectorFlushE, ~LocalStallE & CaptureD,
+    (clk, reset, VectorFlushE, ~VectorStallE & CaptureD,
      {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VSubD, VLaneSelectD,
       VShiftSelectD, ExecutionUnitOrderD},
      {VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE, VALUSelectE, VSubE, VLaneSelectE,
       VShiftSelectE, ExecutionUnitOrderE});
 
-  flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, PCD, PCE);
-  flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~LocalStallE & CaptureD, InstrD, InstrE);
+  flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, PCD, PCE);
+  flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, InstrD, InstrE);
 
   mux3 #(P.VPU_INT_BLEN) vscramux(VRD1SelectedE, VImmE, {XLENTOINTLANES{R1E}}, VALUSrcAE, VSrcAE);
 
@@ -183,47 +177,30 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE,
                                          .VShiftSelectE, .LaneResult(VALUResultE));
 
-  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~LocalStallM, VALUResultE, VALUResultM); // *** may need an enable
+  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VALUResultM); // *** may need an enable
 
   flopenrc #(10+BEATBITLEN+P.VPU_QUEUEDEPTH) contrlregM
-    (clk, reset, VectorFlushM, ~LocalStallM,
+    (clk, reset, VectorFlushM, ~StallM,
      {VdFinalE, RegWriteE, VRegWriteE, VALUResultSrcE, BeatE, ExecutionUnitResultValidE, BeatValidE, ExecutionUnitOrderE},
      {VdFinalM, RegWriteM, VRegWriteM, VALUResultSrcM, BeatM, ExecutionUnitResultValidM, BeatValidM, ExecutionUnitOrderM});
 
-  flopenrc #(P.XLEN) pcmreg(clk, reset, VectorFlushM, ~LocalStallM, PCE, PCM);
-  flopenrc #(32) instrmreg(clk, reset, VectorFlushM, ~LocalStallM, InstrE, InstrM);
+  flopenrc #(P.XLEN) pcmreg(clk, reset, VectorFlushM, ~StallM, PCE, PCM);
+  flopenrc #(32) instrmreg(clk, reset, VectorFlushM, ~StallM, InstrE, InstrM);
 
-  // demux - the beat tells me which indices of output reg should be written
+  flopenrc #(P.VPU_INT_BLEN) VALUResultWReg(clk, reset, FlushW, ~StallW, VALUResultM, VIEUResultW);
 
-  for (index = 0; index < P.VPU_INT_MAX_BEATS; index++) begin : lanedemuxreg
-    //flopenrc #(P.VPU_INT_BLEN) VALUResultWReg(clk, reset, FlushW & BeatM == index & EnableBeatW, ~StallW, VALUResultM,
-    flopenrc #(P.VPU_INT_BLEN) VALUResultWReg(clk, reset, FlushW, (BeatM == index & BeatValidM) & ~LocalStallW, VALUResultM,
-                                              VALUResultW[(index*P.VPU_INT_BLEN)+P.VPU_INT_BLEN-1 : (index*P.VPU_INT_BLEN)]);
-  end
+  flopenrc #(P.XLEN) pcwreg(clk, reset, FlushW, ~StallW, PCM, PCW);
+  flopenrc #(32) instrwreg(clk, reset, FlushW, ~StallW, InstrM, InstrW);
 
-  flopenrc #(P.XLEN) pcwreg(clk, reset, FlushW, ~LocalStallW, PCM, PCW);
-  flopenrc #(32) instrwreg(clk, reset, FlushW, ~LocalStallW, InstrM, InstrW);
+  flopenrc #(10+BEATBITLEN+P.VPU_QUEUEDEPTH) contrlregW
+    (clk, reset, FlushW, ~StallW,
+     {VdFinalM, RegWriteM, VRegWriteM, VALUResultSrcM, BeatM, ExecutionUnitResultValidM, BeatValidM, ExecutionUnitOrderM},
+     {VIEUVdFinalW, VIEURegWriteW, VIEUVRegWriteW, VALUResultSrcW, VIEUBeatW, ResultValidW, BeatValidW, ExecutionUnitOrderW});
 
+  // write sVRF once: a stalled beat must not write again after its entry commits
+  assign VIEUBeatValidW = BeatValidW & ~StallW;
+  assign ExecutionUnitResultValidW = ResultValidW & ~StallW;
 
-  assign NotConsummedW = ExecutionUnitResultValidW & ~ControllerWBReadyW; // Controller is not ready, but instruction is valid. Stall the whole pipeline
-
-  flopenrc #(9+P.VPU_QUEUEDEPTH) contrlregW
-    (clk, reset, FlushW, ~LocalStallW, // There needs to be a handshake going in the other direction to enable ControlRegW.  This is just like the input handshake.
-     {VdFinalM, RegWriteM, VRegWriteM, VALUResultSrcM, ExecutionUnitResultValidM, ExecutionUnitOrderM},
-     {PreVdFinalW, PreRegWriteW, PreVRegWriteW, VALUResultSrcW, ExecutionUnitResultValidW, ExecutionUnitOrderW});;
-
-  // AND part of AO-mux
-  assign VIEUResultW = ControllerWBReadyW ? VALUResultW : '0;
-  assign VIEUResultToScalarW = ControllerWBReadyW ? '0 : '0;    // *** fill with the correct result
-  assign VIEUVdFinalW = ControllerWBReadyW ? PreVdFinalW : '0;
-  assign VIEURegWriteW = ControllerWBReadyW ? PreRegWriteW : '0;
-  assign VIEUVRegWriteW = ControllerWBReadyW ? PreVRegWriteW : '0;
-
-  // local hazard unit
-  assign LocalStallE = VectorStallE | NotConsummedW;
-  assign LocalStallM = StallM | NotConsummedW;
-  assign LocalStallW = StallW | NotConsummedW;
-
-
+  assign VIEUResultToScalarW = '0;    // *** fill with the correct result
 
 endmodule
