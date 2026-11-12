@@ -10,9 +10,10 @@ LINUX_TESTVECTORS := $(RISCV)/linux-testvectors
 BUILDROOT_OUTPUTS := Image fw_jump.bin fw_jump.elf rootfs.cpio vmlinux busybox
 BUILDROOT_OUTPUTS := $(foreach name, $(BUILDROOT_OUTPUTS), $(IMAGE_DIR)/$(name))
 
-# Device tree files
+# Device tree files, built independently of buildroot; "make install" copies them into the installed images directory
 DTS ?= $(wildcard devicetree/*.dts)
-DTB := $(foreach name, $(DTS:%.dts=%.dtb), $(IMAGE_DIR)/$(notdir $(name)))
+DTB_DIR := devicetree/build
+DTB := $(foreach name, $(DTS:%.dts=%.dtb), $(DTB_DIR)/$(notdir $(name)))
 
 # Disassembly files
 BINARIES := fw_jump.elf vmlinux busybox
@@ -57,15 +58,11 @@ build: $(BUILDROOT_OUTPUTS) devicetrees
 $(BUILDROOT_OUTPUTS): check_environment $(BUILDROOT)
 	bash -c "unset LD_LIBRARY_PATH; $(MAKE) -C $(BUILDROOT)"
 
-# Building buildroot creates the images directory. Its prerequisites are order-only, so buildroot is built only if
-# the directory doesn't exist yet, and "make devicetrees" on a built buildroot just runs dtc.
-$(IMAGE_DIR): | check_environment $(BUILDROOT)
-	bash -c "unset LD_LIBRARY_PATH; $(MAKE) -C $(BUILDROOT)"
-
-# Install buildroot to $RISCV
-install: check_write_permissions
+# Install buildroot to $RISCV, with the device tree binaries in its images directory
+install: check_write_permissions devicetrees
 	$(SUDO) rm -rf $(RISCV)/$(BUILDROOT)
 	$(SUDO) mv $(BUILDROOT) $(RISCV)/$(BUILDROOT)
+	$(SUDO) cp $(DTB) $(RISCV)/$(IMAGE_DIR)
 
 # Generate linux boot testvectors
 dumptvs: ${RAM_FILE} ${BOOTMEM_FILE}
@@ -90,7 +87,7 @@ ${LINUX_TESTVECTORS}/%GDB.bin: | $(LINUX_TESTVECTORS)
 
 # Generate device tree binaries
 devicetrees: $(DTB)
-$(IMAGE_DIR)/%.dtb: ${WALLYLINUX}/devicetree/%.dts | $(IMAGE_DIR)
+$(DTB_DIR)/%.dtb: ${WALLYLINUX}/devicetree/%.dts | $(DTB_DIR)
 	dtc -I dts -O dtb $< > $@
 
 # Create disassembly files
@@ -126,12 +123,12 @@ $(BUILDROOT):
 $(LINUX_TESTVECTORS): check_write_permissions
 	$(SUDO) mkdir -p $@
 
-$(DISASSEMBLY_DIR):
+$(DISASSEMBLY_DIR) $(DTB_DIR):
 	mkdir -p $@
 
 # Remove device tree binaries
 cleanDTB:
-	rm -f $(IMAGE_DIR)/*.dtb
+	rm -rf $(DTB_DIR)
 
 # Remove buildroot directory
 clean:
