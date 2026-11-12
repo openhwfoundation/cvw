@@ -184,15 +184,15 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic                 IFDivStartE;                                 // divider starting this cycle
   logic                 SqrtM;                                       // square root rather than divide in the M stage
   logic                 DivStickyM;                                  // divider sticky bit
-  logic [P.NE+1:0]      UeM;                                         // divsqrt exponent
-  logic [P.DIVb:0]      UmM;                                         // divsqrt significand
+  logic [FP.NE+1:0]      UeM;                                         // divsqrt exponent
+  logic [FP.DIVb:0]      UmM;                                         // divsqrt significand
   logic [P.ELEN-1:0]    FIntDivResultM;
 
   assign DivStartE = FDivStartE & FPUActiveE & DivOpE;
 
   fmtparams #(FP) fmtparams (.Fmt(OutFmt), .Bias(BiasE), .Nf(NfE));
 
-  fdivsqrt #(P) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrlE[0]), .SqrtM,
+  fdivsqrt #(FP) fdivsqrt(.clk, .reset, .FmtE(OutFmt), .XmE, .YmE, .XeE, .YeE, .SqrtE(OpCtrlE[0]), .SqrtM,
     .XInfE, .YInfE, .XZeroE, .YZeroE, .XNaNE, .YNaNE, .BiasE, .NfE, .FDivStartE(DivStartE), .IDivStartE(1'b0), .XsE,
     .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3E(3'b000), .Funct3M(3'b000), .IntDivE(1'b0), .W64E(1'b0),
     .StallM, .FlushE, .DivStickyM, .FDivBusyE, .IFDivStartE, .FDivDoneE, .UeM,

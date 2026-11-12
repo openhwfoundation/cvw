@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtstage2 import cvw::*; #(parameter cvw_t P) (
+module fdivsqrtstage2 import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.DIVb+3:0] D, DBar,        // Q4.DIVb
   input  logic [P.DIVb:0]   U, UM,          // U1.DIVb
   input  logic [P.DIVb+3:0] WS, WC,         // Q4.DIVb

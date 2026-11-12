@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtpreproc import cvw::*; #(parameter cvw_t P) (
+module fdivsqrtpreproc import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic                 clk,
   input  logic                 IFDivStartE,
   input  logic [P.NF:0]        Xm, Ym,      // Floating-point significands

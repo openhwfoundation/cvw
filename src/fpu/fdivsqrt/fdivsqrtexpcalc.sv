@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtexpcalc import cvw::*; #(parameter cvw_t P) (
+module fdivsqrtexpcalc import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic [P.NE-2:0]      Bias,      // Bias of exponent
   input  logic [P.NE-1:0]      Xe, Ye,    // input exponents
   input  logic                 Sqrt,
