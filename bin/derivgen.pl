@@ -77,15 +77,27 @@ foreach my $key (@derivnames) {
     open(my $unmod, $configunmod) or die "Could not open file '$configunmod' $!";
     open(my $fh, '>>', $config) or die "Could not open file '$config' $!";
 
-    # Create symlink to imperas.ic for deriv buildroot
+    # Copy imperas.ic for deriv buildroot from its base configuration.  buildroot has more RAM than its
+    # base, so the ImperasDV PMA region for UNCORE_RAM is rewritten from the derivative's UNCORE_RAM_BASE
+    # and UNCORE_RAM_RANGE; otherwise the reference model faults on the upper part of RAM.
     if ($key eq "buildroot") {
         my $baseimperas_ic = "$ENV{WALLY}/config/$basederiv{$key}/imperas.ic";
-        if (! -e $baseimperas_ic) {
-            my $baseimperas_ic = "$ENV{WALLY}/config/deriv/$basederiv{$key}/config.vh";
-        }
-        if (-e $baseimperas_ic) { # If imperas.ic exists for base derivative, create hardlink to it
-            my $imperas_ic = "$dir/imperas.ic";
-            system("ln -T $baseimperas_ic $imperas_ic");
+        if (-e $baseimperas_ic) {
+            my %override = map { $_->[0] => $_->[1] } @{$derivs{$key}};
+            open(my $in, '<', $baseimperas_ic) or die "Could not open file '$baseimperas_ic' $!";
+            open(my $out, '>', "$dir/imperas.ic") or die "Could not open file '$dir/imperas.ic' $!";
+            foreach my $icline (<$in>) {
+                if ($icline =~ /^(.*setPMA -lo )(\S+)( -hi )(\S+)(.*# UNCORE_RAM.*)$/s) {
+                    my ($pre, $lo, $mid, $hi, $post) = ($1, hex($2), $3, hex($4), $5);
+                    $lo = hex($1) if (defined $override{"UNCORE_RAM_BASE"} && $override{"UNCORE_RAM_BASE"} =~ /'h([0-9A-Fa-f_]+)/);
+                    my $range = $hi - $lo;
+                    $range = hex($1) if (defined $override{"UNCORE_RAM_RANGE"} && $override{"UNCORE_RAM_RANGE"} =~ /'h([0-9A-Fa-f_]+)/);
+                    $icline = sprintf("%s0x%010X%s0x%010X%s", $pre, $lo, $mid, $lo + $range, $post);
+                }
+                print $out $icline;
+            }
+            close($in);
+            close($out);
         }
     }
 
