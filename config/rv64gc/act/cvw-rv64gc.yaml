@@ -196,7 +196,9 @@ params:
   VENDOR_ID_OFFSET: 0x2
   MISALIGNED_LDST: true
   MISALIGNED_LDST_EXCEPTION_PRIORITY: low
-  MISALIGNED_MAX_ATOMICITY_GRANULE_SIZE: 4096 # check
+  # Zama16b: misaligned loads and stores within an aligned 16-byte granule never cross a cache line, so they are
+  # single accesses, and misaligned AMOs within one are performed (mmu.sv). Matches sail.json.
+  MISALIGNED_MAX_ATOMICITY_GRANULE_SIZE: 16
   MISALIGNED_SPLIT_STRATEGY: custom # We fetch the lower and upper parts with two XLEN-sized fetches and merge them
   TRAP_ON_ILLEGAL_WLRL: false
   TRAP_ON_UNIMPLEMENTED_INSTRUCTION: true
