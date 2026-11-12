@@ -14,6 +14,8 @@ DEFINE_ARGS =               # Compile-time defines (e.g. +define+USE_IMPERAS_DV)
 BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARGS vary;
                             # computed by wsim to avoid shell-escaping issues in Make
 FCOV       ?= 0             # 1 compiles in the riscv-arch-test covergroups (wsim --fcov)
+LOCKSTEP   ?= 0             # 1 compiles in ImperasDV for lock-step comparison (wsim --lockstep)
+SPEED_OPT  ?= 0             # 1 for long runs (wsim sets it for Linux boots): lock step then uses two threads
 
 # ------ Verilator flags ------
 VERILATOR_FLAGS = --assert --no-trace-top --stats
@@ -60,6 +62,33 @@ ifeq ($(strip $(FCOV)),1)
                     "-I$(ACT_DIR)/coverpoints/priv" "-I$(ACT_DIR)/tests/env" \
                     "-I$(ACT_DIR)/work/cvw-$(strip $(WALLYCONF))/env"
     SOURCES := $(FCOV_SRC)/rvviTrace.sv $(FCOV_SRC)/riscv_arch_test.sv $(SOURCES)
+endif
+
+# Lockstep (wsim --lockstep) compiles in ImperasDV's RVVI and IDV SystemVerilog packages and links the
+# ImperasDV DPI library, as -sv_lib does for Questa and VCS.  The library looks up the DPI scope
+# functions (svGetScope, svSetScope, ...) in the executable at run time, so the executable must export its
+# dynamic symbols (-rdynamic).  IMPERAS_VLNV selects the RISC-V model the library loads at run time.
+# ImperasDV Y-2026.09's rvviTrace.sv initializes client_id_next in its declaration, and Verilator runs that
+# initializer after the RVVI clients register, so no client gets the interrupt nets; wsim warns about it.
+ifeq ($(strip $(LOCKSTEP)),1)
+    IDV_LIB = $(IMPERAS_HOME)/lib/Linux64/ImperasLib/imperas.com/verification/riscv/1.0
+    INCLUDE_PATH += "-I$(IMPERAS_HOME)/ImpPublic/include/host" "-I$(IMPERAS_HOME)/ImpPublic/include/host/rvvi" \
+                    "-I$(IMPERAS_HOME)/ImpProprietary/include/host" "-I$(IMPERAS_HOME)/ImpProprietary/include/host/idv"
+    LOCKSTEP_SOURCES = $(IMPERAS_HOME)/ImpPublic/source/host/rvvi/rvviApiPkg.sv \
+                       $(sort $(wildcard $(IMPERAS_HOME)/ImpProprietary/source/host/idv/*.sv))
+    # With functional coverage, riscv-arch-test's rvviTrace.sv takes the place of ImperasDV's
+    ifneq ($(strip $(FCOV)),1)
+        LOCKSTEP_SOURCES += $(IMPERAS_HOME)/ImpPublic/source/host/rvvi/rvviTrace.sv
+    endif
+    SOURCES := $(LOCKSTEP_SOURCES) $(SOURCES)
+    VERILATOR_FLAGS += -LDFLAGS "-rdynamic -L$(IDV_LIB) -l:model.so -Wl,-rpath,$(IDV_LIB) -Wl,-rpath,$(IMPERAS_HOME)/bin/Linux64"
+    # A second thread runs the ImperasDV calls (reference model step and compare) alongside the design,
+    # which makes a lock-step Linux boot about 1.5x faster; four threads gain only 7% more, and the design
+    # alone gains nothing from threads.  Only long runs (wsim sets SPEED_OPT=1 for Linux boots) use it, so that
+    # parallel regressions of short tests keep one core per simulation.
+    ifeq ($(strip $(SPEED_OPT)),1)
+        VERILATOR_FLAGS += --threads 2
+    endif
 endif
 
 # Convert PARAM_ARGS entries (e.g. "MAKE_VCD=1") into verilator -G flags (e.g. "-GMAKE_VCD=1")
