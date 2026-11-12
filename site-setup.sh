@@ -24,7 +24,7 @@ export DC_HOME=/cad/synopsys/SYN                                    # Change thi
 export VCS_HOME=/cad/synopsys/VCS                                   # Change this for your path to Synopsys VCS, excluding bin
 export BREKER_HOME=/cad/breker/TREK                                 # Change this for your path to Breker Trek
 export SPYGLASS_HOME=/cad/synopsys/SPYGLASS_HOME                    # Change this for your path to Synopsys Spyglass
-export IMPERAS_HOME=/proj/wally/imperas/Imperas-HMC101126-eng-build/imperas-home # Change this for your path to Synopsys ImperasDV
+export IMPERAS_HOME=/cad/imperas/IMPERAS_DV                         # Change this for your path to Synopsys ImperasDV
 
 # Tools
 # Questa and Synopsys
