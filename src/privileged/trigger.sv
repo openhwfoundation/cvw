@@ -17,10 +17,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module trigger import cvw::*; #(parameter cvw_t P,
-    localparam TDATA3_LEN   = (P.XLEN == 32) ? 29 : 54,  // tdata3 without its hardwired zeros
-    localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32,
-    localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13) (
+module trigger import cvw::*; #(parameter cvw_t P) (
   input  logic [1:0]                     PrivilegeModeW,               // priv mode
   input  logic [P.XLEN-1:0]              SATP_REGW,                    // asid
   input  logic                           InstrValidNotFlushedM,
@@ -29,10 +26,10 @@ module trigger import cvw::*; #(parameter cvw_t P,
   input  logic                           CommittedF,
   input  var logic [P.XLEN-1:0]          TDATA1_REGW[P.NUM_TRIGGERS],
   input  var logic [P.XLEN-1:0]          TDATA2_REGW[P.NUM_TRIGGERS],
-  input  var logic [TDATA3_LEN-1:0]      TDATA3_REGW[P.NUM_TRIGGERS], // hardwired zeros not stored
-  input  logic [1:0]                     TCONTROL_REGW,               // {mpte, mte}
-  input  logic [SCONTEXT_LEN-1:0]        SCONTEXT_REGW,
-  input  logic [MCONTEXT_LEN-1:0]        MCONTEXT_REGW,
+  input  var logic [P.XLEN-1:0]          TDATA3_REGW[P.NUM_TRIGGERS],
+  input  logic [P.XLEN-1:0]              TCONTROL_REGW,
+  input  logic [P.XLEN-1:0]              SCONTEXT_REGW,
+  input  logic [P.XLEN-1:0]              MCONTEXT_REGW,
   output logic [P.NUM_TRIGGERS-1:0]      MatchM, SetPendingM
 );
 
@@ -63,7 +60,7 @@ module trigger import cvw::*; #(parameter cvw_t P,
           MEnM[i] = 0; SEnM[i] = 0; UEnM[i] = 0;
         end
       endcase
-      PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & MEnM[i] & TCONTROL_REGW[0]) |
+      PrivEnabledM[i] = (PrivilegeModeW == P.M_MODE  & MEnM[i] & TCONTROL_REGW[3]) |
                         (PrivilegeModeW == P.S_MODE  & SEnM[i])   |
                         (PrivilegeModeW == P.U_MODE  & UEnM[i]);
     end
@@ -74,12 +71,12 @@ module trigger import cvw::*; #(parameter cvw_t P,
   logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
   logic [P.ASID_BITS-1:0] SATP_ASID;
   assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
-  if (P.XLEN == 32) begin : ctxmatch32
+  if (P.XLEN == 32) begin
     always_comb
       for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-        casez (TDATA3_REGW[i][22:20]) // tdata3.mhselect
+        casez (TDATA3_REGW[i][25:23]) // tdata3.mhselect
           3'b000: mmatch[i] = 1; // ignore mhvalue
-          3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][28:23]); // mcontext
+          3'b100: mmatch[i] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[i][31:26]); // mcontext
           default: mmatch[i] = 0; // reserved values don't match
         endcase
         if (P.S_SUPPORTED)
@@ -93,21 +90,21 @@ module trigger import cvw::*; #(parameter cvw_t P,
         else smatch[i] = 1;
         ContextMatchM[i] = mmatch[i] & smatch[i];
       end
-  end else begin : ctxmatch64
+  end else begin
     always_comb
       for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-        casez (TDATA3_REGW[i][40:38]) // tdata3.mhselect
+        casez (TDATA3_REGW[i][50:48]) // tdata3.mhselect
           3'b000: mmatch[i] = 1; // ignore mhvalue
-          3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][53:41]); // mcontext
+          3'b100: mmatch[i] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[i][63:51]); // mcontext
           default: mmatch[i] = 0; // reserved values don't match
         endcase
         if (P.S_SUPPORTED)
           case (TDATA3_REGW[i][1:0]) // tdata3.sselect
             2'b00: smatch[i] = 1; // ignore svalue
-            2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][34]) &
-                                ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][35]) &
-                                ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][36]) &
-                                ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][37]); // scontext
+            2'b01: smatch[i] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[i][9:2])   | TDATA3_REGW[i][36]) &
+                                ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[i][17:10]) | TDATA3_REGW[i][37]) &
+                                ((SCONTEXT_REGW[23:16] == TDATA3_REGW[i][25:18]) | TDATA3_REGW[i][38]) &
+                                ((SCONTEXT_REGW[31:24] == TDATA3_REGW[i][33:26]) | TDATA3_REGW[i][39]); // scontext
             2'b10: smatch[i] = (SATP_ASID == TDATA3_REGW[i][P.ASID_BITS+1:2]); // asid
             default: smatch[i] = 0; // reserved values don't match
           endcase

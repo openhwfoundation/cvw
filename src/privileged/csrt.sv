@@ -18,10 +18,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module csrt import cvw::*; #(parameter cvw_t P,
-    localparam TDATA3_LEN   = (P.XLEN == 32) ? 29 : 54,  // tdata3 without its hardwired zeros
-    localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32,
-    localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13) (
+module csrt import cvw::*; #(parameter cvw_t P) (
   input  logic                           clk, reset,
   input  logic                           CSRSWriteM, CSRMWriteM,       // CSR write
   input  logic [11:0]                    CSRAdrM,                      // CSR address
@@ -33,29 +30,17 @@ module csrt import cvw::*; #(parameter cvw_t P,
   output logic                           IllegalCSRTAccessM,
   output var logic [P.XLEN-1:0]          TDATA1_REGW[P.NUM_TRIGGERS],
   output var logic [P.XLEN-1:0]          TDATA2_REGW[P.NUM_TRIGGERS],
-  output var logic [TDATA3_LEN-1:0]      TDATA3_REGW[P.NUM_TRIGGERS], // hardwired zeros not stored
-  output logic [1:0]                     TCONTROL_REGW,               // {mpte, mte}
-  output logic [SCONTEXT_LEN-1:0]        SCONTEXT_REGW,
-  output logic [MCONTEXT_LEN-1:0]        MCONTEXT_REGW
+  output var logic [P.XLEN-1:0]          TDATA3_REGW[P.NUM_TRIGGERS],
+  output logic [P.XLEN-1:0]              TCONTROL_REGW,
+  output logic [P.XLEN-1:0]              SCONTEXT_REGW,
+  output logic [P.XLEN-1:0]              MCONTEXT_REGW
 );
-
-  // constants
-  localparam VERSION = 8'b1;
-  localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
-  localparam MASKMAX6 = P.XLEN-1;
-
-  if (P.NUM_TRIGGERS > 64) begin : numtrigcheck
-    $error("sdtrig: NUM_TRIGGERS = %0d, but the per-trigger *_SUPPORTED_TRIGGERS masks hold at most 64", P.NUM_TRIGGERS);
-  end
-  if (P.MAX_CHAIN_LENGTH > 2) begin : chaincheck
-    $error("sdtrig: MAX_CHAIN_LENGTH = %0d, but only chains of up to 2 triggers are supported", P.MAX_CHAIN_LENGTH);
-  end
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
-  // hcontext (0x6A8) requires the H extension, which Wally lacks; accesses are illegal
+  localparam HCONTEXT  = 12'h6A8; // requires the H extension, which Wally lacks; accesses are illegal
   localparam MCONTEXT  = 12'h7A8;
-  // mscontext (0x7AA) is deprecated and not supported; accesses are illegal
+  localparam MSCONTEXT = 12'h7AA; // is deprecated and not supported; accesses are illegal
   localparam TSELECT   = 12'h7A0;
   localparam TDATA1    = 12'h7A1;
   localparam TDATA2    = 12'h7A2;
@@ -65,14 +50,14 @@ module csrt import cvw::*; #(parameter cvw_t P,
 
   localparam MHSELECT_LSB = (P.XLEN == 32) ? 23 : 48;
 
-  // trigger types
+  // Trigger types
   localparam ICOUNT_TYPE    = 4'b0011;
   localparam ITRIGGER_TYPE  = 4'b0100;
   localparam ETRIGGER_TYPE  = 4'b0101;
   localparam MCONTROL6_TYPE = 4'b0110;
   localparam DISABLED_TYPE  = 4'b1111;
 
-  // Masks control which fields of TDATA1 are readable for each trigger type
+  // Write masks
   // mcontrol6 hardwires uncertain and uncertainen to 0
   // itrigger hardwires nmi to 0
   // action is masked to 0
@@ -86,15 +71,24 @@ module csrt import cvw::*; #(parameter cvw_t P,
   localparam MCONTROL6_MASK = {{(P.XLEN-32){1'b0}}, 2'b01, 2'b00, 11'b11001110000, (P.MAX_CHAIN_LENGTH > 1), 6'b111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
   localparam DISABLED_MASK  = {(P.XLEN-5){1'b0}};
 
+  // tdata3: textra32 bits 22:20 and textra64 bits 47:40 and 35:34 are 0
+  localparam logic [31:0] TEXTRA32_MASK = {{6{1'b1}},  3'b111, 3'b000, 2'b11,           {16{1'b1}}, 2'b11};
+  localparam logic [63:0] TEXTRA64_MASK = {{13{1'b1}}, 3'b111, 8'b0,   4'b1111, 2'b00,  {32{1'b1}}, 2'b11};
+  localparam logic [P.XLEN-1:0] TDATA3_MASK = (P.XLEN == 32) ? {{(P.XLEN-32){1'b0}}, TEXTRA32_MASK} : TEXTRA64_MASK[P.XLEN-1:0];
+  // tcontrol: mpte and mte
+  localparam TCONTROL_MASK = {{(P.XLEN-8){1'b0}}, 1'b1, 3'b000, 1'b1, 3'b000};
+  // scontext and mcontext: the low DBG_*CONTEXT_WIDTH bits
+  localparam SCONTEXT_MASK = {{(P.XLEN-P.DBG_SCONTEXT_WIDTH){1'b0}}, {P.DBG_SCONTEXT_WIDTH{1'b1}}};
+  localparam MCONTEXT_MASK = {{(P.XLEN-P.DBG_HCONTEXT_WIDTH){1'b0}}, {P.DBG_HCONTEXT_WIDTH{1'b1}}};
+
+
   // Trigger Module Registers
-  // Trigger data regs are replicated for each trigger
-  logic [LOG_NUM_TRIGGERS-1:0] TSELECT_REGW;
+  logic [P.XLEN-1:0] TSELECT_REGW;
+  logic [$clog2(P.NUM_TRIGGERS > 1 ? P.NUM_TRIGGERS : 2)-1:0] TSelM; // index of the selected trigger
 
   // internal signals
   logic [15:0] TINFO_INFO;
   logic [P.XLEN-1:0] TINFOval; // read-only
-  logic [P.XLEN-1:0] TCONTROLval;
-  logic [P.XLEN-1:0] TDATA3val;
 
   // CSR Write Logic
   logic                    WriteTSELECTM;
@@ -126,7 +120,8 @@ module csrt import cvw::*; #(parameter cvw_t P,
   genvar t;
 
   // TSELECT
-  flopenr #(LOG_NUM_TRIGGERS) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM[LOG_NUM_TRIGGERS-1:0], TSELECT_REGW);
+  flopenr #(P.XLEN) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM, TSELECT_REGW);
+  assign TSelM = TSELECT_REGW[$bits(TSelM)-1:0]; // writes above NUM_TRIGGERS-1 are ignored
 
 
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
@@ -229,8 +224,8 @@ module csrt import cvw::*; #(parameter cvw_t P,
   always_comb begin
     TDATA2WriteValM = CSRWriteValM; // default: write full value
     // for mcontrol6 when match=napot, tdata2 is WARL, if bits maskmax6-1:0 are written with 1s then bit masmax6-1 will be set to 0.
-    if ((TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & (TDATA1_REGW[TSELECT_REGW][10:7] == 4'b0001) & (CSRWriteValM[MASKMAX6-1:0] == '1))
-        TDATA2WriteValM[MASKMAX6-1] = 1'b0; // clear the bit at the top of the mask
+    if ((TDATA1_REGW[TSelM][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & (TDATA1_REGW[TSelM][10:7] == 4'b0001) & (CSRWriteValM[P.MCONTROL6_MASKMAX6-1:0] == '1))
+        TDATA2WriteValM[P.MCONTROL6_MASKMAX6-1] = 1'b0; // clear the bit at the top of the mask
   end
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
     flopenr #(P.XLEN) TDATA2reg(clk, reset, WriteTDATA2M & (TSELECT_REGW == t), TDATA2WriteValM, TDATA2_REGW[t]);
@@ -239,7 +234,6 @@ module csrt import cvw::*; #(parameter cvw_t P,
   // tdata3 write
   // textra32: bits 22:20 are 0.  textra64: bits 47:40 and 35:34 are 0
   logic [P.XLEN-1:0]     TDATA3WriteMaskM, TDATA3WriteValLegalizedM;
-  logic [TDATA3_LEN-1:0] TDATA3WriteValM;
   logic                  TDATA3MhselectLegalM, TDATA3SselectLegalM;
   // Legalize tdata3 WARL fields: an unsupported value masks its field to 0
   always_comb begin
@@ -252,39 +246,29 @@ module csrt import cvw::*; #(parameter cvw_t P,
       2'd1, 2'd2: TDATA3SselectLegalM = P.S_SUPPORTED;
       default:    TDATA3SselectLegalM = 1'b0;
     endcase
-    TDATA3WriteMaskM = '1;
+    TDATA3WriteMaskM = TDATA3_MASK; // hardwired zeros
     if (~TDATA3MhselectLegalM) TDATA3WriteMaskM[MHSELECT_LSB+2:MHSELECT_LSB] = '0;
     if (~TDATA3SselectLegalM)  TDATA3WriteMaskM[1:0] = '0;
   end
   assign TDATA3WriteValLegalizedM = CSRWriteValM & TDATA3WriteMaskM;
-  // Drop hardwired zeros
-  if (P.XLEN == 32) assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[31:23], TDATA3WriteValLegalizedM[19:0]};
-  else              assign TDATA3WriteValM = {TDATA3WriteValLegalizedM[63:48], TDATA3WriteValLegalizedM[39:36], TDATA3WriteValLegalizedM[33:0]};
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
-    flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_REGW[t]);
+    flopenr #(P.XLEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValLegalizedM, TDATA3_REGW[t]);
   end
 
   // tcontrol: mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it // TODO gate behind reentrancy option
-  logic mpte, mte;
+  // only mpte (bit 7) and mte (bit 3) are writable
   always_ff @(posedge clk)
-    if (reset) begin
-      mpte <= 1'b0;
-      mte  <= 1'b0;
-    end else if (WriteTCONTROLM) begin
-      mpte <= CSRWriteValM[7];
-      mte  <= CSRWriteValM[3];
-    end else if (MTrapM) begin
-      mpte <= mte;
-      mte  <= 1'b0;
-    end else if (mretM & ~StallW) begin
-      mte  <= mpte;
-    end
-  assign TCONTROL_REGW = {mpte, mte};
+    if (reset)                    TCONTROL_REGW <= '0;
+    else if (WriteTCONTROLM)      TCONTROL_REGW <= CSRWriteValM & TCONTROL_MASK;
+    else if (MTrapM) begin
+      TCONTROL_REGW[7] <= TCONTROL_REGW[3]; // mpte <= mte
+      TCONTROL_REGW[3] <= 1'b0;             // mte <= 0
+    end else if (mretM & ~StallW) TCONTROL_REGW[3] <= TCONTROL_REGW[7]; // mte <= mpte
 
   // context registers
-  flopenr #(MCONTEXT_LEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM[MCONTEXT_LEN-1:0], MCONTEXT_REGW);
-  if (P.S_SUPPORTED) begin : scontext
-    flopenr #(SCONTEXT_LEN) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM[SCONTEXT_LEN-1:0], SCONTEXT_REGW);
+  flopenr #(P.XLEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM & MCONTEXT_MASK, MCONTEXT_REGW);
+  if (P.S_SUPPORTED) begin
+    flopenr #(P.XLEN) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM & SCONTEXT_MASK, SCONTEXT_REGW);
   end else assign SCONTEXT_REGW = '0;
 
   // CSR Read Logic
@@ -293,26 +277,21 @@ module csrt import cvw::*; #(parameter cvw_t P,
   assign TSELECTIndex = 6'(TSELECT_REGW);
   assign TINFO_INFO = {9'b00000000, P.MCONTROL6_SUPPORTED_TRIGGERS[TSELECTIndex], P.ETRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex],
                        P.ITRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex], P.ICOUNT_SUPPORTED_TRIGGERS[TSELECTIndex], 3'b000};
-  assign TINFOval = {{(P.XLEN-32){1'b0}}, VERSION, 8'b0, TINFO_INFO};
-  // inflate 2 bits of TCONTROL state to XLEN-sized register.
-  assign TCONTROLval = {{(P.XLEN-8){1'b0}}, TCONTROL_REGW[1], 3'b0, TCONTROL_REGW[0], 3'b0};
-  // restore the hardwired zeros of the selected tdata3
-  if (P.XLEN == 32) assign TDATA3val = {TDATA3_REGW[TSELECT_REGW][28:20], 3'b0, TDATA3_REGW[TSELECT_REGW][19:0]};
-  else              assign TDATA3val = {TDATA3_REGW[TSELECT_REGW][53:38], 8'b0, TDATA3_REGW[TSELECT_REGW][37:34], 2'b0, TDATA3_REGW[TSELECT_REGW][33:0]};
+  assign TINFOval = {{(P.XLEN-32){1'b0}}, 8'd1, 8'b0, TINFO_INFO}; // version 1: Sdtrig 1.0
 
-  always_comb begin:csrr
+  always_comb begin
     CSRTReadValM = '0;
     IllegalCSRTAccessM = 1'b0;
     case (CSRAdrM)
-      SCONTEXT:  if (P.S_SUPPORTED) CSRTReadValM = {{(P.XLEN-SCONTEXT_LEN){1'b0}}, SCONTEXT_REGW};
+      SCONTEXT:  if (P.S_SUPPORTED) CSRTReadValM = SCONTEXT_REGW;
                  else IllegalCSRTAccessM = 1'b1;
-      MCONTEXT:  CSRTReadValM = {{(P.XLEN-MCONTEXT_LEN){1'b0}}, MCONTEXT_REGW};
+      MCONTEXT:  CSRTReadValM = MCONTEXT_REGW;
       TINFO:     CSRTReadValM = TINFOval;
-      TCONTROL:  CSRTReadValM = TCONTROLval;
-      TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
-      TDATA1:    CSRTReadValM = TDATA1_REGW[TSELECT_REGW];
-      TDATA2:    CSRTReadValM = TDATA2_REGW[TSELECT_REGW];
-      TDATA3:    CSRTReadValM = TDATA3val;
+      TCONTROL:  CSRTReadValM = TCONTROL_REGW;
+      TSELECT:   CSRTReadValM = TSELECT_REGW;
+      TDATA1:    CSRTReadValM = TDATA1_REGW[TSelM];
+      TDATA2:    CSRTReadValM = TDATA2_REGW[TSelM];
+      TDATA3:    CSRTReadValM = TDATA3_REGW[TSelM];
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end

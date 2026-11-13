@@ -35,16 +35,12 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   output logic              IllegalCSRTAccessM
 );
 
-  localparam TDATA3_LEN   = (P.XLEN == 32) ? 29 : 54;
-  localparam SCONTEXT_LEN = (P.XLEN == 32) ? 16 : 32;
-  localparam MCONTEXT_LEN = (P.XLEN == 32) ? 6 : 13;
-
   logic [P.XLEN-1:0]         TDATA1_REGW[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]         TDATA2_REGW[P.NUM_TRIGGERS];
-  logic [TDATA3_LEN-1:0]     TDATA3_REGW[P.NUM_TRIGGERS];
-  logic [1:0]                TCONTROL_REGW;
-  logic [SCONTEXT_LEN-1:0]   SCONTEXT_REGW;
-  logic [MCONTEXT_LEN-1:0]   MCONTEXT_REGW;
+  logic [P.XLEN-1:0]         TDATA3_REGW[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0]         TCONTROL_REGW;
+  logic [P.XLEN-1:0]         SCONTEXT_REGW;
+  logic [P.XLEN-1:0]         MCONTEXT_REGW;
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
 
   csrt #(P) csrt(.clk, .reset, .CSRSWriteM, .CSRMWriteM, .CSRAdrM, .CSRWriteValM,
