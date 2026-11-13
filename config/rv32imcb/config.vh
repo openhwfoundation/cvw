@@ -172,12 +172,6 @@ localparam logic SCONTEXT_IMPLEMENTED = 0; // scontext CSR implemented
 localparam logic HCONTEXT_IMPLEMENTED = 0; // hcontext CSR implemented; needs H
 localparam DBG_SCONTEXT_WIDTH = 32'd0; // implemented scontext bits
 localparam DBG_HCONTEXT_WIDTH = 32'd0; // implemented mcontext/hcontext bits
-localparam cvw::csr_field_type_t DCSR_MPRVEN_TYPE = cvw::READ_ONLY_0; // dcsr fields; no debug mode
-localparam cvw::csr_field_type_t DCSR_STEPIE_TYPE = cvw::READ_ONLY_0;
-localparam cvw::csr_field_type_t DCSR_STOPCOUNT_TYPE = cvw::READ_ONLY_0;
-localparam cvw::csr_field_type_t DCSR_STOPTIME_TYPE = cvw::READ_ONLY_0;
-localparam cvw::csr_field_type_t MSTATEEN_CONTEXT_TYPE = cvw::READ_ONLY_0; // mstateen0.CONTEXT; no Smstateen
-localparam cvw::csr_field_type_t HSTATEEN_CONTEXT_TYPE = cvw::READ_ONLY_0; // hstateen0.CONTEXT; no H or Ssstateen
 
 
 // Address space
