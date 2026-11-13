@@ -122,8 +122,8 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   logic [4:0]                 BeatFlagsM, FlagsNextM, FlagsW;
   logic [P.VPU_FP_LANES-1:0]  LaneDivBusyE;
   logic [P.VLEN-1:0]          OldVdM;
-  logic [P.VLEN-1:0]          PlacedResultM [7:0];             // beat demuxed to its place in vd, indexed by log2(VdEEW)
-  logic [P.VLEN-1:0]          PlacedEnableM [7:0];             // bits of vd the beat writes
+  logic [P.VLEN-1:0]          VdResultM [7:0];                 // beat demuxed to its place in vd, indexed by log2(VdEEW)
+  logic [P.VLEN-1:0]          VdWriteEnableM [7:0];            // bits of vd the beat writes
   logic [P.VLEN-1:0]          OldResultM, ResultNextM, ResultW;
 
   genvar                      i, j, e;
@@ -274,11 +274,11 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
       localparam LANE = (j / EW) % P.VPU_FP_LANES;
       localparam BEAT = (j / EW) / P.VPU_FP_LANES;
       if (e == 0 | (e >= 3 & EW <= P.ELEN)) begin : used
-        assign PlacedResultM[e][j] = BeatResultM[LANE*P.ELEN + j%EW];
-        assign PlacedEnableM[e][j] = ActiveM[LANE] & (VdBeatM == LOGVLEN'(BEAT));
+        assign VdResultM[e][j]      = BeatResultM[LANE*P.ELEN + j%EW];
+        assign VdWriteEnableM[e][j] = ActiveM[LANE] & (VdBeatM == LOGVLEN'(BEAT));
       end else begin : unused
-        assign PlacedResultM[e][j] = 1'b0;
-        assign PlacedEnableM[e][j] = 1'b0;
+        assign VdResultM[e][j]      = 1'b0;
+        assign VdWriteEnableM[e][j] = 1'b0;
       end
     end
   end
@@ -287,7 +287,7 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   // TODO: shrink ResultW, lane demux, and bank spread below to sVRF BLEN once svrf loads old vd
   mux2 #(P.VLEN) oldresultmux(ResultW, OldVdM, BeatM == '0, OldResultM);
-  assign ResultNextM = (PlacedResultM[VdEEWM] & PlacedEnableM[VdEEWM]) | (OldResultM & ~PlacedEnableM[VdEEWM]);
+  assign ResultNextM = (VdResultM[VdEEWM] & VdWriteEnableM[VdEEWM]) | (OldResultM & ~VdWriteEnableM[VdEEWM]);
   flopenr #(P.VLEN) ResultWReg(clk, reset, BeatDoneM, ResultNextM, ResultW);
 
   // Beat writes its bank of ResultW. earlier reduction/mask beats write the other banks with old vd
