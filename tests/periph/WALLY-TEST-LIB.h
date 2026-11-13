@@ -755,6 +755,7 @@ test_loop:
 //   spi_burst_send         : write the 4 bytes of t4 to SPI address t3          : none
 //   pwm_cycle_wait         : observe 2^t4 PWM periods on the GPIO pins           : number of PWM cycles seen
 //   pwm_cycle_wait_center  : same for center-aligned mode (full 16-bit period)   : number of PWM cycles seen
+//   pwm_oneshot_wait       : pwm_cycle_wait, keeping a pulse seen before the call: number of PWM cycles seen
 //   pwm_wait               : wait t4 clock cycles, leaving the PWM running        : none
 //   pwm_dumb_wait          : wait 2^t4 PWM periods, then disable the PWM         : none
 //   pwm_dumb_wait_center   : same for center-aligned mode                        : none
@@ -1011,22 +1012,37 @@ spi_burst_send: //function for loading multiple frames at once to test delays wi
 // PWM test types.  The PWM outputs are routed to GPIO pins 0-3 (iof_en), so PWM activity is observed
 // through the GPIO high_ip register.  t4 = log2 of the number of PWM periods N to observe.  The period
 // is derived from pwmcmp0 and pwmscale (or the full 16-bit count in center-aligned mode).  The routine
-// waits for the first high output, then watches for another N - 1/2 periods.  A pulse is counted when
-// its falling edge is seen, so the result is exactly N for a correct waveform regardless of software
-// timing, fewer if pulses are missing, and more if extra pulses appear.  If no output goes high within
-// N + 1 periods the result is 0.  An output still high when watching ends is given one more period to
-// fall, so a pulse that ends just past the window still counts, but one that never falls is not counted
-// and adds PWM_STUCK_HIGH to the result instead; a waveform that fails to drop is therefore
+// waits until no output is high, then for the first high output, then watches for another N - 1/2 periods.
+// A pulse is counted when its falling edge is seen, so the result is exactly N for a correct waveform
+// regardless of software timing, fewer if pulses are missing, and more if extra pulses appear.  If no
+// output goes high within N + 2 periods the result is 0.  An output still high when watching ends is given
+// one more period to fall, so a pulse that ends just past the window still counts, but one that never falls
+// is not counted and adds PWM_STUCK_HIGH to the result instead; a waveform that fails to drop is therefore
 // distinguishable from one that pulses correctly.
+// The window starts at a rise seen while polling, not at a high_ip bit set before the polling began: on a
+// slow core (wait states, or the routine missing in the I$) that rise could be most of a period earlier,
+// and the window would then take in an extra pulse.  The two polling loops share an I$ line, so the rise is
+// seen within a few cycles.
+// pwm_oneshot_wait does not wait for the outputs to go low or clear high_ip: a one-shot pulse can be over
+// before a slow core reaches the routine, so the test clears high_ip before starting the one-shot and the
+// pulse recorded since then counts.
 #define PWM_STUCK_HIGH 0x10000
 pwm_cycle_wait:
     li t2, 0x10020000 // PWM base address
     lw t3, 32(t2) // period in scaled counts: pwmcmp0
+    li a7, 1 // wait for the outputs to go low first
     j pwm_cycle_wait_common
 
 pwm_cycle_wait_center: // center-aligned mode runs the full 16-bit count
     li t2, 0x10020000 // PWM base address
     li t3, 0xFFFF // period in scaled counts: maximum count
+    li a7, 1 // wait for the outputs to go low first
+    j pwm_cycle_wait_common
+
+pwm_oneshot_wait: // like pwm_cycle_wait, keeping a pulse that high_ip recorded before the call
+    li t2, 0x10020000 // PWM base address
+    lw t3, 32(t2) // period in scaled counts: pwmcmp0
+    li a7, 0
 
 pwm_cycle_wait_common:
     lw t6, 0(t2) // pwmcfg
@@ -1036,19 +1052,30 @@ pwm_cycle_wait_common:
     sll t2, t3, t4 // N periods
     srli t6, t3, 1 // half a period
     sub a5, t2, t6 // window after the first edge: N - 1/2 periods
-    add t2, t2, t3 // N + 1 periods: limit for the first edge
+    add t2, t2, t3
+    add t2, t2, t3 // N + 2 periods: limit for the first edge, including up to a period for the outputs to go low
     rdcycle a4
     add a4, a4, t2 // time limit for the first edge
     li t4, 0x1006002C // GPIO high_ip address
     li t5, 0 // number of high intervals seen
     li t6, 0xFFFFFFFF
+    beqz a7, pwm_first_edge // one-shot: a pulse already in high_ip counts
+
+.p2align 6
+pwm_wait_idle: // clear high_ip until no output is high
     sw t6, 0(t4) // clear high_ip
+    rdcycle t3
+    bgt t3, a4, pwm_rise // no output ever went low: watch it anyway, so a stuck output is reported
+    lw t3, 0(t4)
+    bnez t3, pwm_wait_idle
 
 pwm_first_edge:
     rdcycle t3
     bgt t3, a4, pwm_over // no output went high: result 0
     lw t3, 0(t4)
     beqz t3, pwm_first_edge
+
+pwm_rise:
     rdcycle t3
     add a4, t3, a5 // end of the observation window
 
