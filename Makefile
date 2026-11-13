@@ -6,9 +6,9 @@ MAKEFLAGS += --output-sync --no-print-directory
 
 SIM = ${WALLY}/sim
 
-.PHONY: all act periph testfloat zsbl coverage sim_bp deriv clean
+.PHONY: all act periph testfloat coverfloat zsbl coverage sim_bp deriv clean
 
-all: act periph testfloat zsbl coverage sim_bp deriv
+all: act periph testfloat coverfloat zsbl coverage sim_bp deriv
 
 # act builds the riscv-arch-test suite for every cvw configuration that has an ACT test-generation
 # configuration (config/<cfg>/act/test_config.yaml, owned by cvw; see bin/actconfig-sync)
@@ -34,6 +34,10 @@ periph:
 
 testfloat:
 	$(MAKE) -C ${WALLY}/tests/fp vectors
+
+# coverfloat generates the cover-float floating-point vectors (addins/cover-float) for testbench_fp
+coverfloat:
+	$(MAKE) -C ${WALLY}/tests/fp coverfloat
 
 zsbl:
 	$(MAKE) -C ${WALLY}/fpga/zsbl

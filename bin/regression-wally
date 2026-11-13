@@ -40,7 +40,6 @@ def coverageDir(config):
 coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
 lockstepsim = "questa"
-testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
 rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 
 ##################################
@@ -642,13 +641,14 @@ def actElfDir(config):
 builtTargets = set()
 
 
-def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True):
+def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True, coverfloat=False):
     """Build the tests with the root Makefile, which rebuilds only what is out of date: the ACT ELFs
     for every configuration with an ACT configuration and the boot image a 64-bit IROM (rv64i) is
     preloaded from (zsbl), unless act is False, and optionally the peripheral and coverage tests, the
-    derivative configurations (config/deriv) and the testfloat vectors."""
+    derivative configurations (config/deriv), the testfloat vectors and the cover-float vectors."""
     targets = [t for t in (["act", "zsbl"] if act else []) + (["periph"] if periph else []) + (["coverage"] if coverage else [])
-               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) if t not in builtTargets]
+               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) + (["coverfloat"] if coverfloat else [])
+               if t not in builtTargets]
     if not targets:
         return
     # ACT is its own uv project: drop the VIRTUAL_ENV that `uv run` set for this script so ACT's
@@ -691,7 +691,7 @@ def search_log_for_text(text, grepfile):
         nonrvcp_suites = ["buildroot", "all_lints", "periph", "coverage", "embench", "coremark"]
         if numpassed:
             print(f"{bcolors.OKGREEN}{grepfile}: {numpassed} {rvcp_summary} PASSED{bcolors.ENDC}")
-        if success and not passed:
+        if success and not passed and text == "All tests ran without failures":  # ELF runs; not TestFloat
             if not any(s in grepfile for s in nonrvcp_suites):
                 print(f"{bcolors.WARNING}{grepfile}: WARNING '{text}' found but no {rvcp_summary} PASSED{bcolors.ENDC}")
         if not success and passed:
@@ -815,7 +815,7 @@ def process_args(args):
     elif args.buildroot:
         TIMEOUT_DUR = 60*3600 # 2.5 days
     elif args.testfloat:
-        sims = [testfloatsim]
+        sims = [defaultsim]
         TIMEOUT_DUR = 60*60 # seconds; the fma tests of the largest FPUs take more than half an hour
     elif args.branch or args.cache:
         TIMEOUT_DUR = 120*60 # seconds
@@ -901,21 +901,41 @@ def selectTests(args, sims, coverStr):
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
-        buildTests(periph=False, deriv=True, testfloat=True)
+        buildTests(periph=False, deriv=True, testfloat=True, act=False, coverfloat=True)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
         for config in testfloatconfigs + testfloatdivconfigs:
             tests = ["div", "sqrt", "cvtint", "cvtfp"]
             if config in testfloatconfigs:
-                tests.extend(["add", "sub", "mul", "fma", "cmp"])
+                tests.extend(["add", "sub", "mul", "fma", "cmp", "round"])
             if "f_" in config:
                 tests.remove("cvtfp")
             for test in tests:
-                sim_log = f"{regressionDir}/{testfloatsim}/logs/{config}_{test}.log"
+                # The fma vectors are most of the suite, so each precision of fma runs as its own simulation
+                # (+TEST_SIZE) to spread it over more processors.  The configuration name lists the precisions.
+                sizes = [size for letter, size in (("q", "QP"), ("d", "DP"), ("f", "SP"), ("h", "HP"))
+                         if letter in config.split("_")[0]] if test == "fma" else [None]
+                for size in sizes:
+                    name = f"{test}_{size}" if size else test
+                    sim_log = f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log"
+                    tc = TestCase(
+                            name=name,
+                            variant=config,
+                            cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
+                                 *(["--args", f"+TEST_SIZE={size}"] if size else [])],
+                            log=sim_log,
+                            grepstr="All Tests completed with          0 errors")
+                    configs.append(tc)
+            # The cover-float vectors (make coverfloat), converted to TestFloat's file layout, run through the
+            # same testbench: every operation on the standard configurations, division and square root on the
+            # divider variants
+            for test in ["all"] if config in testfloatconfigs else ["div", "sqrt"]:
+                name = f"coverfloat_{test}"
                 tc = TestCase(
-                        name=test,
+                        name=name,
                         variant=config,
-                        cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test],
-                        log=sim_log,
+                        cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
+                             "--args", f"+VECTORS={WALLY}/tests/fp/coverfloat/vectors/"],
+                        log=f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log",
                         grepstr="All Tests completed with          0 errors")
                 configs.append(tc)
 

@@ -79,7 +79,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 - `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
 - `tests/` — Test suites (`coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests)
-- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, etc.)
+- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, cover-float, etc.)
 - `bin/` — Scripts (`wsim`, `regression-wally`, `lint-wally`, `derivgen.pl`, etc.)
 - `fpga/` — FPGA-specific files
 - `linux/` — Linux boot support
@@ -121,8 +121,8 @@ Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stal
 
 ### Simulators
 
-- **Verilator**: Default for regression; open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`.
-- **Questa** (Siemens): Required for testbench_fp and GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
+- **Verilator**: Default for regression, including the TestFloat and cover-float tests (`testbench_fp`); open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`.
+- **Questa** (Siemens): Required for GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
 - **VCS** (Synopsys): Supports standard tests, lockstep, and code/functional coverage (merged and reported with `urg`).
 
 All three collect functional coverage (`wsim --fcov`) into `sim/questa/fcov_ucdb`, `sim/verilator/fcov_dat` or `sim/vcs/fcov_ucdb`; `make -C sim QuestaFunctCoverage`, `VerilatorFunctCoverage` or `VcsFunctCoverage` merges the runs of `CONFIG` (default rv64gc) and writes reports to `sim/<simulator>/fcov/<CONFIG>_*`.

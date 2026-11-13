@@ -90,9 +90,6 @@ def validateArgs(args):
         # RVVI API tasks of its own, and only one of the two interfaces can be compiled in
         print("Functional coverage cannot run in lockstep: it needs riscv-arch-test's RVVI trace interface, not ImperasDV's")
         sys.exit(1)
-    elif args.tb == "testbench_fp" and args.sim != "questa":
-        print("Error: testbench_fp presently only supported by Questa, not VCS or Verilator, because of a touchy testbench")
-        sys.exit(1)
 
 
 def collectTests(args):
@@ -162,8 +159,6 @@ def prepSim(args, elfs):
             flagsList.append("--vcd")
     if args.rvvi:
         paramsList.append("RVVI_SYNTH_SUPPORTED=1")
-    if args.tb == "testbench_fp":
-        paramsList.append(f"TEST={args.testsuite}")
     if elfs:
         argsList.append(f"+ElfList={prepareElfs(args, elfs)}")
     if args.gui and args.tb == "testbench":
@@ -421,7 +416,7 @@ def runVerilator(args):
     # Phase 2: Run the simulation (parallel safe)
     # Run from sim/verilator/ so relative paths (e.g. logs/buildroot_uart.out) resolve correctly
     (sim_dir / "logs").mkdir(parents=True, exist_ok=True)
-    runtime_args = [f"+TEST={args.testsuite}"] if args.tb == "testbench" else []
+    runtime_args = [f"+TEST={args.testsuite}"]
     runtime_args += shlex.split(args.args)
     if args.fcov:
         runtime_args.append(f"+verilator+coverage+file+{sim_dir}/fcov_dat/{args.config}_{args.testsuite}.dat")

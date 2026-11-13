@@ -14,23 +14,33 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 `define PATH "../../tests/fp/vectors/"
-`define ADD_OPCTRL     3'b110
-`define MUL_OPCTRL     3'b100
-`define SUB_OPCTRL     3'b111
-`define FMA_OPCTRL     3'b000
-`define DIV_OPCTRL     3'b000
-`define SQRT_OPCTRL    3'b001
-`define LE_OPCTRL      3'b011
-`define LT_OPCTRL      3'b001
-`define EQ_OPCTRL      3'b010
-`define TO_UI_OPCTRL   3'b000
-`define TO_I_OPCTRL    3'b001
-`define TO_UL_OPCTRL   3'b010
-`define TO_L_OPCTRL    3'b011
-`define FROM_UI_OPCTRL 3'b100
-`define FROM_I_OPCTRL  3'b101
-`define FROM_UL_OPCTRL 3'b110
-`define FROM_L_OPCTRL  3'b111
+`define ADD_OPCTRL     4'b0110
+`define MUL_OPCTRL     4'b0100
+`define SUB_OPCTRL     4'b0111
+`define FMA_OPCTRL     4'b0000
+`define DIV_OPCTRL     4'b0000
+`define SQRT_OPCTRL    4'b0001
+`define LE_OPCTRL      4'b0011
+`define LT_OPCTRL      4'b0001
+`define EQ_OPCTRL      4'b0010
+`define LEQ_OPCTRL     4'b1011 // Zfa fleq: the testbench's OpCtrl[3] drives the units' Zfa input
+`define LTQ_OPCTRL     4'b1001 // Zfa fltq
+`define MIN_OPCTRL     4'b0110
+`define MAX_OPCTRL     4'b0101
+`define ROUND_OPCTRL   4'b0000 // Zfa fround
+`define ROUNDNX_OPCTRL 4'b0001 // Zfa froundnx
+`define SGNJ_OPCTRL    4'b0000
+`define SGNJN_OPCTRL   4'b0001
+`define SGNJX_OPCTRL   4'b0010
+`define CLASS_OPCTRL   4'b0000
+`define TO_UI_OPCTRL   4'b0000
+`define TO_I_OPCTRL    4'b0001
+`define TO_UL_OPCTRL   4'b0010
+`define TO_L_OPCTRL    4'b0011
+`define FROM_UI_OPCTRL 4'b0100
+`define FROM_I_OPCTRL  4'b0101
+`define FROM_UL_OPCTRL 4'b0110
+`define FROM_L_OPCTRL  4'b0111
 `define RNE            3'b000
 `define RZ             3'b001
 `define RU             3'b011
@@ -41,6 +51,10 @@
 `define CVTINTUNIT     0
 `define CVTFPUNIT      4
 `define CMPUNIT        3
+`define ROUNDUNIT      5
+`define CLASSUNIT      6
+`define SGNJUNIT       7
+`define MINMAXUNIT     8
 
 string f16rv32cvtint[] = '{
   "ui32_to_f16_rne.tv",

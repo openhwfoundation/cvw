@@ -17,33 +17,34 @@
 import cvw::*;
 
 module testbench_fp;
-  // Two parameters TEST, TEST_SIZE used with testfloat.do in sim dir
-  // to run specific precisions (e.g., quad or all)
-  parameter string TEST="none"; // choices are cvtint, cvtfp, cmp, add, sub, mul, div, sqrt, fma; all does not check properly
-  parameter string TEST_SIZE="all";
+  // The test and the precisions to run come from the plusargs +TEST= and +TEST_SIZE=, so one compiled
+  // design runs every test of a configuration.  The parameters are the defaults when a plusarg is absent.
+  parameter string TEST="none"; // choices are cvtint, cvtfp, cmp, add, sub, mul, div, sqrt, fma, round, class, sgnj, minmax, all
+  parameter string TEST_SIZE="all"; // all, QP, DP, SP, or HP
+  string TestName, TestSize;
+  string VectorPath;                           // directory (and file-name prefix) of the test vectors
 
   `include "parameter-defs.vh"
 
-  parameter MAXVECTORS = 8388610;
-
   // FIXME: needs cleaning of unused variables (jes)
   string       Tests[];                        // list of tests to be run
-  logic [2:0]  OpCtrl[];                       // list of op controls
-  logic [2:0]  Unit[];                         // list of units being tested
+  logic [3:0]  OpCtrl[];                       // list of op controls: {Zfa, OpCtrl}
+  logic [3:0]  Unit[];                         // list of units being tested
   logic        WriteInt[];                     // Is being written to integer resgiter
   logic [2:0]  Frm[4:0] = {3'b100, 3'b010, 3'b011, 3'b001, 3'b000}; // rounding modes: rne-000, rz-001, ru-011, rd-010, rnm-100
   logic [1:0]  Fmt[];                          // list of formats for the other units
 
   logic        clk=0;
   logic [31:0] TestNum=0;                      // index for the test
-  logic [31:0] OpCtrlNum=0;                    // index for OpCtrl
   logic [31:0] errors=0;                       // how many errors
   logic [31:0] VectorNum=0;                    // index for test vector
-  logic [31:0] FrmNum=0;                       // index for rounding mode
-  logic [P.Q_LEN*4+7:0]  TestVectors[MAXVECTORS-1:0]; // list of test vectors
+  // A vector holds up to four Q_LEN-bit fields (X, Y, Z, Ans) above an 8-bit field (two hex digits) of flags
+  logic [P.Q_LEN*4+7:0]  TestVector;          // current test vector, streamed from the .tv file
+  int          fd;                             // test vector file
 
   logic [1:0] FmtVal;                          // value of the current Fmt
-  logic [2:0] UnitVal, OpCtrlVal, FrmVal;      // value of the current Unit/OpCtrl/FrmVal
+  logic [3:0] UnitVal, OpCtrlVal;              // value of the current Unit/OpCtrl ({Zfa, OpCtrl})
+  logic [2:0] FrmVal;                          // value of the current rounding mode
   logic       WriteIntVal;                     // value of the current WriteInt
   logic [P.Q_LEN-1:0]  X, Y, Z;                // inputs read from TestFloat
   logic [P.FLEN-1:0]   XPostBox;               // inputs read from TestFloat
@@ -55,8 +56,11 @@ module testbench_fp;
   logic [P.FMTBITS-1:0] ModFmt;                // format - 10 = half, 00 = single, 01 = double, 11 = quad
   logic [P.FLEN-1:0]    FpRes, FpCmpRes;       // Results from each unit
   logic [P.XLEN-1:0]    IntRes, CmpRes;        // Results from each unit
+  logic [P.FLEN-1:0]    FRoundRes, SgnRes;     // fround and sign injection results
+  logic [P.XLEN-1:0]    ClassRes;              // fclass result
+  logic                 FRoundNV, FRoundNX;    // fround flags
   logic [P.Q_LEN-1:0]   FpResExtended;         // FpRes extended to same length as Ans/Res
-  logic [4:0] FmaFlg, CvtFlg, DivFlg, CmpFlg;  // Outputted flags
+  logic [4:0] CmpFlg;                          // compare flags
   logic            AnsNaN, ResNaN, NaNGood;
   logic            Xs, Ys, Zs;                 // sign of the inputs
   logic [P.NE-1:0] Xe, Ye, Ze;                 // exponent of the inputs
@@ -74,10 +78,9 @@ module testbench_fp;
   logic [P.LOGCVTLEN-1:0] CvtShiftAmtE;        // how much to shift by
   logic [P.DIVb:0] Quot;
   logic CvtResSubnormUfE;
-  logic DivStart;
+  logic DivStart = 1'b0;
   logic FDivBusyE;
-  logic OldFDivBusyE;
-  logic reset = 1'b0;
+  logic reset = 1'b1;
   logic [$clog2(P.NF+2)-1:0] XZeroCnt, YZeroCnt;
 
   // in-between FMA signals
@@ -94,7 +97,6 @@ module testbench_fp;
   logic As;
   logic Ps;
   logic DivSticky;
-  logic DivDone;
   logic DivNegSticky;
   logic [P.NE+1:0] DivCalcExp;
   logic            divsqrtop;
@@ -110,25 +112,11 @@ module testbench_fp;
   logic [P.XLEN-1:0] FIntDivResultM;
   logic ResMatch;                   // Check if result match
   logic FlagMatch;                  // Check if IEEE flags match
-  logic CheckNow;                   // Final check
-  logic FMAop;                      // Is this a FMA operation?
+  logic IntResult;                  // result is an integer (compare or conversion to integer)
 
   logic [P.NE-2:0]      BiasE;      // Bias of exponent
   logic [P.LOGFLEN-1:0] NfE;        // Number of fractional bits
 
-  // FSM for testing each item per clock
-  typedef enum logic [2:0] {S0, Start, S2, Done} statetype;
-  statetype state, nextstate;
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  //     ||||||||| |||||||| ||||||| |||||||||   ||||||| |||||||| |||
-  //        |||    |||      |||        |||      |||     |||      |||
-  //        |||    |||||||| |||||||    |||      ||||||| |||||||| |||
-  //        |||    |||          |||    |||          ||| |||      |||
-  //        |||    |||||||| |||||||    |||      ||||||| |||||||| |||||||||
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////
 
   // select tests relevant to the specified configuration
   //    cvtint - test integer conversion unit (fcvtint)
@@ -136,18 +124,48 @@ module testbench_fp;
   //    cmp    - test comparison unit's LT, LE, EQ operations (fcmp)
   //    add    - test addition
   //    sub    - test subtraction
+  //    mul    - test multiplication
+  //    fma    - test fused multiply-add
   //    div    - test division
   //    sqrt   - test square root
-  //    all    - test all of the above < doesn't report errors properly >
+  //    round  - test Zfa fround and froundnx (fround)
+  //    class  - test fclass (fclassify)
+  //    sgnj   - test fsgnj, fsgnjn and fsgnjx (fsgninj)
+  //    minmax - test fmin and fmax (fcmp)
+  //    all    - test all of the above
+  // cmp also tests the Zfa quiet compares fleq and fltq when Zfa is supported.  TestFloat has no vectors
+  // for class, sgnj and minmax, so they run only on vector sets that have them, such as cover-float's.
 
-  initial begin
-    // Information displayed for user on what is simulating
-    // $display("\nThe start of simulation...");
-    // $display("This simulation for TEST is %s", TEST);
-    // $display("This simulation for TEST is of the operand size of %s", TEST_SIZE);
+  // add the five files (one per rounding mode) of one operation to the test lists
+  task automatic AddOp(input string Stem, input logic [3:0] Op, input logic [3:0] U, input logic [1:0] F);
+    static string Modes[5] = '{"rne", "rz", "ru", "rd", "rnm"}; // in the order of Frm
+    for (int i = 0; i < 5; i++) begin
+      string Name;
+      Name = {Stem, "_", Modes[i], ".tv"}; // a separate string: Verilator would append {Stem, ...} as four entries
+      Tests = {Tests, Name};
+      Unit = {Unit, U};
+      Fmt = {Fmt, F};
+    end
+    OpCtrl = {OpCtrl, Op};
+    WriteInt = {WriteInt, 1'b0};
+  endtask
 
-    if (P.Q_SUPPORTED & (TEST_SIZE == "QP" | TEST_SIZE == "all")) begin // if Quad precision is supported
-      if (TEST === "cvtint" | TEST === "all") begin  // if testing integer conversion
+  // whether the vector set has a file, for operations TestFloat has no vectors for
+  function automatic logic HaveVectors(string Stem);
+    int f;
+    f = $fopen({VectorPath, Stem, "_rne.tv"}, "r");
+    if (f != 0) $fclose(f);
+    return f != 0;
+  endfunction
+  initial begin : driver
+    if (!$value$plusargs("TEST=%s", TestName)) TestName = TEST;
+    if (!$value$plusargs("TEST_SIZE=%s", TestSize)) TestSize = TEST_SIZE;
+    // +VECTORS=<dir>/<prefix> reads the vectors from other files named like TestFloat's, such as the
+    // cover-float vectors that make coverfloat converts into tests/fp/coverfloat/vectors
+    if (!$value$plusargs("VECTORS=%s", VectorPath)) VectorPath = `PATH;
+
+    if (P.Q_SUPPORTED & (TestSize == "QP" | TestSize == "all")) begin // if Quad precision is supported
+      if (TestName == "cvtint" | TestName == "all") begin  // if testing integer conversion
         // add the 128-bit cvtint tests to the to-be-tested list
         Tests = {Tests, f128rv32cvtint};
         // add the op-codes for these tests to the op-code list
@@ -171,12 +189,12 @@ module testbench_fp;
         end
       end
       // if the floating-point conversions are being tested
-      if (TEST === "cvtfp" | TEST === "all") begin
+      if (TestName == "cvtfp" | TestName == "all") begin
         if (P.D_SUPPORTED) begin // if double precision is supported
           // add the 128 <-> 64 bit conversions to the to-be-tested list
           Tests = {Tests, f128f64cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b01, 3'b11};
+          OpCtrl = {OpCtrl, 4'b01, 4'b11};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -192,7 +210,7 @@ module testbench_fp;
           // add the 128 <-> 32 bit conversions to the to-be-tested list
           Tests = {Tests, f128f32cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b00, 3'b11};
+          OpCtrl = {OpCtrl, 4'b00, 4'b11};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -208,7 +226,7 @@ module testbench_fp;
           // add the 128 <-> 16 bit conversions to the to-be-tested list
           Tests = {Tests, f128f16cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b10, 3'b11};
+          OpCtrl = {OpCtrl, 4'b10, 4'b11};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -221,7 +239,7 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cmp" | TEST === "all") begin // if comparisons are being tested
+      if (TestName == "cmp" | TestName == "all") begin // if comparisons are being tested
         // add the compare tests/op-ctrls/unit/fmt
         Tests = {Tests, f128cmp};
         OpCtrl = {OpCtrl, `EQ_OPCTRL, `LE_OPCTRL, `LT_OPCTRL};
@@ -231,7 +249,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "add" | TEST === "all") begin // if addition is being tested
+      if (TestName == "add" | TestName == "all") begin // if addition is being tested
         // add the addition tests/op-ctrls/unit/fmt
         Tests = {Tests, f128add};
         OpCtrl = {OpCtrl, `ADD_OPCTRL};
@@ -241,7 +259,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "sub" | TEST === "all") begin // if subtraction is being tested
+      if (TestName == "sub" | TestName == "all") begin // if subtraction is being tested
         // add the subtraction tests/op-ctrls/unit/fmt
         Tests = {Tests, f128sub};
         OpCtrl = {OpCtrl, `SUB_OPCTRL};
@@ -251,7 +269,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "mul" | TEST === "all") begin // if multiplication is being tested
+      if (TestName == "mul" | TestName == "all") begin // if multiplication is being tested
         // add the multiply tests/op-ctrls/unit/fmt
         Tests = {Tests, f128mul};
         OpCtrl = {OpCtrl, `MUL_OPCTRL};
@@ -261,7 +279,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "div" | TEST === "all") begin // if division is being tested
+      if (TestName == "div" | TestName == "all") begin // if division is being tested
         // add the divide tests/op-ctrls/unit/fmt
         Tests = {Tests, f128div};
         OpCtrl = {OpCtrl, `DIV_OPCTRL};
@@ -271,7 +289,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "sqrt" | TEST === "all") begin // if square-root is being tested
+      if (TestName == "sqrt" | TestName == "all") begin // if square-root is being tested
         // add the square-root tests/op-ctrls/unit/fmt
         Tests = {Tests, f128sqrt};
         OpCtrl = {OpCtrl, `SQRT_OPCTRL};
@@ -281,7 +299,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b11};
         end
       end
-      if (TEST === "fma" | TEST === "all") begin  // if fused-mutliply-add is being tested
+      if (TestName == "fma" | TestName == "all") begin  // if fused-mutliply-add is being tested
         Tests = {Tests, f128fma};
         OpCtrl = {OpCtrl, `FMA_OPCTRL};
         WriteInt = {WriteInt, 1'b0};
@@ -291,8 +309,8 @@ module testbench_fp;
         end
       end
     end
-    if (P.D_SUPPORTED & (TEST_SIZE == "DP" | TEST_SIZE == "all")) begin // if double precision is supported
-      if (TEST === "cvtint" | TEST === "all") begin // if integer conversion is being tested
+    if (P.D_SUPPORTED & (TestSize == "DP" | TestSize == "all")) begin // if double precision is supported
+      if (TestName == "cvtint" | TestName == "all") begin // if integer conversion is being tested
         Tests = {Tests, f64rv32cvtint};
         // add the op-codes for these tests to the op-code list
         OpCtrl = {OpCtrl, `FROM_UI_OPCTRL, `FROM_I_OPCTRL, `TO_UI_OPCTRL, `TO_I_OPCTRL};
@@ -314,12 +332,12 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cvtfp" | TEST === "all") begin // if floating point conversions are being tested
+      if (TestName == "cvtfp" | TestName == "all") begin // if floating point conversions are being tested
         if (P.F_SUPPORTED) begin // if single precision is supported
           // add the 64 <-> 32 bit conversions to the to-be-tested list
           Tests = {Tests, f64f32cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b00, 3'b01};
+          OpCtrl = {OpCtrl, 4'b00, 4'b01};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -335,7 +353,7 @@ module testbench_fp;
           // add the 64 <-> 16 bit conversions to the to-be-tested list
           Tests = {Tests, f64f16cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b10, 3'b01};
+          OpCtrl = {OpCtrl, 4'b10, 4'b01};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -348,7 +366,7 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cmp" | TEST === "all") begin // if comparisons are being tested
+      if (TestName == "cmp" | TestName == "all") begin // if comparisons are being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64cmp};
         OpCtrl = {OpCtrl, `EQ_OPCTRL, `LE_OPCTRL, `LT_OPCTRL};
@@ -358,7 +376,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "add" | TEST === "all") begin // if addition is being tested
+      if (TestName == "add" | TestName == "all") begin // if addition is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64add};
         OpCtrl = {OpCtrl, `ADD_OPCTRL};
@@ -368,7 +386,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "sub" | TEST === "all") begin // if subtration is being tested
+      if (TestName == "sub" | TestName == "all") begin // if subtration is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64sub};
         OpCtrl = {OpCtrl, `SUB_OPCTRL};
@@ -378,7 +396,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "mul" | TEST === "all") begin // if multiplication is being tested
+      if (TestName == "mul" | TestName == "all") begin // if multiplication is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64mul};
         OpCtrl = {OpCtrl, `MUL_OPCTRL};
@@ -388,7 +406,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "div" | TEST === "all") begin // if division is being tested
+      if (TestName == "div" | TestName == "all") begin // if division is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64div};
         OpCtrl = {OpCtrl, `DIV_OPCTRL};
@@ -398,7 +416,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "sqrt" | TEST === "all") begin // if square-root is being tessted
+      if (TestName == "sqrt" | TestName == "all") begin // if square-root is being tessted
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f64sqrt};
         OpCtrl = {OpCtrl, `SQRT_OPCTRL};
@@ -408,7 +426,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b01};
         end
       end
-      if (TEST === "fma" | TEST === "all") begin // if the fused multiply add is being tested
+      if (TestName == "fma" | TestName == "all") begin // if the fused multiply add is being tested
         Tests = {Tests, f64fma};
         OpCtrl = {OpCtrl, `FMA_OPCTRL};
         WriteInt = {WriteInt, 1'b0};
@@ -418,8 +436,8 @@ module testbench_fp;
         end
       end
     end
-    if (P.F_SUPPORTED & (TEST_SIZE == "SP" | TEST_SIZE == "all")) begin // if single precision being supported
-      if (TEST === "cvtint"| TEST === "all") begin // if integer conversion is being tested
+    if (P.F_SUPPORTED & (TestSize == "SP" | TestSize == "all")) begin // if single precision being supported
+      if (TestName == "cvtint"| TestName == "all") begin // if integer conversion is being tested
         Tests = {Tests, f32rv32cvtint};
         // add the op-codes for these tests to the op-code list
         OpCtrl = {OpCtrl, `FROM_UI_OPCTRL, `FROM_I_OPCTRL, `TO_UI_OPCTRL, `TO_I_OPCTRL};
@@ -441,12 +459,12 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cvtfp" | TEST === "all") begin  // if floating point conversion is being tested
+      if (TestName == "cvtfp" | TestName == "all") begin  // if floating point conversion is being tested
         if (P.ZFH_SUPPORTED) begin
           // add the 32 <-> 16 bit conversions to the to-be-tested list
           Tests = {Tests, f32f16cvt};
           // add the op-ctrls (i.e. the format of the result)
-          OpCtrl = {OpCtrl, 3'b10, 3'b00};
+          OpCtrl = {OpCtrl, 4'b10, 4'b00};
           WriteInt = {WriteInt, 1'b0, 1'b0};
           // add the unit being tested and fmt (input format)
           for(int i = 0; i<5; i++) begin
@@ -459,7 +477,7 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cmp" | TEST === "all") begin // if comparison is being tested
+      if (TestName == "cmp" | TestName == "all") begin // if comparison is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f32cmp};
         OpCtrl = {OpCtrl, `EQ_OPCTRL, `LE_OPCTRL, `LT_OPCTRL};
@@ -469,7 +487,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b00};
         end
       end
-      if (TEST === "add" | TEST === "all") begin // if addition is being tested
+      if (TestName == "add" | TestName == "all") begin // if addition is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f32add};
         OpCtrl = {OpCtrl, `ADD_OPCTRL};
@@ -479,7 +497,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b00};
         end
       end
-      if (TEST === "sub" | TEST === "all") begin // if subtration is being tested
+      if (TestName == "sub" | TestName == "all") begin // if subtration is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f32sub};
         OpCtrl = {OpCtrl, `SUB_OPCTRL};
@@ -489,7 +507,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b00};
         end
       end
-      if (TEST === "mul" | TEST === "all") begin // if multiply is being tested
+      if (TestName == "mul" | TestName == "all") begin // if multiply is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f32mul};
         OpCtrl = {OpCtrl, `MUL_OPCTRL};
@@ -499,7 +517,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b00};
         end
       end
-    if (TEST === "div" | TEST === "all") begin // if division is being tested
+    if (TestName == "div" | TestName == "all") begin // if division is being tested
       // add the correct tests/op-ctrls/unit/fmt to their lists
       Tests = {Tests, f32div};
       OpCtrl = {OpCtrl, `DIV_OPCTRL};
@@ -509,7 +527,7 @@ module testbench_fp;
         Fmt = {Fmt, 2'b00};
       end
     end
-      if (TEST === "sqrt" | TEST === "all") begin // if sqrt is being tested
+      if (TestName == "sqrt" | TestName == "all") begin // if sqrt is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f32sqrt};
         OpCtrl = {OpCtrl, `SQRT_OPCTRL};
@@ -519,7 +537,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b00};
         end
       end
-      if (TEST === "fma" | TEST === "all")  begin // if fma is being tested
+      if (TestName == "fma" | TestName == "all")  begin // if fma is being tested
           Tests = {Tests, f32fma};
           OpCtrl = {OpCtrl, `FMA_OPCTRL};
           WriteInt = {WriteInt, 1'b0};
@@ -529,8 +547,8 @@ module testbench_fp;
           end
       end
     end
-    if (P.ZFH_SUPPORTED & (TEST_SIZE == "HP" | TEST_SIZE == "all")) begin // if half precision supported
-      if (TEST === "cvtint" | TEST === "all") begin // if in conversions are being tested
+    if (P.ZFH_SUPPORTED & (TestSize == "HP" | TestSize == "all")) begin // if half precision supported
+      if (TestName == "cvtint" | TestName == "all") begin // if in conversions are being tested
         Tests = {Tests, f16rv32cvtint};
         // add the op-codes for these tests to the op-code list
         OpCtrl = {OpCtrl, `FROM_UI_OPCTRL, `FROM_I_OPCTRL, `TO_UI_OPCTRL, `TO_I_OPCTRL};
@@ -552,7 +570,7 @@ module testbench_fp;
           end
         end
       end
-      if (TEST === "cmp" | TEST === "all") begin // if comparisons are being tested
+      if (TestName == "cmp" | TestName == "all") begin // if comparisons are being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16cmp};
         OpCtrl = {OpCtrl, `EQ_OPCTRL, `LE_OPCTRL, `LT_OPCTRL};
@@ -562,7 +580,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "add" | TEST === "all") begin //  if addition is being tested
+      if (TestName == "add" | TestName == "all") begin //  if addition is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16add};
         OpCtrl = {OpCtrl, `ADD_OPCTRL};
@@ -572,7 +590,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "sub" | TEST === "all") begin // if subtraction is being tested
+      if (TestName == "sub" | TestName == "all") begin // if subtraction is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16sub};
         OpCtrl = {OpCtrl, `SUB_OPCTRL};
@@ -582,7 +600,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "mul" | TEST === "all") begin // if multiplication is being tested
+      if (TestName == "mul" | TestName == "all") begin // if multiplication is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16mul};
         OpCtrl = {OpCtrl, `MUL_OPCTRL};
@@ -592,7 +610,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "div" | TEST === "all") begin // if division is being tested
+      if (TestName == "div" | TestName == "all") begin // if division is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16div};
         OpCtrl = {OpCtrl, `DIV_OPCTRL};
@@ -602,7 +620,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "sqrt" | TEST === "all") begin // if sqrt is being tested
+      if (TestName == "sqrt" | TestName == "all") begin // if sqrt is being tested
         // add the correct tests/op-ctrls/unit/fmt to their lists
         Tests = {Tests, f16sqrt};
         OpCtrl = {OpCtrl, `SQRT_OPCTRL};
@@ -612,7 +630,7 @@ module testbench_fp;
           Fmt = {Fmt, 2'b10};
         end
       end
-      if (TEST === "fma" | TEST === "all") begin // if fma is being tested
+      if (TestName == "fma" | TestName == "all") begin // if fma is being tested
         Tests = {Tests, f16fma};
         OpCtrl = {OpCtrl, `FMA_OPCTRL};
         WriteInt = {WriteInt, 1'b0};
@@ -622,65 +640,90 @@ module testbench_fp;
         end
       end
     end
-    // check if nothing is being tested
-    if (Tests.size() == 0) begin
-      $display("TEST %s not supported in this configuration", TEST);
-`ifdef QUESTA
-      $stop;  // if this is changed to $finish for Questa, wally.do terminates without allowing GUI debug
-`else
-      $finish;
-`endif
+    // Zfa quiet compares, fround and froundnx, and the units only some vector sets have
+    for (int i = 0; i < 4; i++) begin
+      logic [1:0] f;
+      logic       supported;
+      string      n;
+      case (i)
+        0: begin f = 2'b11; n = "f128"; supported = P.Q_SUPPORTED   & (TestSize == "QP" | TestSize == "all"); end
+        1: begin f = 2'b01; n = "f64";  supported = P.D_SUPPORTED   & (TestSize == "DP" | TestSize == "all"); end
+        2: begin f = 2'b00; n = "f32";  supported = P.F_SUPPORTED   & (TestSize == "SP" | TestSize == "all"); end
+        default: begin f = 2'b10; n = "f16";  supported = P.ZFH_SUPPORTED & (TestSize == "HP" | TestSize == "all"); end
+      endcase
+      if (supported) begin
+        if (P.ZFA_SUPPORTED & (TestName == "cmp" | TestName == "all")) begin
+          AddOp({n, "_le_quiet"}, `LEQ_OPCTRL, `CMPUNIT, f);
+          AddOp({n, "_lt_quiet"}, `LTQ_OPCTRL, `CMPUNIT, f);
+        end
+        if (P.ZFA_SUPPORTED & (TestName == "round" | TestName == "all")) begin
+          AddOp({n, "_roundToInt"},      `ROUND_OPCTRL,   `ROUNDUNIT, f);
+          AddOp({n, "_roundToIntExact"}, `ROUNDNX_OPCTRL, `ROUNDUNIT, f);
+        end
+        if ((TestName == "class" | TestName == "all") & HaveVectors({n, "_class"}))
+          AddOp({n, "_class"}, `CLASS_OPCTRL, `CLASSUNIT, f);
+        if ((TestName == "sgnj" | TestName == "all") & HaveVectors({n, "_sgnj"})) begin
+          AddOp({n, "_sgnj"},  `SGNJ_OPCTRL,  `SGNJUNIT, f);
+          AddOp({n, "_sgnjn"}, `SGNJN_OPCTRL, `SGNJUNIT, f);
+          AddOp({n, "_sgnjx"}, `SGNJX_OPCTRL, `SGNJUNIT, f);
+        end
+        if ((TestName == "minmax" | TestName == "all") & HaveVectors({n, "_min"})) begin
+          AddOp({n, "_min"}, `MIN_OPCTRL, `MINMAXUNIT, f);
+          AddOp({n, "_max"}, `MAX_OPCTRL, `MINMAXUNIT, f);
+        end
+      end
     end
-  end
+    if (Tests.size() == 0) begin
+      $fatal(1, "TEST %s not supported in this configuration", TestName);
+    end
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  //     ||||||||| |||||||| ||||||||| |||||||     ||||||||| |||||||| ||||||| |||||||||
-  //     |||   ||| |||      |||   ||| ||   ||        |||    |||      |||        |||
-  //     ||||||||  |||||||| ||||||||| ||   ||        |||    |||||||| |||||||    |||
-  //     |||  ||   |||      |||   ||| ||   ||        |||    |||          |||    |||
-  //     |||   ||| |||||||| |||   ||| |||||||        |||    |||||||| |||||||    |||
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  // Read the first test
-  initial begin
-    static string pp = `PATH;
-    string testname;
-    string tt0;
-    tt0 = $sformatf("%s", Tests[TestNum]);
-    testname = {pp, tt0};
-    //$display("Here you are %s", testname);
-    // clear the vectors
-    for(int i=0; i<MAXVECTORS; i++) TestVectors[i] = '1;
-    $display("\n\nRunning %s vectors ", Tests[TestNum]);
-    $readmemh(testname, TestVectors);
-    // set the test index to 0
-    TestNum = 0;
-  end
-
-  // set the signals for all tests
-  always_ff @(posedge clk) begin
-    UnitVal = Unit[TestNum];
-    FmtVal = Fmt[TestNum];
-    OpCtrlVal = OpCtrl[OpCtrlNum];
-    WriteIntVal = WriteInt[OpCtrlNum];
-    FrmVal = Frm[FrmNum];
+    // Run each test file.  Each file holds one operation in one rounding mode; files come in groups of
+    // five (rne, rz, ru, rd, rnm) that share one OpCtrl.  This process is the only one that changes the
+    // inputs, and it changes them only on the falling edge of clk (or between edges for the
+    // combinational units), so the result it checks is never racing with the vector that produced it.
+    repeat (2) @(negedge clk);
+    reset = 1'b0;
+    for (TestNum = 0; TestNum < Tests.size(); TestNum++) begin
+      UnitVal     = Unit[TestNum];
+      FmtVal      = Fmt[TestNum];
+      OpCtrlVal   = OpCtrl[TestNum/5];
+      WriteIntVal = WriteInt[TestNum/5];
+      FrmVal      = Frm[TestNum%5];
+      fd = $fopen({VectorPath, Tests[TestNum]}, "r");
+      if (fd == 0) begin
+        $fatal(1, "Error: cannot open %s%s; run make testfloat (or make coverfloat) in $WALLY", VectorPath, Tests[TestNum]);
+      end
+      $display("Running %s vectors", Tests[TestNum]);
+      for (VectorNum = 0; $fscanf(fd, "%h\n", TestVector) == 1; VectorNum++) begin
+        if (UnitVal == `DIVUNIT) begin
+          // Start the divider at the next rising edge, wait for it to finish, and check one cycle
+          // after FDivDoneE, when its result has reached the Memory-stage outputs (UmM, DivStickyM)
+          @(negedge clk) DivStart = 1'b1;
+          @(negedge clk) DivStart = 1'b0;
+          while (!FDivDoneE) @(negedge clk);
+          @(negedge clk);
+        end else #1; // the other units are combinational: let the result settle
+        checkResult();
+      end
+      $fclose(fd);
+    end
+    $display("\nAll Tests completed with %d errors\n", errors);
+    $finish;
   end
 
   // modify the format signal if only 2 precisions supported
   //    - 1 for the larger precision
   //    - 0 for the smaller precision
   always_comb begin
-    if (P.FMTBITS == 1) ModFmt = {1'b0, FmtVal == P.FMT};
-    else ModFmt = FmtVal;
+    if (P.FMTBITS == 1) ModFmt = P.FMTBITS'(FmtVal == P.FMT);
+    else                ModFmt = P.FMTBITS'(FmtVal);
   end
 
   // extract the inputs (X, Y, Z, SrcA) and the output (Ans, AnsFlg) from the current test vector
-  readvectors #(P) readvectors (.clk, .Fmt(FmtVal), .ModFmt, .TestVector(TestVectors[VectorNum]),
-                                .VectorNum, .Ans(Ans), .AnsFlg(AnsFlg), .SrcA,
+  readvectors #(P) readvectors (.Fmt(FmtVal), .ModFmt, .TestVector,
+                                .Ans(Ans), .AnsFlg(AnsFlg), .SrcA,
                                 .Xs, .Ys, .Zs, .Unit(UnitVal),
-                                .Xe, .Ye, .Ze, .TestNum, .OpCtrl(OpCtrlVal),
+                                .Xe, .Ye, .Ze, .OpCtrl(OpCtrlVal),
                                 .Xm, .Ym, .Zm,
                                 .XNaN, .YNaN, .ZNaN,
                                 .XSNaN, .YSNaN, .ZSNaN,
@@ -689,28 +732,16 @@ module testbench_fp;
                                 .XInf, .YInf, .ZInf, .XExpMax,
                                 .X, .Y, .Z, .XPostBox, .NfE, .BiasE);
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  //     |||||||   |||   ||| |||||||||
-  //     |||   ||| |||   |||    |||
-  //     |||   ||| |||   |||    |||
-  //     |||   ||| |||   |||    |||
-  //     |||||||   |||||||||    |||
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  // instantiate devices under test
-  if (TEST === "fma"| TEST === "mul" | TEST === "add" | TEST === "sub" | TEST === "all") begin : fma
-    fma #(P) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
-      .Xe(Xe), .Ye(Ye), .Ze(Ze),
-      .Xm(Xm), .Ym(Ym), .Zm(Zm),
-      .XZero, .YZero, .ZZero, .Ss, .Se,
-      .OpCtrl(OpCtrlVal), .Sm, .InvA, .SCnt, .As, .Ps,
-      .ASticky);
-  end
+  // instantiate devices under test.  Every unit is present so that one compiled design runs every test.
+  fma #(P) fma(.Xs(Xs), .Ys(Ys), .Zs(Zs),
+    .Xe(Xe), .Ye(Ye), .Ze(Ze),
+    .Xm(Xm), .Ym(Ym), .Zm(Zm),
+    .XZero, .YZero, .ZZero, .Ss, .Se,
+    .OpCtrl(OpCtrlVal[2:0]), .Sm, .InvA, .SCnt, .As, .Ps,
+    .ASticky);
 
   postprocess #(P) postprocess(.Xs(Xs), .Ys(Ys), .PostProcSel(UnitVal[1:0]),
-    .OpCtrl(OpCtrlVal), .DivUm(Quot), .DivUe(DivCalcExp),
+    .OpCtrl(OpCtrlVal[2:0]), .DivUm(Quot), .DivUe(DivCalcExp),
     .Xm(Xm), .Ym(Ym), .Zm(Zm), .CvtCe(CvtCalcExpE), .DivSticky(DivSticky), .FmaSs(Ss),
     .XNaN(XNaN), .YNaN(YNaN), .ZNaN(ZNaN), .CvtResSubnormUf(CvtResSubnormUfE),
     .XZero(XZero), .YZero(YZero), .CvtShiftAmt(CvtShiftAmtE),
@@ -720,53 +751,45 @@ module testbench_fp;
     .FmaSm(Sm), .FmaSCnt(SCnt), .FmaAs(As), .FmaPs(Ps), .Fmt(ModFmt), .Frm(FrmVal),
     .PostProcFlg(Flg), .PostProcRes(FpRes), .FCvtIntRes(IntRes), .Zfa(1'b0));
 
-  if (TEST === "cvtfp" | TEST === "cvtint" | TEST === "all") begin : fcvt
-    fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
-      .XZero(XZero), .OpCtrl(OpCtrlVal), .IntZero,
-      .Fmt(ModFmt), .Ce(CvtCalcExpE), .ShiftAmt(CvtShiftAmtE),
-      .ResSubnormUf(CvtResSubnormUfE), .Cs(CvtResSgnE), .LzcIn(CvtLzcInE));
-  end
+  fcvt #(P) fcvt (.Xs(Xs), .Xe(Xe), .Xm(Xm), .Int(SrcA), .ToInt(WriteIntVal),
+    .XZero(XZero), .OpCtrl(OpCtrlVal[2:0]), .IntZero,
+    .Fmt(ModFmt), .Ce(CvtCalcExpE), .ShiftAmt(CvtShiftAmtE),
+    .ResSubnormUf(CvtResSubnormUfE), .Cs(CvtResSgnE), .LzcIn(CvtLzcInE));
 
-  if (TEST === "cmp" | TEST === "all") begin: fcmp
-    fcmp #(P) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal), .Zfa(1'b0), .Xs, .Ys, .Xe, .Ye,
-      .Xm, .Ym, .XZero, .YZero, .CmpIntRes(CmpRes),
-      .XNaN, .YNaN, .XSNaN, .YSNaN, .X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .CmpNV(CmpFlg[4]), .CmpFpRes(FpCmpRes));
-  end
+  // OpCtrl[3] selects the Zfa quiet compares fleq and fltq
+  fcmp #(P) fcmp (.Fmt(ModFmt), .OpCtrl(OpCtrlVal[2:0]), .Zfa(OpCtrlVal[3]), .Xs, .Ys, .Xe, .Ye,
+    .Xm, .Ym, .XZero, .YZero, .CmpIntRes(CmpRes),
+    .XNaN, .YNaN, .XSNaN, .YSNaN, .X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .CmpNV(CmpFlg[4]), .CmpFpRes(FpCmpRes));
 
-  if (TEST === "div" | TEST === "sqrt" | TEST === "all") begin: fdivsqrt
-    fdivsqrt #(P) fdivsqrt(.clk, .reset, .XsE(Xs), .FmtE(ModFmt), .XmE(Xm), .YmE(Ym),
-      .XeE(Xe), .YeE(Ye), .SqrtE(OpCtrlVal[0]), .SqrtM(OpCtrlVal[0]),
-      .XInfE(XInf), .YInfE(YInf), .XZeroE(XZero), .YZeroE(YZero),
-      .XNaNE(XNaN), .YNaNE(YNaN), .NfE, .BiasE,
-      .FDivStartE(DivStart), .IDivStartE(1'b0), .W64E(1'b0),
-      .StallM(1'b0), .DivStickyM(DivSticky), .FDivBusyE, .UeM(DivCalcExp),
-      .UmM(Quot),
-      .FlushE(1'b0), .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3M(Funct3M),
-      .Funct3E(Funct3E), .IntDivE(1'b0), .FIntDivResultM(FIntDivResultM),
-      .FDivDoneE(FDivDoneE), .IFDivStartE(IFDivStartE));
-  end
+  fdivsqrt #(P) fdivsqrt(.clk, .reset, .XsE(Xs), .FmtE(ModFmt), .XmE(Xm), .YmE(Ym),
+    .XeE(Xe), .YeE(Ye), .SqrtE(OpCtrlVal[0]), .SqrtM(OpCtrlVal[0]),
+    .XInfE(XInf), .YInfE(YInf), .XZeroE(XZero), .YZeroE(YZero),
+    .XNaNE(XNaN), .YNaNE(YNaN), .NfE, .BiasE,
+    .FDivStartE(DivStart), .IDivStartE(1'b0), .W64E(1'b0),
+    .StallM(1'b0), .DivStickyM(DivSticky), .FDivBusyE, .UeM(DivCalcExp),
+    .UmM(Quot),
+    .FlushE(1'b0), .ForwardedSrcAE('0), .ForwardedSrcBE('0), .Funct3M(Funct3M),
+    .Funct3E(Funct3E), .IntDivE(1'b0), .FIntDivResultM(FIntDivResultM),
+    .FDivDoneE(FDivDoneE), .IFDivStartE(IFDivStartE));
 
   assign CmpFlg[3:0] = 0;
+
+  // Zfa fround and froundnx; OpCtrl[0] selects froundnx
+  fround #(P) fround(.Xs, .Xe, .Xm, .XNaN, .XSNaN, .Fmt(ModFmt), .Frm(FrmVal), .Nf(NfE),
+    .ZfaFRoundNX(OpCtrlVal[0]), .FRound(FRoundRes), .FRoundNV, .FRoundNX);
+
+  fsgninj #(P) fsgninj(.OpCtrl(OpCtrlVal[1:0]), .Xs, .Ys, .X(XPostBox), .Fmt(ModFmt), .SgnRes);
+
+  fclassify #(P) fclassify(.Xs, .XSubnorm, .XZero, .XNaN, .XInf, .XSNaN, .ClassRes);
 
   // produce clock
   always begin
     clk = 1; #5; clk = 0; #5;
   end
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-  //          |||||      |||  ||||||||||  |||||      |||
-  //          |||||||    |||  |||    |||  |||||||    |||
-  //          |||| |||   |||  ||||||||||  |||| |||   |||
-  //          ||||  |||  |||  |||    |||  ||||  |||  |||
-  //          ||||   ||| |||  |||    |||  ||||   ||| |||
-  //          ||||    ||||||  |||    |||  ||||    ||||||
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
   // Check if the correct answer and result is a NaN
   always_comb begin
-    if (UnitVal === `CVTINTUNIT | UnitVal === `CMPUNIT) begin
+    if (UnitVal === `CVTINTUNIT | UnitVal === `CMPUNIT | UnitVal === `CLASSUNIT) begin
       // an integer output can't be a NaN
       AnsNaN = 1'b0;
       ResNaN = 1'b0;
@@ -812,14 +835,20 @@ module testbench_fp;
   end
 
   always_comb begin
+    Res = '0; ResFlg = '0;
     FpResExtended = {{(P.Q_LEN-P.FLEN){1'b1}}, FpRes};
     // select the result to check
     case (UnitVal)
       `FMAUNIT: Res = FpResExtended;
       `DIVUNIT: Res = FpResExtended;
-      `CMPUNIT: Res = {{(Q_LEN-XLEN){1'b0}}, CmpRes};
-      `CVTINTUNIT: if (WriteIntVal) Res = {{(Q_LEN-XLEN){1'b0}}, IntRes}; else Res = FpResExtended;
+      `CMPUNIT: Res = {{(P.Q_LEN-P.XLEN){1'b0}}, CmpRes};
+      `CVTINTUNIT: if (WriteIntVal) Res = {{(P.Q_LEN-P.XLEN){1'b0}}, IntRes}; else Res = FpResExtended;
       `CVTFPUNIT: Res = FpResExtended;
+      `ROUNDUNIT: Res = {{(P.Q_LEN-P.FLEN){1'b1}}, FRoundRes};
+      `CLASSUNIT: Res = {{(P.Q_LEN-P.XLEN){1'b0}}, ClassRes};
+      `SGNJUNIT: Res = {{(P.Q_LEN-P.FLEN){1'b1}}, SgnRes};
+      `MINMAXUNIT: Res = {{(P.Q_LEN-P.FLEN){1'b1}}, FpCmpRes};
+      default: ;
     endcase
 
     // select the flag to check
@@ -829,73 +858,19 @@ module testbench_fp;
       `CMPUNIT: ResFlg = CmpFlg;
       `CVTINTUNIT: ResFlg = Flg;
       `CVTFPUNIT: ResFlg = Flg;
+      `ROUNDUNIT: ResFlg = {FRoundNV, 3'b0, FRoundNX};
+      `MINMAXUNIT: ResFlg = CmpFlg;
+      default: ;   // class and sign injection raise no flags
     endcase
-
-    // Use four state test sequence to handle div properly.
-    // Four states should allow other operations to finish
-    // properly and within time.
-    case (state)
-      S0: begin
-        DivStart = 1'b0;
-        nextstate = Start;
-      end
-      Start: begin
-        if (UnitVal == `DIVUNIT)
-          DivStart = 1'b1;
-        else
-          DivStart = 1'b0;
-        nextstate = S2;
-      end
-      S2: begin
-        DivStart = 1'b0;
-        if ((FDivBusyE|~DivDone)&(UnitVal == `DIVUNIT))
-          nextstate = S2;
-        else
-          nextstate = Done;
-      end
-      Done: begin
-        DivStart = 1'b0;
-        nextstate = S0;
-      end
-      default: begin
-        DivStart = 1'b0;
-        nextstate = S0;
-      end
-    endcase // case (state)
   end
 
-  // Provide reset for divsqrt to reset state
-  initial
-    begin
-      #0  reset = 1'b1;
-      #25 reset = 1'b0;
-    end
-
-  // Left-over from before - will remove soon
-  always @(posedge clk)
-    OldFDivBusyE = FDivDoneE;
-
-  // state machine to handle timing for testing due
-  // various cycle counts for different fp/int operations
-  // Adds vector at start of clock
-  always @(posedge clk) begin
-    // state machine element for testing
-    if (reset)
-      state <= S0;
-    else
-      state <= nextstate;
-    // Increment the vector when Done with each test
-    if (state == Done) begin
-      VectorNum += 1; // increment the vector
-    end
-  end
-
-  // check results on falling edge of clk
-  always @(negedge clk) begin
-    // check if the NaN value is good. IEEE754-2019 sections 6.3 and 6.2.3 specify:
-    //    - the sign of the NaN does not matter for the operations being tested
-    //    - when 2 or more NaNs are inputted the NaN that is propagated doesn't matter
-    if (UnitVal !== `CVTFPUNIT & UnitVal !== `CVTINTUNIT)
+  // check if the NaN value is good. IEEE754-2019 sections 6.3 and 6.2.3 specify:
+  //    - the sign of the NaN does not matter for the operations being tested
+  //    - when 2 or more NaNs are inputted the NaN that is propagated doesn't matter
+  always_comb begin
+    NaNGood = 1'b0;
+    // sign injection and classify must match exactly, NaN payloads and signs included
+    if (UnitVal !== `CVTFPUNIT & UnitVal !== `CVTINTUNIT & UnitVal !== `SGNJUNIT & UnitVal !== `CLASSUNIT)
       case (FmtVal)
         2'b11: NaNGood = (((P.IEEE754==0)&AnsNaN&(Res === {1'b0, {P.Q_NE+1{1'b1}}, {P.Q_NF-1{1'b0}}})) |
                           (AnsFlg[4]&(Res[P.Q_LEN-2:0] === {{P.Q_NE+1{1'b1}}, {P.Q_NF-1{1'b0}}})) |
@@ -942,86 +917,39 @@ module testbench_fp;
                           (YNaN&(Res[P.H_LEN-2:0] === {Y[P.H_LEN-2:P.H_NF],1'b1,Y[P.H_NF-2:0]})));
       endcase
     else NaNGood = 1'b0; // integers can't be NaNs
+  end
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////
+  // An integer result (compare, classify, or conversion to an integer) fills an XLEN-bit register, so only
+  // XLEN bits are compared; a 32-bit result is sign-extended to XLEN bits both by Wally and in Ans.
+  assign IntResult = (UnitVal == `CMPUNIT) | (UnitVal == `CLASSUNIT) | ((UnitVal == `CVTINTUNIT) & WriteIntVal);
+  assign ResMatch  = (IntResult ? (Res[P.XLEN-1:0] === Ans[P.XLEN-1:0]) : (Res[P.FLEN-1:0] === Ans[P.FLEN-1:0])) |
+                     NaNGood | (NaNGood === 1'bx);
+  assign FlagMatch = ((ResFlg === AnsFlg) | (AnsFlg === 5'bx));
 
-    //     ||||||| |||    ||| ||||||| ||||||| |||   |||
-    //     |||     |||    ||| |||     |||     |||  |||
-    //     |||     |||||||||| ||||||| |||     ||||||
-    //     |||     |||    ||| |||     |||     |||  |||
-    //     ||||||| |||    ||| ||||||| ||||||| |||    |||
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////
-
-    // check if result is correct
-    assign ResMatch = ((Res[P.FLEN-1:0] === Ans[P.FLEN-1:0]) | NaNGood | (NaNGood === 1'bx));
-    assign FlagMatch = ((ResFlg === AnsFlg) | (AnsFlg === 5'bx));
-    assign divsqrtop = (OpCtrlVal == `SQRT_OPCTRL) | (OpCtrlVal == `DIV_OPCTRL);
-    assign FMAop = (OpCtrlVal == `FMAUNIT);
-    assign DivDone = OldFDivBusyE & ~FDivBusyE;
-    assign CheckNow = ((DivDone | ~divsqrtop) |
-      (TEST == "add" | TEST == "fma" | TEST == "sub") |
-      ((TEST == "all") & (DivDone | ~divsqrtop)));
-
-    if (~(ResMatch & FlagMatch) & CheckNow & (Ans[0] !== 1'bx)) begin
+  // compare the result and flags with the TestFloat answer; stop at the first error
+  task automatic checkResult();
+    if (~(ResMatch & FlagMatch) & (Ans[0] !== 1'bx)) begin
       errors += 1;
       $display("\nError in %s", Tests[TestNum]);
-      $display("TestNum %d VectorNum %d OpCtrl %d", TestNum, VectorNum, OpCtrl[TestNum]);
+      $display("TestNum %d VectorNum %d OpCtrl %d", TestNum, VectorNum, OpCtrlVal);
       $display("inputs: %h %h %h\nSrcA: %h\n Res: %h %h\n Expected: %h %h",
         X[P.FLEN-1:0], Y[P.FLEN-1:0], Z[P.FLEN-1:0], SrcA, Res[P.FLEN-1:0], ResFlg, Ans[P.FLEN-1:0], AnsFlg);
-      //$display("  fma.Xs %h Xe %h Xm %h Ys %h Ye %h Ym %h Ss %h Se %h Sm %h", fma.Xs, fma.Xe, fma.Xm, fma.Ys, fma.Ye, fma.Ym, fma.Ss, fma.Se, fma.Sm);
-      //$display("  readvectors.unpack.X %h Xs %h Xe %h Xm %h", readvectors.unpack.X, readvectors.unpack.Xs, readvectors.unpack.Xe, readvectors.unpack.Xm);
 `ifdef QUESTA
       $stop;  // if this is changed to $finish for Questa, wally.do terminates without allowing GUI debug
 `else
-      $finish;
+      $fatal(1, "TestFloat vector mismatch");
 `endif
     end
-
-    if (TestVectors[VectorNum] == '1 & Tests[TestNum] !== "") begin // if reached the eof
-      // increment the test
-      TestNum += 1;
-      // clear the vectors
-      for(int i=0; i<MAXVECTORS; i++) TestVectors[i] = '1;
-      // read next files
-      $readmemh({`PATH, Tests[TestNum]}, TestVectors);
-      // set the vector index back to 0
-      VectorNum = 0;
-      // incemet the operation if all the rounding modes have been tested
-      if (FrmNum === 4) OpCtrlNum += 1;
-      // increment the rounding mode or loop back to rne
-      if (FrmNum < 4) FrmNum += 1;
-      else begin
-        FrmNum = 0;
-        // Add some time as a buffer between tests at the end of each test
-        // (to be removed, but as of 7/14/24 breaks Verilator sqrt sim to remove dh)
-        repeat (10)
-          @(posedge clk);
-      end
-      // if no more Tests - finish
-      if (Tests[TestNum] === "") begin
-        $display("\nAll Tests completed with %d errors\n", errors);
-`ifdef QUESTA
-        $stop;  // if this is changed to $finish for Questa, wally.do terminates without allowing GUI debug
-`else
-        $finish;
-`endif
-      end
-      $display("Running %s vectors", Tests[TestNum]);
-    end
-  end
+  endtask
 endmodule
 
 
 module readvectors import cvw::*; #(parameter cvw_t P) (
-  input  logic clk,
   input  logic [P.Q_LEN*4+7:0] TestVector,
   input  logic [P.FMTBITS-1:0] ModFmt,
   input  logic [1:0]  Fmt,
-  input  logic [2:0]  Unit,
-  input  logic [31:0] VectorNum,
-  input  logic [31:0] TestNum,
-  input  logic [2:0]  OpCtrl,
+  input  logic [3:0]  Unit,
+  input  logic [3:0]  OpCtrl,
   output logic [P.Q_LEN-1:0] Ans,
   output logic [P.XLEN-1:0]  SrcA,
   output logic [4:0] AnsFlg,
@@ -1040,18 +968,32 @@ module readvectors import cvw::*; #(parameter cvw_t P) (
   output logic [P.LOGFLEN-1:0] NfE             // Number of fractional bits
 );
 
-  localparam Q_LEN = 32'd128;
-
   logic XEn;
   logic YEn;
+  int   Len;   // length of the format under test
+
+  // field Pos (0 = the answer) of a vector of Len-bit fields after the flags, NaN-boxed to Q_LEN
+  function automatic logic [P.Q_LEN-1:0] Field(input logic [P.Q_LEN*4+7:0] V, input int Pos, input int L);
+    logic [P.Q_LEN-1:0] Mask;
+    Mask = (L >= P.Q_LEN) ? '1 : ~({P.Q_LEN{1'b1}} << L);
+    return (P.Q_LEN'(V >> (8 + Pos*L)) & Mask) | ~Mask;
+  endfunction
+
+  always_comb
+    case (Fmt)
+      2'b11:   Len = P.Q_LEN;
+      2'b01:   Len = P.D_LEN;
+      2'b00:   Len = P.S_LEN;
+      default: Len = P.H_LEN;
+    endcase
   logic ZEn;
   logic FPUActive;
 
-  // apply test vectors on rising edge of clk
+  // split the test vector into inputs and the expected answer
   // Format of vectors Inputs(1/2/3)_AnsFlg
-  always @(posedge clk) begin
+  always_comb begin
     AnsFlg = TestVector[4:0];
-    //$display("  Entering readvectors with VectorNum=%d, TestVector=%x, Unit=%d, Fmt=%d, OpCtrl=%d", VectorNum, TestVector, Unit, Fmt, OpCtrl); */
+    X = '0; Y = '0; Z = '0; SrcA = '0; Ans = '0;
     case (Unit)
       `FMAUNIT:
         case (Fmt)
@@ -1368,11 +1310,26 @@ module readvectors import cvw::*; #(parameter cvw_t P) (
             endcase
           end
         endcase
+      // vectors are X_Ans_Flg (round, class) or X_Y_Ans_Flg (sign injection, min/max)
+      `ROUNDUNIT: begin
+        X = Field(TestVector, 1, Len);
+        Ans = Field(TestVector, 0, Len);
+      end
+      `CLASSUNIT: begin
+        X = Field(TestVector, 1, Len);
+        Ans = Field(TestVector, 0, Len) & ~({P.Q_LEN{1'b1}} << Len); // an integer result is not NaN-boxed
+      end
+      `SGNJUNIT, `MINMAXUNIT: begin
+        X = Field(TestVector, 2, Len);
+        Y = Field(TestVector, 1, Len);
+        Ans = Field(TestVector, 0, Len);
+      end
+      default: ;
     endcase
   end
 
   assign XEn = ~((Unit == `CVTINTUNIT)&OpCtrl[2]);
-  assign YEn = ~((Unit == `CVTINTUNIT)|(Unit == `CVTFPUNIT)|((Unit == `DIVUNIT)&OpCtrl[0]));
+  assign YEn = ~((Unit == `CVTINTUNIT)|(Unit == `CVTFPUNIT)|((Unit == `DIVUNIT)&OpCtrl[0])|(Unit == `ROUNDUNIT)|(Unit == `CLASSUNIT));
   assign ZEn = (Unit == `FMAUNIT);
   assign FPUActive = 1'b1;
 
