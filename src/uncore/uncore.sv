@@ -60,7 +60,7 @@ module uncore import cvw::*; #(parameter cvw_t P) (
   logic                        HRESPRam, HREADYRam;
   logic [P.XLEN-1:0]           HREADBootRom;
   logic                        HSELBootRom, HSELBootRomD, HRESPBootRom, HREADYBootRom;
-  logic                        HSELNone, HSELNoneD, NoneErr1, NoneErr2;
+  logic                        HSELNone, HSELNoneD, HRESPNoPeriphErr1, HRESPNoPeriphErr2;
   logic                        UARTIntr, GPIOIntr, SPIIntr;
   logic [3:0]                  PWMIntr;                     // one PLIC source per PWM comparator, as in the FU540
 
@@ -183,18 +183,18 @@ module uncore import cvw::*; #(parameter cvw_t P) (
                  HSELEXTD & HRESPEXT |
                  HSELBRIDGED & HRESPBRIDGE |
                  HSELBootRomD & HRESPBootRom |
-                 NoneErr1 | NoneErr2;
+                 HRESPNoPeriphErr1 | HRESPNoPeriphErr2;
 
   assign HREADY = HSELRamD & HREADYRam |
                   HSELEXTD & HREADYEXT |
                   HSELBRIDGED & HREADYBRIDGE |
                   HSELBootRomD & HREADYBootRom |
-                  HSELNoneD & ~NoneErr1; // don't lock up the bus if no region is being accessed
+                  HSELNoneD & ~HRESPNoPeriphErr1; // don't lock up the bus if no region is being accessed
 
   // Default subordinate: an IDLE or BUSY gets a zero-wait OKAY, but a NONSEQ or SEQ to an address with no subordinate
   // gets the two-cycle ERROR response (HRESP high with HREADY low, then HRESP high with HREADY high)
-  flopr #(1) noneerr1reg(HCLK, ~HRESETn, HREADY & HSELNone & HTRANS[1], NoneErr1);
-  flopr #(1) noneerr2reg(HCLK, ~HRESETn, NoneErr1, NoneErr2);
+  flopr #(1) hrespnoperipherr1reg(HCLK, ~HRESETn, HREADY & HSELNone & HTRANS[1], HRESPNoPeriphErr1);
+  flopr #(1) hrespnoperipherr2reg(HCLK, ~HRESETn, HRESPNoPeriphErr1, HRESPNoPeriphErr2);
 
   // Address Decoder Delay (figure 4-2 in spec)
   // The select for HREADY needs to be based on the address phase address.  If the device
