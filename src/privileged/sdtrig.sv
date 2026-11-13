@@ -39,6 +39,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   output logic              IllegalCSRTAccessM
 );
 
+  ///////////////////////////////////////////
+  // Signals
+  ///////////////////////////////////////////
+
   logic [P.XLEN-1:0]         TDATA1_REGW[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]         TDATA2_REGW[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0]         TDATA3_REGW[P.NUM_TRIGGERS];
@@ -47,10 +51,18 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0]         MCONTEXT_REGW;
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
 
+  ///////////////////////////////////////////
+  // CSRs
+  ///////////////////////////////////////////
+
   csrt #(P) csrt(.clk, .reset, .CSRSWriteM, .CSRMWriteM, .CSRAdrM, .CSRWriteValM,
     .TrapM, .StallW, .mretM, .NextPrivilegeModeM, .MatchM, .SetPendingM,
     .CSRTReadValM, .IllegalCSRTAccessM,
     .TDATA1_REGW, .TDATA2_REGW, .TDATA3_REGW, .TCONTROL_REGW, .SCONTEXT_REGW, .MCONTEXT_REGW);
+
+  ///////////////////////////////////////////
+  // Trigger match
+  ///////////////////////////////////////////
 
   trigger #(P) trigger(.PrivilegeModeW, .SATP_REGW, .InstrValidNotFlushedM,
     .TrapM, .InterruptM, .ExceptionM, .CauseM, .CommittedF,
