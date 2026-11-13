@@ -1010,8 +1010,10 @@ def main(args):
             print(f"{bcolors.OKCYAN}Removed {len(stale)} coverage databases that no selected test writes{bcolors.ENDC}")
     # Scale the number of concurrent processes to the number of test cases, but
     # max out at a limited number of concurrent processes to not overwhelm the system
-    # The CPUs this process may run on (os.sched_getaffinity) honor taskset, unlike multiprocessing.cpu_count().
-    with Pool(processes=min(len(configs), len(os.sched_getaffinity(0)))) as pool:
+    # lockstep tests (nightly, ccov, fcov, lockstep) each hold an ImperasDV license.  The CPUs this process may
+    # run on (os.sched_getaffinity) honor taskset, unlike multiprocessing.cpu_count().
+    ImperasDVLicenseCount = 16 if (args.nightly or args.ccov or args.fcov or args.lockstep) else 10000
+    with Pool(processes=min(len(configs), len(os.sched_getaffinity(0)), ImperasDVLicenseCount)) as pool:
         num_fail = 0
         # Start the simulations of the most ELFs first, so that the longest ones do not start last; runs
         # that are not lists of ELFs (lint, buildroot, testfloat) keep their place at the front
