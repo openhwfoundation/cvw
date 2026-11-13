@@ -25,7 +25,6 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   input  logic                         VectorFlushE, VectorFlushM, FlushW,
   // Flow control
   input  logic                         ControllerValidD,
-  input  logic                         ControllerWBReadyW,
   output logic                         ExecutionUnitReadyD,
   output logic                         ExecutionUnitResultValidW,
   input  logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderD,
@@ -52,7 +51,9 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   input  logic [P.VLEN-1:0]            v0D,                      // mask v0
   input  logic [P.FLEN-1:0]            FRD1D,                    // fs1 for .vf
   // Results
-  output logic [P.VLEN-1:0]            VFPEUResultW,
+  output logic [P.VPU_INT_BLEN-1:0]    VFPEUResultW,             // result bank (to sVRF)
+  output logic                         VFPEUBeatValidW,          // result bank is valid
+  output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] VFPEUBeatW,     // bank number of result
   output logic [4:0]                   VFPEUFlagsW,
   output logic                         VFPEUVRegWriteW,
   output logic [4:0]                   VFPEUVdFinalW
@@ -63,11 +64,13 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   localparam BEATW    = $clog2(P.VLEN/16);                     // beat index width (16-bit reduction has most beats)
   localparam INTSPLIT = $clog2(P.VPU_INT_EU);                  // vieufsm divides its count by the integer lanes
   localparam FSMW     = BEATW + INTSPLIT;                      // vieufsm count width
+  localparam SVRFBEATW = $clog2((P.VLEN/P.ELEN) + 1);          // sVRF bank number width
+  localparam LOGBLEN  = $clog2(P.VPU_INT_BLEN);                // sVRF bank width, TODO: fix to BLEN across EU types
+  localparam BANKS    = P.VLEN/P.VPU_INT_BLEN;
 
   logic                       CaptureD;
   logic                       FsmReadyD;                       // vieufsm is ready, before the E stall
-  logic                       LocalStallE, LocalStallM, LocalStallW;
-  logic                       NotConsummedW;
+  logic                       LocalStallE;
   logic                       BubbleM;                         // E holds its beat while M moves on
   logic                       DivBusyE;                        // a lane is dividing, so E holds
   logic                       DivStartE, DivStartedE;          // the lanes start one divide per beat
@@ -76,12 +79,15 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   logic [BEATW-1:0]           BeatM;
   logic [BEATW-1:0]           LastBeatD, LastBeatE;            // index of the last beat
   logic                       ExecutionUnitResultValidE, ExecutionUnitResultValidM;
-  logic                       BeatValidE, BeatValidM;
+  logic                       BeatValidE, BeatValidM, BeatValidW;
+  logic                       ResultValidW;                    // last beat in W
   logic                       BeatDoneE, BeatDoneM;            // beat leaves E or M
   logic [2:0]                 BeatEEWD, BeatEEWE, BeatEEWM;    // EEW that sets the elements in a micro-op
   logic [LOGVLEN-1:0]         ElementBaseE;                    // element of lane 0 in the register
   logic [LOGVLEN-1:0]         GroupBaseE;                      // first element of the register in the group
   logic [LOGVLEN-1:0]         MaskBeatM, VdBeatM;              // beat position in vd
+  logic [SVRFBEATW-1:0]       VdBankM, BankM, BankW;           // sVRF bank the beat changes (BankM may differ for reductions/masks)
+  logic [P.VPU_FP_BLEN-1:0]   VRD1SelectedE, VRD2SelectedE, VRD3SelectedE; // elements of the beat
 
   // Lane controls from the decoder
   logic [2:0]                 VFUnitE, VFOpCtrlE;
@@ -98,8 +104,8 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   logic [2:0]                 VdEEWE, Vs2EEWE, Vs1EEWE, VdEEWM;
   logic [2:0]                 MicroOpE, MicroOpM;
-  logic [4:0]                 VdFinalE, VdFinalM, PreVdFinalW;
-  logic                       VRegWriteE, VRegWriteM, PreVRegWriteW;
+  logic [4:0]                 VdFinalE, VdFinalM;
+  logic                       VRegWriteE, VRegWriteM;
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderE, ExecutionUnitOrderM;
 
   logic [P.VLEN-1:0]          VRD1E, VRD2E, VRD3E, v0E;
@@ -113,25 +119,22 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   logic [P.VPU_FP_BLEN-1:0]   BeatResultM;
   logic [4:0]                 LaneFlagsM [P.VPU_FP_LANES-1:0];
-  logic [4:0]                 BeatFlagsM, FlagsNextM, PreFlagsW;
+  logic [4:0]                 BeatFlagsM, FlagsNextM, FlagsW;
   logic [P.VPU_FP_LANES-1:0]  LaneDivBusyE;
   logic [P.VLEN-1:0]          OldVdM;
   logic [P.VLEN-1:0]          PlacedResultM [7:0];             // beat demuxed to its place in vd, indexed by log2(VdEEW)
   logic [P.VLEN-1:0]          PlacedEnableM [7:0];             // bits of vd the beat writes
-  logic [P.VLEN-1:0]          OldResultM, ResultNextM, PreResultW;
+  logic [P.VLEN-1:0]          OldResultM, ResultNextM, ResultW;
 
   genvar                      i, j, e;
 
   // Local hazard unit
-  assign NotConsummedW = ExecutionUnitResultValidW & ~ControllerWBReadyW;
-  assign LocalStallW   = StallW | NotConsummedW;
-  assign LocalStallM   = StallM | LocalStallW;
-  assign LocalStallE   = VectorStallE | DivBusyE | LocalStallM;
-  assign BubbleM       = LocalStallE & ~LocalStallM;
+  assign LocalStallE = VectorStallE | DivBusyE | StallM;
+  assign BubbleM     = LocalStallE & ~StallM;
 
   // Beat sequencing ***TODO: replace vieufsm with vfpeufsm
   // vieufsm can do subword (64-b always) but vfpeufsm is one elem/lane, so vlE is scaled up
-  vieufsm #(P, FSMW) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE, .NotConsummedW,
+  vieufsm #(P, FSMW) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE,
     .ControllerValidD(ControllerValidD & ~LocalStallE), .ExecutionUnitReadyD(FsmReadyD), .BeatE,
     .ExecutionUnitResultValidE, .BeatValidE, .vlE((FSMW'(LastBeatE) << INTSPLIT) | FSMW'(1)));
   assign ExecutionUnitReadyD = FsmReadyD & ~LocalStallE;
@@ -188,44 +191,39 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   // Divide starts once per beat, so a lane that finishes early should not restart
   assign DivStartE = BeatValidE & ~DivStartedE;
-  flopenr #(1) DivStartedEReg(clk, reset, ~LocalStallM, LocalStallE & BeatValidE, DivStartedE);
+  flopenr #(1) DivStartedEReg(clk, reset, ~StallM, LocalStallE & BeatValidE, DivStartedE);
 
   // First active element of a reduction
   flopenr #(1) ReductionStartedEReg(clk, reset | (CaptureD & MicroOpD == '0), BeatDoneE & ActiveE[0], 1'b1, ReductionStartedE);
 
-  // Per-lane element selection and sign extension
-  // vfwcvt may widen a 8-bit element to 16 bits
+  // Elements of the beat, each register shifts lane 0's element to bit 0
+  assign VRD1SelectedE = P.VPU_FP_BLEN'(VRD1E >> (VReductionE ? '0 : ElementBaseE << Vs1EEWE));  // a reduction reads vs1[0]
+  assign VRD2SelectedE = P.VPU_FP_BLEN'(VRD2E >> (ElementBaseE << Vs2EEWE));
+  assign VRD3SelectedE = P.VPU_FP_BLEN'(VRD3E >> (ElementBaseE << VdEEWE));
+
   for (i = 0; i < P.VPU_FP_LANES; i++) begin : lane
-    logic [LOGVLEN-1:0] ElementE, GroupElementE, Vs1ElementE;
-    logic [P.ELEN-1:0]  VRD1ElemE [3:0], VRD2ElemE [3:0], VRD3ElemE [3:0]; // element at 8, 16, 32 and 64 bits
-    logic [P.ELEN-1:0]  VRD1SelectedE, VRD2SelectedE, VRD3SelectedE, VSrcAE, VSrcBE;
+    logic [LOGVLEN-1:0] ElementE, GroupElementE;
+    logic [P.ELEN-1:0]  VRD1ElemE, VRD2ElemE, VRD3ElemE, VSrcAE, VSrcBE;
     logic               MaskBitE, ScalarSelE;
     logic [4:0]         VfFlgM;
 
     assign ElementE      = ElementBaseE + LOGVLEN'(i);
     assign GroupElementE = GroupBaseE + ElementE;
-    assign Vs1ElementE   = VReductionE ? '0 : ElementE;          // a reduction reads vs1[0]
 
-    for (e = 0; e < 4; e++) begin : eew
-      localparam EW = 8 << e;                                  // element width in bits
-      localparam IW = $clog2(P.VLEN/EW);                       // element index width in a register
-      if (EW <= P.ELEN) begin : fits
-        logic [EW-1:0] Vs2RawE;
-        assign VRD1ElemE[e] = P.ELEN'(VRD1E[int'(Vs1ElementE[IW-1:0])*EW +: EW]);
-        assign VRD3ElemE[e] = P.ELEN'(VRD3E[int'(ElementE[IW-1:0])*EW +: EW]);
-        assign Vs2RawE      = VRD2E[int'(ElementE[IW-1:0])*EW +: EW];
-        assign VRD2ElemE[e] = SignExtE ? P.ELEN'(signed'(Vs2RawE)) : P.ELEN'(Vs2RawE);
-      end else begin : wide
-        assign VRD1ElemE[e] = '0;
-        assign VRD3ElemE[e] = '0;
-        assign VRD2ElemE[e] = '0;
-      end
-    end
-
-    // log2(EEW) 011, 100, 101, 110 selects 8, 16, 32, 64 bits
-    assign VRD1SelectedE = VRD1ElemE[Vs1EEWE[1:0] + 2'd1];
-    assign VRD2SelectedE = VRD2ElemE[Vs2EEWE[1:0] + 2'd1];
-    assign VRD3SelectedE = VRD3ElemE[VdEEWE[1:0] + 2'd1];
+    // Lane i's element (log2(EEW) 011, 100, 101, 110 = 8, 16, 32, 64 bits)
+    mux4 #(P.ELEN) vrd1mux(P.ELEN'(VRD1SelectedE[i*8 +: 8]),
+                           P.ELEN'(VRD1SelectedE[i*16 +: 16]),
+                           P.ELEN'(VRD1SelectedE[i*32 +: 32]),
+                           VRD1SelectedE[i*P.ELEN +: P.ELEN], Vs1EEWE[1:0] + 2'd1, VRD1ElemE);
+    // vs2 is sign-extended from EEW for a signed integer convert (fcvt only sign-extends 32/64-bit integers)
+    mux4 #(P.ELEN) vrd2mux(P.ELEN'(signed'({SignExtE & VRD2SelectedE[i*8+7],   VRD2SelectedE[i*8 +: 8]})),
+                           P.ELEN'(signed'({SignExtE & VRD2SelectedE[i*16+15], VRD2SelectedE[i*16 +: 16]})),
+                           P.ELEN'(signed'({SignExtE & VRD2SelectedE[i*32+31], VRD2SelectedE[i*32 +: 32]})),
+                           VRD2SelectedE[i*P.ELEN +: P.ELEN], Vs2EEWE[1:0] + 2'd1, VRD2ElemE);
+    mux4 #(P.ELEN) vrd3mux(P.ELEN'(VRD3SelectedE[i*8 +: 8]),
+                           P.ELEN'(VRD3SelectedE[i*16 +: 16]),
+                           P.ELEN'(VRD3SelectedE[i*32 +: 32]),
+                           VRD3SelectedE[i*P.ELEN +: P.ELEN], VdEEWE[1:0] + 2'd1, VRD3ElemE);
 
     // Active: within vl, unmasked (and in lane 0 for a reduction)
     // vfmerge is every body element
@@ -237,12 +235,12 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
     // Moves copy fs1 or vs2 through lane as fsgnj(x, x) = x
     // TODO: vfmv.f.s
     assign ScalarSelE = VALUSrcAE[1] & (~VFMergeE | MaskBitE);
-    mux3 #(P.ELEN) vsrcamux(VRD1SelectedE, VRD2SelectedE, ScalarE, {ScalarSelE, VFMoveE}, VSrcAE);
-    mux2 #(P.ELEN) vsrcbmux(VRD2SelectedE, VSrcAE, VFMoveE, VSrcBE);
+    mux3 #(P.ELEN) vsrcamux(VRD1ElemE, VRD2ElemE, ScalarE, {ScalarSelE, VFMoveE}, VSrcAE);
+    mux2 #(P.ELEN) vsrcbmux(VRD2ElemE, VSrcAE, VFMoveE, VSrcBE);
 
     // TODO: switch lane format to the decoder's log2(EEW)
-    vflane #(P, FP) vflane(.clk, .reset, .StallM(LocalStallM), .FlushE(1'b0), .FlushM(VectorFlushM | BubbleM),
-      .Vs2E(VSrcBE), .Vs1E(VSrcAE), .VdE(VRD3SelectedE),
+    vflane #(P, FP) vflane(.clk, .reset, .StallM, .FlushE(1'b0), .FlushM(VectorFlushM | BubbleM),
+      .Vs2E(VSrcBE), .Vs1E(VSrcAE), .VdE(VRD3ElemE),
       .Vs2EEWE(Vs2EEWE - 3'd3), .Vs1EEWE(Vs1EEWE - 3'd3), .VdEEWE(VdEEWE - 3'd3), .OperandOrderE(VFOperandOrderE),
       .FmaOpE, .DivOpE, .CvtOpE, .CmpOpE, .SgnOpE, .ClassOpE, .RecOpE, .OpCtrlE(VFOpCtrlE), .ToIntE(VFToIntE),
       .VReductionE(VReductionE & ActiveE[i]), .VReductionStartE(VReductionE & ~ReductionStartedE), .FrmE(FrmFinalE),
@@ -255,10 +253,10 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   assign DivBusyE = |LaneDivBusyE;
 
-  flopenrc #(1) BeatValidMReg(clk, reset, VectorFlushM, ~LocalStallM, BeatDoneE, BeatValidM);
-  flopenrc #(P.VPU_FP_LANES) ActiveMReg(clk, reset, VectorFlushM, ~LocalStallM, ActiveE, ActiveM);
+  flopenrc #(1) BeatValidMReg(clk, reset, VectorFlushM, ~StallM, BeatDoneE, BeatValidM);
+  flopenrc #(P.VPU_FP_LANES) ActiveMReg(clk, reset, VectorFlushM, ~StallM, ActiveE, ActiveM);
 
-  flopenrc #(17+BEATW+P.VPU_QUEUEDEPTH) ControlRegM(clk, reset, VectorFlushM, ~LocalStallM,
+  flopenrc #(17+BEATW+P.VPU_QUEUEDEPTH) ControlRegM(clk, reset, VectorFlushM, ~StallM,
     {VdFinalE, VRegWriteE, ExecutionUnitOrderE, BeatE[BEATW-1:0], ExecutionUnitResultValidE, VdEEWE, BeatEEWE, MicroOpE, VReductionE},
     {VdFinalM, VRegWriteM, ExecutionUnitOrderM, BeatM, ExecutionUnitResultValidM, VdEEWM, BeatEEWM, MicroOpM, VReductionM});
 
@@ -266,7 +264,7 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   // Assemble lane results in vd
   // Reduction result is element 0 and inactive elements keep old vd
-  // TODO: adapt to sVRF and special cases instructions
+  // TODO: special cases instructions
   assign MaskBeatM   = (LOGVLEN'(MicroOpM) << (5'(LOGVLEN) - 5'(BeatEEWM) - 5'(LOGLANES))) + LOGVLEN'(BeatM);
   assign VdBeatM     = VReductionM ? '0 : ((VdEEWM == 3'b000) ? MaskBeatM : LOGVLEN'(BeatM));
 
@@ -285,27 +283,32 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
     end
   end
 
-  assign BeatDoneM = BeatValidM & ~LocalStallM;
+  assign BeatDoneM = BeatValidM & ~StallM;
 
-  mux2 #(P.VLEN) oldresultmux(PreResultW, OldVdM, BeatM == '0, OldResultM);
+  // TODO: shrink ResultW, lane demux, and bank spread below to sVRF BLEN once svrf loads old vd
+  mux2 #(P.VLEN) oldresultmux(ResultW, OldVdM, BeatM == '0, OldResultM);
   assign ResultNextM = (PlacedResultM[VdEEWM] & PlacedEnableM[VdEEWM]) | (OldResultM & ~PlacedEnableM[VdEEWM]);
-  flopenr #(P.VLEN) ResultWReg(clk, reset, BeatDoneM, ResultNextM, PreResultW);
+  flopenr #(P.VLEN) ResultWReg(clk, reset, BeatDoneM, ResultNextM, ResultW);
+
+  // Beat writes its bank of ResultW. earlier reduction/mask beats write the other banks with old vd
+  assign VdBankM = SVRFBEATW'((VdBeatM << (3'(LOGLANES) + VdEEWM)) >> LOGBLEN);  // mask vd: log2(EEW) 000 is one bit
+  mux2 #(SVRFBEATW) bankmux(VdBankM, (VdBankM + SVRFBEATW'(BeatM) + 1'b1) & SVRFBEATW'(BANKS-1),
+    ~ExecutionUnitResultValidM & (VReductionM | VdEEWM == 3'b000), BankM);
 
   // fflags
   or_rows #(P.VPU_FP_LANES, 5) flagsor(LaneFlagsM, BeatFlagsM);
-  assign FlagsNextM = BeatFlagsM | (PreFlagsW & {5{BeatM != '0}});
-  flopenr #(5) FlagsWReg(clk, reset, BeatDoneM, FlagsNextM, PreFlagsW);
+  assign FlagsNextM = BeatFlagsM | (FlagsW & {5{BeatM != '0}});
+  flopenr #(5) FlagsWReg(clk, reset, BeatDoneM, FlagsNextM, FlagsW);
 
-  flopenrc #(1) ResultValidWReg(clk, reset, FlushW, ~LocalStallW, BeatDoneM & ExecutionUnitResultValidM, ExecutionUnitResultValidW);
+  flopenrc #(8+SVRFBEATW+P.VPU_QUEUEDEPTH) ControlRegW(clk, reset, FlushW, ~StallW,
+    {VdFinalM, VRegWriteM, BankM, BeatDoneM, BeatDoneM & ExecutionUnitResultValidM, ExecutionUnitOrderM},
+    {VFPEUVdFinalW, VFPEUVRegWriteW, BankW, BeatValidW, ResultValidW, ExecutionUnitOrderW});
 
-  flopenrc #(6+P.VPU_QUEUEDEPTH) ControlRegW(clk, reset, FlushW, ~LocalStallW,
-    {VdFinalM, VRegWriteM, ExecutionUnitOrderM},
-    {PreVdFinalW, PreVRegWriteW, ExecutionUnitOrderW});
-
-  // AND part of the AO-mux
-  assign VFPEUResultW    = ControllerWBReadyW ? PreResultW : '0;
-  assign VFPEUFlagsW     = ControllerWBReadyW ? PreFlagsW : '0;
-  assign VFPEUVdFinalW   = ControllerWBReadyW ? PreVdFinalW : '0;
-  assign VFPEUVRegWriteW = ControllerWBReadyW ? PreVRegWriteW : '0;
+  // write sVRF once, stalled beat should not write again after its entry commits
+  assign VFPEUBeatValidW           = BeatValidW & ~StallW;
+  assign ExecutionUnitResultValidW = ResultValidW & ~StallW;
+  assign VFPEUBeatW                = BankW;
+  assign VFPEUResultW              = ResultW[int'(BankW)*P.VPU_INT_BLEN +: P.VPU_INT_BLEN];
+  assign VFPEUFlagsW               = ExecutionUnitResultValidW ? FlagsW : '0;  // flags of the micro-op, once
 
 endmodule
