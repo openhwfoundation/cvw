@@ -128,7 +128,7 @@ module buscachefsm #(
 
   // AHB bus interface
   assign HTRANS = (CurrState == ADR_PHASE & HREADY & ((|BusRW) | (|CacheBusRW) | BusCMOZero) & ~Flush) |
-                  (CurrState == ATOMIC_READ_DATA_PHASE) |
+                  (CurrState == ATOMIC_READ_DATA_PHASE & HREADY) |
                   (CacheAccess & FinalBeatCount & |CacheBusRW & HREADY & ~Flush) ? AHB_NONSEQ : // if we have a pipelined request
                   (CacheAccess & |BeatCount) ? (BURST_EN ? AHB_SEQ : AHB_NONSEQ) : AHB_IDLE; // exclusion-tag: buscachefsm-htrans-burst
 

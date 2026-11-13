@@ -17,7 +17,7 @@ Certificate of Origin on contributions merged into OpenHW Group repositories.
 
 ## The Mechanics
 1. [Fork](https://help.github.com/articles/fork-a-repo/) the [cvw](https://github.com/openhwfoundation/cvw) repository
-2. Clone repository: `git clone https://github.com/[your_github_username]/cvw`
+2. Clone repository: `git clone --recurse-submodules https://github.com/[your_github_username]/cvw`
 3. Create your feature branch: `git checkout -b <my_branch>.`<br> Please uniquify your branch name.  See the [Git Cheats](https://github.com/openhwfoundation/core-v-verif/blob/master/GitCheats.md) for a useful nominclature.
 5. Commit your changes: `git commit -m 'Add some feature'`
 6. Push feature branch: `git push origin <my_branch>`

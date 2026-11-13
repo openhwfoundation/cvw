@@ -84,7 +84,7 @@ Then fork and clone the repo, source setup, make the tests and run regression
 > [!NOTE]
 > If you are installing on a new system without any tools installed, please jump to the next section, [Toolchain Installation](#toolchain-installation-and-configuration), then come back here.
 
-7. Run the setup script to update your `PATH` and activate the python virtual environment.
+7. Run the setup script to set `$WALLY` and `$RISCV` and add `$WALLY/bin` to your `PATH`.
 
   ```bash
   $ source ./setup.sh
@@ -144,26 +144,26 @@ Additionally, Buildroot Linux is built for Wally and linux test-vectors are gene
 
 ### Installation
 
-The tools can be installed by running
+The tools can be installed by running this from your `cvw` directory (`$WALLY` is not set until `setup.sh` has been sourced, and `setup.sh` needs the tools installed first)
 
 ```bash
-$ $WALLY/bin/wally-tool-chain-install.sh
+$ ./bin/wally-tool-chain-install.sh
 ```
 If this script is run as root or using `sudo`, it will also install all of the prerequisite packages using the system package manager. The default installation directory when run in this manner is `/opt/riscv`.
 
 If a user-level installation is desired, the script can instead be run by any user without `sudo` and the installation directory will be `~/riscv`. In this case, the prerequisite packages must first be installed by running
 
 ```bash
-$ sudo $WALLY/bin/wally-package-install.sh
+$ sudo ./bin/wally-package-install.sh
 ```
 
 In either case, the installation directory can be overridden by passing the desired directory as an argument to the installation script. For example,
 
 ```bash
-$ sudo $WALLY/bin/wally-tool-chain-install.sh /home/riscv
+$ sudo ./bin/wally-tool-chain-install.sh /home/riscv
 ```
 
-See `wally-tool-chain-install.sh` and the scripts in the `$WALLY/bin/installation` directory for a detailed description of each component, or to issue the commands one at a time to install on the command line.
+See `wally-tool-chain-install.sh` and the scripts in the `bin/installation` directory for a detailed description of each component, or to issue the commands one at a time to install on the command line.
 
 > [!NOTE]
 > The complete installation process requires ~55 GB of free space. If the `--clean` flag is passed to the installation script then the final consumed space is only ~26 GB. The `--clean` flag removes source files and build directories.
@@ -194,6 +194,13 @@ regression-wally
 ```
 
 Running code coverage simulations or lock-step presently requires commercial tools; functional coverage also runs on Verilator.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+
+Measure code and functional coverage of the rv64gc, rv32gc, or rv32imc configuration with Questa (add `--coveragesim vcs` to use VCS):
+
+```
+regression-wally --ccov rv64gc    # report in sim/questa/cov/rv64gc_uncovered_hierarchical.rpt
+regression-wally --fcov rv64gc    # report in sim/questa/fcov/rv64gc_fcov.uncovered.log
+```
 
 Note: Some EDA tools utilize `LM_LICENSE_FILE` for their environmental variable to point to their license server.  Some operating systems may also utilize `MGLS_LICENSE_FILE` instead, therefore, it is important to read the user manual on the preferred environmental variable required to point to a user’s license file.  Although there are different mechanisms to allow licenses to work, many companies commonly utilize the FlexLM (i.e., Flex-enabled) license server manager that runs off a node locked license.
 
@@ -258,7 +265,7 @@ If you want to add a cronjob you can do the following:
 2) Enter `crontab -e` into a terminal
 3) add this code to test cloning CVW, making CVW's tests, then running `regression-wally --nightly --buildroot` every day at 21:30 in your local time
 ```bash
-30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | python - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email harris@hmc.edu,rose@rosethompson.net
+30 21 * * * curl -L https://raw.githubusercontent.com/openhwfoundation/cvw/refs/heads/main/bin/nightly_build.py | uv run --script - --path {PATH_FOR_NIGHTLY_RUNS} --target all --tests all --send_email {YOUR_EMAIL}
 ```
 This utility will take up approximately 100 GB on your hard drive. You can also run the script directly from `bin/nightly_build.py`.
 
@@ -301,7 +308,7 @@ wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I
 Run one ELF in the Questa gui
 
 ```bash
-wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-00.elf --gui
 ```
 
 Run several ELFs back-to-back with Verilator
@@ -313,7 +320,7 @@ wsim rv32gc $WALLY/tests/periph/rv32/WALLY-gpio-01.elf $WALLY/tests/periph/rv32/
 Run lockstep against ImperasDV with a single elf file in the gui. Lockstep requires a single elf.
 
 ```bash
-wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-01.elf --lockstep --gui
+wsim rv64gc $WALLY/addins/riscv-arch-test/work/cvw-rv64gc/elfs/rv64i/I/I-add-00.elf --lockstep --gui
 ```
 
 Collect functional coverage over a directory of tests (add `--sim vcs` to use VCS).

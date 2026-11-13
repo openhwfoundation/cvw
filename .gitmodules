@@ -1,7 +1,7 @@
 [submodule "addins/embench-iot"]
   path = addins/embench-iot
   url = https://github.com/embench/embench-iot
-  branch = embench-1.0-branch
+  branch = master
 [submodule "addins/coremark"]
   path = addins/coremark
   url = https://github.com/eembc/coremark
