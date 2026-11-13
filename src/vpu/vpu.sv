@@ -129,8 +129,10 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [BEATBITLEN-1:0]   VIEUBeatW [P.VPU_EU-1:0];
   logic [P.VPU_INT_BLEN-1:0] VIEUResultW [P.VPU_EU-1:0];
   logic [P.VPU_INT_BLEN/8-1:0] VIEUByteMaskW [P.VPU_EU-1:0];
-  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderW [BANKS-1:0];
-  logic [P.VPU_INT_BLEN-1:0]   OldVdDataW [BANKS-1:0];
+  logic                        EnqueueD;
+  logic [P.VPU_QUEUEDEPTH-1:0] OrderD;
+  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderD [BANKS-1:0];
+  logic [P.VPU_INT_BLEN-1:0]   OldVdDataD [BANKS-1:0];
 
   // divide into control and data path
 
@@ -154,21 +156,26 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
                                .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
-                               .ExecutionUnitOrderD, .HeadOrderW, .HeadCompleteW, .CommitW,
+                               .ExecutionUnitOrderD, .EnqueueD, .OrderD, .HeadOrderW, .HeadCompleteW, .CommitW,
                                .VPUFrontEndBusyD);
 
 
 
   // *** BLEN should be ELEN * max lanes across EU types when the other EUs are added
-  // *** init from vd when masking is added; byte enables are all ones until then
+  // *** byte enables are all ones until masking is added
   for (i = 0; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
-  assign OldVdOrderW = '{default: '0};
-  assign OldVdDataW  = '{default: '0};
+
+  // Old vd fills the micro-op's sVRF entry as it enters the order queue (before result beats arrive)
+  // *** should come from banked VRF read stream
+  for (i = 0; i < BANKS; i++) begin : oldvd
+    assign OldVdOrderD[i] = OrderD;
+    assign OldVdDataD[i]  = VRD3D[i*P.VPU_INT_BLEN +: P.VPU_INT_BLEN];
+  end
 
   svrf #(P.VLEN, P.VPU_INT_BLEN, P.VPU_EU, P.VPU_QUEUEDEPTH, BEATBITLEN) svrf(.clk, .reset,
                               .BeatValidW(VIEUBeatValidW), .LastBeatW(ExecutionUnitResultValidW), .VRegWriteW(VIEUVRegWriteW),
                               .OrderW(ExecutionUnitOrderW), .BeatW(VIEUBeatW), .ResultBeatW(VIEUResultW), .ByteMaskW(VIEUByteMaskW),
-                              .VdW(VIEUVdFinalW), .OldVdValidW('0), .OldVdOrderW, .OldVdDataW,
+                              .VdW(VIEUVdFinalW), .OldVdValidW({BANKS{EnqueueD}}), .OldVdOrderW(OldVdOrderD), .OldVdDataW(OldVdDataD),
                               .HeadOrderW, .CommitW, .HeadCompleteW, .HeadVRegWriteW, .HeadVdW, .HeadDataW);
 
   assign VRegWriteW = CommitW & HeadVRegWriteW;

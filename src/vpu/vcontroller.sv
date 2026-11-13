@@ -66,6 +66,8 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0],
+  output logic                        EnqueueD,                   // micro-op enters order queue
+  output logic [P.VPU_QUEUEDEPTH-1:0] OrderD,                     // order tag of micro-op
   // commit of the oldest micro-op
   output logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW,                 // order tag at queue head
   input logic                         HeadCompleteW,              // head sVRF entry has all its beats
@@ -128,14 +130,15 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   // or active list for out-of-order completion in a future implementation.
 
 
-  logic [P.VPU_QUEUEDEPTH - 1 : 0 ] OrderD;
   logic                         InstrOrderQueueFullD;
   logic                         InstrOrderQueueEmptyD;
 
-  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(CommitW),
+  assign EnqueueD = MicroVectorD & ~VectorStallD;
+
+  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(EnqueueD), .dequeue(CommitW),
                                                   .wdata(OrderD), .rdata(HeadOrderW), .full(InstrOrderQueueFullD), .empty(InstrOrderQueueEmptyD));
 
-  counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, MicroVectorD & ~VectorStallD, OrderD);
+  counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, EnqueueD, OrderD);
 
   genvar i;
   for (i = 0; i < P.VPU_EU; i++) assign ExecutionUnitOrderD[i] = OrderD;
