@@ -105,10 +105,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.NUM_TRIGGERS-1:0] MatchM, SetPendingM;
   logic MTrapM;
-  logic CSRDWriteM;
 
   assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
-  assign CSRDWriteM  = 1'b0; // debug mode not supported
 
   assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
   assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
@@ -155,8 +153,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
         MCONTROL6_TYPE: TDATA1WriteLegalizedTypeM = P.MCONTROL6_SUPPORTED ? MCONTROL6_TYPE : DISABLED_TYPE;
         default:        TDATA1WriteLegalizedTypeM = DISABLED_TYPE;
       endcase
-      // Dmode is preserved except by debug mode writes
-      TDATA1WriteLegalizedDmodeM = CSRDWriteM ? CSRWriteValM[P.XLEN-5] : TDATA1_REGW[t][P.XLEN-5];
+      // dmode is 0: debug mode not supported
+      TDATA1WriteLegalizedDmodeM = 1'b0;
       // Legalize mcontrol6 WARL fields: an unsupported value masks its field to 0
       case (CSRWriteValM[10:7]) // match: 6, 7, 10, 11, 14, 15 are reserved
         4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd5, 4'd8, 4'd9, 4'd12, 4'd13: TDATA1MatchLegalM = 1'b1;
