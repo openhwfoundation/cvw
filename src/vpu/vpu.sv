@@ -93,7 +93,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic       VSubD;
   logic [1:0] VLaneSelectD;                   // vlane result select
   logic [1:0] VShiftSelectD;                  // vlane shift: 00 sll, 10 srl, 11 sra
-  logic [2:0] VFUnitD, VFOpCtrlD;             // vflane unit and operation control *** wire to vfpeu
+  logic [2:0] VFUnitD, VFOpCtrlD;             // vflane unit and operation control *** wire to vfeu
   logic       VFToIntD;                       // convert to integer
   logic [1:0] VFOperandOrderD;                // vflane operand order
   logic       VFStaticRmD;                    // VFRmD replaces frm (true for cvt)
@@ -111,7 +111,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
 
-  logic [4:0]        VFPEUFlagsW [P.VPU_FP_EU-1:0];
+  logic [4:0]        VFEUFlagsW [P.VPU_FP_EU-1:0];
   logic [P.XLEN-1:0] VIEUResultToScalarW [P.VPU_INT_EU-1:0];
 
   //logic       IllegalVPUInstrD;
@@ -218,23 +218,23 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
     assign ExecutionUnitOrderW[i+P.VPU_INT_EU] = '0;
   end
 
-  for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
+  for(i = 0; i < P.VPU_FP_EU; i++) begin : vfeu
     localparam EU = i + P.VPU_INT_EU + P.VPU_LSU_EU;
-    vfpeu #(P, FP) vfpeu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
-                         .ControllerValidD(ControllerValidD[EU]), .ExecutionUnitReadyD(ExecutionUnitReadyD[EU]),
-                         .ExecutionUnitResultValidW(ExecutionUnitResultValidW[EU]),
-                         .ExecutionUnitOrderD(ExecutionUnitOrderD[EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[EU]),
-                         .VMD, .VALUSrcAD, .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
-                         .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
-                         .MicroOpD(3'b0), .VLD, .FrmD(FRM_REGW), .VdFinalD, .VRegWriteD,  // *** micro-op from the controller
-                         .VRD1D, .VRD2D, .VRD3D, .v0D, .FRD1D,
-                         .VFPEUResultW(VIEUResultW[EU]), .VFPEUFlagsW(VFPEUFlagsW[i]),
-                         .VFPEUBeatValidW(VIEUBeatValidW[EU]), .VFPEUBeatW(VIEUBeatW[EU]),
-                         .VFPEUVRegWriteW(VIEUVRegWriteW[EU]), .VFPEUVdFinalW(VIEUVdFinalW[EU]));
+    vfeu #(P, FP) vfeu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
+                       .ControllerValidD(ControllerValidD[EU]), .ExecutionUnitReadyD(ExecutionUnitReadyD[EU]),
+                       .ExecutionUnitResultValidW(ExecutionUnitResultValidW[EU]),
+                       .ExecutionUnitOrderD(ExecutionUnitOrderD[EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[EU]),
+                       .VMD, .VALUSrcAD, .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
+                       .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+                       .MicroOpD(3'b0), .VLD, .FrmD(FRM_REGW), .VdFinalD, .VRegWriteD,  // *** micro-op from the controller
+                       .VRD1D, .VRD2D, .VRD3D, .v0D, .FRD1D,
+                       .VFEUResultW(VIEUResultW[EU]), .VFEUFlagsW(VFEUFlagsW[i]),
+                       .VFEUBeatValidW(VIEUBeatValidW[EU]), .VFEUBeatW(VIEUBeatW[EU]),
+                       .VFEUVRegWriteW(VIEUVRegWriteW[EU]), .VFEUVdFinalW(VIEUVdFinalW[EU]));
     assign VIEURegWriteW[EU] = '0;  // *** don't write scalar reg yet so tied to 0
   end
 
-  or_rows #(P.VPU_FP_EU, 5) VFlagsAOMux(.a(VFPEUFlagsW), .y(VSetFflagsW));
+  or_rows #(P.VPU_FP_EU, 5) VFlagsAOMux(.a(VFEUFlagsW), .y(VSetFflagsW));
 
   // .vf reads fs1 in Decode; the FPU stalls it until an older write to fs1 reaches the register file
   assign VReadFPD = (InstrD[6:0] == 7'b1010111) & (InstrD[14:12] == 3'b101);

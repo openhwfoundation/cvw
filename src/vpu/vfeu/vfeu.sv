@@ -1,5 +1,5 @@
 ///////////////////////////////////////////
-// vfpeu.sv
+// vfeu.sv
 //
 // Written: Georgia Tai ytai@g.hmc.edu
 // Created: 11 October 2026
@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP) (
+module vfeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP) (
   input  logic                         clk, reset,
   // Hazards
   input  logic                         VectorStallE, StallM, StallW,
@@ -51,12 +51,12 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   input  logic [P.VLEN-1:0]            v0D,                      // mask v0
   input  logic [P.FLEN-1:0]            FRD1D,                    // fs1 for .vf
   // Results
-  output logic [P.VPU_INT_BLEN-1:0]    VFPEUResultW,             // result bank (to sVRF)
-  output logic                         VFPEUBeatValidW,          // result bank is valid
-  output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] VFPEUBeatW,     // bank number of result
-  output logic [4:0]                   VFPEUFlagsW,
-  output logic                         VFPEUVRegWriteW,
-  output logic [4:0]                   VFPEUVdFinalW
+  output logic [P.VPU_INT_BLEN-1:0]    VFEUResultW,              // result bank (to sVRF)
+  output logic                         VFEUBeatValidW,           // result bank is valid
+  output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] VFEUBeatW,      // bank number of result
+  output logic [4:0]                   VFEUFlagsW,
+  output logic                         VFEUVRegWriteW,
+  output logic [4:0]                   VFEUVdFinalW
 );
 
   localparam LOGLANES = $clog2(P.VPU_FP_LANES);
@@ -132,8 +132,8 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
   assign LocalStallE = VectorStallE | DivBusyE | StallM;
   assign BubbleM     = LocalStallE & ~StallM;
 
-  // Beat sequencing ***TODO: replace vieufsm with vfpeufsm
-  // vieufsm can do subword (64-b always) but vfpeufsm is one elem/lane, so vlE is scaled up
+  // Beat sequencing ***TODO: replace vieufsm with vfeufsm
+  // vieufsm can do subword (64-b always) but vfeufsm is one elem/lane, so vlE is scaled up
   vieufsm #(P, FSMW) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE,
     .ControllerValidD(ControllerValidD & ~LocalStallE), .ExecutionUnitReadyD(FsmReadyD), .BeatE,
     .ExecutionUnitResultValidE, .BeatValidE, .vlE((FSMW'(LastBeatE) << INTSPLIT) | FSMW'(1)));
@@ -302,13 +302,13 @@ module vfpeu import cvw::*, fpu_pkg::*;  #(parameter cvw_t P, parameter fpu_t FP
 
   flopenrc #(8+SVRFBEATW+P.VPU_QUEUEDEPTH) ControlRegW(clk, reset, FlushW, ~StallW,
     {VdFinalM, VRegWriteM, BankM, BeatDoneM, BeatDoneM & ExecutionUnitResultValidM, ExecutionUnitOrderM},
-    {VFPEUVdFinalW, VFPEUVRegWriteW, BankW, BeatValidW, ResultValidW, ExecutionUnitOrderW});
+    {VFEUVdFinalW, VFEUVRegWriteW, BankW, BeatValidW, ResultValidW, ExecutionUnitOrderW});
 
   // write sVRF once, stalled beat should not write again after its entry commits
-  assign VFPEUBeatValidW           = BeatValidW & ~StallW;
+  assign VFEUBeatValidW            = BeatValidW & ~StallW;
   assign ExecutionUnitResultValidW = ResultValidW & ~StallW;
-  assign VFPEUBeatW                = BankW;
-  assign VFPEUResultW              = ResultW[int'(BankW)*P.VPU_INT_BLEN +: P.VPU_INT_BLEN];
-  assign VFPEUFlagsW               = ExecutionUnitResultValidW ? FlagsW : '0;  // flags of the micro-op, once
+  assign VFEUBeatW                 = BankW;
+  assign VFEUResultW               = ResultW[int'(BankW)*P.VPU_INT_BLEN +: P.VPU_INT_BLEN];
+  assign VFEUFlagsW                = ExecutionUnitResultValidW ? FlagsW : '0;  // flags of the micro-op, once
 
 endmodule
