@@ -26,10 +26,11 @@ module svrf #(parameter VLEN, BLEN, EU, ENTRYBITS, BEATBITS) (
   input  logic [BLEN-1:0]      ResultBeatW [EU-1:0],
   input  logic [BLEN/8-1:0]    ByteMaskW [EU-1:0],
   input  logic [4:0]           VdW [EU-1:0],
-  // old vd beats from the VRF, one per bank
+  // old vd beats from the VRF, one per bank, with bytes of active elements
   input  logic [VLEN/BLEN-1:0] OldVdValidW,
   input  logic [ENTRYBITS-1:0] OldVdOrderW [VLEN/BLEN-1:0],
   input  logic [BLEN-1:0]      OldVdDataW [VLEN/BLEN-1:0],
+  input  logic [BLEN/8-1:0]    ActiveByteMaskW [VLEN/BLEN-1:0],
   // commit of the entry at the order queue head
   input  logic [ENTRYBITS-1:0] HeadOrderW,
   input  logic                 CommitW,
@@ -73,6 +74,7 @@ module svrf #(parameter VLEN, BLEN, EU, ENTRYBITS, BEATBITS) (
       logic [BYTES-1:0]  EUByteMaskW [EU-1:0];
       logic [BLEN-1:0]   ResultW, NextDataW;
       logic [BYTES-1:0]  ResultByteMaskW, WriteByteMaskW;
+      logic [BYTES-1:0]  ActiveByteMask;
       logic              OldVdHitW;
 
       for (eu = 0; eu < EU; eu++) begin : eudata
@@ -84,9 +86,10 @@ module svrf #(parameter VLEN, BLEN, EU, ENTRYBITS, BEATBITS) (
       or_rows #(EU, BLEN)  datamux(.a(EUDataW), .y(ResultW));
       or_rows #(EU, BYTES) bytemux(.a(EUByteMaskW), .y(ResultByteMaskW));
 
-      // old vd beat always lands before its result
+      // old vd beat always lands before its result and result bytes are written only for active elements
       assign OldVdHitW      = OldVdValidW[beat] & (OldVdOrderW[beat] == ENTRYBITS'(entry));
-      assign WriteByteMaskW = ResultByteMaskW | {BYTES{OldVdHitW}};
+      flopenr #(BYTES) activereg(clk, reset, OldVdHitW, ActiveByteMaskW[beat], ActiveByteMask);
+      assign WriteByteMaskW = (ResultByteMaskW & ActiveByteMask) | {BYTES{OldVdHitW}};
       mux2 #(BLEN) oldvdmux(OldVdDataW[beat], ResultW, |BeatHitW, NextDataW);
 
       for (index = 0; index < BYTES; index++) begin : bytes
