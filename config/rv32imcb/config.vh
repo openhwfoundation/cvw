@@ -130,6 +130,49 @@ localparam logic IDIV_ON_FPU = 0;
 // Legal number of PMP entries are 0, 16, or 64
 localparam PMP_ENTRIES = 32'd0;
 localparam PMP_G = 32'b0; // grain of 4 bytes is supported for uncached RV32
+// Sdtrig debug triggers; names follow the UDB SDTRIG_* parameters without the prefix
+localparam logic SDTRIG_SUPPORTED = 0; // Sdtrig debug triggers
+localparam NUM_TRIGGERS = 32'd0; // must be 0 when SDTRIG_SUPPORTED = 0; at most 64
+localparam logic [15:0] ACTION_LEGAL_VALUES = 16'h0000; // bit v set: action v legal; only 0 (breakpoint exception)
+localparam cvw::breakpoint_reentrancy_t BREAKPOINT_REENTRANCY = cvw::NO_REENTRANCY_SUPPORT; // how breakpoints avoid re-firing in their handler
+localparam MAX_CHAIN_LENGTH = 32'd0; // longest mcontrol6 trigger chain; < 2 means chaining unsupported; at most 2
+localparam logic M_WRITABLE = 0; // trigger m bit writable
+localparam logic S_WRITABLE = 0; // trigger s bit writable
+localparam logic U_WRITABLE = 0; // trigger u bit writable
+localparam logic VS_WRITABLE = 0; // trigger vs bit writable; needs H
+localparam logic VU_WRITABLE = 0; // trigger vu bit writable; needs H
+localparam logic [63:0] ICOUNT_SUPPORTED_TRIGGERS = 64'h0; // bit i set: trigger i supports icount
+localparam logic ICOUNT_COUNT_HARDWIRED_1 = 0; // icount.count hardwired to 1
+localparam ICOUNT_COUNT_WIDTH = 32'd0; // implemented icount.count bits
+localparam logic ICOUNT_SELF_WRITE_SETS_PENDING = 0; // writing icount with count=1 makes the writing instruction set pending
+localparam logic [63:0] ITRIGGER_SUPPORTED_TRIGGERS = 64'h0; // bit i set: trigger i supports itrigger
+localparam logic [63:0] ITRIGGER_SUPPORTED_INTERRUPTS = 64'h0; // bit c set: itrigger can match interrupt code c
+localparam logic [63:0] ETRIGGER_SUPPORTED_TRIGGERS = 64'h0; // bit i set: trigger i supports etrigger
+localparam logic [63:0] ETRIGGER_SUPPORTED_EXCEPTIONS = 64'h0; // bit c set: etrigger can match exception code c
+localparam logic [63:0] MCONTROL6_SUPPORTED_TRIGGERS = 64'h0; // bit i set: trigger i supports mcontrol6
+localparam logic MCONTROL6_EXECUTE_WRITABLE = 0; // mcontrol6.execute writable
+localparam logic MCONTROL6_LOAD_WRITABLE = 0; // mcontrol6.load writable
+localparam logic MCONTROL6_STORE_WRITABLE = 0; // mcontrol6.store writable
+localparam logic MCONTROL6_SELECT_WRITABLE = 0; // mcontrol6.select writable (match on data)
+localparam MCONTROL6_MASKMAX6 = 32'd0; // largest supported napot range is 2^MASKMAX6
+localparam logic [15:0] MCONTROL6_MATCH_LEGAL_VALUES = 16'h0000; // bit v set: match v legal (0-5, 8, 9, 12, 13)
+localparam logic [7:0] MCONTROL6_SIZE_LEGAL_VALUES = 8'h00; // bit v set: size v legal (any, 8, 16, 32, 64 bits)
+localparam logic TEXTRA_MHSELECT_MCONTEXT_MATCH = 0; // textra.mhselect = 4 matches mcontext
+localparam logic TEXTRA_MHSELECT_VMID_MATCH = 0; // textra.mhselect matches hgatp.VMID; needs H
+localparam TEXTRA_MHVALUE_LEN = 32'd0; // implemented textra.mhvalue bits
+localparam logic TEXTRA_SBYTEMASK_WRITABLE = 0; // textra.sbytemask writable
+localparam logic TEXTRA_SSELECT_ASID_MATCH = 0; // textra.sselect = 2 matches satp.ASID
+localparam logic TEXTRA_SSELECT_SCONTEXT_MATCH = 0; // textra.sselect = 1 matches scontext
+localparam TEXTRA_SVALUE_LEN = 32'd0; // implemented textra.svalue bits
+localparam logic TDATA2_IMPLEMENTED = 0; // tdata2 CSR implemented
+localparam logic TDATA3_IMPLEMENTED = 0; // tdata3 CSR implemented
+localparam logic TCONTROL_IMPLEMENTED = 0; // tcontrol CSR implemented
+localparam logic MCONTEXT_IMPLEMENTED = 0; // mcontext CSR implemented
+localparam logic SCONTEXT_IMPLEMENTED = 0; // scontext CSR implemented
+localparam logic HCONTEXT_IMPLEMENTED = 0; // hcontext CSR implemented; needs H
+localparam DBG_SCONTEXT_WIDTH = 32'd0; // implemented scontext bits
+localparam DBG_HCONTEXT_WIDTH = 32'd0; // implemented mcontext/hcontext bits
+
 
 // Address space
 localparam logic [63:0] RESET_VECTOR = 64'h80000000;
