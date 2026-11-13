@@ -152,6 +152,7 @@ module trigger import cvw::*; #(parameter cvw_t P) (
   logic [2:0]        size[P.NUM_TRIGGERS], sizeval[P.NUM_TRIGGERS];
   logic [3:0]        match[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0] matchval[P.NUM_TRIGGERS], napotmask[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0] datamask[P.NUM_TRIGGERS], cmpval[P.NUM_TRIGGERS], cmptdata2[P.NUM_TRIGGERS];
   logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, matchen, sizematch, valmatch;
   logic [P.NUM_TRIGGERS-1:0] matcheq, matchnapot, matchge, matchmasklow, matchmaskhigh;
   always_comb begin
@@ -168,24 +169,46 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       // and match against any of them, this implementation only matches one per
       // trigger for the sake of hardware efficiency.
       matchen[i] = 1; // by default the matchval is meaningful
-      // TODO mask down to their size
       casez ({select[i], execute[i], store[i], load[i]})
         4'b?000: begin matchval[i] = '0; matchen[i] = 0; end // no type selected
         4'b01??: matchval[i] = PCM;        // Execute Address
         4'b001?: matchval[i] = IEUAdrM;    // Store address
         4'b0001: matchval[i] = IEUAdrM;    // LoadAddress
-        4'b11??: matchval[i] = {{(P.XLEN-32){1'b0}}, InstrM}; // Instruction
+        4'b11??: matchval[i] = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Instruction, as encoded (16 or 32 bits)
         4'b101?: matchval[i] = WriteDataM; // Store Data
         4'b1001: matchval[i] = ReadDataW[P.XLEN-1:0]; // Load Data; TODO only available in Writeback
         default: begin matchval[i] = '0; matchen[i] = 0; end
       endcase
 
-      matcheq[i] = (matchval[i] == TDATA2_REGW[i]);
-      napotmask[i] = TDATA2_REGW[i] ^ (TDATA2_REGW[i] + 1); // trailing ones and the first zero are ignored
-      matchnapot[i] = ((matchval[i] ^ TDATA2_REGW[i]) & ~napotmask[i]) == '0;
-      matchge[i] = (matchval[i] >= TDATA2_REGW[i]);
-      matchmasklow[i] = (matchval[i][P.XLEN/2-1:0] & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
-      matchmaskhigh[i] = (matchval[i][P.XLEN-1:P.XLEN/2] & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
+      if (execute[i]) sizeval[i] = (InstrOrigM[1:0] != 2'b11) ? 3'd2 : 3'd3; // 16-bit compressed or 32-bit instruction
+      else if (load[i] | store[i])
+        case (Funct3M[1:0]) // TODO 6 for 128-bit FP quad accesses
+          2'b00:   sizeval[i] = 3'd1; // 8 bits
+          2'b01:   sizeval[i] = 3'd2; // 16 bits
+          2'b10:   sizeval[i] = 3'd3; // 32 bits
+          default: sizeval[i] = 3'd5; // 64 bits
+        endcase
+      else sizeval[i] = 3'b0;
+      sizematch[i] = (size[i] == 0) | (size[i] == sizeval[i]); // size matches or "any" is selected
+
+      // data compares only look at the bits the access uses; address compares use all XLEN bits
+      if (select[i])
+        case (sizeval[i])
+          3'd1:    datamask[i] = {{(P.XLEN-8){1'b0}},  {8{1'b1}}};   // 8 bits
+          3'd2:    datamask[i] = {{(P.XLEN-16){1'b0}}, {16{1'b1}}};  // 16 bits
+          3'd3:    datamask[i] = {{(P.XLEN-32){1'b0}}, {32{1'b1}}};  // 32 bits
+          default: datamask[i] = '1;                                 // 64 bits, or no access
+        endcase
+      else datamask[i] = '1;
+      cmpval[i]    = matchval[i]    & datamask[i];
+      cmptdata2[i] = TDATA2_REGW[i] & datamask[i];
+
+      matcheq[i]       = (cmpval[i] == cmptdata2[i]);
+      napotmask[i]     = cmptdata2[i] ^ (cmptdata2[i] + 1); // trailing ones and the first zero are ignored
+      matchnapot[i]    = ((cmpval[i] ^ cmptdata2[i]) & ~napotmask[i]) == '0;
+      matchge[i]       = (cmpval[i] >= cmptdata2[i]);
+      matchmasklow[i]  = (cmpval[i][P.XLEN/2-1:0]      & cmptdata2[i][P.XLEN-1:P.XLEN/2]) == cmptdata2[i][P.XLEN/2-1:0];
+      matchmaskhigh[i] = (cmpval[i][P.XLEN-1:P.XLEN/2] & cmptdata2[i][P.XLEN-1:P.XLEN/2]) == cmptdata2[i][P.XLEN/2-1:0];
       case (match[i]) // match field
         4'b0000: valmatch[i] = matcheq[i]; // equal
         4'b0001: valmatch[i] = matchnapot[i]; // napot
@@ -199,17 +222,6 @@ module trigger import cvw::*; #(parameter cvw_t P) (
         4'b1101: valmatch[i] = ~matchmaskhigh[i]; // not maskhigh
         default: valmatch[i] = 0; // reserved
       endcase
-
-      if (execute[i]) sizeval[i] = (InstrOrigM[1:0] != 2'b11) ? 3'd2 : 3'd3; // 16-bit compressed or 32-bit instruction
-      else if (load[i] | store[i])
-        case (Funct3M[1:0]) // TODO 6 for 128-bit FP quad accesses
-          2'b00:   sizeval[i] = 3'd1; // 8 bits
-          2'b01:   sizeval[i] = 3'd2; // 16 bits
-          2'b10:   sizeval[i] = 3'd3; // 32 bits
-          default: sizeval[i] = 3'd5; // 64 bits
-        endcase
-      else sizeval[i] = 3'b0;
-      sizematch[i] = (size[i] == 0) | (size[i] == sizeval[i]); // size matches or "any" is selected
 
       mcontrol6match[i] = matchen[i] & valmatch[i] & sizematch[i];
     end
