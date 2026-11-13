@@ -1,0 +1,417 @@
+
+///////////////////////////////////////////
+// sdtrig.sv
+//
+// Written: David_Harris@hmc.edu 14 March 2026
+// Modified:
+//
+// Purpose: Sdtrig debug trigger extension
+//          Includes both CSRs and trigger logic
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwgroup/cvw
+//
+// Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+//
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
+// except in compliance with the License, or, at your option, the Apache License version 2.0. You
+// may obtain a copy of the License at
+//
+// https://solderpad.org/licenses/SHL-2.1/
+//
+// Unless required by applicable law or agreed to in writing, any work distributed under the
+// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+// either express or implied. See the License for the specific language governing permissions
+// and limitations under the License.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module sdtrig  import cvw::*;  #(parameter cvw_t P) (
+  input  logic              clk, reset,
+  input  logic              CSRMWriteM, CSRHWriteM, CSRSWriteM,
+  input  logic [11:0]       CSRAdrM,
+  input  logic [1:0]        PrivilegeModeW,
+  output logic [P.XLEN-1:0] CSRTReadValM,
+  output logic              IllegalCSRTAccessM
+);
+
+  // constants
+  parameter LOG_NUM_TRIGGERS = $clog2(NUM_TRIGGERS];
+  parameter MASKMAX6 = P.XLEN; // *** should become UDB parameter
+
+  // Sdtrig CSRs
+  localparam SCONTEXT  = 12'h5A8;
+  localparam HCONEXT   = 12'h6A8;
+  localparam MCONTEXT  = 12'h7A8;
+  localparam MSCONTEXT = 12'h7AA; // deprecated, not supported
+  localparam TSELECT   = 12'h7A0;
+  localparam TDATA1    = 12'h7A1;
+  localparam TDATA2    = 12'h0x7A2;
+  localparam TDATA3    = 12'h7A3;
+  localparam TINFO     = 12'h7A4;
+  localparam TCONTROL  = 12'h7A5;
+
+  // trigger types
+  localparam ICOUNT_TYPE    = 4'b0011;
+  localparam ITRIGGER_TYPE  = 4'b0100;
+  localparam ETRIGGER_TYPE  = 4'b0101;
+  localparam MCONTROL6_TYPE = 4'b0110;
+  localparam DISABLED_TYPE  = 4'b1111;
+
+  // Masks control which fields of TDATA1 are readable for each trigger type
+  // the hit bit is near the top for ITRIGGER/ETRIGGER and is handled separately
+  // mcontrol6 hardwires uncertain and uncertainen to 0
+  localparam MCONTROL6_MASK = {2'b01, P.H_SUPPORTED, P.H_SUPPORTED, 18'b110011111111111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
+  localparam COUNT_MASK     = P.ICOUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b11111111111111;
+  localparam COUNT_ONES     = P.ICOUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b00000000000000;
+  localparam ICOUNT_MASK    = {P.H_SUPPORTED, P.H_SUPPORTED, 1'b1, COUNT_MASK, 2'b11, P.S_SUPPORTED, P.U_SUPPORTED, 6'b111111};
+  localparam ICOUNT_ONES    = {3'b000, COUNT_ONES, 10'b0000000000};
+  localparam ITRIGGER_MASK  = {14'b00000000000000, P.H_SUPPORTED, P.H_SUPPORTED, 3'b110, P.S_SUPPORTED, P.U_SUPPORTED, 6'b111111};
+  localparam ETRIGGER_MASK  = {14'b00000000000000, P.H_SUPPORTED, P.H_SUPPORTED, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b111111};
+  localparam DISABLED_MASK  = 27'b000000000000000000000000000;
+
+  // Sdtrig architectural state
+  // Trigger data is replicated for each trigger
+  logic [1:0] TCONTROL_REGW;
+  logic [LOG_NUM_TRIGGERS-1:0] TSELECT_REGW;
+  logic [P.XLEN-1:0] TDATA1_REGW[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0] TDATA2_REGW[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0] TDATA3_REGW[P.NUM_TRIGGERS];
+  logic [31:0] SCONTEXT_REGW;
+  logic [13:0] MCONTEXT_REGW;
+
+  // TODO
+  //  limit access to scontext based on mstateenzero[57]
+  // write bits of tcontrol.MPTE/MTE when taking trap into M-mode
+  // writing 0 to tdata1 should disable, change type to 15, preserve dmode (ignored if dmode = 1, from machine mode)
+  // tdata1 fields that are written in hardware
+  // tdata1 bitfields that are hardwired to 0 in certain cases.  On write, not read?  What happens when changing modes?
+  // when tdata1.type != disabled, restrictions on what is writable to tdata2 and tdata3
+  // eventually add debug mode, with privilege to touch all CSRs
+  // tdata3.mhselect vmid_select should look at lower VMIDMAx bits
+  // also lowest ASIDMAX bits for tdata3.sselect asid
+  // when do triggers fire
+  // architect to avoid increasing critical path
+
+  // internal signals
+  logic [P.XLEN-1:0] TINFOval; // read-only
+  logic [P.XLEN-1:0] TCONTROLval; // inflate from fewer bits
+  logic [P.XLEN-6:0] TDATA1WriteMaskM; // WARL read fields vary with trigger typ
+  logic [P.NUMTRIGGERS-1:0] TriggerMatchM;
+
+  genvar t;
+
+  // CSR Write Logic
+
+  logic                    WriteTCONTROLM, WriteTSELECTM;
+  logic                    WriteTDATAA1M, WriteTDATA2M, WriteTDATA3M;
+  logic                    WriteSCONTEXTM, WriteMCONTEXTM;
+
+  logic [1:0]       TCONTROLWriteValM;
+
+  // write enables
+  assign CSRDWriteM = 0; // Debug mode not yet supported; when supported, it should be able to write all M-mode registers
+  assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
+  assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT);
+  assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
+  assign WriteTDATA2M     = CSRMWriteM & (CSRAdrM == TDATA2);
+  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
+  assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
+  assign WriteMCONTEXTM   = CSRSWriteM & (CSRAdrM == MCONTEXT) | CSRHWriteM & (CSRAdrM == HCONEXT);;
+
+  // CSR state
+
+  // *** csrs doesn't have StallW in conditions.  Following that here; confirm correct
+  assign TCONTROLWriteValM = CSRWriteValM[7], CSRWriteValM[3];
+  flopenr #(2) TCONTROLreg(clk, reset, WriteTCONTROLM, TCONTROLWriteValM, TCONTROL_REGW);
+  flopenr #(LOG_NUM_TRIGGERS) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM[LOG_NUM_TRIGGERS-1:0], TSELECT_REGW);
+  if (P.CONTEXT_SUPPORTED)
+    flopenr #(14) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM[13:0], MCONTEXT_REGW);
+    if (P.S_SUPPORTED)
+      flopenr #(32) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM[31:0], SCONTEXT_REGW);
+    else assign SCONTEXT_REGW = '0;
+  for (t=0; t < P.NUM_TRIGGERS; t++) begin
+    flopenr #(P.XLEN) TDATA2reg(clk, reset, WriteTDATA2M & (TSELECT_REGW == t), CSRWriteValM, TDATA2_REGW[t]);
+    flopenr #(P.XLEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), CSRWriteValM, TDATA3_REGW[t]);
+  end
+
+  // TDATA1 has many fields handled specially per trigger type
+  for (t=0; t < P.NUM_TRIGGERS; t++) begin
+    always_comb begin
+      CSRWriteValTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
+      // If the type is not legal, set it to disabled
+      CSRWriteValLegalizedTypeM = (CSRWriteValTypeM == 4'd3 | CSRWriteValTypeM == 4'd4 | CSRWriteValTypeM == 4'd5 | CSRWriteValTypeM == 4'd6) ? CSRWriteValTypeM : 4'b1111;
+      // dmode is preserved except by debug mode writes
+      assign CSRWriteValLegalizedDmodeM = CSRDWriteM ? CSRWriteValM[P.XLEN-5] : TDATA1_REGW[TSELECT_REGW][P.XLEN-5];
+      // data field allowable values depend on type
+      case (CSRWriteValTypeM)
+        ICOUNT_TYPE:    TDATA1WriteMaskM = {{(P.XLEN-32){1'b0}}, ICOUNT_MASK};
+        ITRIGGER_TYPE:  TDATA1WriteMaskM = {1'b1, {(P.XLEN-32){1'b0}}, ITRIGGER_MASK[25:0]}; // accomodate hit field
+        ETRIGGER_TYPE:  TDATA1WriteMaskM = {1'b1, {(P.XLEN-32){1'b0}}, ETRIGGER_MASK[25:0]}; // accomodate hit field
+        MCONTROL6_TYPE: TDATA1WriteMaskM = {{(P.XLEN-32){1'b0}}, MCONTROL6_MASK};
+        DISABLED_TYPE:  TDATA1WriteMaskM = {{(P.XLEN-32){1'b0}}, DISABLED_MASK};
+        default:        TDATA1WriteMaskM = '0'; // should neve roccur
+      endcase
+      // some fields can be hardwired to 1 (e.g. count)
+      case (CSRWriteValTypeM)
+        ICOUNT_TYPE:    TDATA1WriteOnesM = {{(P.XLEN-32){1'b0}}, ICOUNT_ONES};
+        default:        TDATA1WriteOnesM = '0'; // should neve roccur
+      endcase
+    assign CSRWriteValLegalizedM[t] = {CSRWriteValLegalizedTypeM, CSRWriteValLegalizedDmodeM, CSRWriteValM[P.XLEN-6:0] & TDATA1WriteMaskM | TDATA1WriteOnesM};
+    end
+    always_ff @(posedge clk) begin
+      if (reset) TDATA1_REGW[t] <= {4'b1111, {(P.XLEN-4){1'b0}}}; // reset to disabled state
+      else if (WriteTDATA1M & (TSELECT_REGW == t) TDATA1_REGW[t] <= CSRWriteValLegalizedM[t]; // tdata1 write
+      else begin
+        // hardware updates to tdata1
+        case (TDATA1_REGW[t][P.XLEN-1:P.XLEN-4]) // type is in top 4 bits of tdata1
+          ICOUNT_TYPE: begin
+            // decrement count unless already at 0 or hardwired to 1
+            if (~P.ICOUNT_HARDWIRED_1 & MatchM[t] & TDATA1_REGW[t][23:10] != 0) begin
+              TDATA1_REGW[t][23:10] <= DATA1_REGW[t][23:10]-1;
+            end
+            if (TDATA1_REGW[t][8] & MatchM[t]) begin // fire when pending
+              TDATA1_REGW[t][8] <= 0; // clear
+              // *** do stuff to fire
+            end
+            else if (SetPendingM[t]) TDATA1_REGW[t][8] <= 1; // set pending
+          end
+          ITRIGGER_TYPE: begin
+            if (MatchM[t]) TDATA1_REGW[t][P.XLEN-6] <= 1; // set hit bit on match
+          end
+          ETRIGGER_TYPE: begin
+            if (MatchM[t]) TDATA1_REGW[t][P.XLEN-6] <= 1; // set hit bit on match
+          end
+          MCONTROL6_TYPE: begin
+            // tdata1.UNCERTAIN is tied to 0, never updated
+          end
+        endcase
+      end
+    end
+  end
+
+   // tdata2 write
+  always_comb begin
+    CSRTDATA2WriteValM = CSRWriteValM; // default: write full value
+    // for mcontrol6 when match=napot, tdata2 is WARL, if bits maskmax6-1:0 are written with 1s then bit masmax6-1 will be set to 0.
+    if (TDATA1_REGW[TSELECT_REGW][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE & TDATA1_REGW[TSELECT_REGW][9:7] == 3'b001 & CSRWriteValM[MASKMAX6-1:0] == '1)
+        CSRTDATS2WriteValM[MASKMAX6-1] = 1'b0; // clear the bit at the top of the mask
+  end
+  for (t=0; t < P.NUM_TRIGGERS; t++) begin
+    flopenr #(P.XLEN) TDATA2reg(clk, reset, WriteTDATA2M & (TSELECT_REGW == t), CSRTDATA2WriteValM, TDATA3_REGW[t]);
+  end
+
+  // tdata3 write
+  always_comb
+    if (P.XLEN == 32) CSRTDATA3WriteValM = {CSRWriteValM[31:23], 3'b0, CSRWriteValM[19:0]};
+    else              CSRTDATA3WriteValM = {CSRWriteValM[63:48], 8'b0, CSRWriteValM[39:36], 2'b0, CSRWriteValM[33:0]};
+  for (t=0; t < P.NUM_TRIGGERS; t++) begin
+    // tdata3 has some fields hardwired to 0; form depends on XLEN
+    flopenr #(P.XLEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), CSRTDATA3WriteValM, TDATA3_REGW[t]);
+  end
+
+  // CSR Read Logic
+
+  // Trigger Standard 1.0 supports all standard nondepricated triggers:
+  // mcontrol6, etrigger, itrigger, icount
+  // If currently selected trigger doesn't exist, tinfo = 1
+  assign TINFOval = {(XLEN-25){1'b0}, 1'b1, 8'b0,
+                TSELECT_REGW >= P.NUM_TRIGGERS ? 16'h0001 : 16'b0000_0000_0111_1100;
+  // inflate 2 bits of TCONTROL state to XLEN-sized register.
+  assign TCONTROLval = {{(P.XLEN-8){1'b0}}, TCONTROL_REGW[1], 3'b0, TCONTROL_REGW[0], 3'b0};
+
+  always_comb begin:csrr
+    CSRTReadValM = '0;
+    IllegalCSRTAccessM = 1'b0;
+    case (CSRAdrM)
+      SCONTEXT:  CSRTReadValM = {{(P.XLEN-32){1'b0}}, SCONTEXT_REGW};
+      MCONTEXT:  CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW};
+      HCONTEXT:  CSRTReadValM = {{(P.XLEN-14){1'b0}}, MCONTEXT_REGW}; // alias of mcontext
+      TINFO:     CSRTReadValM = TINFOval;
+      TCONTROL:  CSRTReadValM = TCONTROLval;
+      TSELECT:   CSRTReadValM = {{(P.XLEN-LOG_NUM_TRIGGERS){1'b0}}, TSELECT_REGW};
+      TDATA1:    CSRTReadValM = (TSELECT_REGW < P.NUM_TRIGGERS) ? TDATA1ReadValM : '0; // nonexistent trigger reads as 0
+      TDATA2:    CSRTReadValM = TDATA2_REGW[TSELECT_REGW];
+      TDATA3:    CSRTReadValM = TDATA3_REGW[TSELECT_REGW];
+      default:   IllegalCSRSAccessM = 1'b1;
+    endcase
+  end
+
+  // Privilege match
+  always_comb
+    for (t=0; t<P.NUM_TRIGGERS; t++) begin
+      // match field location depends on trigger type
+      case (TDATA1_REGW[P.XLEN-1:P.XLEN-4])
+        ICOUNT_TYPE: begin
+          m[t]  = TDATA1_REGW[9];
+          s[t]  = TDATA1_REGW[7];
+          u[t]  = TDATA1_REGW[6];
+          vs[t] = TDATA1_REGW[26];
+          vu[t] = TDATA1_REGW[25];
+        end
+        ITRIGGER_TYPE: begin
+          m[t]  = TDATA1_REGW[9];
+          s[t]  = TDATA1_REGW[7];
+          u[t]  = TDATA1_REGW[6];
+          vs[t] = TDATA1_REGW[12];
+          vu[t] = TDATA1_REGW[11];
+        end
+        ETRIGGER_TYPE: begin
+          m[t]  = TDATA1_REGW[9];
+          s[t]  = TDATA1_REGW[7];
+          u[t]  = TDATA1_REGW[6];
+          vs[t] = TDATA1_REGW[12];
+          vu[t] = TDATA1_REGW[11];
+        end
+        MCONTROL6_TYPE: begin
+          m[t]  = TDATA1_REGW[6];
+          s[t]  = TDATA1_REGW[4];
+          u[t]  = TDATA1_REGW[3];
+          vs[t] = TDATA1_REGW[24];
+          vu[t] = TDATA1_REGW[23];
+        end
+        default: begin // never match privilege
+          m[t] = 0; s[t] = 0; u[t] = 0; vs[t] = 0; vu[t] = 0;
+        end
+      endcase
+      PrivEnabledM[t] = (PrivilegeModeW == P.M_MODE  & m[t]) |
+                      (PrivilegeModeW == P.S_MODE  & VirtModeW == 0 & s[t]) |
+                      (PrivilegeModeW == P.U_MODE  & VirtModeW == 0 & u[t]) |
+                      (PrivilegeModeW == P.VS_MODE & VirtModeW == 1 & vs[t]) |
+                      (PrivilegeModeW == P.VU_MODE & VirtModeW == 1 & vu[t]);
+    end
+
+  // tdata3 context matches
+  always_comb
+    for (t=0; t<P.NUM_TRIGGERS; t++) begin
+      if (P.XLEN == 32) begin
+        casez (TDATA3_REGW[25:23]) // tdata3.mhselect
+          3'b000: mmatch[t] = 1; // ignore mhvalue
+          3'b100: mmatch[t] = (MCONTEXT_REGW[5:0] == TDATA3_REGW[31:26]); // mcontext
+          3'b?01: mmatch[t] = (MCONTEXT_REGW[6:0] == TDATA3_REGW[31:25]); // mcontext_select
+          3'b?10: mmatch[t] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[31:25]); // vmid_select
+          default: mmatch[t] = 0; // reserved values don't match
+        endcase
+        case (TDATA3_REGW[1:0]) // tdata3.sselect
+          2'b00: smatch[t] = 1; // ignore svalue
+          2'b01: smatch[t] = ((SCONTEXT_REGW[7:0]  == TDATA3_REGW[9:2])   | TDATA3_REGS[18]) &
+                            ((SCONTEXT_REGW[15:8] == TDATA3_REGW[17:10]) | TDATA3_REGW[19]); // scontext
+          2'b10: smatch[t] = (P.H_SUPPORTED & VirtModeW) ?
+                                (VSATP_ASID[15:0] == TDATA3_REGW[17:2]) :
+                                (SATP_ASID[15:0]  == TDATA3_REGW[17:2]); // asid
+          default: smatch[t] = 0; // reserved values don't match
+        endcase
+      end else begin // XLEN=64
+        casez (TDATA3_REGW[50:48]) // tdata3.mhselect
+          3'b000: mmatch[t] = 1; // ignore mhvalue
+          3'b100: mmatch[t] = (MCONTEXT_REGW[12:0] == TDATA3_REGW[63:51]); // mcontext
+          3'b?01: mmatch[t] = (MCONTEXT_REGW[13:0] == TDATA3_REGW[63:50]); // mcontext_select
+          3'b?10: mmatch[t] = P.HSUPPORTED & (HGATP_VMID == TDATA3_REGW[63:51]); // vmid_select
+          default: mmatch[t] = 0; // reserved values don't match
+        endcase
+        case (TDATA3_REGW[1:0]) // tdata3.sselect
+          2'b00: smatch[t] = 1; // ignore svalue
+          2'b01: smatch[t] = ((SCONTEXT_REGW[7:0]   == TDATA3_REGW[9:2])   | TDATA3_REGS[36]) &
+                             ((SCONTEXT_REGW[15:8]  == TDATA3_REGW[17:10]) | TDATA3_REGW[37]) &
+                             ((SCONTEXT_REGW[23:16] == TDATA3_REGW[25:18]) | TDATA3_REGW[38]) &
+                             ((SCONTEXT_REGW[31:24] == TDATA3_REGW[33:26]) | TDATA3_REGW[39]); // scontext
+          2'b10: smatch[t] = (P.H_SUPPORTED & VirtModeW) ?
+                                (VSATP_ASID[31:0] == TDATA3_REGW[33:2]) :
+                                (SATP_ASID[31:0]  == TDATA3_REGW[33:2]); // asid
+          default: smatch[t] = 0; // reserved values don't match
+        endcase
+      end
+      Tdata3MatchM[t] = mmatch[t] & smatch[t];
+    end
+
+  // Trigger matches
+  always_comb
+    for (t=0; t<P.NUM_TRIGGERS; t++) begin
+      TriggerMatchM[t] = 0;
+      IcountPendingM[t] = 0;
+      Tdata2MatchM[t] = 0;
+      // behavior depends on trigger type
+      case (TDATA1_REGW[t][P.XLEN-1:P.XLEN-4])
+        ICOUNT_TYPE: begin
+          // Icount decrements when instruction retires or traps
+          TypeMatchM[t] = (InstrValidNotFlushedM | TrapM) & PrivEnabledM[t]; // *** make sure stalls are handled, probably with stall to register
+          SetPendingM[t] = MatchM[t] & TDATA1_REGW[t][23:10] == 14'b00000000000001;
+          Tdata2MatchM[t] = 1; // Tdata2 does not affect icount matches
+        end
+        ITRIGGER_TYPE: begin
+          TypeMatchM[t] = InterruptM;
+          // Cause bit must be set in tdata2 for match to occur
+          Tdata2MatchM[t] = TDATA2_REGW[t][CauseM];
+        end
+        ETRIGGER_TYPE: begin
+          TypeMatchM[t] = ExceptionM & ~CommittedF;
+          // Cause bit must be set in tdata2 for match to occur
+          Tdata2MatchM[t] = TDATA2_REGW[t][CauseM];
+        end
+        MCONTROL6_TYPE: begin
+          // *** add support for chain
+          // *** add support for hit
+          TypeMatchM[t] = mcontrol6match[t];
+        end
+      endcase
+      // Match if the trigger condition is satisfied and the privilege mode is right
+      MatchM[t] = TypeMatchM[t] & PrivEnabledM[t] & Tdata2MatchM[t] & Tdata3MatchM[t];
+    end
+
+  // mcontrol6-specific matching logic
+  always_comb begin
+    for (t=0; t<P.NUM_TRIGGERS; t++) begin
+      // extract mcontrol6 fields
+      size[t] = TDATA1_REGW[t][18:16];
+      match[t] = TDATA1_REGW[t][10:7];
+      select[t] = TDATA1_REGW[t][21];
+      execute[t] = TDATA1_REGW[t][2];
+      store[t] = TDATA1_REGW[t][1];
+      load[t] = TDATA1_REGW[t][0];
+
+      // Although the spec appears to allow multiple {execute,store,load} to be set
+      // and match against any of them, this implementation only matches one per
+      // trigger for the sake of hardware efficiency.
+      matchen[t] = 1; // by default the matchval is meaningful
+      // *** update all of these with the correct signal names
+      // *** mask down to their size
+      casez {select[t], execute[t], store[t], load[t]}
+        4'b?000: matchval[t] = '0; matchen[t] = 0; // no type selected
+        4'b01??: matchval[t] = InstrAdrM; // Execute Address
+        4'b001?: matchval[t] = IEUAdrM;   // Store address
+        4'b0001: matchval[t] = IEUAdrM;   // LoadAddress
+        4'b11??: matchval[t] = InstrM;    // Instruction
+        4'b101?: matchval[t] = IEUWriteDataM; // Store Data
+        4'b1001: matchval[t] = IEUReadDataM; // Load Data
+      endcase
+
+      matcheq[t] = (matchval[t] == TDATA2_REGW[t]);
+      matchnapot[t] = ***;
+      matchge[t] = ($unsigned(matchval[t]) >= $unsigned(TDATA2_REGW[t]);
+      matchmasklow[t] = (matchval[t][P.XLEN/2-1:0] & TDATA2_REG[P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[P.XLEN/2-1:0];
+      matchmaskhigh[t] = (matchval[t][P.XLEN-1:P.XLEN] & TDATA2_REG[P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[P.XLEN/2-1:0];
+      case (match[t]) // match field
+        4'b0000: valmatch[t] = matcheq[t]; // equal
+        4'b0001: valmatch[t] = matchnapot[t]; // napot
+        4'b0010: valmatch[t] = matchge[t]; // ge
+        4'b0011: valmatch[t] = ~matchge[t]; // lt
+        4'b0100: valmatch[t] = matchmasklow[t]; // masklow
+        4'b0101: valmatch[t] = matchmaskhigh[t]; // mask high
+        4'b1000: valmatch[t] = ~matcheq[t]; // not equal
+        4'b1001: valmatch[t] = ~matchnapot[t]; // not napot
+        4'b1100: valmatch[t] = ~matchmasklow[t]; // not masklow
+        4'b1101: valmatch[t] = ~matchmaskhigh[t]; // not maskhigh
+        default: valmatch[t] = 0; // reserved
+      endcase
+
+      if (extcute[t]) sizeval[t] = *** ? 3'b3 : 3'b2;
+      else if (load[t] | store[t]) sizeval[t] == ***; // *** 6 for 128, 5 for 64, 3 for 32, 2 for 16, 1 for 8]
+      else sizeval[t] = 3'b0;
+      sizematch[t] = (size[t] == 0) | (size[t] == sizeval[t]); // size matches or "any" is selected
+
+      assign mcontrol6match[t] = matchen[t] & valmatch[t] & sizematch[t];
+    end
+  end
