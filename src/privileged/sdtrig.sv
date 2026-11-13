@@ -31,6 +31,10 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]        NextPrivilegeModeM,
   input  logic [4:0]        CauseM,
   input  logic              CommittedF,
+  input  logic [P.XLEN-1:0] PCM, IEUAdrM, WriteDataM,  // mcontrol6 match values
+  input  logic [31:0]       InstrM, InstrOrigM,
+  input  logic [P.LLEN-1:0] ReadDataW,
+  input  logic [2:0]        Funct3M,                   // load/store size
   output logic [P.XLEN-1:0] CSRTReadValM,
   output logic              IllegalCSRTAccessM
 );
@@ -50,6 +54,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
 
   trigger #(P) trigger(.PrivilegeModeW, .SATP_REGW, .InstrValidNotFlushedM,
     .TrapM, .InterruptM, .ExceptionM, .CauseM, .CommittedF,
+    .PCM, .IEUAdrM, .WriteDataM, .InstrM, .InstrOrigM, .ReadDataW, .Funct3M,
     .TDATA1_REGW, .TDATA2_REGW, .TDATA3_REGW, .TCONTROL_REGW, .SCONTEXT_REGW, .MCONTEXT_REGW,
     .MatchM, .SetPendingM);
 

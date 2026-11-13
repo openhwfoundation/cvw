@@ -38,9 +38,9 @@ module csrt import cvw::*; #(parameter cvw_t P) (
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
-  localparam HCONTEXT  = 12'h6A8; // requires the H extension, which Wally lacks; accesses are illegal
+  // localparam HCONTEXT  = 12'h6A8; // requires the H extension, which Wally lacks; accesses are illegal
   localparam MCONTEXT  = 12'h7A8;
-  localparam MSCONTEXT = 12'h7AA; // is deprecated and not supported; accesses are illegal
+  // localparam MSCONTEXT = 12'h7AA; // is deprecated and not supported; accesses are illegal
   localparam TSELECT   = 12'h7A0;
   localparam TDATA1    = 12'h7A1;
   localparam TDATA2    = 12'h7A2;
@@ -48,6 +48,7 @@ module csrt import cvw::*; #(parameter cvw_t P) (
   localparam TINFO     = 12'h7A4;
   localparam TCONTROL  = 12'h7A5;
 
+  localparam NUM_TRIGGERS_XLEN = {{(P.XLEN-32){1'b0}}, P.NUM_TRIGGERS}; // tselect writes at or above this are ignored
   localparam MHSELECT_LSB = (P.XLEN == 32) ? 23 : 48;
 
   // Trigger types
@@ -103,7 +104,7 @@ module csrt import cvw::*; #(parameter cvw_t P) (
 
   assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
 
-  assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < P.XLEN'(P.NUM_TRIGGERS)); // out-of-range writes ignored
+  assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < NUM_TRIGGERS_XLEN); // out-of-range writes ignored
   assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
   assign WriteTDATA2M     = CSRMWriteM & (CSRAdrM == TDATA2);
   assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
@@ -201,7 +202,7 @@ module csrt import cvw::*; #(parameter cvw_t P) (
             end
             if (TDATA1_REGW[t][8] & MatchM[t]) begin // fire when pending
               TDATA1_REGW[t][8] <= 0; // clear pending
-              // *** do stuff to fire
+              // TODO do stuff to fire
             end
             else if (SetPendingM[t]) TDATA1_REGW[t][8] <= 1; // set pending
           end

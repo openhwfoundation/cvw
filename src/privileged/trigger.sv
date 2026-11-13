@@ -24,6 +24,10 @@ module trigger import cvw::*; #(parameter cvw_t P) (
   input  logic                           TrapM, InterruptM, ExceptionM,
   input  logic [4:0]                     CauseM,
   input  logic                           CommittedF,
+  input  logic [P.XLEN-1:0]              PCM, IEUAdrM, WriteDataM,     // mcontrol6 match values
+  input  logic [31:0]                    InstrM, InstrOrigM,
+  input  logic [P.LLEN-1:0]              ReadDataW,
+  input  logic [2:0]                     Funct3M,                      // load/store size
   input  var logic [P.XLEN-1:0]          TDATA1_REGW[P.NUM_TRIGGERS],
   input  var logic [P.XLEN-1:0]          TDATA2_REGW[P.NUM_TRIGGERS],
   input  var logic [P.XLEN-1:0]          TDATA3_REGW[P.NUM_TRIGGERS],
@@ -124,7 +128,7 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
         ICOUNT_TYPE: begin
           // Icount decrements when instruction retires or traps
-          TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // *** make sure stalls are handled, probably with stall to register
+          TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // TODO make sure stalls are handled, probably with stall to register
         end
         ITRIGGER_TYPE: begin
           TypeMatchM[i] = (InterruptM & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)]);
@@ -133,8 +137,8 @@ module trigger import cvw::*; #(parameter cvw_t P) (
           TypeMatchM[i] = ExceptionM & ~CommittedF & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)];
         end
         MCONTROL6_TYPE: begin
-          // *** add support for chain
-          // *** add support for hit
+          // TODO add support for chain
+          // TODO add support for hit
           TypeMatchM[i] = mcontrol6match[i];
         end
         default: TypeMatchM[i] = 0;
@@ -144,62 +148,71 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
     end
 
-  // *** mcontrol6 address/data match, copied from sdtrig.work; not yet compilable, so commented out
-  /*
   // mcontrol6-specific matching logic
+  logic [2:0]        size[P.NUM_TRIGGERS], sizeval[P.NUM_TRIGGERS];
+  logic [3:0]        match[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0] matchval[P.NUM_TRIGGERS], napotmask[P.NUM_TRIGGERS];
+  logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, matchen, sizematch, valmatch;
+  logic [P.NUM_TRIGGERS-1:0] matcheq, matchnapot, matchge, matchmasklow, matchmaskhigh;
   always_comb begin
-    for (t=0; t<P.NUM_TRIGGERS; t++) begin
+    for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
       // extract mcontrol6 fields
-      size[t] = TDATA1_REGW[t][18:16];
-      match[t] = TDATA1_REGW[t][10:7];
-      select[t] = TDATA1_REGW[t][21];
-      execute[t] = TDATA1_REGW[t][2];
-      store[t] = TDATA1_REGW[t][1];
-      load[t] = TDATA1_REGW[t][0];
+      size[i] = TDATA1_REGW[i][18:16];
+      match[i] = TDATA1_REGW[i][10:7];
+      select[i] = TDATA1_REGW[i][21];
+      execute[i] = TDATA1_REGW[i][2];
+      store[i] = TDATA1_REGW[i][1];
+      load[i] = TDATA1_REGW[i][0];
 
       // Although the spec appears to allow multiple {execute,store,load} to be set
       // and match against any of them, this implementation only matches one per
       // trigger for the sake of hardware efficiency.
-      matchen[t] = 1; // by default the matchval is meaningful
-      // *** update all of these with the correct signal names
-      // *** mask down to their size
-      casez {select[t], execute[t], store[t], load[t]}
-        4'b?000: matchval[t] = '0; matchen[t] = 0; // no type selected
-        4'b01??: matchval[t] = InstrAdrM; // Execute Address
-        4'b001?: matchval[t] = IEUAdrM;   // Store address
-        4'b0001: matchval[t] = IEUAdrM;   // LoadAddress
-        4'b11??: matchval[t] = InstrM;    // Instruction
-        4'b101?: matchval[t] = IEUWriteDataM; // Store Data
-        4'b1001: matchval[t] = IEUReadDataM; // Load Data
+      matchen[i] = 1; // by default the matchval is meaningful
+      // TODO mask down to their size
+      casez ({select[i], execute[i], store[i], load[i]})
+        4'b?000: begin matchval[i] = '0; matchen[i] = 0; end // no type selected
+        4'b01??: matchval[i] = PCM;        // Execute Address
+        4'b001?: matchval[i] = IEUAdrM;    // Store address
+        4'b0001: matchval[i] = IEUAdrM;    // LoadAddress
+        4'b11??: matchval[i] = {{(P.XLEN-32){1'b0}}, InstrM}; // Instruction
+        4'b101?: matchval[i] = WriteDataM; // Store Data
+        4'b1001: matchval[i] = ReadDataW[P.XLEN-1:0]; // Load Data; TODO only available in Writeback
+        default: begin matchval[i] = '0; matchen[i] = 0; end
       endcase
 
-      matcheq[t] = (matchval[t] == TDATA2_REGW[t]);
-      matchnapot[t] = ***;
-      matchge[t] = ($unsigned(matchval[t]) >= $unsigned(TDATA2_REGW[t]);
-      matchmasklow[t] = (matchval[t][P.XLEN/2-1:0] & TDATA2_REG[P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[P.XLEN/2-1:0];
-      matchmaskhigh[t] = (matchval[t][P.XLEN-1:P.XLEN] & TDATA2_REG[P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[P.XLEN/2-1:0];
-      case (match[t]) // match field
-        4'b0000: valmatch[t] = matcheq[t]; // equal
-        4'b0001: valmatch[t] = matchnapot[t]; // napot
-        4'b0010: valmatch[t] = matchge[t]; // ge
-        4'b0011: valmatch[t] = ~matchge[t]; // lt
-        4'b0100: valmatch[t] = matchmasklow[t]; // masklow
-        4'b0101: valmatch[t] = matchmaskhigh[t]; // mask high
-        4'b1000: valmatch[t] = ~matcheq[t]; // not equal
-        4'b1001: valmatch[t] = ~matchnapot[t]; // not napot
-        4'b1100: valmatch[t] = ~matchmasklow[t]; // not masklow
-        4'b1101: valmatch[t] = ~matchmaskhigh[t]; // not maskhigh
-        default: valmatch[t] = 0; // reserved
+      matcheq[i] = (matchval[i] == TDATA2_REGW[i]);
+      napotmask[i] = TDATA2_REGW[i] ^ (TDATA2_REGW[i] + 1); // trailing ones and the first zero are ignored
+      matchnapot[i] = ((matchval[i] ^ TDATA2_REGW[i]) & ~napotmask[i]) == '0;
+      matchge[i] = (matchval[i] >= TDATA2_REGW[i]);
+      matchmasklow[i] = (matchval[i][P.XLEN/2-1:0] & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
+      matchmaskhigh[i] = (matchval[i][P.XLEN-1:P.XLEN/2] & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
+      case (match[i]) // match field
+        4'b0000: valmatch[i] = matcheq[i]; // equal
+        4'b0001: valmatch[i] = matchnapot[i]; // napot
+        4'b0010: valmatch[i] = matchge[i]; // ge
+        4'b0011: valmatch[i] = ~matchge[i]; // lt
+        4'b0100: valmatch[i] = matchmasklow[i]; // masklow
+        4'b0101: valmatch[i] = matchmaskhigh[i]; // mask high
+        4'b1000: valmatch[i] = ~matcheq[i]; // not equal
+        4'b1001: valmatch[i] = ~matchnapot[i]; // not napot
+        4'b1100: valmatch[i] = ~matchmasklow[i]; // not masklow
+        4'b1101: valmatch[i] = ~matchmaskhigh[i]; // not maskhigh
+        default: valmatch[i] = 0; // reserved
       endcase
 
-      if (extcute[t]) sizeval[t] = *** ? 3'b3 : 3'b2;
-      else if (load[t] | store[t]) sizeval[t] == ***; // *** 6 for 128, 5 for 64, 3 for 32, 2 for 16, 1 for 8]
-      else sizeval[t] = 3'b0;
-      sizematch[t] = (size[t] == 0) | (size[t] == sizeval[t]); // size matches or "any" is selected
+      if (execute[i]) sizeval[i] = (InstrOrigM[1:0] != 2'b11) ? 3'd2 : 3'd3; // 16-bit compressed or 32-bit instruction
+      else if (load[i] | store[i])
+        case (Funct3M[1:0]) // TODO 6 for 128-bit FP quad accesses
+          2'b00:   sizeval[i] = 3'd1; // 8 bits
+          2'b01:   sizeval[i] = 3'd2; // 16 bits
+          2'b10:   sizeval[i] = 3'd3; // 32 bits
+          default: sizeval[i] = 3'd5; // 64 bits
+        endcase
+      else sizeval[i] = 3'b0;
+      sizematch[i] = (size[i] == 0) | (size[i] == sizeval[i]); // size matches or "any" is selected
 
-      assign mcontrol6match[t] = matchen[t] & valmatch[t] & sizematch[t];
+      mcontrol6match[i] = matchen[i] & valmatch[i] & sizematch[i];
     end
   end
-  */
 
 endmodule
