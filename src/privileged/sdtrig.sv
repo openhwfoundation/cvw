@@ -35,10 +35,20 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   output logic              IllegalCSRTAccessM
 );
 
+
+// TODO CSR MODULE / TRIGGER MODULE
+// CSRT array of trigger instantiations per trigger and common
+
+// TRIGGER module has an array of per trigger for match behavior
+
   // constants
   localparam VERSION = 8'b1;
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
+
+  if (P.MAX_CHAIN_LENGTH > 2) begin : chaincheck
+    $error("sdtrig: MAX_CHAIN_LENGTH = %0d, but only chains of up to 2 triggers are supported", P.MAX_CHAIN_LENGTH);
+  end
 
   // Sdtrig CSRs
   localparam SCONTEXT  = 12'h5A8;
@@ -127,22 +137,22 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
   // TSELECT
   flopenr #(LOG_NUM_TRIGGERS) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM[LOG_NUM_TRIGGERS-1:0], TSELECT_REGW);
 
-  // TDATA1 has many fields handled specially per trigger type
+
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
     logic [3:0]        TDATA1WriteTypeM, TDATA1WriteLegalizedTypeM;
     logic              TDATA1WriteLegalizedDmodeM;
     logic [P.XLEN-6:0] TDATA1WriteMaskM, TDATA1WriteOnesM, TDATA1MControl6MaskM, TDATA1WriteLegalizedDataM;
     logic              TDATA1MatchLegalM, TDATA1SizeLegalM, TDATA1ChainLegalM;
-    // Legalize Chain Writes
-    if (P.MAX_CHAIN_LENGTH > 1 && P.MAX_CHAIN_LENGTH < P.NUM_TRIGGERS) begin : chainlen
-      logic [P.NUM_TRIGGERS-1:0]                    ChainIfSetM;
-      logic [P.NUM_TRIGGERS-P.MAX_CHAIN_LENGTH-1:0] WindowFullM;
-      assign ChainIfSetM = ChainedM | (P.NUM_TRIGGERS'(1) << t); // potential chain
-      for (genvar k = 0; k < P.NUM_TRIGGERS-P.MAX_CHAIN_LENGTH; k++)
-        assign WindowFullM[k] = &ChainIfSetM[k+P.MAX_CHAIN_LENGTH-1:k];
-      assign TDATA1ChainLegalM = ~|WindowFullM;
-    end else assign TDATA1ChainLegalM = 1'b1; // no chain can exceed the max
+    // Legalize chain writes: chains are at most 2 triggers, so t can't chain
+    // if t-1 already chains into it or t+1 already chains onward
+    logic              PrevChainedM, NextChainedM;
+    if (t > 0)                assign PrevChainedM = ChainedM[t-1];
+    else                      assign PrevChainedM = 1'b0;
+    if (t < P.NUM_TRIGGERS-1) assign NextChainedM = ChainedM[t+1];
+    else                      assign NextChainedM = 1'b0;
+    assign TDATA1ChainLegalM = ~PrevChainedM & ~NextChainedM;
 
+    // tdata1 write
     always_comb begin
       // Legalize Type: unsupported types become disabled
       TDATA1WriteTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
@@ -155,6 +165,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       endcase
       // dmode is 0: debug mode not supported
       TDATA1WriteLegalizedDmodeM = 1'b0;
+
       // Legalize mcontrol6 WARL fields: an unsupported value masks its field to 0
       case (CSRWriteValM[10:7]) // match: 6, 7, 10, 11, 14, 15 are reserved
         4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd5, 4'd8, 4'd9, 4'd12, 4'd13: TDATA1MatchLegalM = 1'b1;
@@ -171,6 +182,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       if (~TDATA1SizeLegalM)  TDATA1MControl6MaskM[18:16] = '0;
       if (t == P.NUM_TRIGGERS-1) TDATA1MControl6MaskM[11] = 1'b0; // last trigger has nothing to chain to
       if (~TDATA1ChainLegalM) TDATA1MControl6MaskM[11] = 1'b0;    // chain would be too long
+
       // Mask data based on type
       case (TDATA1WriteLegalizedTypeM)
         ICOUNT_TYPE:    TDATA1WriteMaskM = ICOUNT_MASK;
@@ -179,6 +191,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
         MCONTROL6_TYPE: TDATA1WriteMaskM = TDATA1MControl6MaskM;
         default:        TDATA1WriteMaskM = DISABLED_MASK;
       endcase
+
       // Some fields can be hardwired to 1 (e.g. count)
       case (TDATA1WriteLegalizedTypeM)
         ICOUNT_TYPE:    TDATA1WriteOnesM = {{(P.XLEN-32){1'b0}}, ICOUNT_ONES};
@@ -187,6 +200,8 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
       TDATA1WriteLegalizedDataM = CSRWriteValM[P.XLEN-6:0] & TDATA1WriteMaskM | TDATA1WriteOnesM;
       TDATA1WriteValLegalizedM[t] = {TDATA1WriteLegalizedTypeM, TDATA1WriteLegalizedDmodeM, TDATA1WriteLegalizedDataM};
     end
+
+    // tdata1 register
     always_ff @(posedge clk) begin
       if (reset) TDATA1_REGW[t] <= {4'b1111, {(P.XLEN-4){1'b0}}}; // reset to disabled state
       else if (WriteTDATA1M & (TSELECT_REGW == t)) TDATA1_REGW[t] <= TDATA1WriteValLegalizedM[t]; // tdata1 write
@@ -258,7 +273,7 @@ module sdtrig  import cvw::*;  #(parameter cvw_t P) (
     flopenr #(TDATA3_LEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValM, TDATA3_REGW[t]);
   end
 
-  // tcontrol: mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it
+  // tcontrol: mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it // TODO gate behind reentrancy option
   logic mpte, mte;
   always_ff @(posedge clk)
     if (reset) begin
