@@ -110,9 +110,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet in vieu
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
-  logic [P.VLEN-1:0] VResultFinalW;
 
-  logic [P.VLEN-1:0] VIEUResultW [P.VPU_EU-1:0];    // *** change name, now also holds fp results
   logic [4:0]        VFPEUFlagsW [P.VPU_FP_EU-1:0];
   logic [P.XLEN-1:0] VIEUResultToScalarW [P.VPU_INT_EU-1:0];
 
@@ -120,17 +118,28 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.VPU_EU-1:0] ControllerValidD;
   logic [P.VPU_EU-1:0] ExecutionUnitReadyD;
-  logic [P.VPU_EU-1:0] ControllerWBReadyW;
   logic [P.VPU_EU-1:0] ExecutionUnitResultValidW;
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW [P.VPU_EU-1:0];
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0];
 
+  localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
+  localparam BANKS       = P.VLEN/P.VPU_INT_BLEN;
+
   logic            VRegWriteW, RegWriteW;
-  logic [4:0]      VdFinalW;
+  logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW;
+  logic            HeadCompleteW, HeadVRegWriteW, CommitW;
+  logic [4:0]      HeadVdW;
+  logic [P.VLEN-1:0] HeadDataW;
   genvar i;
 
   logic [P.VPU_EU-1:0] VIEURegWriteW, VIEUVRegWriteW;
   logic [4:0]              VIEUVdFinalW [P.VPU_EU-1:0];
+  logic [P.VPU_EU-1:0]     VIEUBeatValidW;
+  logic [BEATBITLEN-1:0]   VIEUBeatW [P.VPU_EU-1:0];
+  logic [P.VPU_INT_BLEN-1:0] VIEUResultW [P.VPU_EU-1:0];
+  logic [P.VPU_INT_BLEN/8-1:0] VIEUByteMaskW [P.VPU_EU-1:0];
+  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderW [BANKS-1:0];
+  logic [P.VPU_INT_BLEN-1:0]   OldVdDataW [BANKS-1:0];
 
   // divide into control and data path
 
@@ -156,25 +165,39 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                                .IllegalVPUInstrD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
-                               .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
+                               .ExecutionUnitOrderD, .HeadOrderW, .HeadCompleteW, .CommitW,
                                .VPUFrontEndBusyD);
 
 
 
-  vregfile #(P.VLEN) vregfile(clk, reset, VRegWriteW, Vs1FinalD, Vs2FinalD, VdFinalD, VdFinalW,
-                              VResultFinalW, VRD1D, VRD2D, VRD3D, v0D);
+  // *** BLEN should be ELEN * max lanes across EU types when the other EUs are added
+  // *** init from vd when masking is added; byte enables are all ones until then
+  for (i = 0; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
+  assign OldVdOrderW = '{default: '0};
+  assign OldVdDataW  = '{default: '0};
+
+  svrf #(P.VLEN, P.VPU_INT_BLEN, P.VPU_EU, P.VPU_QUEUEDEPTH, BEATBITLEN) svrf(.clk, .reset,
+                              .BeatValidW(VIEUBeatValidW), .LastBeatW(ExecutionUnitResultValidW), .VRegWriteW(VIEUVRegWriteW),
+                              .OrderW(ExecutionUnitOrderW), .BeatW(VIEUBeatW), .ResultBeatW(VIEUResultW), .ByteMaskW(VIEUByteMaskW),
+                              .VdW(VIEUVdFinalW), .OldVdValidW('0), .OldVdOrderW, .OldVdDataW,
+                              .HeadOrderW, .CommitW, .HeadCompleteW, .HeadVRegWriteW, .HeadVdW, .HeadDataW);
+
+  assign VRegWriteW = CommitW & HeadVRegWriteW;
+
+  vregfile #(P.VLEN) vregfile(clk, reset, VRegWriteW, Vs1FinalD, Vs2FinalD, VdFinalD, HeadVdW,
+                              HeadDataW, VRD1D, VRD2D, VRD3D, v0D);
 
 
   for(i = 0; i < P.VPU_INT_EU; i++) begin : vieu
     vieu #(P) vieu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
-                   .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
+                   .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                    .VShiftSelectD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
-                   .VIEUVdFinalW(VIEUVdFinalW[i]));
+                   .VIEUBeatValidW(VIEUBeatValidW[i]), .VIEUBeatW(VIEUBeatW[i]), .VIEUVdFinalW(VIEUVdFinalW[i]));
   end
 
   for(i = 0; i < P.VPU_LSU_EU; i++) begin : vlsuif
@@ -186,23 +209,27 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
     //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
-    assign VIEUResultW[i+P.VPU_INT_EU] = '0;
     assign VIEURegWriteW[i+P.VPU_INT_EU] = '0;
     assign VIEUVRegWriteW[i+P.VPU_INT_EU] = '0;
     assign VIEUVdFinalW[i+P.VPU_INT_EU] =  '0;
+    assign VIEUBeatValidW[i+P.VPU_INT_EU] = '0;
+    assign VIEUBeatW[i+P.VPU_INT_EU] = '0;
+    assign VIEUResultW[i+P.VPU_INT_EU] = '0;
+    assign ExecutionUnitOrderW[i+P.VPU_INT_EU] = '0;
   end
 
   for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
     localparam EU = i + P.VPU_INT_EU + P.VPU_LSU_EU;
     vfpeu #(P, FP) vfpeu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
-                         .ControllerValidD(ControllerValidD[EU]), .ControllerWBReadyW(ControllerWBReadyW[EU]),
-                         .ExecutionUnitReadyD(ExecutionUnitReadyD[EU]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[EU]),
+                         .ControllerValidD(ControllerValidD[EU]), .ExecutionUnitReadyD(ExecutionUnitReadyD[EU]),
+                         .ExecutionUnitResultValidW(ExecutionUnitResultValidW[EU]),
                          .ExecutionUnitOrderD(ExecutionUnitOrderD[EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[EU]),
                          .VMD, .VALUSrcAD, .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
                          .VFMoveD, .VFMergeD, .VScalarMoveD, .VReductionD, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                          .MicroOpD(3'b0), .VLD, .FrmD(FRM_REGW), .VdFinalD, .VRegWriteD,  // *** micro-op from the controller
                          .VRD1D, .VRD2D, .VRD3D, .v0D, .FRD1D,
                          .VFPEUResultW(VIEUResultW[EU]), .VFPEUFlagsW(VFPEUFlagsW[i]),
+                         .VFPEUBeatValidW(VIEUBeatValidW[EU]), .VFPEUBeatW(VIEUBeatW[EU]),
                          .VFPEUVRegWriteW(VIEUVRegWriteW[EU]), .VFPEUVdFinalW(VIEUVdFinalW[EU]));
     assign VIEURegWriteW[EU] = '0;  // *** don't write scalar reg yet so tied to 0
   end
@@ -214,13 +241,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
 
 
-  // the controller must select the correct EU to write back into the VRF so that instructions commit inorder.
-
-  or_rows #(P.VPU_EU, P.VLEN) VEUResultAOMux(.a(VIEUResultW), .y(VResultFinalW));
   or_rows #(P.VPU_INT_EU, P.XLEN) VIEUFPResultAOMux(.a(VIEUResultToScalarW), .y(VIEUFPResultFinalW));
-  or_rows #(P.VPU_EU, 5) VdAOMux(.a(VIEUVdFinalW), .y(VdFinalW));
   //or_rows #(P.VPU_INT_EU, 5) RdAOMux(.a(VIEURegWriteW), .y(VRdFinalW));
-  assign VRegWriteW = | VIEUVRegWriteW;
   assign RegWriteW = | VIEURegWriteW;
 
 
