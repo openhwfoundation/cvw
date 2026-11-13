@@ -234,10 +234,11 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign ValidVSWriteM = CSRSWriteM & LegalVSAccessM;
 
   // SRET context meanings for H support:
-  // SretFromHSM: SRET executed in HS context (returns using hstatus.SPV).
+  // SretFromHSM: SRET executed in HS or M context (returns using hstatus.SPV).
   // SretFromVSM: SRET executed in VS context.
-  assign SretFromHSM = sretM & (PrivilegeModeW == P.S_MODE) & ~VirtModeW;
-  assign SretFromVSM = sretM & (PrivilegeModeW == P.S_MODE) &  VirtModeW;
+  // sretM already checks priv mode
+  assign SretFromHSM = sretM & ~VirtModeW;
+  assign SretFromVSM = sretM &  VirtModeW;
 
   // mtinst/htinst/mtval2 are derived from the trapped instruction (InstrM); not yet implemented.
   // We write 0 on traps for now, which is spec compliant (indicating transformation not supported).
@@ -329,7 +330,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
         HSTATUS_SPVP <= PrivilegeModeW[0];
       HSTATUS_GVA <= TrapGVAM;
     end else if (SretFromHSM) begin
-      // SRET in HS-mode (V=0) must clear hstatus.SPV.
+      // SRET in HS-mode or M-mode (V=0) must clear hstatus.SPV.
       HSTATUS_SPV <= 1'b0;
     end else if (WriteHSTATUSM) begin
       HSTATUS_VSBE  <= P.BIGENDIAN_SUPPORTED & CSRWriteValM[5];
