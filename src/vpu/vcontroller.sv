@@ -55,6 +55,15 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VSubD,
   output logic [1:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
+  output logic [2:0]                  VFUnitD, VFOpCtrlD,         // vflane unit and op control
+  output logic                        VFToIntD,                   // convert to integer
+  output logic [1:0]                  VFOperandOrderD,            // vflane operand order
+  output logic                        VFStaticRmD,                // VFRmD replaces frm (true for cvt)
+  output logic [2:0]                  VFRmD,                      // rounding mode of vfcvt.rtz and vfncvt.rod
+  output logic                        VFMoveD, VFMergeD,          // instr is vfmv/vfmerge, vfmerge
+  output logic                        VScalarMoveD,               // element 0 only
+  output logic                        VReductionD,                // instr is a reduction op
+  output logic [2:0]                  VdEEWD, Vs2EEWD, Vs1EEWD,   // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
   output logic                        IllegalVPUInstrD,
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
@@ -82,8 +91,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
   logic [5:0]  VLSModeD;                  // addressing modes for load/store
-  logic        VReductionD;               // instr is a reduction op
-  logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
+  logic        FflagsCSRD;                // csr instruction reads/writes fflags/fcsr
 
   // Micro-ops from LMUL in vtype; fractional LMUL fits in one register
   always_comb
@@ -100,8 +108,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
-                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
-                         .VShiftSelectD, .IllegalVPUInstrD,
+                         .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
+                         .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
+                         .VFMoveD, .VFMergeD, .VScalarMoveD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
@@ -141,7 +150,11 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   assign CommitW = HeadCompleteW & ~InstrOrderQueueEmptyD & ~StallW;
 
-  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
+  // fflags and fcsr accesses, need to wait for older vector fp instr to set their flags in W
+  assign FflagsCSRD = (InstrD[6:0] == 7'b1110011) & (InstrD[14:12] != 3'b000) & (InstrD[31:20] == 12'h001 | InstrD[31:20] == 12'h003);
+
+  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD |
+                            (FflagsCSRD & ~InstrOrderQueueEmptyD); // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 
 
 endmodule

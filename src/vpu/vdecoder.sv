@@ -30,7 +30,7 @@
 
 /* verilator lint_off UNUSEDPARAM */
 // *** this will be useful later. Remove the lint_off when ready
-module vdecoder import cvw::*;  #(parameter cvw_t P) (
+module vdecoder import cvw::*, fpu_pkg::*;  #(parameter cvw_t P) (
 /* verilator lint_on UNUSEDPARAM */
   input  logic        clk, reset,
   // Decode stage control signals
@@ -58,6 +58,14 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VSubD,
   output logic [1:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]  VShiftSelectD,            // vlane shift: 00 sll, 10 srl, 11 sra
+  output logic [2:0]  VFUnitD,                  // vflane unit
+  output logic [2:0]  VFOpCtrlD,                // vflane operation control
+  output logic        VFToIntD,                 // convert to integer
+  output logic [1:0]  VFOperandOrderD,          // vflane operand order
+  output logic        VFStaticRmD,              // VFRmD replaces frm (true for cvt)
+  output logic [2:0]  VFRmD,                    // rounding mode of vfcvt.rtz and vfncvt.rod
+  output logic        VFMoveD, VFMergeD,        // vfmv/vfmerge, vfmerge
+  output logic        VScalarMoveD,             // vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s: element 0 only
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -570,9 +578,76 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign VShiftRightD  = (Funct6D[5:2] == 4'b1010);         // vsrl, vsra, vssrl, vssra
   assign VShiftSelectD = {VShiftRightD, VShiftRightD & Funct6D[0]};  // arithmetic is the LSB of funct6
 
+  // FP lane decoder
+  //   VFUnit: 000 FMA, 001 divide/sqrt, 010 convert, 011 compare, 100 sign injection, 101 classify, 110 rec7/rsqrt7
+  //   VFOperandOrder {X, Y, Z}: 00 vs2 vs1 vd, 01 vs1 vs2 vd, 10 vs1 vd vs2, 11 vs2 vs1 vs1 (reduction)
+  //   Move sign-injects its source with itself
+  always_comb begin
+    VFUnitD         = 3'b000;
+    VFOpCtrlD       = 3'b000;
+    VFToIntD        = 1'b0;
+    VFOperandOrderD = VReductionD ? 2'b11 : 2'b00;
+    VFMoveD         = 1'b0;
+    case (VOpClassD)
+      VOPCLASS_FMA: casez (Funct6D)
+        6'b0000?1, 6'b1100?1: VFOpCtrlD = 3'b110;                             // vf(w)redusum vf(w)redosum
+        6'b100100, 6'b111000: VFOpCtrlD = 3'b100;                             // vfmul vfwmul
+        6'b100111: begin      VFOpCtrlD = 3'b111; VFOperandOrderD = 2'b01; end // vfrsub
+        6'b1010??: begin                                                      // vfmadd vfnmadd vfmsub vfnmsub
+          VFOpCtrlD = {1'b0, Funct6D[0], ^Funct6D[1:0]}; VFOperandOrderD = 2'b10;
+        end
+        6'b1?11??: begin                                                      // vf(w)macc vf(w)nmacc vf(w)msac vf(w)nmsac
+          VFOpCtrlD = {1'b0, Funct6D[0], ^Funct6D[1:0]}; VFOperandOrderD = 2'b01;
+        end
+        default:              VFOpCtrlD = {2'b11, Funct6D[1]};                // vf(w)add vf(w)sub vfwadd.w vfwsub.w
+      endcase
+      VOPCLASS_FDIV: begin
+        VFUnitD   = 3'b001;
+        VFOpCtrlD = {2'b00, Funct6D == 6'b010011};                            // vfsqrt
+        if (Funct6D == 6'b100001) VFOperandOrderD = 2'b01;                    // vfrdiv
+      end
+      VOPCLASS_FCVT: begin                                                    // vs1 field selects conversion type
+        VFUnitD   = 3'b010;
+        VFToIntD  = ~(Vs1D[2] ^ Vs1D[1]);
+        VFOpCtrlD = {Vs1D[2:1] == 2'b01, (VFToIntD ? VdEEWD : Vs2EEWD) == 3'd6, Vs1D[0]};  // IntToFp Int64 Signed
+      end
+      VOPCLASS_FCMP: begin
+        VFUnitD = 3'b011;
+        casez (Funct6D)
+          6'b0001??:            VFOpCtrlD = {1'b1, ~Funct6D[1], Funct6D[1]};  // vfmin vfmax vfredmin vfredmax
+          6'b011000:            VFOpCtrlD = 3'b010;                           // vmfeq
+          6'b011001:            VFOpCtrlD = 3'b011;                           // vmfle
+          6'b011011:            VFOpCtrlD = 3'b001;                           // vmflt
+          6'b011100:            VFOpCtrlD = 3'b111;                           // vmfne
+          6'b011101: begin      VFOpCtrlD = 3'b001; VFOperandOrderD = 2'b01; end // vmfgt
+          6'b011111: begin      VFOpCtrlD = 3'b011; VFOperandOrderD = 2'b01; end // vmfge
+          default:              VFOpCtrlD = 3'b000;
+        endcase
+      end
+      VOPCLASS_FMISC: case (Funct6D)
+        6'b010011: begin                                                      // VFUNARY1
+          VFUnitD   = Vs1D[4] ? 3'b101 : 3'b110;                              // vfclass, or vfrsqrt7 vfrec7
+          VFOpCtrlD = {2'b00, ~Vs1D[0]};                                      // vfrsqrt7
+        end
+        6'b010000, 6'b010111: begin                                           // vfmv.f.s vfmv.s.f vfmv.v.f vfmerge
+          VFUnitD = 3'b100;
+          VFMoveD = 1'b1;
+        end
+        default: begin                                                        // vfsgnj vfsgnjn vfsgnjx
+          VFUnitD   = 3'b100;
+          VFOpCtrlD = {1'b0, Funct6D[1:0]};
+        end
+      endcase
+      default: ;                                                              // TODO: vfslide1up/down belong in the integer EU?
+    endcase
+  end
+
+  assign VFMergeD    = VFMoveD & Funct6D[0] & ~VMD;                           // vs2 in the elements whose mask bit is clear
+  assign VFStaticRmD = (VOpClassD == VOPCLASS_FCVT) & ((Vs1D[2:1] == 2'b11) | (Vs1D == 5'b10101));
+  assign VFRmD       = Vs1D[1] ? RM_RTZ : RM_ROD;                             // vf(w/n)cvt.rtz, or vfncvt.rod
+
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand
-  logic VScalarMoveD;                              // vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s: element 0 only
   logic VWholeRegD;                                // vmv<nr>r.v, vl<nr>r.v, vs<nr>r.v
   logic VdNoOverlapD;                              // vd may not overlap a source, nor v0 when masked
 

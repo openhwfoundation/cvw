@@ -1,7 +1,7 @@
 ///////////////////////////////////////////
 // tb_vfrecrsqrt7.sv
 //
-// Purpose: Standalone self-checking unit test for src/vpu/vfrecrsqrt7.sv,
+// Purpose: Standalone self-checking unit test for src/vpu/vfeu/vfrecrsqrt7.sv,
 //          covering both vfrec7 (IsSqrt=0) and vfrsqrt7 (IsSqrt=1).
 //
 // This does not reuse any of the DUT's RTL.
