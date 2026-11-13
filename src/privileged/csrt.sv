@@ -44,6 +44,9 @@ module csrt import cvw::*; #(parameter cvw_t P,
   localparam LOG_NUM_TRIGGERS = (P.NUM_TRIGGERS > 1) ? $clog2(P.NUM_TRIGGERS) : 1;
   localparam MASKMAX6 = P.XLEN-1;
 
+  if (P.NUM_TRIGGERS > 64) begin : numtrigcheck
+    $error("sdtrig: NUM_TRIGGERS = %0d, but the per-trigger *_SUPPORTED_TRIGGERS masks hold at most 64", P.NUM_TRIGGERS);
+  end
   if (P.MAX_CHAIN_LENGTH > 2) begin : chaincheck
     $error("sdtrig: MAX_CHAIN_LENGTH = %0d, but only chains of up to 2 triggers are supported", P.MAX_CHAIN_LENGTH);
   end
@@ -73,10 +76,10 @@ module csrt import cvw::*; #(parameter cvw_t P,
   // mcontrol6 hardwires uncertain and uncertainen to 0
   // itrigger hardwires nmi to 0
   // action is masked to 0
-  localparam COUNT_ONES     = P.ICOUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b00000000000000;
+  localparam COUNT_ONES     = P.ICOUNT_COUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b00000000000000;
   localparam ICOUNT_ONES    = {3'b000, COUNT_ONES, 10'b0000000000}; // which ones must stay ones
 
-  localparam COUNT_MASK     = P.ICOUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b11111111111111;
+  localparam COUNT_MASK     = P.ICOUNT_COUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b11111111111111;
   localparam ICOUNT_MASK    = {{(P.XLEN-32){1'b0}}, 2'b00, 1'b1, COUNT_MASK, 2'b11, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
   localparam ITRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, 2'b00, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
   localparam ETRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, 2'b00, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
@@ -145,10 +148,10 @@ module csrt import cvw::*; #(parameter cvw_t P,
       // Legalize Type: unsupported types become disabled
       TDATA1WriteTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
       case (TDATA1WriteTypeM)
-        ICOUNT_TYPE:    TDATA1WriteLegalizedTypeM = P.ICOUNT_SUPPORTED    ? ICOUNT_TYPE    : DISABLED_TYPE;
-        ITRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ITRIGGER_SUPPORTED  ? ITRIGGER_TYPE  : DISABLED_TYPE;
-        ETRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ETRIGGER_SUPPORTED  ? ETRIGGER_TYPE  : DISABLED_TYPE;
-        MCONTROL6_TYPE: TDATA1WriteLegalizedTypeM = P.MCONTROL6_SUPPORTED ? MCONTROL6_TYPE : DISABLED_TYPE;
+        ICOUNT_TYPE:    TDATA1WriteLegalizedTypeM = P.ICOUNT_SUPPORTED_TRIGGERS[t]    ? ICOUNT_TYPE    : DISABLED_TYPE;
+        ITRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ITRIGGER_SUPPORTED_TRIGGERS[t]  ? ITRIGGER_TYPE  : DISABLED_TYPE;
+        ETRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ETRIGGER_SUPPORTED_TRIGGERS[t]  ? ETRIGGER_TYPE  : DISABLED_TYPE;
+        MCONTROL6_TYPE: TDATA1WriteLegalizedTypeM = P.MCONTROL6_SUPPORTED_TRIGGERS[t] ? MCONTROL6_TYPE : DISABLED_TYPE;
         default:        TDATA1WriteLegalizedTypeM = DISABLED_TYPE;
       endcase
       // dmode is 0: debug mode not supported
@@ -198,7 +201,7 @@ module csrt import cvw::*; #(parameter cvw_t P,
         case (TDATA1_REGW[t][P.XLEN-1:P.XLEN-4]) // type is in top 4 bits of tdata1
           ICOUNT_TYPE: begin
             // decrement count unless already at 0 or hardwired to 1
-            if (~P.ICOUNT_HARDWIRED_1 & MatchM[t] & TDATA1_REGW[t][23:10] != 0) begin
+            if (~P.ICOUNT_COUNT_HARDWIRED_1 & MatchM[t] & TDATA1_REGW[t][23:10] != 0) begin
               TDATA1_REGW[t][23:10] <= TDATA1_REGW[t][23:10]-1;
             end
             if (TDATA1_REGW[t][8] & MatchM[t]) begin // fire when pending
@@ -286,7 +289,10 @@ module csrt import cvw::*; #(parameter cvw_t P,
 
   // CSR Read Logic
   // tselect always holds an existing trigger, so tinfo never reads the nonexistent value 1
-  assign TINFO_INFO = {9'b00000000, P.MCONTROL6_SUPPORTED, P.ETRIGGER_SUPPORTED, P.ITRIGGER_SUPPORTED, P.ICOUNT_SUPPORTED, 3'b000};
+  logic [5:0] TSELECTIndex; // per-trigger *_SUPPORTED_TRIGGERS masks are 64 bits
+  assign TSELECTIndex = 6'(TSELECT_REGW);
+  assign TINFO_INFO = {9'b00000000, P.MCONTROL6_SUPPORTED_TRIGGERS[TSELECTIndex], P.ETRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex],
+                       P.ITRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex], P.ICOUNT_SUPPORTED_TRIGGERS[TSELECTIndex], 3'b000};
   assign TINFOval = {{(P.XLEN-32){1'b0}}, VERSION, 8'b0, TINFO_INFO};
   // inflate 2 bits of TCONTROL state to XLEN-sized register.
   assign TCONTROLval = {{(P.XLEN-8){1'b0}}, TCONTROL_REGW[1], 3'b0, TCONTROL_REGW[0], 3'b0};
