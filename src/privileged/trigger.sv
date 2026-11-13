@@ -204,11 +204,11 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       cmptdata2[i] = TDATA2_REGW[i] & datamask[i];
 
       matcheq[i]       = (cmpval[i] == cmptdata2[i]);
-      napotmask[i]     = cmptdata2[i] ^ (cmptdata2[i] + 1); // trailing ones and the first zero are ignored
-      matchnapot[i]    = ((cmpval[i] ^ cmptdata2[i]) & ~napotmask[i]) == '0;
+      napotmask[i]     = ~(cmptdata2[i] ^ (cmptdata2[i] + 1)); // bits above the lowest 0 are compared
+      matchnapot[i]    = ((cmpval[i] & napotmask[i]) == (cmptdata2[i] & napotmask[i]));
       matchge[i]       = (cmpval[i] >= cmptdata2[i]);
-      matchmasklow[i]  = (cmpval[i][P.XLEN/2-1:0]      & cmptdata2[i][P.XLEN-1:P.XLEN/2]) == cmptdata2[i][P.XLEN/2-1:0];
-      matchmaskhigh[i] = (cmpval[i][P.XLEN-1:P.XLEN/2] & cmptdata2[i][P.XLEN-1:P.XLEN/2]) == cmptdata2[i][P.XLEN/2-1:0];
+      matchmasklow[i]  = (cmpval[i][P.XLEN/2-1:0]      & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
+      matchmaskhigh[i] = (cmpval[i][P.XLEN-1:P.XLEN/2] & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
       case (match[i]) // match field
         4'b0000: valmatch[i] = matcheq[i]; // equal
         4'b0001: valmatch[i] = matchnapot[i]; // napot
