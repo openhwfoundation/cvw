@@ -37,28 +37,58 @@ module trigger import cvw::*; #(parameter cvw_t P) (
   output logic [P.NUM_TRIGGERS-1:0]      MatchM, SetPendingM
 );
 
-  // trigger types
+  ///////////////////////////////////////////
+  // Parameters
+  ///////////////////////////////////////////
+
+  // tdata1 types
+  localparam MCONTROL6_TYPE = 4'b0110;
   localparam ICOUNT_TYPE    = 4'b0011;
   localparam ITRIGGER_TYPE  = 4'b0100;
   localparam ETRIGGER_TYPE  = 4'b0101;
-  localparam MCONTROL6_TYPE = 4'b0110;
 
-  logic [P.NUM_TRIGGERS-1:0] MEnM, SEnM, UEnM; // trigger enabled in M, S, U mode
+  ///////////////////////////////////////////
+  // Signals
+  ///////////////////////////////////////////
+
+  // privilege
+  logic [P.NUM_TRIGGERS-1:0] MEnM, SEnM, UEnM;      // trigger enabled in M, S, U mode
   logic [P.NUM_TRIGGERS-1:0] PrivEnabledM;
-  // Privilege match
+
+  // context
+  logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
+  logic [P.ASID_BITS-1:0]    SATP_ASID;
+
+  // mcontrol6
+  logic [2:0]                size[P.NUM_TRIGGERS], sizeval[P.NUM_TRIGGERS];
+  logic [3:0]                match[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0]         matchval[P.NUM_TRIGGERS], napotmask[P.NUM_TRIGGERS];
+  logic [P.XLEN-1:0]         datamask[P.NUM_TRIGGERS], cmpval[P.NUM_TRIGGERS], cmptdata2[P.NUM_TRIGGERS];
+  logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, chain, rawmatch, matchen, sizematch, valmatch;
+  logic [P.NUM_TRIGGERS-1:0] matcheq, matchnapot, matchge, matchmasklow, matchmaskhigh;
+  logic [P.NUM_TRIGGERS-1:0] mcontrol6match;
+
+  // trigger match
+  logic [P.NUM_TRIGGERS-1:0] TypeMatchM;
+  logic [31:0]               CauseOneHotM;          // CauseM is 5 bits, so it selects only tdata2[31:0]
+
+  ///////////////////////////////////////////
+  // Privilege
+  ///////////////////////////////////////////
+
   always_comb
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
       // match field location depends on trigger type
       case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
-        ICOUNT_TYPE, ITRIGGER_TYPE, ETRIGGER_TYPE: begin
-          MEnM[i]  = TDATA1_REGW[i][9];
-          SEnM[i]  = TDATA1_REGW[i][7];
-          UEnM[i]  = TDATA1_REGW[i][6];
-        end
         MCONTROL6_TYPE: begin
           MEnM[i]  = TDATA1_REGW[i][6];
           SEnM[i]  = TDATA1_REGW[i][4];
           UEnM[i]  = TDATA1_REGW[i][3];
+        end
+        ICOUNT_TYPE, ITRIGGER_TYPE, ETRIGGER_TYPE: begin
+          MEnM[i]  = TDATA1_REGW[i][9];
+          SEnM[i]  = TDATA1_REGW[i][7];
+          UEnM[i]  = TDATA1_REGW[i][6];
         end
         default: begin // never match privilege
           MEnM[i] = 0; SEnM[i] = 0; UEnM[i] = 0;
@@ -69,11 +99,12 @@ module trigger import cvw::*; #(parameter cvw_t P) (
                         (PrivilegeModeW == P.U_MODE  & UEnM[i]);
     end
 
-  // tdata3 context matches
+  ///////////////////////////////////////////
+  // Context (tdata3)
+  ///////////////////////////////////////////
+
   // mhselect legal values without H extension are 0 and 4
   // sselect and svalue are tied to 0 when S-mode is not supported
-  logic [P.NUM_TRIGGERS-1:0] mmatch, smatch, ContextMatchM;
-  logic [P.ASID_BITS-1:0] SATP_ASID;
   assign SATP_ASID = SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE];
   if (P.XLEN == 32) begin
     always_comb
@@ -117,44 +148,10 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       end
   end
 
+  ///////////////////////////////////////////
+  // mcontrol6
+  ///////////////////////////////////////////
 
-  // Trigger matches
-  logic [P.NUM_TRIGGERS-1:0] TypeMatchM, mcontrol6match;
-  always_comb
-    for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
-      TypeMatchM[i] = 0;
-      SetPendingM[i] = 0;
-      // behavior depends on trigger type
-      case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
-        ICOUNT_TYPE: begin
-          // Icount decrements when instruction retires or traps
-          TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // TODO make sure stalls are handled, probably with stall to register
-        end
-        ITRIGGER_TYPE: begin
-          TypeMatchM[i] = (InterruptM & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)]);
-        end
-        ETRIGGER_TYPE: begin
-          TypeMatchM[i] = ExceptionM & ~CommittedF & TDATA2_REGW[i][$clog2(P.XLEN)'(CauseM)];
-        end
-        MCONTROL6_TYPE: begin
-          // TODO add support for chain
-          // TODO add support for hit
-          TypeMatchM[i] = mcontrol6match[i];
-        end
-        default: TypeMatchM[i] = 0;
-      endcase
-      // Match if the trigger condition is satisfied and the privilege mode is right
-      MatchM[i] = TypeMatchM[i] & PrivEnabledM[i] & ContextMatchM[i];
-      SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
-    end
-
-  // mcontrol6-specific matching logic
-  logic [2:0]        size[P.NUM_TRIGGERS], sizeval[P.NUM_TRIGGERS];
-  logic [3:0]        match[P.NUM_TRIGGERS];
-  logic [P.XLEN-1:0] matchval[P.NUM_TRIGGERS], napotmask[P.NUM_TRIGGERS];
-  logic [P.XLEN-1:0] datamask[P.NUM_TRIGGERS], cmpval[P.NUM_TRIGGERS], cmptdata2[P.NUM_TRIGGERS];
-  logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, chain, rawmatch, matchen, sizematch, valmatch;
-  logic [P.NUM_TRIGGERS-1:0] matcheq, matchnapot, matchge, matchmasklow, matchmaskhigh;
   always_comb begin
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
       // extract mcontrol6 fields
@@ -229,5 +226,39 @@ module trigger import cvw::*; #(parameter cvw_t P) (
   end
   // chains are at most 2 long, so trigger i is gated only by trigger i-1
   assign mcontrol6match = rawmatch & (~(chain << 1) | (rawmatch << 1));
+
+  ///////////////////////////////////////////
+  // Trigger match
+  ///////////////////////////////////////////
+
+  assign CauseOneHotM = 32'b1 << CauseM;
+
+  always_comb
+    for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
+      TypeMatchM[i] = 0;
+      SetPendingM[i] = 0;
+      // behavior depends on trigger type
+      case (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4])
+        MCONTROL6_TYPE: begin
+          // TODO add support for chain
+          // TODO add support for hit
+          TypeMatchM[i] = mcontrol6match[i];
+        end
+        ICOUNT_TYPE: begin
+          // Icount decrements when instruction retires or traps
+          TypeMatchM[i] = (InstrValidNotFlushedM | TrapM); // TODO make sure stalls are handled, probably with stall to register
+        end
+        ITRIGGER_TYPE: begin
+          TypeMatchM[i] = InterruptM & |(TDATA2_REGW[i][31:0] & CauseOneHotM);
+        end
+        ETRIGGER_TYPE: begin
+          TypeMatchM[i] = ExceptionM & ~CommittedF & |(TDATA2_REGW[i][31:0] & CauseOneHotM);
+        end
+        default: TypeMatchM[i] = 0;
+      endcase
+      // Match if the trigger condition is satisfied and the privilege mode is right
+      MatchM[i] = TypeMatchM[i] & PrivEnabledM[i] & ContextMatchM[i];
+      SetPendingM[i] = MatchM[i] & (TDATA1_REGW[i][23:10] == 14'b00000000000001) & (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == ICOUNT_TYPE);
+    end
 
 endmodule
