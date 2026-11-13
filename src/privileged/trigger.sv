@@ -153,7 +153,7 @@ module trigger import cvw::*; #(parameter cvw_t P) (
   logic [3:0]        match[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0] matchval[P.NUM_TRIGGERS], napotmask[P.NUM_TRIGGERS];
   logic [P.XLEN-1:0] datamask[P.NUM_TRIGGERS], cmpval[P.NUM_TRIGGERS], cmptdata2[P.NUM_TRIGGERS];
-  logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, matchen, sizematch, valmatch;
+  logic [P.NUM_TRIGGERS-1:0] select, execute, store, load, chain, rawmatch, matchen, sizematch, valmatch;
   logic [P.NUM_TRIGGERS-1:0] matcheq, matchnapot, matchge, matchmasklow, matchmaskhigh;
   always_comb begin
     for (int i = 0; i < P.NUM_TRIGGERS; i++) begin
@@ -164,20 +164,21 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       execute[i] = TDATA1_REGW[i][2];
       store[i] = TDATA1_REGW[i][1];
       load[i] = TDATA1_REGW[i][0];
+      chain[i] = (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & TDATA1_REGW[i][11]; // bit 11 is part of count in icount
 
+      matchen[i] = execute[i] | store[i] | load[i];
       // Although the spec appears to allow multiple {execute,store,load} to be set
       // and match against any of them, this implementation only matches one per
       // trigger for the sake of hardware efficiency.
-      matchen[i] = 1; // by default the matchval is meaningful
+
       casez ({select[i], execute[i], store[i], load[i]})
-        4'b?000: begin matchval[i] = '0; matchen[i] = 0; end // no type selected
         4'b01??: matchval[i] = PCM;        // Execute Address
         4'b001?: matchval[i] = IEUAdrM;    // Store address
         4'b0001: matchval[i] = IEUAdrM;    // LoadAddress
         4'b11??: matchval[i] = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Instruction, as encoded (16 or 32 bits)
         4'b101?: matchval[i] = WriteDataM; // Store Data
         4'b1001: matchval[i] = ReadDataW[P.XLEN-1:0]; // Load Data; TODO only available in Writeback
-        default: begin matchval[i] = '0; matchen[i] = 0; end
+        default: matchval[i] = '0; // no type selected
       endcase
 
       if (execute[i]) sizeval[i] = (InstrOrigM[1:0] != 2'b11) ? 3'd2 : 3'd3; // 16-bit compressed or 32-bit instruction
@@ -223,8 +224,10 @@ module trigger import cvw::*; #(parameter cvw_t P) (
         default: valmatch[i] = 0; // reserved
       endcase
 
-      mcontrol6match[i] = matchen[i] & valmatch[i] & sizematch[i];
+      rawmatch[i] = matchen[i] & valmatch[i] & sizematch[i];
     end
   end
+  // chains are at most 2 long, so trigger i is gated only by trigger i-1
+  assign mcontrol6match = rawmatch & (~(chain << 1) | (rawmatch << 1));
 
 endmodule

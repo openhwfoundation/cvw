@@ -85,7 +85,8 @@ module csrt import cvw::*; #(parameter cvw_t P) (
 
   // Trigger Module Registers
   logic [P.XLEN-1:0] TSELECT_REGW;
-  logic [$clog2(P.NUM_TRIGGERS > 1 ? P.NUM_TRIGGERS : 2)-1:0] TSelM; // index of the selected trigger
+  localparam TSELECT_LEN = $clog2(P.NUM_TRIGGERS > 1 ? P.NUM_TRIGGERS : 2);
+  logic [TSELECT_LEN-1:0] TSelM; // index of the selected trigger
 
   // internal signals
   logic [15:0] TINFO_INFO;
@@ -122,7 +123,7 @@ module csrt import cvw::*; #(parameter cvw_t P) (
 
   // TSELECT
   flopenr #(P.XLEN) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM, TSELECT_REGW);
-  assign TSelM = TSELECT_REGW[$bits(TSelM)-1:0]; // writes above NUM_TRIGGERS-1 are ignored
+  assign TSelM = TSELECT_REGW[TSELECT_LEN-1:0]; // writes above NUM_TRIGGERS-1 are ignored
 
 
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
