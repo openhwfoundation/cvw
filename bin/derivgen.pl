@@ -77,16 +77,13 @@ foreach my $key (@derivnames) {
     open(my $unmod, $configunmod) or die "Could not open file '$configunmod' $!";
     open(my $fh, '>>', $config) or die "Could not open file '$config' $!";
 
-    # Create symlink to imperas.ic for deriv buildroot
+    # buildroot uses its base's imperas.ic plus its larger RAM; a later setPMA overrides an earlier one
     if ($key eq "buildroot") {
-        my $baseimperas_ic = "$ENV{WALLY}/config/$basederiv{$key}/imperas.ic";
-        if (! -e $baseimperas_ic) {
-            my $baseimperas_ic = "$ENV{WALLY}/config/deriv/$basederiv{$key}/config.vh";
-        }
-        if (-e $baseimperas_ic) { # If imperas.ic exists for base derivative, create hardlink to it
-            my $imperas_ic = "$dir/imperas.ic";
-            system("ln -T $baseimperas_ic $imperas_ic");
-        }
+        my $imperas_ic = "$dir/imperas.ic";
+        system("cp $ENV{WALLY}/config/$basederiv{$key}/imperas.ic $imperas_ic");
+        open(my $ic, '>>', $imperas_ic) or die "Could not open file '$imperas_ic' $!";
+        print $ic "--callcommand refRoot/cpu/setPMA -lo 0x0080000000 -hi 0x008FFFFFFF -attributes \" rwx--- 1248 \" # UNCORE_RAM (256 MiB)\n";
+        close($ic);
     }
 
     # Create symlink to coverage.svh for deriv breker

@@ -82,9 +82,6 @@ def validateArgs(args):
     elif args.fcov and not fcovWork(args.config).is_dir():
         print(f"Error: no ACT work directory {fcovWork(args.config)}; build its tests before collecting functional coverage")
         sys.exit(1)
-    elif any([args.lockstep, args.lockstepverbose]) and args.sim not in ["questa", "vcs"]:
-        print("Lockstep only supported by Questa and VCS")
-        sys.exit(1)
     elif args.fcov and (args.lockstep or args.lockstepverbose):
         # The covergroups read fields of riscv-arch-test's RVVI trace interface, while ImperasDV needs the
         # RVVI API tasks of its own, and only one of the two interfaces can be compiled in
@@ -338,7 +335,7 @@ def runSim(args, flags, env):
     if args.sim == "questa":
         return runQuesta(args, flags, env)
     elif args.sim == "verilator":
-        return runVerilator(args)
+        return runVerilator(args, env)
     elif args.sim == "vcs":
         return runVCS(args, flags, env)
     print(f"Error: unknown simulator {args.sim}", file=sys.stderr)
@@ -387,7 +384,7 @@ def runQuesta(args, flags, env):
     return run(["vsim", *([] if args.gui else ["-c"]), "-do", run_do], sim_dir, env, successPattern(args))
 
 
-def runVerilator(args):
+def runVerilator(args, env):
     print(f"Running Verilator on {args.config} {args.testsuite}")
     sim_dir = WALLY / "sim" / "verilator"
     speedopt = args.test == "buildroot"  # speed-optimized model only for Linux boots
@@ -405,6 +402,7 @@ def runVerilator(args):
         f"BUILD_HASH={bhash}",
         f"FCOV={int(args.fcov)}",
         f"SPEED_OPT={int(speedopt)}",
+        f"LOCKSTEP={int(args.lockstep or args.lockstepverbose)}",
     ]
     target_mtime = targetMtime(binary)
     needs_compile = target_mtime is None or not isDesignUpToDate(binary, fcovDirs(args))
@@ -425,7 +423,7 @@ def runVerilator(args):
     runtime_args += shlex.split(args.args)
     if args.fcov:
         runtime_args.append(f"+verilator+coverage+file+{sim_dir}/fcov_dat/{args.config}_{args.testsuite}.dat")
-    return run([str(binary), *runtime_args], sim_dir, success=successPattern(args))
+    return run([str(binary), *runtime_args], sim_dir, env, successPattern(args))
 
 
 def runVCS(args, flags, env):

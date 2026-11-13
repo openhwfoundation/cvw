@@ -193,7 +193,7 @@ Verilator is an open-source Verilog simulator.  It is fast and free.  Run Wally 
 regression-wally
 ```
 
-Running code coverage simulations or lock-step presently requires commercial tools; functional coverage also runs on Verilator.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally, lock-step simulation, and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
+Running code coverage simulations presently requires commercial tools; functional coverage also runs on Verilator.  Lock-step simulation runs on all three simulators but requires a Synopsys ImperasDV license.  Siemens Questa is the primary tool utilized for simulating and validating Wally. Synopsys VCS also can run regression-wally and code and functional coverage.  For logic synthesis, you will need Synopsys Design Compiler.  Questa and Design Compiler are commercial tools that require an educational or commercial license.
 
 Measure code and functional coverage of the rv64gc, rv32gc, or rv32imc configuration with Questa (add `--coveragesim vcs` to use VCS):
 
