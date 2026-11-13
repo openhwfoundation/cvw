@@ -5,7 +5,7 @@
 // Written: David_Harris@hmc.edu 14 March 2026 & Pclark@hmc.edu 10 Nov 2026
 // Modified:
 //
-// Purpose: Sdtrig CSRs: tselect, tdata1-3, tinfo, tcontrol, mcontext, scontext
+// Purpose: Sdtrig CSRs: tselect, tdata1-3, tinfo, tcontrol, scontext, mcontext
 //          Register writes with WARL legalization, hardware updates, and reads
 //
 // Documentation: RISC-V System on Chip Design
@@ -36,119 +36,143 @@ module csrt import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0]              MCONTEXT_REGW
 );
 
-  // Sdtrig CSRs
-  localparam SCONTEXT  = 12'h5A8;
-  // localparam HCONTEXT  = 12'h6A8; // requires the H extension, which Wally lacks; accesses are illegal
-  localparam MCONTEXT  = 12'h7A8;
-  // localparam MSCONTEXT = 12'h7AA; // is deprecated and not supported; accesses are illegal
+  ///////////////////////////////////////////
+  // Parameters
+  ///////////////////////////////////////////
+
+  // CSR addresses
   localparam TSELECT   = 12'h7A0;
   localparam TDATA1    = 12'h7A1;
   localparam TDATA2    = 12'h7A2;
   localparam TDATA3    = 12'h7A3;
   localparam TINFO     = 12'h7A4;
   localparam TCONTROL  = 12'h7A5;
+  // localparam HCONTEXT  = 12'h6A8; // requires the H extension, which Wally lacks; accesses are illegal
+  localparam SCONTEXT  = 12'h5A8;
+  localparam MCONTEXT  = 12'h7A8;
+  // localparam MSCONTEXT = 12'h7AA; // is deprecated and not supported; accesses are illegal
 
+  // tselect
   localparam NUM_TRIGGERS_XLEN = {{(P.XLEN-32){1'b0}}, P.NUM_TRIGGERS}; // tselect writes at or above this are ignored
-  localparam MHSELECT_LSB = (P.XLEN == 32) ? 23 : 48;
+  localparam TSELECT_LEN = $clog2(P.NUM_TRIGGERS > 1 ? P.NUM_TRIGGERS : 2);
 
-  // Trigger types
+  // tdata1 types
+  localparam MCONTROL6_TYPE = 4'b0110;
   localparam ICOUNT_TYPE    = 4'b0011;
   localparam ITRIGGER_TYPE  = 4'b0100;
   localparam ETRIGGER_TYPE  = 4'b0101;
-  localparam MCONTROL6_TYPE = 4'b0110;
   localparam DISABLED_TYPE  = 4'b1111;
 
-  // Write masks
+  // tdata1 write masks
   // mcontrol6 hardwires uncertain and uncertainen to 0
   // itrigger hardwires nmi to 0
   // action is masked to 0
-  localparam COUNT_ONES     = P.ICOUNT_COUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b00000000000000;
-  localparam ICOUNT_ONES    = {3'b000, COUNT_ONES, 10'b0000000000}; // which ones must stay ones
-
+  localparam MCONTROL6_MASK = {{(P.XLEN-32){1'b0}}, 2'b01, 2'b00, 11'b11001110000, (P.MAX_CHAIN_LENGTH > 1), 6'b111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
   localparam COUNT_MASK     = P.ICOUNT_COUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b11111111111111;
   localparam ICOUNT_MASK    = {{(P.XLEN-32){1'b0}}, 2'b00, 1'b1, COUNT_MASK, 2'b11, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
+  localparam COUNT_ONES     = P.ICOUNT_COUNT_HARDWIRED_1 ? 14'b00000000000001 : 14'b00000000000000;
+  localparam ICOUNT_ONES    = {3'b000, COUNT_ONES, 10'b0000000000}; // which ones must stay ones
   localparam ITRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, 2'b00, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
   localparam ETRIGGER_MASK  = {1'b1, {(P.XLEN-19){1'b0}}, 2'b00, 3'b010, P.S_SUPPORTED, P.U_SUPPORTED, 6'b000000};
-  localparam MCONTROL6_MASK = {{(P.XLEN-32){1'b0}}, 2'b01, 2'b00, 11'b11001110000, (P.MAX_CHAIN_LENGTH > 1), 6'b111110, P.S_SUPPORTED, P.U_SUPPORTED, 3'b111};
   localparam DISABLED_MASK  = {(P.XLEN-5){1'b0}};
 
   // tdata3: textra32 bits 22:20 and textra64 bits 47:40 and 35:34 are 0
   localparam logic [31:0] TEXTRA32_MASK = {{6{1'b1}},  3'b111, 3'b000, 2'b11,           {16{1'b1}}, 2'b11};
   localparam logic [63:0] TEXTRA64_MASK = {{13{1'b1}}, 3'b111, 8'b0,   4'b1111, 2'b00,  {32{1'b1}}, 2'b11};
   localparam logic [P.XLEN-1:0] TDATA3_MASK = (P.XLEN == 32) ? {{(P.XLEN-32){1'b0}}, TEXTRA32_MASK} : TEXTRA64_MASK[P.XLEN-1:0];
+  localparam MHSELECT_LSB = (P.XLEN == 32) ? 23 : 48;
+
   // tcontrol: mpte and mte
   localparam TCONTROL_MASK = {{(P.XLEN-8){1'b0}}, 1'b1, 3'b000, 1'b1, 3'b000};
+
   // scontext and mcontext: the low DBG_*CONTEXT_WIDTH bits
   localparam SCONTEXT_MASK = {{(P.XLEN-P.DBG_SCONTEXT_WIDTH){1'b0}}, {P.DBG_SCONTEXT_WIDTH{1'b1}}};
   localparam MCONTEXT_MASK = {{(P.XLEN-P.DBG_HCONTEXT_WIDTH){1'b0}}, {P.DBG_HCONTEXT_WIDTH{1'b1}}};
 
+  ///////////////////////////////////////////
+  // Signals
+  ///////////////////////////////////////////
 
-  // Trigger Module Registers
-  logic [P.XLEN-1:0] TSELECT_REGW;
-  localparam TSELECT_LEN = $clog2(P.NUM_TRIGGERS > 1 ? P.NUM_TRIGGERS : 2);
-  logic [TSELECT_LEN-1:0] TSelM; // index of the selected trigger
+  logic                      WriteTSELECTM, WriteTDATA1M, WriteTDATA2M, WriteTDATA3M;
+  logic                      WriteTCONTROLM, WriteSCONTEXTM, WriteMCONTEXTM;
 
-  // internal signals
-  logic [15:0] TINFO_INFO;
-  logic [P.XLEN-1:0] TINFOval; // read-only
+  // tselect
+  logic [P.XLEN-1:0]         TSELECT_REGW;
+  logic [TSELECT_LEN-1:0]    TSelM;                 // index of the selected trigger
 
-  // CSR Write Logic
-  logic                    WriteTSELECTM;
-  logic                    WriteTDATA1M, WriteTDATA2M, WriteTDATA3M;
-  logic                    WriteTCONTROLM;
-  logic                    WriteSCONTEXTM, WriteMCONTEXTM;
+  // tdata1
+  logic [P.NUM_TRIGGERS-1:0] ChainedM;              // trigger i is mcontrol6 with chain = 1
+  logic [P.XLEN-1:0]         TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
 
-  logic [P.XLEN-1:0]       TDATA1WriteValLegalizedM[P.NUM_TRIGGERS];
-  logic [P.XLEN-1:0]       TDATA2WriteValM;
+  // tdata2
+  logic [P.XLEN-1:0]         TDATA2WriteValM;
 
-  logic MTrapM;
+  // tdata3
+  logic [P.XLEN-1:0]         TDATA3WriteMaskM, TDATA3WriteValLegalizedM;
+  logic                      TDATA3MhselectLegalM, TDATA3SselectLegalM;
 
-  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
+  // tinfo
+  logic [5:0]                TSELECTIndex;          // per-trigger *_SUPPORTED_TRIGGERS masks are 64 bits
+  logic [15:0]               TINFO_INFO;
+  logic [P.XLEN-1:0]         TINFOval;              // read-only
 
-  assign WriteTSELECTM    = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < NUM_TRIGGERS_XLEN); // out-of-range writes ignored
-  assign WriteTDATA1M     = CSRMWriteM & (CSRAdrM == TDATA1);
-  assign WriteTDATA2M     = CSRMWriteM & (CSRAdrM == TDATA2);
-  assign WriteTDATA3M     = CSRMWriteM & (CSRAdrM == TDATA3);
-  assign WriteTCONTROLM   = CSRMWriteM & (CSRAdrM == TCONTROL);
-  assign WriteSCONTEXTM   = CSRSWriteM & (CSRAdrM == SCONTEXT);
-  assign WriteMCONTEXTM   = CSRMWriteM & (CSRAdrM == MCONTEXT);
-
-  // mcontrol6 chain bits, used to limit chain length
-  logic [P.NUM_TRIGGERS-1:0] ChainedM; // trigger i is mcontrol6 with chain = 1
-  always_comb
-    for (int i = 0; i < P.NUM_TRIGGERS; i++)
-      ChainedM[i] = (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & TDATA1_REGW[i][11];
+  // tcontrol
+  logic                      MTrapM;
 
   genvar t;
 
-  // TSELECT
+  ///////////////////////////////////////////
+  // Write enables
+  ///////////////////////////////////////////
+
+  assign WriteTSELECTM  = CSRMWriteM & (CSRAdrM == TSELECT) & (CSRWriteValM < NUM_TRIGGERS_XLEN); // out-of-range writes ignored
+  assign WriteTDATA1M   = CSRMWriteM & (CSRAdrM == TDATA1);
+  assign WriteTDATA2M   = CSRMWriteM & (CSRAdrM == TDATA2);
+  assign WriteTDATA3M   = CSRMWriteM & (CSRAdrM == TDATA3);
+  assign WriteTCONTROLM = CSRMWriteM & (CSRAdrM == TCONTROL);
+  assign WriteSCONTEXTM = CSRSWriteM & (CSRAdrM == SCONTEXT);
+  assign WriteMCONTEXTM = CSRMWriteM & (CSRAdrM == MCONTEXT);
+
+  ///////////////////////////////////////////
+  // tselect
+  ///////////////////////////////////////////
+
   flopenr #(P.XLEN) TSELECTreg(clk, reset, WriteTSELECTM, CSRWriteValM, TSELECT_REGW);
   assign TSelM = TSELECT_REGW[TSELECT_LEN-1:0]; // writes above NUM_TRIGGERS-1 are ignored
 
+  ///////////////////////////////////////////
+  // tdata1
+  ///////////////////////////////////////////
+
+  // mcontrol6 chain bits, used to limit chain length
+  always_comb
+    for (int i = 0; i < P.NUM_TRIGGERS; i++)
+      ChainedM[i] = (TDATA1_REGW[i][P.XLEN-1:P.XLEN-4] == MCONTROL6_TYPE) & TDATA1_REGW[i][11];
 
   for (t=0; t < P.NUM_TRIGGERS; t++) begin
     logic [3:0]        TDATA1WriteTypeM, TDATA1WriteLegalizedTypeM;
     logic              TDATA1WriteLegalizedDmodeM;
     logic [P.XLEN-6:0] TDATA1WriteMaskM, TDATA1WriteOnesM, TDATA1MControl6MaskM, TDATA1WriteLegalizedDataM;
     logic              TDATA1MatchLegalM, TDATA1SizeLegalM, TDATA1ChainLegalM;
+    logic              PrevChainedM, NextChainedM;
+
     // Legalize chain writes: chains are at most 2 triggers, so t can't chain
     // if t-1 already chains into it or t+1 already chains onward
-    logic              PrevChainedM, NextChainedM;
     if (t > 0)                assign PrevChainedM = ChainedM[t-1];
     else                      assign PrevChainedM = 1'b0;
     if (t < P.NUM_TRIGGERS-1) assign NextChainedM = ChainedM[t+1];
     else                      assign NextChainedM = 1'b0;
     assign TDATA1ChainLegalM = ~PrevChainedM & ~NextChainedM;
 
-    // tdata1 write
+    // write legalization
     always_comb begin
       // Legalize Type: unsupported types become disabled
       TDATA1WriteTypeM = CSRWriteValM[P.XLEN-1:P.XLEN-4];
       case (TDATA1WriteTypeM)
+        MCONTROL6_TYPE: TDATA1WriteLegalizedTypeM = P.MCONTROL6_SUPPORTED_TRIGGERS[t] ? MCONTROL6_TYPE : DISABLED_TYPE;
         ICOUNT_TYPE:    TDATA1WriteLegalizedTypeM = P.ICOUNT_SUPPORTED_TRIGGERS[t]    ? ICOUNT_TYPE    : DISABLED_TYPE;
         ITRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ITRIGGER_SUPPORTED_TRIGGERS[t]  ? ITRIGGER_TYPE  : DISABLED_TYPE;
         ETRIGGER_TYPE:  TDATA1WriteLegalizedTypeM = P.ETRIGGER_SUPPORTED_TRIGGERS[t]  ? ETRIGGER_TYPE  : DISABLED_TYPE;
-        MCONTROL6_TYPE: TDATA1WriteLegalizedTypeM = P.MCONTROL6_SUPPORTED_TRIGGERS[t] ? MCONTROL6_TYPE : DISABLED_TYPE;
         default:        TDATA1WriteLegalizedTypeM = DISABLED_TYPE;
       endcase
       // dmode is 0: debug mode not supported
@@ -173,10 +197,10 @@ module csrt import cvw::*; #(parameter cvw_t P) (
 
       // Mask data based on type
       case (TDATA1WriteLegalizedTypeM)
+        MCONTROL6_TYPE: TDATA1WriteMaskM = TDATA1MControl6MaskM;
         ICOUNT_TYPE:    TDATA1WriteMaskM = ICOUNT_MASK;
         ITRIGGER_TYPE:  TDATA1WriteMaskM = ITRIGGER_MASK; // accomodate hit field
         ETRIGGER_TYPE:  TDATA1WriteMaskM = ETRIGGER_MASK; // accomodate hit field
-        MCONTROL6_TYPE: TDATA1WriteMaskM = TDATA1MControl6MaskM;
         default:        TDATA1WriteMaskM = DISABLED_MASK;
       endcase
 
@@ -189,13 +213,15 @@ module csrt import cvw::*; #(parameter cvw_t P) (
       TDATA1WriteValLegalizedM[t] = {TDATA1WriteLegalizedTypeM, TDATA1WriteLegalizedDmodeM, TDATA1WriteLegalizedDataM};
     end
 
-    // tdata1 register
+    // register with hardware updates
     always_ff @(posedge clk) begin
       if (reset) TDATA1_REGW[t] <= {4'b1111, {(P.XLEN-4){1'b0}}}; // reset to disabled state
       else if (WriteTDATA1M & (TSELECT_REGW == t)) TDATA1_REGW[t] <= TDATA1WriteValLegalizedM[t]; // tdata1 write
       else begin
-        // hardware updates to tdata1
         case (TDATA1_REGW[t][P.XLEN-1:P.XLEN-4]) // type is in top 4 bits of tdata1
+          MCONTROL6_TYPE: begin
+            if (MatchM[t]) TDATA1_REGW[t][22] <= 1; // hit0; {hit1,hit0}=01 fired before instruction // TODO Have hit bit match timing
+          end
           ICOUNT_TYPE: begin
             // decrement count unless already at 0 or hardwired to 1
             if (~P.ICOUNT_COUNT_HARDWIRED_1 & MatchM[t] & TDATA1_REGW[t][23:10] != 0) begin
@@ -213,16 +239,16 @@ module csrt import cvw::*; #(parameter cvw_t P) (
           ETRIGGER_TYPE: begin
             if (MatchM[t]) TDATA1_REGW[t][P.XLEN-6] <= 1; // set hit bit on match
           end
-          MCONTROL6_TYPE: begin
-            if (MatchM[t]) TDATA1_REGW[t][22] <= 1; // hit0; {hit1,hit0}=01 fired before instruction // TODO Have hit bit match timing
-          end
           default: ; // disabled: no hardware updates
         endcase
       end
     end
   end
 
-  // tdata2 write
+  ///////////////////////////////////////////
+  // tdata2
+  ///////////////////////////////////////////
+
   always_comb begin
     TDATA2WriteValM = CSRWriteValM; // default: write full value
     // for mcontrol6 when match=napot, tdata2 is WARL, if bits maskmax6-1:0 are written with 1s then bit masmax6-1 will be set to 0.
@@ -233,11 +259,11 @@ module csrt import cvw::*; #(parameter cvw_t P) (
     flopenr #(P.XLEN) TDATA2reg(clk, reset, WriteTDATA2M & (TSELECT_REGW == t), TDATA2WriteValM, TDATA2_REGW[t]);
   end
 
-  // tdata3 write
-  // textra32: bits 22:20 are 0.  textra64: bits 47:40 and 35:34 are 0
-  logic [P.XLEN-1:0]     TDATA3WriteMaskM, TDATA3WriteValLegalizedM;
-  logic                  TDATA3MhselectLegalM, TDATA3SselectLegalM;
-  // Legalize tdata3 WARL fields: an unsupported value masks its field to 0
+  ///////////////////////////////////////////
+  // tdata3
+  ///////////////////////////////////////////
+
+  // Legalize WARL fields: an unsupported value masks its field to 0
   always_comb begin
     case (CSRWriteValM[MHSELECT_LSB +: 3]) // mhselect: without H only 0 (ignore) and 4 (mcontext) are legal
       3'd0, 3'd4: TDATA3MhselectLegalM = 1'b1;
@@ -257,8 +283,13 @@ module csrt import cvw::*; #(parameter cvw_t P) (
     flopenr #(P.XLEN) TDATA3reg(clk, reset, WriteTDATA3M & (TSELECT_REGW == t), TDATA3WriteValLegalizedM, TDATA3_REGW[t]);
   end
 
-  // tcontrol: mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it // TODO gate behind reentrancy option
+  ///////////////////////////////////////////
+  // tcontrol
+  ///////////////////////////////////////////
+
+  // mte gates M-mode triggers; a trap into M saves it to mpte, mret restores it // TODO gate behind reentrancy option
   // only mpte (bit 7) and mte (bit 3) are writable
+  assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
   always_ff @(posedge clk)
     if (reset)                    TCONTROL_REGW <= '0;
     else if (WriteTCONTROLM)      TCONTROL_REGW <= CSRWriteValM & TCONTROL_MASK;
@@ -267,15 +298,20 @@ module csrt import cvw::*; #(parameter cvw_t P) (
       TCONTROL_REGW[3] <= 1'b0;             // mte <= 0
     end else if (mretM & ~StallW) TCONTROL_REGW[3] <= TCONTROL_REGW[7]; // mte <= mpte
 
-  // context registers
-  flopenr #(P.XLEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM & MCONTEXT_MASK, MCONTEXT_REGW);
+  ///////////////////////////////////////////
+  // scontext, mcontext
+  ///////////////////////////////////////////
+
   if (P.S_SUPPORTED) begin
     flopenr #(P.XLEN) SCONTEXTreg(clk, reset, WriteSCONTEXTM, CSRWriteValM & SCONTEXT_MASK, SCONTEXT_REGW);
   end else assign SCONTEXT_REGW = '0;
+  flopenr #(P.XLEN) MCONTEXTreg(clk, reset, WriteMCONTEXTM, CSRWriteValM & MCONTEXT_MASK, MCONTEXT_REGW);
 
-  // CSR Read Logic
-  // tselect always holds an existing trigger, so tinfo never reads the nonexistent value 1
-  logic [5:0] TSELECTIndex; // per-trigger *_SUPPORTED_TRIGGERS masks are 64 bits
+  ///////////////////////////////////////////
+  // Read
+  ///////////////////////////////////////////
+
+  // tinfo: tselect always holds an existing trigger, so tinfo never reads the nonexistent value 1
   assign TSELECTIndex = 6'(TSELECT_REGW);
   assign TINFO_INFO = {9'b00000000, P.MCONTROL6_SUPPORTED_TRIGGERS[TSELECTIndex], P.ETRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex],
                        P.ITRIGGER_SUPPORTED_TRIGGERS[TSELECTIndex], P.ICOUNT_SUPPORTED_TRIGGERS[TSELECTIndex], 3'b000};
@@ -285,15 +321,15 @@ module csrt import cvw::*; #(parameter cvw_t P) (
     CSRTReadValM = '0;
     IllegalCSRTAccessM = 1'b0;
     case (CSRAdrM)
-      SCONTEXT:  if (P.S_SUPPORTED) CSRTReadValM = SCONTEXT_REGW;
-                 else IllegalCSRTAccessM = 1'b1;
-      MCONTEXT:  CSRTReadValM = MCONTEXT_REGW;
-      TINFO:     CSRTReadValM = TINFOval;
-      TCONTROL:  CSRTReadValM = TCONTROL_REGW;
       TSELECT:   CSRTReadValM = TSELECT_REGW;
       TDATA1:    CSRTReadValM = TDATA1_REGW[TSelM];
       TDATA2:    CSRTReadValM = TDATA2_REGW[TSelM];
       TDATA3:    CSRTReadValM = TDATA3_REGW[TSelM];
+      TINFO:     CSRTReadValM = TINFOval;
+      TCONTROL:  CSRTReadValM = TCONTROL_REGW;
+      SCONTEXT:  if (P.S_SUPPORTED) CSRTReadValM = SCONTEXT_REGW;
+                 else IllegalCSRTAccessM = 1'b1;
+      MCONTEXT:  CSRTReadValM = MCONTEXT_REGW;
       default:   IllegalCSRTAccessM = 1'b1;
     endcase
   end
