@@ -204,7 +204,7 @@ module trigger import cvw::*; #(parameter cvw_t P) (
       cmptdata2[i] = TDATA2_REGW[i] & datamask[i];
 
       matcheq[i]       = (cmpval[i] == cmptdata2[i]);
-      napotmask[i]     = ~(cmptdata2[i] ^ (cmptdata2[i] + 1)); // bits above the lowest 0 are compared
+      napotmask[i]     = ~(cmptdata2[i] ^ (cmptdata2[i] + 1)) | ({P.XLEN{1'b1}} << P.MCONTROL6_MASKMAX6); // bits above the lowest 0 are compared, range capped at 2^maskmax6
       matchnapot[i]    = ((cmpval[i] & napotmask[i]) == (cmptdata2[i] & napotmask[i]));
       matchge[i]       = (cmpval[i] >= cmptdata2[i]);
       matchmasklow[i]  = (cmpval[i][P.XLEN/2-1:0]      & TDATA2_REGW[i][P.XLEN-1:P.XLEN/2]) == TDATA2_REGW[i][P.XLEN/2-1:0];
