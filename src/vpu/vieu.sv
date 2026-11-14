@@ -127,7 +127,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
   // *** add vector length later
-  assign vlE = 4;
+  assign vlE = 1;
   // simm5 from the vs1 field, sign-extended to ELEN
   // *** make SEW-dependent when lanes support SEW < ELEN
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
