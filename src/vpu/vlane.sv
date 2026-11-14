@@ -27,26 +27,27 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [1:0]        VSewE,
   input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
-  output logic [P.ELEN-1:0] LaneResult       // lane result
+  output logic [P.ELEN-1:0] LaneResultE,      // lane result in Execute stage
+  output logic [P.ELEN-1:0] ProductM         // vmul result in Memory stage
 );
 
-  logic [P.ELEN-1:0] SumE, ProductE, ShiftE;
+  logic [P.ELEN-1:0] SumE, ShiftE;
 
   valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
 
-  // Currently only supports unsigned vmul and vmulhu
-  // ***TODO: Figure out timing since vmul returns results in Memory stage instead of Execute
-  vmul #(P) vmul(.clk, .reset, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .Product(ProductE));
+  // Currently only supports vmul and vmulhu
+  // The product is ready in Memory stage and is selected in vieu after the M register
+  vmul #(P) vmul(.clk, .reset, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .Product(ProductM));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
   always_comb
     case (VLaneSelectE)
-      2'b00:   LaneResult = SumE;
-      2'b01:   LaneResult = ProductE;
-      2'b10:   LaneResult = SrcA;     // move
-      2'b11:   LaneResult = ShiftE;
-      default: LaneResult = SumE;
+      2'b00:   LaneResultE = SumE;
+      2'b01:   LaneResultE = '0;       // vmul, ProductM is selected in Memory stage
+      2'b10:   LaneResultE = SrcA;     // move
+      2'b11:   LaneResultE = ShiftE;
+      default: LaneResultE = SumE;
     endcase
 
 endmodule

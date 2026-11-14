@@ -118,6 +118,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   logic [P.VPU_INT_BLEN-1:0] VSrcAE, VSrcBE, VSrcCE;
   logic [P.VPU_INT_BLEN-1:0] VALUResultE, VALUResultM;
+  logic [P.VPU_INT_BLEN-1:0] VLaneResultM, VProductM;   // registered lane result and vmul result
+  logic                      VMulE, VMulM;              // the result comes from vmul
 
   logic [4:0]                VdFinalE, VdFinalM;
 
@@ -180,14 +182,18 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   assign VSrcBE = VRD2SelectedE;
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE, .VSewE, .VMulSelectE,
-                                         .VShiftSelectE, .LaneResult(VALUResultE));
+                                         .VShiftSelectE, .LaneResultE(VALUResultE), .ProductM(VProductM));
 
-  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VALUResultM); // *** may need an enable
+  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VLaneResultM); // *** may need an enable
 
-  flopenrc #(10+BEATBITLEN+P.VPU_QUEUEDEPTH) contrlregM
+  assign VMulE = (VLaneSelectE == 2'b01);
+
+  flopenrc #(11+BEATBITLEN+P.VPU_QUEUEDEPTH) contrlregM
     (clk, reset, VectorFlushM, ~StallM,
-     {VdFinalE, RegWriteE, VRegWriteE, VALUResultSrcE, BeatE, ExecutionUnitResultValidE, BeatValidE, ExecutionUnitOrderE},
-     {VdFinalM, RegWriteM, VRegWriteM, VALUResultSrcM, BeatM, ExecutionUnitResultValidM, BeatValidM, ExecutionUnitOrderM});
+     {VdFinalE, RegWriteE, VRegWriteE, VALUResultSrcE, BeatE, ExecutionUnitResultValidE, BeatValidE, ExecutionUnitOrderE, VMulE},
+     {VdFinalM, RegWriteM, VRegWriteM, VALUResultSrcM, BeatM, ExecutionUnitResultValidM, BeatValidM, ExecutionUnitOrderM, VMulM});
+
+  assign VALUResultM = VMulM ? VProductM : VLaneResultM;
 
   flopenrc #(P.XLEN) pcmreg(clk, reset, VectorFlushM, ~StallM, PCE, PCM);
   flopenrc #(32) instrmreg(clk, reset, VectorFlushM, ~StallM, InstrE, InstrM);
