@@ -75,6 +75,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // might have to bring back notconsummedW and the localStall back when later making svrf entries less than EU number
 
   localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
+  localparam BEATSELBITS = (P.VPU_INT_MAX_BEATS > 1) ? $clog2(P.VPU_INT_MAX_BEATS) : 1;  // selects a beat of the register
   //localparam VLBITLEN = $clog2(P.VLEN);
   localparam XLENTOINTLANES = P.VPU_INT_BLEN / P.XLEN;
 
@@ -95,7 +96,6 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   logic       VALUResultSrcW;
 
-  logic [BEATBITLEN-1:0]   vlE;
   logic [BEATBITLEN-1:0] BeatE, BeatM;
   logic                  CaptureD;
   logic                  ExecutionUnitResultValidE, ExecutionUnitResultValidM;
@@ -126,15 +126,13 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
 
-  // *** add vector length later
-  assign vlE = 1;
   // simm5 from the vs1 field, sign-extended to ELEN
   // *** make SEW-dependent when lanes support SEW < ELEN
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
   assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
-                       .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE, .vlE);
+                       .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
   assign CaptureD = ControllerValidD & ExecutionUnitReadyD; // *** duplicated in vieufsm
 
   flopenrc #(P.VLEN) VRD1EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD1D, VRD1E);
@@ -153,10 +151,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   end
 
   // mux down to the current lane(s)
-  assign VRD1SelectedE = VRD1BeatE[BeatE[BEATBITLEN-3:0]];
-  assign VRD2SelectedE = VRD2BeatE[BeatE[BEATBITLEN-3:0]];
-  assign VRD3SelectedE = VRD3BeatE[BeatE[BEATBITLEN-3:0]];
-  assign v0SelectedE   = v0BeatE[BeatE[BEATBITLEN-3:0]];
+  assign VRD1SelectedE = VRD1BeatE[BeatE[BEATSELBITS-1:0]];
+  assign VRD2SelectedE = VRD2BeatE[BeatE[BEATSELBITS-1:0]];
+  assign VRD3SelectedE = VRD3BeatE[BeatE[BEATSELBITS-1:0]];
+  assign v0SelectedE   = v0BeatE[BeatE[BEATSELBITS-1:0]];
 
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
