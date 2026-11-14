@@ -101,8 +101,11 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
 
   // both loads and stores occupy an order-queue entry, so both must complete their sVRF entry to commit;
   // only loads write the vregfile.  Single beat: beat 0 is also the last beat.
+  // The beat is valid only in the cycle Writeback advances, as in the VIEU: held through a StallW, it would still be
+  // valid in the cycle the head commits and set the sVRF entry's complete bit again, so the next instruction to reuse
+  // that entry would commit its stale contents at once and lose its own result.
   // *** TODO: beats above 0 are not written, so the rest of vd holds stale sVRF data
-  assign BeatValidW = |VMemRWW;
+  assign BeatValidW = |VMemRWW & ~StallW;
   assign LastBeatW  = BeatValidW;
   assign BeatW      = '0;
   assign VRegWriteW = VMemRWW[1];
