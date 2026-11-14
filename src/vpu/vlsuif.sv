@@ -34,7 +34,8 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   input logic                         reset,
   input logic                         VectorStallE, StallM, StallW,   // stall signals (from HZU)
   input logic                         VectorFlushE, VectorFlushM, FlushW, // flush signals (from HZU)
-  input logic [P.XLEN-1:0]            ForwardedSrcAE,                 // rs1 base address
+  input logic [P.XLEN-1:0]            R1D,                            // rs1 base address, read in Decode
+  input logic [2:0]                   VWidthD,                        // width field InstrD[14:12]: element size
 
   input logic [4:0]                   VdFinalD,
   output logic [4:0]                  VdW,                            // destination vector register (to vregfile)
@@ -69,7 +70,18 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   logic [P.VLEN-1:0]            VWriteDataE, PreVReadDataW;
   logic [P.VPU_QUEUEDEPTH-1:0]  OrderE, OrderM;
 
-  assign VSizeM = 3'b110; // *** TODO: This is a placeholder value, need to accomodate multiple element sizes
+  // log2(element bytes) from the width field: 000 = e8, 101 = e16, 110 = e32, 111 = e64
+  // *** TODO: only element 0 (one LLEN access) is transferred for now
+  logic [2:0] VSizeD, VSizeE;
+  always_comb
+    case (VWidthD)
+      3'b101:  VSizeD = 3'd1;
+      3'b110:  VSizeD = 3'd2;
+      3'b111:  VSizeD = 3'd3;
+      default: VSizeD = 3'd0;
+    endcase
+  flopenrc #(3) vsizeereg(clk, reset, VectorFlushE, ~VectorStallE, VSizeD, VSizeE);
+  flopenrc #(3) vsizemreg(clk, reset, VectorFlushM, ~StallM, VSizeE, VSizeM);
   assign ReadyD = 1'b1; // *** TODO: This is a placeholder value, need to implement a ready signal for the LSU interface
 
   // memory read/write control and destination register travel with the instruction to writeback
@@ -91,8 +103,8 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   assign ValidW     = |VMemRWW;
   assign VRegWriteW = ReadyW & VMemRWW[1];
 
-  // address flop
-  assign VEUAdrE = ForwardedSrcAE;
+  // address flops: the scalar E stage is flushed for vector instructions, so carry rs1 from Decode here
+  flopenrc #(P.XLEN) adrereg(clk, reset, VectorFlushE, ~VectorStallE, R1D, VEUAdrE);
   flopenrc #(P.XLEN) adrreg(clk, reset, VectorFlushM, ~StallM, VEUAdrE, VEUAdrM);
 
   // write data flops (D -> E -> M); single beat, so assumes VLEN == VPU_LSU_BLEN for now

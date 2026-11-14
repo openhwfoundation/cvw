@@ -170,7 +170,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   // *** add LSU IF
 
-  vlsuif #(P) vlsuif(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW, .ForwardedSrcAE, .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
+  vlsuif #(P) vlsuif(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW, .R1D, .VWidthD(InstrD[14:12]), .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
                       .ReadyW(ControllerWBReadyW[P.VPU_INT_EU]), .ValidD(ControllerValidD[P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[P.VPU_INT_EU]),
                       .ExecutionUnitOrderD(ExecutionUnitOrderD[P.VPU_INT_EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[P.VPU_INT_EU]),
                       .VRegWriteW(VIEUVRegWriteW[P.VPU_INT_EU]),

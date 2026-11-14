@@ -159,12 +159,13 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic [1:0]            effMemRWE, effMemRWM;
   logic [P.XLEN-1:0]     effAdrE, effAdrM;                       // IEU or VPU memory address
   logic [P.LLEN-1:0]     effWriteDataM;                          // IEU, HPTW, AMO, FPU, or VPU write data
+  logic [2:0]            effFunct3M;                             // IEU or VPU memory operation size
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Vector load/store interface
   // Select the VPU's address and write data, and return read data, when it has a memory operation.
   // *** TODO: assumes vector data is LLEN wide; bits above LLEN are dropped / zero.
-  // *** TODO: VMemRWM and VSizeM not yet muxed into MemRWM / Funct3M.
+  // *** TODO: VSizeM above LLEN (whole-register accesses) is not supported; it is clamped to LLEN.
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   assign VectorOpE = |VMemRWE;
@@ -172,6 +173,9 @@ module lsu import cvw::*; #(parameter cvw_t P) (
 
   mux2 #(2) effmemrwemux(MemRWE, VMemRWE, VectorOpE, effMemRWE);
   mux2 #(2) effmemrwmmux(MemRWM, VMemRWM, VectorOpM, effMemRWM);
+
+  // vector element sizes map to unsigned scalar loads (lbu/lhu/lwu/ld) so no sign extension
+  assign effFunct3M = ~VectorOpM ? Funct3M : (VSizeM >= 3'd3) ? 3'b011 : {1'b1, VSizeM[1:0]};
 
   mux2 #(P.XLEN) effadremux(IEUAdrE, VEUAdrE, VectorOpE, effAdrE);
   mux2 #(P.XLEN) effadrmmux(IEUAdrM, VEUAdrM, VectorOpM, effAdrM);
@@ -190,8 +194,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
-    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE(effAdrE), .IEUAdrM(effAdrM), .Funct3M, .FpLoadStoreM,
-                     .MemRWM,
+    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE(effAdrE), .IEUAdrM(effAdrM), .Funct3M(effFunct3M), .FpLoadStoreM,
+                     .MemRWM(effMemRWM),
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
                      .ByteMaskM, .ByteMaskExtendedM, .LSUWriteDataM, .ByteMaskSpillM, .LSUWriteDataSpillM,
@@ -221,12 +225,12 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if (P.VIRTMEM_SUPPORTED) begin : hptw
-    hptw #(P) hptw(.clk, .reset, .MemRWM, .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
+    hptw #(P) hptw(.clk, .reset, .MemRWM(effMemRWM), .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
       .DTLBMissOrUpdateDAM, .DTLBWriteM,
       .FlushW, .CommittedF, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
-      .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,
+      .WriteDataM(WriteDataZM), .Funct3M(effFunct3M), .LSUFunct3M, .Funct7M, .LSUFunct7M,
       .IEUAdrExtM, .PTE, .IHWriteDataM, .PageType, .PreLSURWM, .LSUAtomicM,
       .IHAdrM, .CMOpM, .LSUCMOpM, .FpLoadStoreM, .LSUFpLoadStoreM, .HPTWStall, .SelHPTW,
       .HPTWFlushW, .LSULoadAccessFaultM, .LSUStoreAmoAccessFaultM,
@@ -246,9 +250,9 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       else if (MemAccessPerformedM) MemAccessDoneM <= 1'b1;
     flopenr #(P.LLEN) ReadDataHoldReg(clk, reset, MemAccessPerformedM & ~MemAccessDoneM, ReadDataM, ReadDataHoldM);
   end else begin // No HPTW, so signals are not multiplexed
-    assign PreLSURWM = MemRWM;
+    assign PreLSURWM = effMemRWM;
     assign IHAdrM = IEUAdrExtM;
-    assign LSUFunct3M = Funct3M;
+    assign LSUFunct3M = effFunct3M;
     assign LSUFunct7M = Funct7M;
     assign LSUAtomicM = AtomicM;
     assign LSUCMOpM = CMOpM;
@@ -335,7 +339,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     logic [1:0]           DTIMMemRWM;
 
     // The DTIM uses untranslated addresses, so it is not compatible with virtual memory.
-    mux2 #(P.PA_BITS) DTIMAdrMux(IEUAdrExtE[P.PA_BITS-1:0], IEUAdrExtM[P.PA_BITS-1:0], MemRWM[0], DTIMAdr);
+    mux2 #(P.PA_BITS) DTIMAdrMux(IEUAdrExtE[P.PA_BITS-1:0], IEUAdrExtM[P.PA_BITS-1:0], effMemRWM[0], DTIMAdr);
     assign DTIMMemRWM = SelDTIM ? LSURWM : 0;
     dtim #(P) dtim(.clk, .reset, .ce(~GatedStallW),
               .MemRWM(DTIMMemRWM),
