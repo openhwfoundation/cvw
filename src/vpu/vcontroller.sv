@@ -66,9 +66,10 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0],
-  input logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderW [P.VPU_EU-1:0],
-  input logic [P.VPU_EU-1:0]      ExecutionUnitResultValidW,
-  output logic [P.VPU_EU-1:0]     ControllerWBReadyW,
+  // commit of the oldest micro-op
+  output logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW,                 // order tag at queue head
+  input logic                         HeadCompleteW,              // head sVRF entry has all its beats
+  output logic                        CommitW,                    // write head entry to VRF and dequeue
   output logic                        VPUFrontEndBusyD
 );
 
@@ -128,25 +129,18 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
 
   logic [P.VPU_QUEUEDEPTH - 1 : 0 ] OrderD;
-  logic [P.VPU_EU - 1 : 0 ] MatchW;
-  logic [P.VPU_QUEUEDEPTH - 1 : 0 ]    HeadOrderW;
-  logic                         AnyMatchW;
   logic                         InstrOrderQueueFullD;
   logic                         InstrOrderQueueEmptyD;
 
-  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(AnyMatchW & ~StallW),
+  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(CommitW),
                                                   .wdata(OrderD), .rdata(HeadOrderW), .full(InstrOrderQueueFullD), .empty(InstrOrderQueueEmptyD));
 
   counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, MicroVectorD & ~VectorStallD, OrderD);
 
   genvar i;
-  for (i = 0; i < P.VPU_EU; i++) begin
-    assign MatchW[i] = (HeadOrderW == ExecutionUnitOrderW[i]) & ExecutionUnitResultValidW[i];  // *** two missing inputs
-    assign ControllerWBReadyW[i] = MatchW[i];
-    assign ExecutionUnitOrderD[i] = OrderD;
-  end
+  for (i = 0; i < P.VPU_EU; i++) assign ExecutionUnitOrderD[i] = OrderD;
 
-  assign AnyMatchW = | MatchW;
+  assign CommitW = HeadCompleteW & ~InstrOrderQueueEmptyD & ~StallW;
 
   assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 

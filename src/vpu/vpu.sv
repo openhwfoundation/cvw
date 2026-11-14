@@ -102,26 +102,35 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
-  logic [P.VLEN-1:0] VResultFinalW;
 
-  logic [P.VLEN-1:0] VResultW [P.VPU_INT_EU + P.VPU_LSU_EU -1:0];
   logic [P.XLEN-1:0] VIEUResultToScalarW [P.VPU_INT_EU-1:0];
 
   //logic       IllegalVPUInstrD;
 
   logic [P.VPU_EU-1:0] ControllerValidD;
   logic [P.VPU_EU-1:0] ExecutionUnitReadyD;
-  logic [P.VPU_EU-1:0] ControllerWBReadyW;
   logic [P.VPU_EU-1:0] ExecutionUnitResultValidW;
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW [P.VPU_EU-1:0];
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0];
 
+  localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
+  localparam BANKS       = P.VLEN/P.VPU_INT_BLEN;
+
   logic            VRegWriteW, RegWriteW;
-  logic [4:0]      VdFinalW;
+  logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW;
+  logic            HeadCompleteW, HeadVRegWriteW, CommitW;
+  logic [4:0]      HeadVdW;
+  logic [P.VLEN-1:0] HeadDataW;
   genvar i;
 
   logic [P.VPU_EU-1:0] VIEURegWriteW, VIEUVRegWriteW;
-  logic [4:0]              VVdFinalW [P.VPU_EU-1:0];
+  logic [4:0]              VIEUVdFinalW [P.VPU_EU-1:0];
+  logic [P.VPU_EU-1:0]     VIEUBeatValidW;
+  logic [BEATBITLEN-1:0]   VIEUBeatW [P.VPU_EU-1:0];
+  logic [P.VPU_INT_BLEN-1:0] VIEUResultW [P.VPU_EU-1:0];
+  logic [P.VPU_INT_BLEN/8-1:0] VIEUByteMaskW [P.VPU_EU-1:0];
+  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderW [BANKS-1:0];
+  logic [P.VPU_INT_BLEN-1:0]   OldVdDataW [BANKS-1:0];
 
   // divide into control and data path
 
@@ -145,40 +154,56 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
                                .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
-                               .ExecutionUnitOrderD, .ExecutionUnitOrderW, .ControllerWBReadyW, .ExecutionUnitResultValidW,
+                               .ExecutionUnitOrderD, .HeadOrderW, .HeadCompleteW, .CommitW,
                                .VPUFrontEndBusyD);
 
 
 
-  vregfile #(P.VLEN) vregfile(clk, reset, VRegWriteW, Vs1FinalD, Vs2FinalD, VdFinalD, VdFinalW,
-                              VResultFinalW, VRD1D, VRD2D, VRD3D, v0D);
+  // *** BLEN should be ELEN * max lanes across EU types when the other EUs are added
+  // *** init from vd when masking is added; byte enables are all ones until then
+  for (i = 0; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
+  assign OldVdOrderW = '{default: '0};
+  assign OldVdDataW  = '{default: '0};
+
+  svrf #(P.VLEN, P.VPU_INT_BLEN, P.VPU_EU, P.VPU_QUEUEDEPTH, BEATBITLEN) svrf(.clk, .reset,
+                              .BeatValidW(VIEUBeatValidW), .LastBeatW(ExecutionUnitResultValidW), .VRegWriteW(VIEUVRegWriteW),
+                              .OrderW(ExecutionUnitOrderW), .BeatW(VIEUBeatW), .ResultBeatW(VIEUResultW), .ByteMaskW(VIEUByteMaskW),
+                              .VdW(VIEUVdFinalW), .OldVdValidW('0), .OldVdOrderW, .OldVdDataW,
+                              .HeadOrderW, .CommitW, .HeadCompleteW, .HeadVRegWriteW, .HeadVdW, .HeadDataW);
+
+  assign VRegWriteW = CommitW & HeadVRegWriteW;
+
+  vregfile #(P.VLEN) vregfile(clk, reset, VRegWriteW, Vs1FinalD, Vs2FinalD, VdFinalD, HeadVdW,
+                              HeadDataW, VRD1D, VRD2D, VRD3D, v0D);
 
 
   for(i = 0; i < P.VPU_INT_EU; i++) begin : vieu
     vieu #(P) vieu(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
-                   .ControllerWBReadyW(ControllerWBReadyW[i]), .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
+                   .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                    .VShiftSelectD,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
-                   .VIEUResultW(VResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
-                   .VIEUVdFinalW(VVdFinalW[i]));
+                   .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
+                   .VIEUBeatValidW(VIEUBeatValidW[i]), .VIEUBeatW(VIEUBeatW[i]), .VIEUVdFinalW(VIEUVdFinalW[i]));
   end
 
   // vector load/store interface: exactly one (P.VPU_LSU_EU == 1), at EU index P.VPU_INT_EU
+  for(i = 0; i < P.VPU_LSU_EU; i++) begin : vlsuif
+    vlsuif #(P) vlsuif(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW,
+                       .R1D, .VWidthD(InstrD[14:12]), .VdFinalD,
+                       .ValidD(ControllerValidD[i+P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[i+P.VPU_INT_EU]),
+                       .ExecutionUnitOrderD(ExecutionUnitOrderD[i+P.VPU_INT_EU]),
+                       .ExecutionUnitOrderW(ExecutionUnitOrderW[i+P.VPU_INT_EU]),
+                       .BeatValidW(VIEUBeatValidW[i+P.VPU_INT_EU]), .LastBeatW(ExecutionUnitResultValidW[i+P.VPU_INT_EU]),
+                       .BeatW(VIEUBeatW[i+P.VPU_INT_EU]), .VResultW(VIEUResultW[i+P.VPU_INT_EU]),
+                       .VdW(VIEUVdFinalW[i+P.VPU_INT_EU]), .VRegWriteW(VIEUVRegWriteW[i+P.VPU_INT_EU]),
+                       .VMemRWD, .Vs3D(VRD3D), .VMemRWE, .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM);
 
-  // *** add LSU IF
-
-  vlsuif #(P) vlsuif(.clk, .reset, .VectorStallE, .StallM, .StallW, .VectorFlushE, .VectorFlushM, .FlushW, .R1D, .VWidthD(InstrD[14:12]), .VdFinalD, .VdW(VVdFinalW[P.VPU_INT_EU]), .ValidW(ExecutionUnitResultValidW[P.VPU_INT_EU]),
-                      .ReadyW(ControllerWBReadyW[P.VPU_INT_EU]), .ValidD(ControllerValidD[P.VPU_INT_EU]), .ReadyD(ExecutionUnitReadyD[P.VPU_INT_EU]),
-                      .ExecutionUnitOrderD(ExecutionUnitOrderD[P.VPU_INT_EU]), .ExecutionUnitOrderW(ExecutionUnitOrderW[P.VPU_INT_EU]),
-                      .VRegWriteW(VIEUVRegWriteW[P.VPU_INT_EU]),
-                      .VMemRWD, .Vs3D(VRD3D), .VMemRWE, .VMemRWM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VSizeM, .VReadDataM, .VReadDataW(VResultW[P.VPU_INT_EU]));
-
-  //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
-  //assign VIEUResultW[i+P.VPU_INT_EU] = '0;
-  assign VIEURegWriteW[P.VPU_INT_EU] = '0;
+    //assign VIEUResultToScalarW[i+P.VPU_INT_EU] = '0;
+    assign VIEURegWriteW[i+P.VPU_INT_EU] = '0;
+  end
 
   for(i = 0; i < P.VPU_FP_EU; i++) begin : vfpeu
     // *** add FPU
@@ -190,19 +215,18 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
     //assign VIEUResultW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
     assign VIEURegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
     assign VIEUVRegWriteW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
-    assign VVdFinalW[i+P.VPU_INT_EU+P.VPU_LSU_EU] =  '0;
+    assign VIEUVdFinalW[i+P.VPU_INT_EU+P.VPU_LSU_EU] =  '0;
+    assign VIEUBeatValidW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
+    assign VIEUBeatW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
+    assign VIEUResultW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
+    assign ExecutionUnitOrderW[i+P.VPU_INT_EU+P.VPU_LSU_EU] = '0;
 
   end
 
 
 
-  // the controller must select the correct EU to write back into the VRF so that instructions commit inorder.
-
-  or_rows #(P.VPU_INT_EU + P.VPU_LSU_EU, P.VLEN) VEUResultAOMux(.a(VResultW), .y(VResultFinalW)); // *** TODO: should eventually be VPU_EU
   or_rows #(P.VPU_INT_EU, P.XLEN) VIEUFPResultAOMux(.a(VIEUResultToScalarW), .y(VIEUFPResultFinalW));
-  or_rows #(P.VPU_EU, 5) VdAOMux(.a(VVdFinalW), .y(VdFinalW));
   //or_rows #(P.VPU_INT_EU, 5) RdAOMux(.a(VIEURegWriteW), .y(VRdFinalW));
-  assign VRegWriteW = | VIEUVRegWriteW;
   assign RegWriteW = | VIEURegWriteW;
 
 

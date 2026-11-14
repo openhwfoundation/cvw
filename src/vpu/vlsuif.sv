@@ -38,15 +38,19 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   input logic [2:0]                   VWidthD,                        // width field InstrD[14:12]: element size
 
   input logic [4:0]                   VdFinalD,
-  output logic [4:0]                  VdW,                            // destination vector register (to vregfile)
-  output logic                        ValidW,                         // writeback control: load data valid (to vregfile)
-  input logic                         ReadyW,                         // writeback control: load data ready (from vregfile)
 
   input logic                         ValidD,                         // valid signal from the controller that there is a new operation
   output logic                        ReadyD,                         // ready signal from VLSUIF to controller that it can accept a new operation
   input logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderD,            // program-order tag assigned by the controller
-  output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW,            // order tag returned to the controller for in-order commit
-  output logic                        VRegWriteW,                     // write the vregfile (loads only)
+
+  // result to the sVRF: one beat per instruction for now
+  output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderW,            // sVRF entry (order tag) of the result
+  output logic                        BeatValidW,                     // result beat is valid
+  output logic                        LastBeatW,                      // last beat: the sVRF entry is complete
+  output logic [$clog2((P.VLEN/P.ELEN) + 1)-1:0] BeatW,               // beat number of the result
+  output logic [P.VPU_INT_BLEN-1:0]   VResultW,                       // result beat (load data)
+  output logic [4:0]                  VdW,                            // destination vector register
+  output logic                        VRegWriteW,                     // write the vregfile at commit (loads only)
 
   input logic [1:0]                   VMemRWD,                        // vector memory read/write: [1] = read, [0] = write
 
@@ -59,15 +63,12 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   output logic [P.XLEN-1:0]           VEUAdrE,                        // Memory address (to LSU)
   output logic [P.XLEN-1:0]           VEUAdrM,                        // Memory address (to LSU)
   output logic [2:0]                  VSizeM,                         // Memory size (to LSU), values 0-6 cover 1, 2, 4, 8, 16, 32, 64 bytes; 7 is reserved
-  input logic [P.VLEN-1:0]            VReadDataM,                     // Read data (from LSU)
-
-  // result to the vregfile
-  output logic [P.VLEN-1:0]           VReadDataW                      // Read data (to vregfile)
+  input logic [P.VLEN-1:0]            VReadDataM                      // Read data (from LSU)
 );
 
   logic [1:0]                   VMemRWW;
-  logic [4:0]                   VdE, VdM, PreVdW;
-  logic [P.VLEN-1:0]            VWriteDataE, PreVReadDataW;
+  logic [4:0]                   VdE, VdM;
+  logic [P.VLEN-1:0]            VWriteDataE;
   logic [P.VPU_QUEUEDEPTH-1:0]  OrderE, OrderM;
 
   // log2(element bytes) from the width field: 000 = e8, 101 = e16, 110 = e32, 111 = e64
@@ -91,17 +92,20 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
 
   flopenrc #(5) vdereg(clk, reset, VectorFlushE, ~VectorStallE, VdFinalD, VdE);
   flopenrc #(5) vdmreg(clk, reset, VectorFlushM, ~StallM, VdE, VdM);
-  flopenrc #(5) vdwreg(clk, reset, FlushW, ~StallW, VdM, PreVdW);
+  flopenrc #(5) vdwreg(clk, reset, FlushW, ~StallW, VdM, VdW);
 
-  // order tag travels with the instruction so the controller can match it against the head of the order queue
+  // order tag travels with the instruction and selects its sVRF entry
   flopenrc #(P.VPU_QUEUEDEPTH) ordereg(clk, reset, VectorFlushE, ~VectorStallE, ExecutionUnitOrderD, OrderE);
   flopenrc #(P.VPU_QUEUEDEPTH) ordermreg(clk, reset, VectorFlushM, ~StallM, OrderE, OrderM);
   flopenrc #(P.VPU_QUEUEDEPTH) orderwreg(clk, reset, FlushW, ~StallW, OrderM, ExecutionUnitOrderW);
 
-  // both loads and stores occupy an order-queue entry, so both must report valid to be dequeued;
-  // only loads write the vregfile
-  assign ValidW     = |VMemRWW;
-  assign VRegWriteW = ReadyW & VMemRWW[1];
+  // both loads and stores occupy an order-queue entry, so both must complete their sVRF entry to commit;
+  // only loads write the vregfile.  Single beat: beat 0 is also the last beat.
+  // *** TODO: beats above 0 are not written, so the rest of vd holds stale sVRF data
+  assign BeatValidW = |VMemRWW;
+  assign LastBeatW  = BeatValidW;
+  assign BeatW      = '0;
+  assign VRegWriteW = VMemRWW[1];
 
   // address flops: the scalar E stage is flushed for vector instructions, so carry rs1 from Decode here
   flopenrc #(P.XLEN) adrereg(clk, reset, VectorFlushE, ~VectorStallE, R1D, VEUAdrE);
@@ -111,11 +115,7 @@ module vlsuif import cvw::*;  #(parameter cvw_t P)
   flopenrc #(P.VLEN) vwriteereg(clk, reset, VectorFlushE, ~VectorStallE, Vs3D, VWriteDataE);
   flopenrc #(P.VLEN) vwritemreg(clk, reset, VectorFlushM, ~StallM, VWriteDataE, VWriteDataM);
 
-  // read data flop (M -> W); single beat, so assumes VLEN == VPU_LSU_BLEN for now
-  flopenrc #(P.VLEN) vreaddatawreg(clk, reset, FlushW, ~StallW, VReadDataM, PreVReadDataW);
-
-  // AND part of the AO-muxes in vpu: drive zero unless the controller selected this EU this cycle
-  assign VdW        = ReadyW ? PreVdW        : '0;
-  assign VReadDataW = ReadyW ? PreVReadDataW : '0;
+  // read data flop (M -> W): the low beat of the load data
+  flopenrc #(P.VPU_INT_BLEN) vreaddatawreg(clk, reset, FlushW, ~StallW, VReadDataM[P.VPU_INT_BLEN-1:0], VResultW);
 
 endmodule
