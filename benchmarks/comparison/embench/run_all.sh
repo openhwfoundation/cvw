@@ -15,7 +15,8 @@ cv32e40x|cv32e40x-rv32imc|rv32imc_zicsr|ilp32|-DCLEAR_MCOUNTINHIBIT|source '$T'/
 hazard3|hazard3-rv32imacb-u-pmp|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32||source '$T'/hazard3.env|run-hazard3.sh --cycles 400000000 --timeout 7200 --elf
 ibex|ibex-opentitan|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|-DIBEX_ICACHE|source '$T'/ibex.env|run-ibex.sh --cycles 400000000 --timeout 7200 --elf
 picorv32|picorv32-rv32imc|rv32imc_zicsr|ilp32|-DUSE_RDCYCLE|source '$T'/picorv32.env|run-picorv32.sh --max-cycles 1000000000 --timeout 7200 --elf
-sargantana|sargantana-rv64imafdb|rv64im_zicsr_zba_zbb_zbs|lp64||source '$T'/sargantana.env|run-sargantana.sh --max-cycles 400000000 --timeout 7200 --elf
+blackparrot|blackparrot-rv64gcb|rv64imac_zicsr_zba_zbb_zbs|lp64||source '$T'/blackparrot.env|run-blackparrot.sh --timeout 14400 --elf
+sargantana|sargantana4-rv64gcbh|rv64imac_zicsr_zba_zbb_zbs|lp64||source '$T'/sargantana.env|run-sargantana.sh --max-cycles 400000000 --timeout 7200 --elf
 serv|serv-rv32imc|rv32imc_zicsr|ilp32|-DMTIME_ADDR=0xC0000000|source '$T'/serv.env|run-serv.sh --timeout 14400 --sim-timeout 200000000000 --elf
 veer-eh1|veer-eh1-rv32imc|rv32imc_zicsr|ilp32|-DVEER_STACK_TOP=0xf0050000|source '$T'/veer-eh1.env; export VEER_SNAPSHOT='$C'/veer-eh1-longrun|run-veer-eh1.sh --timeout 7200 --elf
 veer-eh2|veer-eh2-rv32imacb|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|-DVEER_STACK_TOP=0xf0050000|source '$T'/veer-eh2.env|run-veer-eh2.sh --timeout 7200 --elf
