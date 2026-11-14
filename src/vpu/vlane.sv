@@ -16,23 +16,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
+  input  logic              clk, reset,
   input  logic [P.ELEN-1:0] SrcA, SrcB,      // lane operands
   input  logic [2:0]        VALUSelectE,
   input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic              VSubE,
+  input  logic [1:0]        VSewE,
+  input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   output logic [P.ELEN-1:0] LaneResult       // lane result
 );
@@ -41,7 +34,9 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
 
-  vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
+  // Currently only supports unsigned vmul and vmulhu
+  // ***TODO: Figure out timing since vmul returns results in Memory stage instead of Execute
+  vmul #(P) vmul(.clk, .reset, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .Product(ProductE));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
