@@ -15,6 +15,7 @@
 // Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+//
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vshifter import cvw::*; #(parameter cvw_t P) (
