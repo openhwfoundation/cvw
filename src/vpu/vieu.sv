@@ -56,8 +56,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic                         VALUResultSrcD,
   input logic [2:0]                   VALUSelectD,
   input logic                         VSubD,
-  input logic [1:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  input logic [2:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
+  input logic [1:0]                   VSEWD,
+  input logic [$clog2(P.VLEN):0]      ElCountD,
    // datapath from vregfile
   input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
   input logic [P.VLEN-1:0]            v0D,
@@ -85,9 +87,13 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [1:0] VALUSrcAE;
   logic       VALUResultSrcE;
   logic [2:0] VALUSelectE;
-  logic [1:0] VLaneSelectE;
+  logic [2:0] VLaneSelectE;
   logic       VSubE;
   logic [1:0] VShiftSelectE;
+  logic [1:0] VSEWE;
+  logic [$clog2(P.VLEN):0] ElCountE;
+  logic [P.VPU_INT_BLEN-1:0] VSlideResultE, VEUResultE;
+
 
   logic       RegWriteM;
   logic       VRegWriteM;
@@ -142,7 +148,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   flopenrc #(P.VLEN) VRD3EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD3D, VRD3E);
   flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, v0D,   v0E);
   flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, R1D,   R1E);
-
+  flopenrc #($clog2(P.VLEN)+3) VEReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, {VSEWD, ElCountD}, {VSEWE, ElCountE});
   // convert to index format
   genvar index;
   for (index = 0; index < P.VPU_INT_MAX_BEATS; index++) begin : laneconvert
@@ -161,7 +167,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(27+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(28+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~VectorStallE & CaptureD,
      {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VSubD, VLaneSelectD,
       VShiftSelectD, ExecutionUnitOrderD},
@@ -175,10 +181,13 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   assign VSrcBE = VRD2SelectedE;
 
-  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE,
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE(VLaneSelectE[1:0]), .VSubE,
                                          .VShiftSelectE, .LaneResult(VALUResultE));
+  vslide #(P) vslide(.Vs2(VRD2E), .Vd(VRD3SelectedE), .Rs1(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
+                                          .SEW(VSEWE), .Vl(ElCountE), .Beat(BeatE), .VdBeat(VSlideResultE));
+  mux2 #(P.VPU_INT_BLEN) veuresultumux(VALUResultE, VSlideResultE, VLaneSelectE[2], VEUResultE);
 
-  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VALUResultM); // *** may need an enable
+  flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VEUResultE, VALUResultM); // *** may need an enable
 
   flopenrc #(10+BEATBITLEN+P.VPU_QUEUEDEPTH) contrlregM
     (clk, reset, VectorFlushM, ~StallM,

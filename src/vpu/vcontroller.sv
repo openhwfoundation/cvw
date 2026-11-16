@@ -53,7 +53,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VALUResultSrcD,
   output logic [2:0]                  VALUSelectD,
   output logic                        VSubD,
-  output logic [1:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  output logic [2:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
   output logic                        IllegalVPUInstrD,
   // vset controls, sent to vconfig
