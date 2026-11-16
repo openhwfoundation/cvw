@@ -8,6 +8,8 @@ testvector:
         xor t1, t2, t3
         sll t1, t2, t3
         or  t1, t2, t3
+        la  t1, test
+        vle64.v v0, (t1)
         vadd.vv v8, v12, v16
         vadd.vv v4, v0, v8
         add t1, t2, t3
@@ -30,3 +32,9 @@ testvector:
         xor t1, t2, t3
 
         ret
+
+.section .data
+.align 3
+
+test:
+        .dword 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf

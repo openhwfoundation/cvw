@@ -39,7 +39,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   // EU requirements
   input  logic [2:0]  VEUTypeD,                // type of EU an instruction needs (INT, FP, LSU)
   input  logic [4:0]  VOpClassD,               // execution block requirement for EU
-  input  logic [5:0]  VLSModeD,                // addressing modes for load/store
+  input  logic [6:0]  VLSModeD,                // addressing modes for load/store
   // hand shaking controls
   output logic [P.VPU_EU-1:0] ControllerValidD,
   input  logic [P.VPU_EU-1:0] ExecutionUnitReadyD,
@@ -64,9 +64,9 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
 
   // *** move to configuration when EU are instantiated
   // EU capabilities, Index: [EU][capability]
-  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = '1;   // integer, floating point, memory
+  localparam logic [P.VPU_EU-1:0][2:0]  VEU_TYPES   = {3'd2, 3'd2, 3'd4, 3'b1, 3'b1};   // integer, floating point, memory
   localparam logic [P.VPU_EU-1:0][31:0] VEU_CLASSES = '1;   // operation classes, indexed by VOpClassD
-  localparam logic [P.VPU_EU-1:0][5:0]  VEU_MODES   = '1;   // load/store addressing modes
+  localparam logic [P.VPU_EU-1:0][6:0]  VEU_MODES   = {7'b0, 7'b0, 7'b1111111, 7'b0, 7'b0};   // load/store addressing modes
 
   logic [P.VPU_EU-1:0] SelectedD;
   logic [P.VPU_EU-1:0] EligibleD;          // units that can carry out this instruction
@@ -76,7 +76,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
 
   for (i = 0; i < P.VPU_EU; i++) begin : eligibility
     assign EligibleD[i] = |(VEUTypeD & VEU_TYPES[i]) & VEU_CLASSES[i][VOpClassD] &
-                          ((VLSModeD & ~VEU_MODES[i]) == 6'b0);
+                          ((VLSModeD & ~VEU_MODES[i]) == 7'b0);
   end
 
   // Selection mechanism is currently priority encoder.  Should be round robin. *** fix me later.

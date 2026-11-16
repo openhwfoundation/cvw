@@ -57,6 +57,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
   output logic [1:0]                  VMulSelectD,                // vmul result: 00 vmul, 01 vmulh, 10 vwmul
   output logic                        IllegalVPUInstrD,
+  output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
   output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
@@ -82,7 +83,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
-  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        VReductionD;               // instr is a reduction op
   logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
 
@@ -103,7 +104,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                          .VShiftSelectD, .VMulSelectD, .IllegalVPUInstrD,
-                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
   // Decode must not reach an EU or the order queue: its result would arrive in Writeback with a cleared order tag that
