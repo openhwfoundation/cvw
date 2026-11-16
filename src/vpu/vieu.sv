@@ -181,7 +181,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   assign VSrcBE = VRD2SelectedE;
 
-  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE, .VSewE, .VMulSelectE,
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .StallM, .FlushM(VectorFlushM), .SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE, .VSewE, .VMulSelectE,
                                          .VShiftSelectE, .LaneResultE(VALUResultE), .ProductM(VProductM));
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VLaneResultM); // *** may need an enable

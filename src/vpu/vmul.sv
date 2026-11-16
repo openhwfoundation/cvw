@@ -21,6 +21,8 @@
 module vmul import cvw::*; #(parameter cvw_t P)
   (
    input logic                 clk, reset,
+   input logic                 StallM,          // holds the Memory stage registers
+   input logic                 FlushM,          // clears the Memory stage registers
    input logic [P.ELEN-1:0]    A, B,
    input logic [1:0]           Sew,
    input logic [1:0]           MulSelect,       // 00 = vmul, 01 = vmulh, 10 = vwmul
@@ -79,21 +81,21 @@ module vmul import cvw::*; #(parameter cvw_t P)
   assign Prod_32_40E = A[63:32] * B[31:0];
 
   // Pipeline registers
-  flopr #(256) Prod8Reg(clk, reset,
+  flopenrc #(256) Prod8Reg(clk, reset, FlushM, ~StallM,
     {Prod_8_00E, Prod_8_01E, Prod_8_10E, Prod_8_11E, Prod_8_22E, Prod_8_23E, Prod_8_32E, Prod_8_33E,
      Prod_8_44E, Prod_8_45E, Prod_8_54E, Prod_8_55E, Prod_8_66E, Prod_8_67E, Prod_8_76E, Prod_8_77E},
     {Prod_8_00M, Prod_8_01M, Prod_8_10M, Prod_8_11M, Prod_8_22M, Prod_8_23M, Prod_8_32M, Prod_8_33M,
      Prod_8_44M, Prod_8_45M, Prod_8_54M, Prod_8_55M, Prod_8_66M, Prod_8_67M, Prod_8_76M, Prod_8_77M});
 
-  flopr #(128) Prod16Reg(clk, reset,
+  flopenrc #(128) Prod16Reg(clk, reset, FlushM, ~StallM,
     {Prod_16_02E, Prod_16_20E, Prod_16_46E, Prod_16_64E},
     {Prod_16_02M, Prod_16_20M, Prod_16_46M, Prod_16_64M});
 
-  flopr #(128) Prod32Reg(clk, reset,
+  flopenrc #(128) Prod32Reg(clk, reset, FlushM, ~StallM,
     {Prod_32_04E, Prod_32_40E},
     {Prod_32_04M, Prod_32_40M});
 
-  flopr #(4) CtrlReg(clk, reset, {Sew, MulSelect}, {SewM, MulSelectM});
+  flopenrc #(4) CtrlReg(clk, reset, FlushM, ~StallM, {Sew, MulSelect}, {SewM, MulSelectM});
 
   // Adder tree
   assign Prod_16_00M = {16'b0, Prod_8_00M} + {8'b0, Prod_8_01M, 8'b0} + {8'b0, Prod_8_10M, 8'b0} + {Prod_8_11M, 16'b0};

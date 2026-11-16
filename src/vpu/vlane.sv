@@ -20,6 +20,7 @@
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
+  input  logic              StallM, FlushM,  // for the vmul Memory stage registers
   input  logic [P.ELEN-1:0] SrcA, SrcB,      // lane operands
   input  logic [2:0]        VALUSelectE,
   input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
@@ -37,7 +38,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   // Currently only supports vmul and vmulhu
   // The product is ready in Memory stage and is selected in vieu after the M register
-  vmul #(P) vmul(.clk, .reset, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .Product(ProductM));
+  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .Product(ProductM));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
