@@ -207,7 +207,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
       MENVCFG_PreWriteValM[62]  & P.SVPBMT_SUPPORTED,
       MENVCFG_PreWriteValM[61]  & P.SVADU_SUPPORTED,
       27'b0,
-      LegalizedPMM              & {2{P.SMNPM_SUPPORTED & (P.XLEN == 64)}},
+      LegalizedPMM              & {2{P.SMNPM_SUPPORTED}},
       24'b0,
       MENVCFG_PreWriteValM[7]   & P.ZICBOZ_SUPPORTED,
       MENVCFG_PreWriteValM[6]   & P.ZICBOM_SUPPORTED,
@@ -254,7 +254,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
                           MSECCFG_REGW[33:32] : MSECCFG_PreWriteValM[33:32];
     assign MSECCFG_WriteValM = {
       30'b0,                                                       // 63:34 WPRI
-      LegalizedPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}},       // 33:32 PMM (Smmpm); read-only 0 on RV32
+      LegalizedPMM & {2{P.SMMPM_SUPPORTED}},                       // 33:32 PMM (Smmpm); read-only 0 on RV32
       21'b0,                                                       // 31:11 WPRI
        1'b0,  // MSECCFG_PreWriteValM[10] & P.ZICFILP_SUPPORTED,   //    10 MLPE (Zicfilp)
        1'b0,  // MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)

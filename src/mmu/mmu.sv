@@ -71,7 +71,6 @@ module mmu import cvw::*; #(parameter cvw_t P,
   logic                        CrossesGranuleM;          // Misaligned access crosses a 16-byte boundary, so Zama16b does not make it atomic
   logic                        MisalignedFaultAllowedM;  // System can throw misaligned if ZICCLSM is not supported, or access is uncachable, idempotent, and TLB has found the entry.
   logic                        PAOutOfRange;             // Untranslated address has nonzero bits above PA_BITS
-  logic [P.XLEN+1:0]           MaskedVAdr;               // VAdr with pointer masking applied (PMLEN 16 configurations)
 
   // Get Effective Privilege Mode
   // for DTLB, when mstatus.MPRV=1, use mstatus.MPP rather than the current privilege mode

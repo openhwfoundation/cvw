@@ -174,41 +174,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign IEUAdrSpillMMasked    = IEUAdrSpillM;
     assign IEUAdrxTvalMMasked    = IEUAdrxTvalM;
   end
-/*
-  if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, perform ignore transformation
-    logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
-    logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
-    assign PhysicalAdrM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
-    assign PM7AdrM = PhysicalAdrM ? {7'b0, IEUAdrM[56:0]} : {{7{IEUAdrM[56]}}, IEUAdrM[56:0]};
-    if (P.PMLEN16_SUPPORTED) begin : pmlen16
-      logic [P.XLEN-1:0] PM16AdrM;
-      assign PM16AdrM = PhysicalAdrM ? {16'b0, IEUAdrM[47:0]} : {{16{IEUAdrM[47]}}, IEUAdrM[47:0]};
-      assign PMAdrM = PMLen16Sel ? PM16AdrM : PM7AdrM;
-    end else
-      assign PMAdrM = PM7AdrM;
-    assign IEUAdrMMasked = PointerMaskApplicable ? PMAdrM : IEUAdrM;
-  end else assign IEUAdrMMasked = IEUAdrM;
-  */
-  /*
-  if (P.ZPM_SUPPORTED) begin
-    logic SvActiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
-    logic Fill7;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
-    assign SvActiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
-    assign Fill7 = ~SvActiveM & IEUAdrM[56];
-    if (P.PMLEN16_SUPPORTED) begin : pmlen16
-      logic Mask16, Fill16, TopFill;
-      assign Mask16  = PointerMaskApplicable & PMLen16Sel;
-      assign Fill16  = ~SvActiveM & IEUAdrM[47];
-      assign TopFill = PMLen16Sel ? Fill16 : Fill7;
-      assign IEUAdrMMasked[63:57] = PointerMaskApplicable ? {7{TopFill}} : IEUAdrM[63:57];
-      assign IEUAdrMMasked[56:48] = Mask16 ? {9{Fill16}} : IEUAdrM[56:48];
-      assign IEUAdrMMasked[47:0]  = IEUAdrM[47:0];
-    end else begin
-      assign IEUAdrMMasked[63:57] = PointerMaskApplicable ? {7{Fill7}} : IEUAdrM[63:57];
-      assign IEUAdrMMasked[56:0]  = IEUAdrM[56:0];
-    end
-  end else assign IEUAdrMMasked = IEUAdrM;
-  */
+
   ///////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
