@@ -36,7 +36,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] SrcAM,                                          // rs1 source operand for CSR writes
   input  logic [31:0]       InstrM,                                         // Instruction
   input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
-  input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
+  input  logic [P.XLEN-1:0] IEUAdrxTvalMMasked,                             // address from IEU, optionally pointer masked
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
   // control signals
@@ -138,7 +138,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,
-    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM,
+    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalMMasked,
     .CSRReadM, .CSRWriteM, .TrapM, .mretM, .sretM, .InterruptM,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
     .MTIME_CLINT, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,

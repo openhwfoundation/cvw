@@ -50,7 +50,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic                     sfencevmaAllM,                        // sfence.vma with rs2=x0: flush all TLB entries including global
   input  logic                     sfencevmaAdrM,                        // sfence.vma with rs1!=x0: flush only entries for the address in rs1 (IEUAdrM)
   output logic                     DCacheStallM,                         // D$ busy with multicycle operation
-  output logic [P.XLEN-1:0]        IEUAdrxTvalM,                         // IEUAdrM, but could be spilled onto the next cacheline or virtual page.
+  output logic [P.XLEN-1:0]        IEUAdrxTvalMMasked,                   // IEUAdrM, but could be spilled onto the next cacheline or virtual page. Optionally pointer masked
   // fpu
   input  logic [P.FLEN-1:0]        FWriteDataM,                           // Write data from FPU
   input  logic                     FpLoadStoreM,                          // Selects FPU as store for write data
@@ -156,7 +156,9 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
   logic [P.XLEN-1:0]     IEUAdrMMasked;
   logic [1:0]            EffectivePrivilegeModeW;                // Effective privilege mode accounting for MPRV
-  logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
+  logic                  PointerMaskApplicable, PMLen16Sel, SvActiveM;      // Pointer masking signals
+  logic [P.XLEN-1:0]     IEUAdrSpillMMasked;                      // Optionally masked IEUAdrSpillM
+  logic [P.XLEN-1:0]     IEUAdrxTvalM, IEUAdrSpillM;
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pointer masking module
@@ -164,12 +166,15 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
   if (P.ZPM_SUPPORTED) begin : pm // pointermasking module determines if pointermasking should be applied based on config bits and privilege mode
   pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
-                                .STATUS_MXR, .MemRWM, .CMOpM, .PointerMaskApplicable, .PMLen16Sel);
+                                .STATUS_MXR, .MemRWM, .CMOpM, .SATP_REGW, .IEUAdrSpillM, .IEUAdrxTvalM,
+                                .PointerMaskApplicable, .PMLen16Sel, .IEUAdrSpillMMasked, .IEUAdrxTvalMMasked);
   end else begin
     assign PointerMaskApplicable = 1'b0;
     assign PMLen16Sel            = 1'b0;
+    assign IEUAdrSpillMMasked    = IEUAdrSpillM;
+    assign IEUAdrxTvalMMasked    = IEUAdrxTvalM;
   end
-
+/*
   if (P.ZPM_SUPPORTED & P.XLEN == 64) begin:ieuadrepm // If pointer masking is supported, perform ignore transformation
     logic              PhysicalAdrM;             // The address is physical (M mode or satp Bare), so masking zero-extends it
     logic [P.XLEN-1:0] PM7AdrM, PMAdrM;
@@ -183,34 +188,55 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       assign PMAdrM = PM7AdrM;
     assign IEUAdrMMasked = PointerMaskApplicable ? PMAdrM : IEUAdrM;
   end else assign IEUAdrMMasked = IEUAdrM;
-
-  /////////////////////////////////////////////////////////////////////////////////////////////
+  */
+  /*
+  if (P.ZPM_SUPPORTED) begin
+    logic SvActiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
+    logic Fill7;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
+    assign SvActiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+    assign Fill7 = ~SvActiveM & IEUAdrM[56];
+    if (P.PMLEN16_SUPPORTED) begin : pmlen16
+      logic Mask16, Fill16, TopFill;
+      assign Mask16  = PointerMaskApplicable & PMLen16Sel;
+      assign Fill16  = ~SvActiveM & IEUAdrM[47];
+      assign TopFill = PMLen16Sel ? Fill16 : Fill7;
+      assign IEUAdrMMasked[63:57] = PointerMaskApplicable ? {7{TopFill}} : IEUAdrM[63:57];
+      assign IEUAdrMMasked[56:48] = Mask16 ? {9{Fill16}} : IEUAdrM[56:48];
+      assign IEUAdrMMasked[47:0]  = IEUAdrM[47:0];
+    end else begin
+      assign IEUAdrMMasked[63:57] = PointerMaskApplicable ? {7{Fill7}} : IEUAdrM[63:57];
+      assign IEUAdrMMasked[56:0]  = IEUAdrM[56:0];
+    end
+  end else assign IEUAdrMMasked = IEUAdrM;
+  */
+  ///////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
 
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
+
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
-    logic [P.XLEN-1:0] IEUAdrSpillM;
-    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM(IEUAdrMMasked), .Funct3M, .FpLoadStoreM,
+    align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
                      .MemRWM,
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
                      .ByteMaskM, .ByteMaskExtendedM, .LSUWriteDataM, .ByteMaskSpillM, .LSUWriteDataSpillM,
                      .IEUAdrSpillE, .IEUAdrSpillM, .IEUAdrxTvalM, .SelSpillE, .DCacheReadDataWordSpillM, .SpillStallM);
-    assign IEUAdrExtM = {2'b00, IEUAdrSpillM};
+    assign IEUAdrExtM = {2'b00, IEUAdrSpillMMasked};
     assign IEUAdrExtE = {2'b00, IEUAdrSpillE};
   end else begin : zicclsm_align
-    assign IEUAdrExtM = {2'b00, IEUAdrMMasked};
+    assign IEUAdrExtM = {2'b00, IEUAdrSpillMMasked};
     assign IEUAdrExtE = {2'b00, IEUAdrE};
     assign SelSpillE = 1'b0;
     assign DCacheReadDataWordSpillM = DCacheReadDataWordM;
     assign ByteMaskSpillM = ByteMaskM;
     assign LSUWriteDataSpillM = LSUWriteDataM;
     assign {SpillStallM} = 1'b0;
-    assign IEUAdrxTvalM = IEUAdrMMasked;
+    assign IEUAdrxTvalM = IEUAdrM;
+    assign IEUAdrSpillM = IEUAdrM;
   end
 
   if (P.ZICBOZ_SUPPORTED) begin : cboz

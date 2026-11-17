@@ -126,7 +126,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]             IEUAdrE;
   logic [P.XLEN-1:0]             WriteDataM;
   logic [P.XLEN-1:0]             IEUAdrM;
-  logic [P.XLEN-1:0]             IEUAdrxTvalM;
+  logic [P.XLEN-1:0]             IEUAdrxTvalMMasked;
   logic [P.LLEN-1:0]             ReadDataW;
   logic                          CommittedM;
 
@@ -248,7 +248,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .SENVCFG_PMM,                 // from csr
     .sfencevmaM, .sfencevmaAllM, .sfencevmaAdrM,  // connects to privilege
     .DCacheStallM,                // connects to privilege
-    .IEUAdrxTvalM,                // connects to privilege
+    .IEUAdrxTvalMMasked,          // connects to privilege
     .LoadPageFaultM,              // connects to privilege
     .StoreAmoPageFaultM,          // connects to privilege
     .LoadMisalignedFaultM,        // connects to privilege
@@ -307,7 +307,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .InstrMisalignedFaultM, .IllegalIEUFPUInstrD,
       .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
-      .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
+      .MTIME_CLINT, .IEUAdrxTvalMMasked, .SetFflagsM,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,

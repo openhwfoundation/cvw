@@ -24,7 +24,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0]              InstrOrigM,                // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0]        PCM,                       // program counter, next PC going to trap/return logic
   input  logic [P.XLEN-1:0]        PCSpillM,                  // program counter, next PC going to trap/return logic aligned after an instruction spill
-  input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalM,       // SrcA and memory address from IEU
+  input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalMMasked, // SrcA and memory address from IEU
   input  logic                     CSRReadM, CSRWriteM,       // read or write CSR
   input  logic                     TrapM,                     // trap is occurring
   input  logic                     mretM, sretM,              // return instruction
@@ -122,7 +122,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic                    ENVCFG_STCE; // supervisor timer counter enable
   logic                    ENVCFG_FIOM; // fence implies io (presently not used)
-  logic [P.XLEN-1:0]       MaskedIEUAdrxTvalM; // memory address to write to xtval, pointer masked if pointer masking applies
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
@@ -137,7 +136,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalMMasked; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 

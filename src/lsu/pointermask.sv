@@ -37,7 +37,10 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
     input logic                      STATUS_MXR,
     input logic [1:0]                MemRWM,
     input logic [3:0]                CMOpM,
-    output logic                     PointerMaskApplicable, PMLen16Sel
+    input logic [P.XLEN-1:0]         SATP_REGW,
+    input logic [P.XLEN-1:0]         IEUAdrSpillM, IEUAdrxTvalM,
+    output logic                     PointerMaskApplicable, PMLen16Sel,
+    output logic [P.XLEN-1:0]        IEUAdrSpillMMasked, IEUAdrxTvalMMasked
 );
 
   logic MaskApplicableInstr;
@@ -64,4 +67,33 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
                   PMLen16Sel = 1'b0;
                 end
     endcase
+  logic SvActiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
+  logic Fill7SpillM;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
+  logic Fill7xTvalM;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
+  assign SvActiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+  assign Fill7SpillM = ~SvActiveM & IEUAdrSpillM[56];
+  assign Fill7xTvalM = ~SvActiveM & IEUAdrxTvalM[56];
+  if (P.PMLEN16_SUPPORTED) begin : pmlen16
+    logic Mask16SpillM, Fill16SpillM, TopFillSpillM;
+    logic Mask16xTvalM, Fill16xTvalM, TopFillxTvalM;
+    assign Mask16SpillM  = PointerMaskApplicable & PMLen16Sel;
+    assign Fill16SpillM  = ~SvActiveM & IEUAdrSpillM[47];
+    assign TopFillSpillM = PMLen16Sel ? Fill16SpillM : Fill7SpillM;
+    assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{TopFillSpillM}} : IEUAdrSpillM[63:57];
+    assign IEUAdrSpillMMasked[56:48] = Mask16SpillM ? {9{Fill16SpillM}} : IEUAdrSpillM[56:48];
+    assign IEUAdrSpillMMasked[47:0]  = IEUAdrSpillM[47:0];
+
+    assign Mask16xTvalM  = PointerMaskApplicable & PMLen16Sel;
+    assign Fill16xTvalM  = ~SvActiveM & IEUAdrxTvalM[47];
+    assign TopFillxTvalM = PMLen16Sel ? Fill16xTvalM : Fill7xTvalM;
+    assign IEUAdrxTvalMMasked[63:57] = PointerMaskApplicable ? {7{TopFillxTvalM}} : IEUAdrxTvalM[63:57];
+    assign IEUAdrxTvalMMasked[56:48] = Mask16xTvalM ? {9{Fill16xTvalM}} : IEUAdrxTvalM[56:48];
+    assign IEUAdrxTvalMMasked[47:0]  = IEUAdrxTvalM[47:0];
+  end else begin
+    assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{Fill7SpillM}} : IEUAdrSpillM[63:57];
+    assign IEUAdrSpillMMasked[56:0]  = IEUAdrSpillM[56:0];
+
+    assign IEUAdrxTvalMMasked[63:57] = PointerMaskApplicable ? {7{Fill7xTvalM}} : IEUAdrxTvalM[63:57];
+    assign IEUAdrxTvalMMasked[56:0]  = IEUAdrxTvalM[56:0];
+  end
 endmodule
