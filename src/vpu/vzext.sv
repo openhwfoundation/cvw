@@ -5,7 +5,7 @@
 // Created: 11 November 2026
 // Modified: 17 November 2026
 //
-// Purpose: Vector mask scan and count
+// Purpose: Vector zero extend
 //
 // Documentation: RISC-V System on Chip Design Volume 2
 //
@@ -18,31 +18,16 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-//All vsext for one e64 wide vs2
-//sign extend SEW/2 (e32) to SEW destination, lmul = 1
-//EEW = 32
-module vzext.vf2 import cvw::*; #(parameter cvw_t P) (
-input logic [P.ELEN-1:0] B,           // mask source register, vs2 = B
+module vzext import cvw::*; #(parameter cvw_t P) (
+input logic [P.ELEN-1:0]  B,           //  source register, vs2 = B
+input logic [1:0]         Fraction,        // vf2, vf4, vf8
 output logic [P.ELEN-1:0] Vd
 );
-Vd =  {{32{0}}, vs2[31:0]};
-endmodule
-
-//sign extend SEW/4 (e16) to SEW destination, lmul = 1
-//EEW = 16
-module vsext.vf4 import cvw::*; #(parameter cvw_t P) (
-input logic [P.ELEN-1:0] B,           // mask source register, vs2 = B
-output logic [P.ELEN-1:0] Vd
-);
-Vd =  {{16{0}}, vs2[15:0]};
-endmodule
-
-//sign extend SEW/8 (e8) to SEW destination, lmul = 1
-//EEW = 8
-module vsext.vf8 import cvw::*; #(parameter cvw_t P) (
-input logic [P.ELEN-1:0] B,           // mask source register, vs2 = B
-//output logic [$clog2(P.ELEN):0] VPopCnt // 7 bit scalar result (up to 64)
-output logic [P.ELEN-1:0] Vd
-);
-Vd =  {{8{0}}, vs2[7:0]};
+always_comb
+    case(Fraction)
+    2'b11: Vd = {{32'b0}, B[31:0]}; // vf2 zero extend SEW/2 (e32) to SEW destination, lmul = 1
+    2'b10: Vd = {{48'b0}, B[15:0]}; // vf4 zero extend SEW/4 (e16) to SEW destination, lmul = 1
+    2'b01: Vd = {{56'b0},  B[7:0]};  // vf8 zero extend SEW/8 (e8) to SEW destination, lmul = 1
+    default: Vd = '0;
+    endcase
 endmodule
