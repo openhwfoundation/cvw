@@ -147,9 +147,12 @@ module csrs import cvw::*; #(parameter cvw_t P) (
 
   if (P.XLEN == 64) begin : senvcfgpmm
     logic [1:0] LegalizedPMM;
+    /*
     assign LegalizedPMM = ((CSRWriteValM[33:32] == 2'b01) |
                           (CSRWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
                           SENVCFG_REGW[33:32] : CSRWriteValM[33:32];
+    */
+    legalizedpmm #(P) SENVCFGPMM(SENVCFG_REGW, CSRWriteValM, LegalizedPMM);
     assign SENVCFG_WriteValM = {30'b0, LegalizedPMM & {2{P.SSNPM_SUPPORTED}}, SENVCFG_WriteValLowM};
   end else
     assign SENVCFG_WriteValM = SENVCFG_WriteValLowM;
