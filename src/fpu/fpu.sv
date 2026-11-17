@@ -129,11 +129,11 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]           FCvtIntResM;                        // fcvt integer result (for IEU)
 
   // divide signals
-  logic [P.DIVb:0]             UmM;                                // fdivsqrt significand
-  logic [P.NE+1:0]             UeM;                                // fdivsqrt exponent
+  logic [FP.DIVb:0]            UmM;                                // fdivsqrt significand
+  logic [FP.NE+1:0]            UeM;                                // fdivsqrt exponent
   logic                        DivStickyM;                         // fdivsqrt sticky bit
   logic                        FDivDoneE, IFDivStartE;             // fdivsqrt control signals
-  logic [P.XLEN-1:0]           FIntDivResultM;                     // fdivsqrt integer division result (for IEU)
+  logic [FP.XLEN-1:0]          FIntDivResultM;                     // fdivsqrt integer division result (for IEU)
 
   // result and flag signals
   logic [P.XLEN-1:0]           ClassResE;                          // classify result
