@@ -1,5 +1,5 @@
 ///////////////////////////////////////////
-// csrm.sv
+// legalizedpmm.sv
 //
 // Written:  naichewa@gmail.com 17 November 2026
 // Modified:
@@ -17,11 +17,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module legalizedpmm import cvw::*; #(parameter cvw_t P) (
-    input logic [63:0] XENVCFG_REGW,
-    input logic [63:0] XENVCFG_PreWriteValM,
-    output logic [1:0]       LegalizedPMM
+    input logic [63:0] REGW,
+    input logic [63:0] PreWriteValM,
+    output logic [1:0] LegalizedPMM
 );
-  assign LegalizedPMM = ((XENVCFG_PreWriteValM[33:32] == 2'b01) |
-                         (XENVCFG_PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
-                          XENVCFG_REGW[33:32] : XENVCFG_PreWriteValM[33:32];
+  assign LegalizedPMM = ((PreWriteValM[33:32] == 2'b01) |
+                         (PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
+                          REGW[33:32] : PreWriteValM[33:32];
 endmodule

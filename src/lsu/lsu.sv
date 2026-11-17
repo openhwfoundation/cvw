@@ -154,9 +154,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  LSULoadPageFaultM, LSUStoreAmoPageFaultM;
   logic                  DTLBMissOrUpdateDAM;
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
-  logic [P.XLEN-1:0]     IEUAdrMMasked;
   logic [1:0]            EffectivePrivilegeModeW;                // Effective privilege mode accounting for MPRV
-  logic                  PointerMaskApplicable, PMLen16Sel, SvActiveM;      // Pointer masking signals
+  logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
   logic [P.XLEN-1:0]     IEUAdrSpillMMasked;                      // Optionally masked IEUAdrSpillM
   logic [P.XLEN-1:0]     IEUAdrxTvalM, IEUAdrSpillM;
 

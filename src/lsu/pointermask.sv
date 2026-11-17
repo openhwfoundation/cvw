@@ -5,12 +5,9 @@
 // Modified:
 //
 // Purpose: Pointer Masking Module v1.0
-// Module inside of MMU that determines whether pointer masking should be applied based on privilege level and instruction.
-// Pointer Masking length (PMLen16Sel) currently limited to be mutually exclusive with SV57 so that used virtual address bits
-// are never masked. Hypervisor guest physical addresses are 2 bits longer and therefore have
-// additional configurations where addressable bits are masked, for future work.
-// Virtual address validity checks are masked in vm64check.sv, physical address validity checks are masked in the mmu
-// with PAOutOfRange, and the full ignore transformation is performed when hardware writes to xtval
+// LSU module that optionally pointer masks explicit memory accesses according to
+// RISC-V specs. 16 bit mask lengths are only supported when Sv57 is unsupported and sets physical
+// address bits to 48 so that used address bits are not masked.
 // Documentation: Based on descriptions in RISC-V Privileged Specifications
 // Chapter on Pointer Masking https://docs.riscv.org/reference/isa/v20260120/priv/zpm.html
 // Complete Specifications V20260120 https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
@@ -67,33 +64,21 @@ module pointermask import cvw::*;   #(parameter cvw_t P) (
                   PMLen16Sel = 1'b0;
                 end
     endcase
-  logic SvActiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
+  logic SvInactiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
   logic Fill7SpillM;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
-  logic Fill7xTvalM;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
-  assign SvActiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
-  assign Fill7SpillM = ~SvActiveM & IEUAdrSpillM[56];
-  assign Fill7xTvalM = ~SvActiveM & IEUAdrxTvalM[56];
+  assign SvInactiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
+  assign Fill7SpillM = ~SvInactiveM & IEUAdrSpillM[56];
   if (P.PMLEN16_SUPPORTED) begin : pmlen16
     logic Mask16SpillM, Fill16SpillM, TopFillSpillM;
-    logic Mask16xTvalM, Fill16xTvalM, TopFillxTvalM;
     assign Mask16SpillM  = PointerMaskApplicable & PMLen16Sel;
-    assign Fill16SpillM  = ~SvActiveM & IEUAdrSpillM[47];
+    assign Fill16SpillM  = ~SvInactiveM & IEUAdrSpillM[47];
     assign TopFillSpillM = PMLen16Sel ? Fill16SpillM : Fill7SpillM;
     assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{TopFillSpillM}} : IEUAdrSpillM[63:57];
     assign IEUAdrSpillMMasked[56:48] = Mask16SpillM ? {9{Fill16SpillM}} : IEUAdrSpillM[56:48];
     assign IEUAdrSpillMMasked[47:0]  = IEUAdrSpillM[47:0];
-
-    assign Mask16xTvalM  = PointerMaskApplicable & PMLen16Sel;
-    assign Fill16xTvalM  = ~SvActiveM & IEUAdrxTvalM[47];
-    assign TopFillxTvalM = PMLen16Sel ? Fill16xTvalM : Fill7xTvalM;
-    assign IEUAdrxTvalMMasked[63:57] = PointerMaskApplicable ? {7{TopFillxTvalM}} : IEUAdrxTvalM[63:57];
-    assign IEUAdrxTvalMMasked[56:48] = Mask16xTvalM ? {9{Fill16xTvalM}} : IEUAdrxTvalM[56:48];
-    assign IEUAdrxTvalMMasked[47:0]  = IEUAdrxTvalM[47:0];
   end else begin
     assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{Fill7SpillM}} : IEUAdrSpillM[63:57];
     assign IEUAdrSpillMMasked[56:0]  = IEUAdrSpillM[56:0];
-
-    assign IEUAdrxTvalMMasked[63:57] = PointerMaskApplicable ? {7{Fill7xTvalM}} : IEUAdrxTvalM[63:57];
-    assign IEUAdrxTvalMMasked[56:0]  = IEUAdrxTvalM[56:0];
   end
+  assign IEUAdrxTvalMMasked = {IEUAdrSpillMMasked[P.XLEN-1:48], IEUAdrxTvalM[47:0]};
 endmodule
