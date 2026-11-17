@@ -183,7 +183,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE(VLaneSelectE[1:0]), .VSubE,
                                          .VShiftSelectE, .LaneResult(VALUResultE));
-  vslide #(P) vslide(.Vs2(VRD2E), .Vd(VRD3SelectedE), .Rs1(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
+  vslide #(P) vslide(.clk, .reset, .NextBeat(BeatValidE & ~VectorStallE), .B(VRD2E), .Vd(VRD3SelectedE), .Rs1(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
                                           .SEW(VSEWE), .Vl(ElCountE), .Beat(BeatE), .VdBeat(VSlideResultE));
   mux2 #(P.VPU_INT_BLEN) veuresultumux(VALUResultE, VSlideResultE, VLaneSelectE[2], VEUResultE);
 
