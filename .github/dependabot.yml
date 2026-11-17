@@ -19,3 +19,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  # Update Python packages in uv.lock
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-packages:
+        patterns:
+          - "*"
