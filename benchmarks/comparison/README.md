@@ -75,7 +75,9 @@ The run commands and limits for each core are in the table at the top of `run_al
   no non-compressed RV64IMA library; Embench does not use atomics).
 - `boardsupport.c` reads `mcycle` (or `rdcycle` with `-DUSE_RDCYCLE`, or the counter at `-DMTIME_ADDR`) in
   `start_trigger` and `stop_trigger` and prints the cycles. `score.sh` computes the score as Embench's
-  `benchmark_speed.py` does at 1 MHz: the geometric mean over the 22 benchmarks of baseline time / (cycles / 1000).
+  `benchmark_speed.py` does at 1 MHz: the geometric mean over the benchmarks of baseline time / (cycles / 1000). It reports
+  Embench 1.0's score, over its 19 benchmarks, and a score over all 22 benchmarks of the submodule, which adds md5sum,
+  primecount, and tarfind.
 - `run_all.sh` uses `ACT_CONFIGS` and `CI_TOOLS` as above. In `CI_TOOLS` it also expects simulators rebuilt with
   higher cycle limits, because some Embench benchmarks run longer than the ACT builds allow:
   `veer-eh1-longrun` and `veer-el2-longrun` (VeeR built as ACT's install scripts do, plus `-GMAX_CYCLES=2000000000`),
