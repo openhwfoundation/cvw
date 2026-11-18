@@ -332,10 +332,11 @@ frame_loop:
 sweep_fcr2_d:
     li s2, 0                        // k
 sweep_fcr2:
+    li a1, 0x5A
     NOPS s8
+.p2align 3                          // the mcycle read and the THR write in one I$ line: no miss between them
     csrr s5, mcycle
-    li t2, 0x5A
-    sb t2, UART_THR(s0)
+    sb a1, UART_THR(s0)
     NOPS s2
     li t2, 0x05
     sb t2, UART_FCR(s0)
@@ -344,8 +345,7 @@ sweep_fcr2:
     WAIT_LSR 0x40, 0x40
     li t2, 0xBAD
     beq a0, t2, 5f
-    csrr s7, mcycle
-    sub s7, s7, s5                  // cycles until TEMT
+    sub s7, a7, s5                  // cycles until TEMT, as seen by the polling loop (not after an I$ miss on return)
     mv t2, s1
     bgeu t2, s6, 6f
     mv t2, s6

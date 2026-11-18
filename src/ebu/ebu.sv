@@ -99,7 +99,9 @@ module ebu import cvw::*; #(parameter cvw_t P) (
   assign HADDR = LSUSelect ? LSUHADDROut : IFUSelect ? IFUHADDROut : '0;
   assign HSIZE = LSUSelect ? LSUHSIZEOut : IFUSelect ? IFUHSIZEOut : '0;
   assign HBURST = LSUSelect ? LSUHBURSTOut : IFUSelect ? IFUHBURSTOut : '0; // If doing memory accesses, use LSUburst, else use Instruction burst.
-  assign HTRANS = LSUSelect ? LSUHTRANSOut : IFUSelect ? IFUHTRANSOut : '0; // SEQ if not first read or write, NONSEQ if first read or write, IDLE otherwise
+  // SEQ if not first read or write, NONSEQ if first read or write, IDLE otherwise.  Managers drive IDLE during reset
+  // (the I$ requests the reset vector before reset is released)
+  assign HTRANS = reset ? 2'b00 : LSUSelect ? LSUHTRANSOut : IFUSelect ? IFUHTRANSOut : '0;
   assign HWRITE = LSUSelect ? LSUHWRITEOut : '0;
   assign HPROT = {3'b001, LSUSelect}; // treat as privileged access of either Opcode fetch or Data access
   assign HMASTLOCK = 1'b0; // no locking supported

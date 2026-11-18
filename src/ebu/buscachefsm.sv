@@ -134,7 +134,8 @@ module buscachefsm #(
 
   assign HWRITE = (((BusRW[0] & ~BusAtomic) | BusWrite & ~Flush) | (CurrState == ATOMIC_READ_DATA_PHASE & BusAtomic) |
                   (CurrState == CACHE_WRITEBACK & |BeatCount)) & ~READ_ONLY_CACHE;
-  assign HBURST = BURST_EN & ((|CacheBusRW & ~Flush) | (CacheAccess & |BeatCount)) ? LocalBurstType : 3'b0;
+  // An uncached cbo.zero writes a whole line as a burst without a cache request, so its first beat must carry the burst type too
+  assign HBURST = BURST_EN & (((|CacheBusRW | BusCMOZero) & ~Flush) | (CacheAccess & |BeatCount)) ? LocalBurstType : 3'b0;
 
   always_comb begin
     case (BeatCountThreshold)
