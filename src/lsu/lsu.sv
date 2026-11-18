@@ -156,7 +156,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
   logic [1:0]            EffectivePrivilegeModeW;                // Effective privilege mode accounting for MPRV
   logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
-  logic [P.XLEN-1:0]     IEUAdrSpillMMasked;                      // Optionally masked IEUAdrSpillM
+  logic [P.XLEN-1:0]     IEUAdrSpillMMasked;                     // Optionally masked IEUAdrSpillM
   logic [P.XLEN-1:0]     IEUAdrxTvalM, IEUAdrSpillM;
 
   /////////////////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +174,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign IEUAdrxTvalMMasked    = IEUAdrxTvalM;
   end
 
-  ///////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////

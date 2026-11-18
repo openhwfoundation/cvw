@@ -109,7 +109,6 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [2:0]                    PageType;
   logic                          sfencevmaM, sfencevmaAllM, sfencevmaAdrM;
   logic                          SelHPTW;
-  logic                          PointerMaskApplicable, PMLen16Sel;
 
   // PMA checker signals
   /* verilator lint_off UNDRIVEN */ // these signals are undriven in configurations without a privileged unit

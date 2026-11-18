@@ -6,8 +6,7 @@
 //
 // Purpose: Pointer Masking Module v1.0
 // LSU module that optionally pointer masks explicit memory accesses according to
-// RISC-V specs. 16 bit mask lengths are only supported when Sv57 is unsupported and sets physical
-// address bits to 48 so that used address bits are not masked.
+// RISC-V specs. 16 bit mask lengths are only supported when Sv57 is unsupported.
 // Documentation: Based on descriptions in RISC-V Privileged Specifications
 // Chapter on Pointer Masking https://docs.riscv.org/reference/isa/v20260120/priv/zpm.html
 // Complete Specifications V20260120 https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
