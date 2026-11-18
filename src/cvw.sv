@@ -36,6 +36,13 @@ package cvw;
     BP_STATIC       = 3'd6   // no BTB; Decode predicts JAL and backward branches taken
   } bpred_type_t;
 
+  // Sdtrig breakpoint reentrancy (UDB SDTRIG_BREAKPOINT_REENTRANCY)
+  typedef enum logic [1:0] {
+    NO_REENTRANCY_SUPPORT = 2'd0,
+    USE_INTERRUPT_ENABLES = 2'd1,
+    USE_TCONTROL          = 2'd2
+  } breakpoint_reentrancy_t;
+
   // Shared constants; some are unused in configurations that omit the hardware using them
   /* verilator lint_off UNUSEDPARAM */
 
@@ -348,6 +355,50 @@ typedef struct packed {
   int           DIVBLEN;
   // integer division/remainder constants
   int           INTDIVb;
+
+  // Sdtrig: names follow the UDB SDTRIG_* parameters without the prefix
+  logic                        SDTRIG_SUPPORTED;
+  int                          NUM_TRIGGERS;
+  logic [15:0]                 ACTION_LEGAL_VALUES;
+  breakpoint_reentrancy_t      BREAKPOINT_REENTRANCY;
+  int                          MAX_CHAIN_LENGTH;
+  logic                        M_WRITABLE;
+  logic                        S_WRITABLE;
+  logic                        U_WRITABLE;
+  logic                        VS_WRITABLE;
+  logic                        VU_WRITABLE;
+  logic [63:0]                 ICOUNT_SUPPORTED_TRIGGERS;
+  logic                        ICOUNT_COUNT_HARDWIRED_1;
+  int                          ICOUNT_COUNT_WIDTH;
+  logic                        ICOUNT_SELF_WRITE_SETS_PENDING;
+  logic [63:0]                 ITRIGGER_SUPPORTED_TRIGGERS;
+  logic [63:0]                 ITRIGGER_SUPPORTED_INTERRUPTS;
+  logic [63:0]                 ETRIGGER_SUPPORTED_TRIGGERS;
+  logic [63:0]                 ETRIGGER_SUPPORTED_EXCEPTIONS;
+  logic [63:0]                 MCONTROL6_SUPPORTED_TRIGGERS;
+  logic                        MCONTROL6_EXECUTE_WRITABLE;
+  logic                        MCONTROL6_LOAD_WRITABLE;
+  logic                        MCONTROL6_STORE_WRITABLE;
+  logic                        MCONTROL6_SELECT_WRITABLE;
+  int                          MCONTROL6_MASKMAX6;
+  logic [15:0]                 MCONTROL6_MATCH_LEGAL_VALUES;
+  logic [7:0]                  MCONTROL6_SIZE_LEGAL_VALUES;
+  logic                        TEXTRA_MHSELECT_MCONTEXT_MATCH;
+  logic                        TEXTRA_MHSELECT_VMID_MATCH;
+  int                          TEXTRA_MHVALUE_LEN;
+  logic                        TEXTRA_SBYTEMASK_WRITABLE;
+  logic                        TEXTRA_SSELECT_ASID_MATCH;
+  logic                        TEXTRA_SSELECT_SCONTEXT_MATCH;
+  int                          TEXTRA_SVALUE_LEN;
+  logic                        TDATA2_IMPLEMENTED;
+  logic                        TDATA3_IMPLEMENTED;
+  logic                        TCONTROL_IMPLEMENTED;
+  logic                        MCONTEXT_IMPLEMENTED;
+  logic                        SCONTEXT_IMPLEMENTED;
+  logic                        HCONTEXT_IMPLEMENTED;
+  int                          DBG_SCONTEXT_WIDTH;
+  int                          DBG_HCONTEXT_WIDTH;
+
 } cvw_t;
 
 endpackage
