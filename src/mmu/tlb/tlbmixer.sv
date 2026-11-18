@@ -43,18 +43,18 @@ module tlbmixer import cvw::*; #(parameter cvw_t P) (
       // gigapage: 26 bits of PPN, 18 bits of VPN
       // megapage: 35 bits of PPN, 9 bits of VPN
       // kilopage: 44 bits of PPN, 0 bits of VPN
-      mux5 #(P.PPN_BITS) pnm({(P.PPN_BITS){1'b0}}, {{(P.PPN_BITS-12){1'b0}},12'h1FF}, {{(P.PPN_BITS-20){1'b0}}, {20'h3FFFF}}, {{(P.PPN_BITS-28){1'b0}}, {28'h7FFFFFF}}, {{(P.PPN_BITS-36){1'b0}}, {36'hFFFFFFFFF}}, HitPageType, PageNumberMask);
+      mux5 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF, 44'h00FFFFFFFFF, HitPageType, PageNumberMask);
     else if (P.SV48_SUPPORTED)
       // terapage: 17 bits of PPN, 27 bits of VPN
       // gigapage: 26 bits of PPN, 18 bits of VPN
       // megapage: 35 bits of PPN, 9 bits of VPN
       // kilopage: 44 bits of PPN, 0 bits of VPN
-      mux4 #(P.PPN_BITS) pnm({(P.PPN_BITS){1'b0}}, {{(P.PPN_BITS-12){1'b0}},12'h1FF}, {{(P.PPN_BITS-20){1'b0}}, {20'h3FFFF}}, {{(P.PPN_BITS-28){1'b0}}, {28'h7FFFFFF}}, HitPageType[1:0], PageNumberMask);
+      mux4 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, 44'h00007FFFFFF, HitPageType[1:0], PageNumberMask);
     else // SV39 only
       // gigapage: 26 bits of PPN, 18 bits of VPN
       // megapage: 35 bits of PPN, 9 bits of VPN
       // kilopage: 44 bits of PPN, 0 bits of VPN
-      mux3 #(P.PPN_BITS) pnm({(P.PPN_BITS){1'b0}}, {{(P.PPN_BITS-12){1'b0}},12'h1FF}, {{(P.PPN_BITS-20){1'b0}}, {20'h3FFFF}}, HitPageType[1:0], PageNumberMask);
+      mux3 #(44) pnm(44'h00000000000, 44'h000000001FF, 44'h0000003FFFF, HitPageType[1:0], PageNumberMask);
 
   // merge low segments of VPN with high segments of PPN decided by the pagetype.
   if (P.PPN_BITS > P.VPN_BITS)
