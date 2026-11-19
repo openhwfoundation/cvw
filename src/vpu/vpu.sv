@@ -113,9 +113,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0];
 
   localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
-  localparam BANKS       = P.VLEN/P.VPU_INT_BLEN;
-
-  logic [P.VPU_INT_BLEN-1:0] VRD1D [BANKS-1:0], VRD2D [BANKS-1:0], VRD3D [BANKS-1:0]; // beat from each VRF bank
+  logic [P.VPU_BLEN-1:0] VRD1D [P.VPU_BANKS-1:0], VRD2D [P.VPU_BANKS-1:0], VRD3D [P.VPU_BANKS-1:0]; // beat from each VRF bank
 
   logic            VRegWriteW, RegWriteW;
   logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW;
@@ -132,9 +130,9 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [P.VPU_INT_BLEN/8-1:0] VIEUByteMaskW [P.VPU_EU-1:0];
   logic                        EnqueueD;
   logic [P.VPU_QUEUEDEPTH-1:0] OrderD;
-  logic [BANKS-1:0]            OldVdValid;                 // bank's vd beat fills an sVRF entry; keeps inactive elements (needed for chaining)
-  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrder [BANKS-1:0];
-  logic [P.VPU_INT_BLEN/8-1:0] ActiveBankMask [BANKS-1:0]; // active bytes aligned with bank's old vd beat
+  logic [P.VPU_BANKS-1:0]      OldVdValid;                 // bank's vd beat fills an sVRF entry; keeps inactive elements (needed for chaining)
+  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrder [P.VPU_BANKS-1:0];
+  logic [P.VPU_BLEN/8-1:0]     ActiveBankMask [P.VPU_BANKS-1:0]; // active bytes aligned with bank's old vd beat
   logic [P.VLEN/8-1:0]         ActiveByteMaskD;            // bytes of vd that the micro-op writes
   logic [2:0]                  MicroOpIndexD;
   logic [2:0]                  VdEEWD;
@@ -178,10 +176,10 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                    .ActiveByteMaskD);
 
   // bank i reads old vd i cycles after dispatch, so its slice of the active mask waits i cycles
-  for (i = 0; i < BANKS; i++) begin : activedelay
-    logic [P.VPU_INT_BLEN/8-1:0] Delay [i:0];
-    assign Delay[0] = ActiveByteMaskD[i*P.VPU_INT_BLEN/8 +: P.VPU_INT_BLEN/8];
-    for (genvar j = 1; j <= i; j++) flopenr #(P.VPU_INT_BLEN/8) delayreg(clk, reset, ~VectorStallE, Delay[j-1], Delay[j]);
+  for (i = 0; i < P.VPU_BANKS; i++) begin : activedelay
+    logic [P.VPU_BLEN/8-1:0] Delay [i:0];
+    assign Delay[0] = ActiveByteMaskD[i*P.VPU_BLEN/8 +: P.VPU_BLEN/8];
+    for (genvar j = 1; j <= i; j++) flopenr #(P.VPU_BLEN/8) delayreg(clk, reset, ~VectorStallE, Delay[j-1], Delay[j]);
     assign ActiveBankMask[i] = Delay[i];
   end
 
@@ -194,8 +192,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   assign VRegWriteW = CommitW & HeadVRegWriteW;
 
-  // *** bank width should be ELEN * max lanes across EU types
-  vregfile #(P.VLEN, P.VPU_INT_BLEN, P.VPU_QUEUEDEPTH) vregfile(.clk, .reset, .VectorStallE,
+  vregfile #(P.VLEN, P.VPU_BLEN, P.VPU_QUEUEDEPTH) vregfile(.clk, .reset, .VectorStallE,
                               .Vs1D(Vs1FinalD), .Vs2D(Vs2FinalD), .VdD(VdFinalD), .OldVdD(EnqueueD), .OrderD,
                               .VRD1(VRD1D), .VRD2(VRD2D), .VRD3(VRD3D), .OldVdValid, .OldVdOrder, .V0(v0D),
                               .VRegWriteW, .VdW(HeadVdW), .DataW(HeadDataW), .ByteMaskW('1));

@@ -59,9 +59,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [1:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
    // datapath from VRF banks, bank i holds beat i of reg read i cycles after dispatch
-  input logic [P.VPU_INT_BLEN-1:0]    VRD1D [P.VPU_INT_MAX_BEATS-1:0],
-  input logic [P.VPU_INT_BLEN-1:0]    VRD2D [P.VPU_INT_MAX_BEATS-1:0],
-  input logic [P.VPU_INT_BLEN-1:0]    VRD3D [P.VPU_INT_MAX_BEATS-1:0], // vd as an operand (vmacc, vslideup)
+  // *** banks are shared by int and float EUs and vieu should take one bank per beat while VPU_BLEN = VPU_INT_BLEN
+  input logic [P.VPU_BLEN-1:0]        VRD1D [P.VPU_BANKS-1:0],
+  input logic [P.VPU_BLEN-1:0]        VRD2D [P.VPU_BANKS-1:0],
+  input logic [P.VPU_BLEN-1:0]        VRD3D [P.VPU_BANKS-1:0],        // vd as an operand (vmacc, vslideup)
   input logic [P.VLEN-1:0]            v0D,                            // v0 as an operand (vmerge, vadc), whole register
    //
   // from/to the scalar core
