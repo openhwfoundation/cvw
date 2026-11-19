@@ -69,7 +69,7 @@ VSIM        	?= vsim
 VSIM_FLAGS  	?= -voptargs=+acc
 
 # ----    Tools    ---- #
-PYTHON 		:= python3
+PYTHON 		:= mise exec -- uv run python
 SAIL_RUN   	:= sail_riscv_sim
 TOOLPREFIX 	:= riscv64-unknown-elf-
 

@@ -41,10 +41,9 @@ BUILDROOT_PACKAGES+=(patchutils perl cpio bc)
 # Distro specific packages and package manager
 case "$FAMILY" in
     rhel)
-        PYTHON_VERSION=python3.12
         PACKAGE_MANAGER="dnf -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update"
-        GENERAL_PACKAGES+=(which "$PYTHON_VERSION" "$PYTHON_VERSION"-pip pkgconf-pkg-config gcc-c++ wget)
+        GENERAL_PACKAGES+=(which pkgconf-pkg-config gcc-c++ wget)
         GNU_PACKAGES+=(libmpc-devel mpfr-devel gmp-devel zlib-devel expat-devel glib2-devel libslirp-devel)
         QEMU_PACKAGES+=(glib2-devel libfdt-devel pixman-devel zlib-devel ninja-build)
         SPIKE_PACKAGES+=(dtc) # compiling Spike with boost fails on RHEL
@@ -62,19 +61,8 @@ case "$FAMILY" in
         fi
         ;;
     ubuntu | debian)
-        if (( UBUNTU_VERSION >= 26 )); then
-            PYTHON_VERSION=python3.14
-        elif (( UBUNTU_VERSION >= 24 )); then
-            PYTHON_VERSION=python3.12
-        elif (( UBUNTU_VERSION >= 22 )); then
-            PYTHON_VERSION=python3.11
-        elif (( UBUNTU_VERSION >= 20 )); then
-            PYTHON_VERSION=python3.9
+        if (( UBUNTU_VERSION == 20 )); then
             GENERAL_PACKAGES+=(gcc-10 g++-10 cpp-10) # Newer version of gcc needed for Verilator
-        elif (( DEBIAN_VERSION >= 13 )); then
-            PYTHON_VERSION=python3.13
-        elif (( DEBIAN_VERSION >= 12 )); then
-            PYTHON_VERSION=python3.11
         fi
         # Mold not available in older distros for Verilator, will download binary instead
         if (( UBUNTU_VERSION != 20 )); then
@@ -82,7 +70,7 @@ case "$FAMILY" in
         fi
         PACKAGE_MANAGER="DEBIAN_FRONTEND=noninteractive apt-get -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update && $PACKAGE_MANAGER upgrade --with-new-pkgs"
-        GENERAL_PACKAGES+=(curl "$PYTHON_VERSION" python3-pip "$PYTHON_VERSION"-venv pkg-config build-essential g++ ssmtp wget)
+        GENERAL_PACKAGES+=(curl pkg-config build-essential g++ ssmtp wget)
         GNU_PACKAGES+=(autotools-dev libmpc-dev libmpfr-dev libgmp-dev zlib1g-dev libexpat1-dev libglib2.0-dev libslirp-dev)
         QEMU_PACKAGES+=(libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build)
         SPIKE_PACKAGES+=(device-tree-compiler libboost-regex-dev)
@@ -107,17 +95,9 @@ case "$FAMILY" in
         fi
         ;;
     suse)
-        if ((SUSE_VERSION >= 160)); then
-            PYTHON_VERSION=python3.13
-            PYTHON_VERSION_PACKAGE=python313
-        elif ((SUSE_VERSION >= 156)); then
-            PYTHON_VERSION=python3.12
-            PYTHON_VERSION_PACKAGE=python312
-        fi
-
         PACKAGE_MANAGER="zypper -n"
         UPDATE_COMMAND="$PACKAGE_MANAGER update"
-        GENERAL_PACKAGES+=(which curl "$PYTHON_VERSION_PACKAGE" "$PYTHON_VERSION_PACKAGE"-pip pkg-config gcc-c++ wget)
+        GENERAL_PACKAGES+=(which curl pkg-config gcc-c++ wget)
         GNU_PACKAGES+=(mpc-devel mpfr-devel gmp-devel zlib-devel libexpat-devel glib2-devel libslirp-devel)
         QEMU_PACKAGES+=(glib2-devel libfdt-devel libpixman-1-0-devel zlib-devel ninja)
         SPIKE_PACKAGES+=(dtc)
@@ -135,10 +115,9 @@ case "$FAMILY" in
         fi
         ;;
     fedora)
-        PYTHON_VERSION=python3
         PACKAGE_MANAGER="dnf -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update"
-        GENERAL_PACKAGES+=(which curl "$PYTHON_VERSION" "$PYTHON_VERSION"-pip pkgconf-pkg-config gcc-c++ wget2-wget)
+        GENERAL_PACKAGES+=(which curl pkgconf-pkg-config gcc-c++ wget2-wget)
         GNU_PACKAGES+=(libmpc-devel mpfr-devel gmp-devel zlib-ng-compat-devel expat-devel glib2-devel libslirp-devel)
         QEMU_PACKAGES+=(glib2-devel libfdt-devel pixman-devel zlib-ng-compat-devel ninja-build)
         SPIKE_PACKAGES+=(dtc)

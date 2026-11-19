@@ -66,7 +66,7 @@ QuestaCodeCoverage:
 	vcover report -details -threshH 100 -html -output covhtmlreport/$(CONFIG) $(COVUCDB)
 	vcover report -details -showexcluded -all questa/cov/$(CONFIG)_merged.ucdb > questa/cov/$(CONFIG)_merged_all.rpt
 	vcover report -details -showexcluded -all $(COVUCDB) > questa/cov/$(CONFIG)_excluded_all.rpt
-	${WALLY}/bin/coverage-exclhit.py questa/cov/$(CONFIG)_merged_all.rpt questa/cov/$(CONFIG)_excluded_all.rpt \
+	mise exec -- uv run ${WALLY}/bin/coverage-exclhit.py questa/cov/$(CONFIG)_merged_all.rpt questa/cov/$(CONFIG)_excluded_all.rpt \
 	  questa/coverage-exclusions-$(CONFIG).do
 
 # VCS counterparts of the two targets above, for wsim --sim vcs --ccov/--fcov and regression-wally

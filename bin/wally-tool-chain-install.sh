@@ -47,7 +47,7 @@ source "$WALLY"/bin/installation/mise-install.sh
 source "$WALLY"/bin/installation/uv-install.sh
 
 
-# Activate tools (python virtual environment and possibly newer version of gcc)
+# Activate tools (possibly newer version of gcc)
 source "${WALLY}"/bin/installation/activate-tools.sh
 
 

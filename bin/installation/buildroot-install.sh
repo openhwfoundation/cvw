@@ -33,13 +33,16 @@ fi
 section_header "Installing Buildroot and Creating Linux testvectors"
 STATUS="buildroot"
 export LD_LIBRARY_PATH=$RISCV/lib:$RISCV/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}:$RISCV/riscv64-unknown-elf/lib:$RISCV/lib/x86_64-linux-gnu
+
+UV_RUN="uv run --no-project --python 3.12"
+
 cd "$WALLY"/linux
 if [ ! -e "$RISCV"/buildroot ]; then
-    FORCE_UNSAFE_CONFIGURE=1 make 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ] # FORCE_UNSAFE_CONFIGURE is needed to allow buildroot to compile when run as root
+    FORCE_UNSAFE_CONFIGURE=1 $UV_RUN make 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ] # FORCE_UNSAFE_CONFIGURE is needed to allow buildroot to compile when run as root
     echo -e "${SUCCESS_COLOR}Buildroot successfully installed and Linux testvectors created!${ENDC}"
 elif [ ! -e "$RISCV"/linux-testvectors ]; then
     echo -e "${OK_COLOR}Buildroot already exists, but Linux testvectors are missing. Generating them now.${ENDC}"
-    make dumptvs 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    $UV_RUN make dumptvs 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     echo -e "${SUCCESS_COLOR}Linux testvectors successfully generated!${ENDC}"
 else
     echo -e "${OK_COLOR}Buildroot and Linux testvectors already exist.${ENDC}"

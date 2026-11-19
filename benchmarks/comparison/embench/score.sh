@@ -1,7 +1,7 @@
 #!/bin/bash
 # Embench speed score per MHz: geometric mean over benchmarks of baseline_ms / (cycles / 1000)
 P=$(cd "$(dirname "$0")" && pwd); E=${EMBENCH:-$WALLY/addins/embench-iot}
-for n in "$@"; do python3 - "$P/logs/$n" "$E/baseline-data/speed.json" "$n" <<'PY'
+for n in "$@"; do mise exec -- uv run python - "$P/logs/$n" "$E/baseline-data/speed.json" "$n" <<'PY'
 import sys, os, json, math, re
 d, base, n = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3]
 scores, bad = {}, []

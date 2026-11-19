@@ -6,7 +6,7 @@
 ## Created: May 30 2025
 ## Modified:
 ##
-## Purpose: Activate gcc and python virtual environment
+## Purpose: Activate gcc
 ##
 ## A component of the CORE-V-WALLY configurable RISC-V project.
 ## https://github.com/openhwfoundation/cvw
