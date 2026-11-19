@@ -66,6 +66,13 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0],
+  output logic                        EnqueueD,                   // micro-op enters order queue
+  output logic [P.VPU_QUEUEDEPTH-1:0] OrderD,                     // order tag of micro-op
+  output logic [2:0]                  MicroOpIndexD,              // current micro-op register group index
+  // vd elements the micro-op writes
+  output logic [2:0]                  VdEEWD,                     // log2(EEW) of vd, 000 = 1b (mask)
+  output logic                        VMaskedD,                   // v0 masks the vd write
+  output logic [1:0]                  VWriteElementsD,            // 00 below vl, 01 element 0, 10 mask result, 11 whole register
   // commit of the oldest micro-op
   output logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW,                 // order tag at queue head
   input logic                         HeadCompleteW,              // head sVRF entry has all its beats
@@ -84,7 +91,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
   logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        VReductionD;               // instr is a reduction op
-  logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
+  logic [2:0]  Vs2EEWD, Vs1EEWD;          // log2(EEW) of Vs2/Vs1, 000 = 1b (mask)
 
   // Micro-ops from LMUL in vtype; fractional LMUL fits in one register
   always_comb
@@ -100,7 +107,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .InstrD, .STATUS_VS, .VTYPED, .Vs1D, .Vs2D, .VdD, .VMD,
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
-                         .VdEEWD, .Vs2EEWD, .Vs1EEWD,
+                         .VdEEWD, .Vs2EEWD, .Vs1EEWD, .VMaskedD, .VWriteElementsD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                          .VShiftSelectD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
@@ -115,7 +122,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                                .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .MicroOpsD,
-                               .MicroOpNotLastD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD);
+                               .MicroOpNotLastD, .MicroOpIndexD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD);
 
   // The controller must track the program order of vector instruction because they may finish out-of-order.
   // A queue records the issue order.  The queue is peaked to check for the next instruction to remove from the
@@ -128,14 +135,15 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   // or active list for out-of-order completion in a future implementation.
 
 
-  logic [P.VPU_QUEUEDEPTH - 1 : 0 ] OrderD;
   logic                         InstrOrderQueueFullD;
   logic                         InstrOrderQueueEmptyD;
 
-  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(CommitW),
+  assign EnqueueD = MicroVectorD & ~VectorStallD;
+
+  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(EnqueueD), .dequeue(CommitW),
                                                   .wdata(OrderD), .rdata(HeadOrderW), .full(InstrOrderQueueFullD), .empty(InstrOrderQueueEmptyD));
 
-  counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, MicroVectorD & ~VectorStallD, OrderD);
+  counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, EnqueueD, OrderD);
 
   genvar i;
   for (i = 0; i < P.VPU_EU; i++) assign ExecutionUnitOrderD[i] = OrderD;

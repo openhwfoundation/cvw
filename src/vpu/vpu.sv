@@ -99,7 +99,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [10:0] VTYPEImmD;                     // vtype immediate
   logic [1:0]  VMemRWD;                       // vector memory read/write: [1] = read, [0] = write
   logic [P.XLEN-1:0] VTYPED;                  // vtype seen by Decode, forwarded from an older vset
-  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset  *** not used yet
+  logic [P.XLEN-1:0] VLD;                     // vl seen by Decode, forwarded from an older vset
   logic [P.VLEN-1:0] VRD1D, VRD2D, VRD3D;
   logic [P.VLEN-1:0] v0D;
 
@@ -129,8 +129,16 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [BEATBITLEN-1:0]   VIEUBeatW [P.VPU_EU-1:0];
   logic [P.VPU_INT_BLEN-1:0] VIEUResultW [P.VPU_EU-1:0];
   logic [P.VPU_INT_BLEN/8-1:0] VIEUByteMaskW [P.VPU_EU-1:0];
-  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderW [BANKS-1:0];
-  logic [P.VPU_INT_BLEN-1:0]   OldVdDataW [BANKS-1:0];
+  logic                        EnqueueD;
+  logic [P.VPU_QUEUEDEPTH-1:0] OrderD;
+  logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderD [BANKS-1:0];
+  logic [P.VPU_INT_BLEN-1:0]   OldVdDataD [BANKS-1:0];  // old vd keeps inactive elements (needed for chaining)
+  logic [P.VPU_INT_BLEN/8-1:0] ActiveBankMaskD [BANKS-1:0];
+  logic [P.VLEN/8-1:0]         ActiveByteMaskD; // bytes of vd the micro-op writes
+  logic [2:0]                  MicroOpIndexD;
+  logic [2:0]                  VdEEWD;
+  logic                        VMaskedD;
+  logic [1:0]                  VWriteElementsD;
 
   // divide into control and data path
 
@@ -154,21 +162,32 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
                                .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
-                               .ExecutionUnitOrderD, .HeadOrderW, .HeadCompleteW, .CommitW,
+                               .ExecutionUnitOrderD, .EnqueueD, .OrderD, .MicroOpIndexD, .VdEEWD, .VMaskedD, .VWriteElementsD,
+                               .HeadOrderW, .HeadCompleteW, .CommitW,
                                .VPUFrontEndBusyD);
 
 
 
   // *** BLEN should be ELEN * max lanes across EU types when the other EUs are added
-  // *** init from vd when masking is added; byte enables are all ones until then
+  // *** byte enables are all ones until masking is added
   for (i = 0; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
-  assign OldVdOrderW = '{default: '0};
-  assign OldVdDataW  = '{default: '0};
+
+  // Old vd fills the micro-op's sVRF entry as it enters the order queue (before result beats arrive)
+  // *** should come from banked VRF read stream
+  vactivemask #(P.VLEN) vactivemask(.VLD(VLD[$clog2(P.VLEN):0]), .VdEEWD, .MicroOpIndexD, .VMaskedD, .VWriteElementsD, .v0D,
+                                   .ActiveByteMaskD);
+
+  for (i = 0; i < BANKS; i++) begin : oldvd
+    assign OldVdOrderD[i]     = OrderD;
+    assign OldVdDataD[i]      = VRD3D[i*P.VPU_INT_BLEN +: P.VPU_INT_BLEN];
+    assign ActiveBankMaskD[i] = ActiveByteMaskD[i*P.VPU_INT_BLEN/8 +: P.VPU_INT_BLEN/8];
+  end
 
   svrf #(P.VLEN, P.VPU_INT_BLEN, P.VPU_EU, P.VPU_QUEUEDEPTH, BEATBITLEN) svrf(.clk, .reset,
                               .BeatValidW(VIEUBeatValidW), .LastBeatW(ExecutionUnitResultValidW), .VRegWriteW(VIEUVRegWriteW),
                               .OrderW(ExecutionUnitOrderW), .BeatW(VIEUBeatW), .ResultBeatW(VIEUResultW), .ByteMaskW(VIEUByteMaskW),
-                              .VdW(VIEUVdFinalW), .OldVdValidW('0), .OldVdOrderW, .OldVdDataW,
+                              .VdW(VIEUVdFinalW), .OldVdValidW({BANKS{EnqueueD}}), .OldVdOrderW(OldVdOrderD), .OldVdDataW(OldVdDataD),
+                              .ActiveByteMaskW(ActiveBankMaskD),
                               .HeadOrderW, .CommitW, .HeadCompleteW, .HeadVRegWriteW, .HeadVdW, .HeadDataW);
 
   assign VRegWriteW = CommitW & HeadVRegWriteW;
