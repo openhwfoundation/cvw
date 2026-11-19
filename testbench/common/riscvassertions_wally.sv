@@ -40,6 +40,7 @@ module riscvassertions_wally import cvw::*; #(parameter cvw_t P);
     assert (P.DCACHE_LINELENINBITS % 4 == 0) else $fatal(1, "DCACHE_LINELENINBITS must hold 4, 8, or 16 words");
     assert (P.DCACHE_SUPPORTED | (P.ZAAMO_SUPPORTED == 0 & P.ZALRSC_SUPPORTED == 0)) else $fatal(1, "Atomic extension (ZAAMO/ZALRSC) requires cache on Wally.");
     assert (P.IDIV_ON_FPU == 0 | P.F_SUPPORTED) else $fatal(1, "IDIV on FPU needs F_SUPPORTED");
+    assert (P.IDIV_ON_FPU == 0 | P.M_SUPPORTED) else $fatal(1, "IDIV on FPU needs M_SUPPORTED");
     assert ((P.ZICBOM_SUPPORTED == 0) | (P.DCACHE_SUPPORTED == 1)) else $fatal(1, "ZICBOM requires DCACHE_SUPPORTED");
     assert ((P.ZICBOZ_SUPPORTED == 0) | (P.DCACHE_SUPPORTED == 1)) else $fatal(1, "ZICBOZ requires DCACHE_SUPPORTED");
     assert ((P.ZICBOZ_SUPPORTED == 0) | (P.DTIM_SUPPORTED == 0)) else $fatal(1, "ZICBOZ incompatible with DTIM");
