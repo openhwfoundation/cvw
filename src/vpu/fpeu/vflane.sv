@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP, parameter First) (
+module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP, parameter logic FIRST=0) (
   input  logic                           clk, reset,
   input  logic                           StallM,                            // stall the M stage
   input  logic                           FlushE, FlushM,                    // flush the E and M stages
@@ -49,8 +49,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign IntToFpE   = CvtOpE & OpCtrlE[2];
   assign FpToIntE   = CvtOpE & ToIntE;
   assign FtoFE      = CvtOpE & ~ToIntE & ~OpCtrlE[2];
-  assign RedFmaE    = First & VReductionE & FmaOpE;
-  assign RedCmpE    = First & VReductionE & CmpOpE;
+  assign RedFmaE    = FIRST & VReductionE & FmaOpE;
+  assign RedCmpE    = FIRST & VReductionE & CmpOpE;
   assign CmpNeE     = CmpOpE & (OpCtrlE == 3'b111);
 
   if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
@@ -95,11 +95,10 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
 
 
   logic              VReductionM;                                    // a reduction element is in the M stage
-  logic [P.FLEN-1:0] AccReg;                                         // result of the last completed reduction element
   logic [P.FLEN-1:0] Accumulated;
 
-  if (First)
-    assign Accumulated = VReductionStartE ? Z : (VReductionM ? VfResM : AccReg);
+  if (FIRST)
+    assign Accumulated = VReductionStartE ? Z : VfResM;
   else
     assign Accumulated = '0;
 
@@ -227,7 +226,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign CmpOpCtrlE = CmpNeE ? 3'b010 : OpCtrlE;
   assign CmpMaskE   = CmpIntResE[0] ^ CmpNeE;
 
-  fcmp #(P) fcmp (
+  fcmp #(FP) fcmp (
     .Fmt(OutFmt), .OpCtrl(CmpOpCtrlE), .Zfa(1'b0),
     .Xs(XsE), .Ys(YsE),
     .Xe(XeE), .Ye(YeE),
@@ -242,7 +241,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // sign injection
   logic [P.FLEN-1:0] SgnResE;
 
-  fsgninj #(P) fsgninj(
+  fsgninj #(FP) fsgninj(
     .Xs(XsE), .Ys(YsE), .X(XPostBoxE), .Fmt(OutFmt), .OpCtrl(OpCtrlE[1:0]),
     .SgnRes(SgnResE)
   );
@@ -250,7 +249,7 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   // classify
   logic [P.ELEN-1:0] ClassResE;
 
-  fclassify #(P) fclassify(
+  fclassify #(FP) fclassify(
     .Xs(XsE), .XNaN(XNaNE), .XSNaN(XSNaNE), .XSubnorm(XSubnormE), .XZero(XZeroE), .XInf(XInfE),
     .ClassRes(ClassResE)
   );
@@ -329,14 +328,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     {CeE, CvtShiftAmtE, CvtResSubnormUfE, CsE, IntZeroE, CvtLzcInE},
     {CeM, CvtShiftAmtM, CvtResSubnormUfM, CsM, IntZeroM, CvtLzcInM});
   flopenrc #(13+P.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
-    {PostProcSelE, PostOpCtrlE, OutFmt, FrmE, FpToIntE, UsePostProcE, First & VReductionE, FPUActiveE, IntSelE},
+    {PostProcSelE, PostOpCtrlE, OutFmt, FrmE, FpToIntE, UsePostProcE, FIRST & VReductionE, FPUActiveE, IntSelE},
     {PostProcSelM, PostOpCtrlM, FmtM, FrmM, FpToIntM, UsePostProcM, VReductionM, ActiveM, IntSelM});
-
-  // reduction accumulator: holds the result of the last completed reduction element
-  if (First)
-    flopenr #(P.FLEN) EMFpRegAcc(clk, reset, VReductionM & ~StallM, VfResM, AccReg);
-  else
-    assign AccReg = '0;
 
   assign SqrtM = PostOpCtrlM[0];
 
