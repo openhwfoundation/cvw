@@ -29,6 +29,8 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   input  logic [2:0]           FRM_REGW,                           // Rounding mode (from CSR)
   // Decode stage
   input  logic [31:0]          InstrD,                             // instruction (from IFU)
+  input  logic                 VReadFPD,                           // vector .vf reads fs1 (from VPU)
+  output logic [P.FLEN-1:0]    FRD1D,                              // fs1 read data (to VPU)
   // Execute stage
   input  logic [2:0]           Funct3E,                            // Funct fields of instruction specify type of operations
   input  logic                 IntDivE, W64E,                      // Integer division on FPU
@@ -80,7 +82,7 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   logic                        ZfaFRoundNXE;                       // Zfa froundnx variant
 
   // regfile signals
-  logic [P.FLEN-1:0]           FRD1D, FRD2D, FRD3D;                // Read Data from FP register - decode stage
+  logic [P.FLEN-1:0]           FRD2D, FRD3D;                       // Read Data from FP register - decode stage
   logic [P.FLEN-1:0]           FRD1E, FRD2E, FRD3E;                // Read Data from FP register - execute stage
   logic [P.FLEN-1:0]           XE;                                 // Input 1 to the various units (after forwarding)
   logic [P.XLEN-1:0]           IntSrcXE;                           // X moved to the integer register file (fmv.x.*, fmvh.x.*)
@@ -192,7 +194,7 @@ module fpu import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   // Hazard unit for FPU: determines if any forwarding or stalls are needed
   fhazard fhazard(.Adr1D, .Adr2D, .Adr3D, .Adr1E, .Adr2E, .Adr3E,
     .FRegWriteE, .FRegWriteM, .FRegWriteW, .RdE, .RdM, .RdW, .FResSelM,
-    .XEnD, .YEnD, .ZEnD, .FPUStallD, .ForwardXE, .ForwardYE, .ForwardZE);
+    .XEnD, .YEnD, .ZEnD, .VReadFPD, .FPUStallD, .ForwardXE, .ForwardYE, .ForwardZE);
 
   // forwarding muxes
   mux3  #(P.FLEN)  fxemux (FRD1E, FResultW, PreFpResM, ForwardXE, XE);

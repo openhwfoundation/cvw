@@ -4,7 +4,7 @@ $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: cvw-rv64gcv
-description: The rv64gcv configuration of Core-V Wally (rv64gc + Zve64x, VLEN=256) for vector bring-up
+description: The rv64gcv configuration of Core-V Wally (rv64gc + Zve64d, VLEN=256) for vector bring-up
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: A, version: "= 2.1.0" }
@@ -22,6 +22,9 @@ implemented_extensions:
   - { name: Zicclsm, version: "= 1.0.0" }
   - { name: Zve32x, version: "= 1.0.0" }
   - { name: Zve64x, version: "= 1.0.0" }
+  - { name: Zve32f, version: "= 1.0.0" }
+  - { name: Zve64f, version: "= 1.0.0" }
+  - { name: Zve64d, version: "= 1.0.0" }
   - { name: Zvl32b, version: "= 1.0.0" }
   - { name: Zvl64b, version: "= 1.0.0" }
   - { name: Zvl128b, version: "= 1.0.0" }

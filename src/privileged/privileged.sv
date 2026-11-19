@@ -75,6 +75,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic              MTimerInt, MExtInt, SExtInt, MSwInt,            // interrupt sources
   input  logic [63:0]       MTIME_CLINT,                                    // timer value from CLINT
   input  logic [4:0]        SetFflagsM,                                     // set FCSR flags from FPU
+  input  logic [4:0]        VSetFflagsW,                                    // set FCSR flags from VPU
   input  logic              WriteVLVTYPEM,                                  // vconfig commits new vl/vtype this cycle
   input  logic [P.XLEN-1:0] NewVLM,                                         // new vl
   input  logic [7:0]        NewVTYPEM,                                      // new vtype config
@@ -162,7 +163,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS, .STATUS_VS,
     .MEDELEG_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-    .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    .SetFflagsM, .VSetFflagsW, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
     .CSRReadValW, .IllegalCSRAccessM, .BigEndianM);
 

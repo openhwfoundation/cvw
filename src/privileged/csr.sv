@@ -36,6 +36,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InstrValidM,               // current instruction is valid
   input  logic                     FRegWriteM,                // writes to floating point registers change STATUS.FS
   input  logic [4:0]               SetFflagsM,                // Set floating point flag bits in FCSR
+  input  logic [4:0]               VSetFflagsW,               // Set floating point flag bits from VPU
   input  logic                     VRegWriteM,                // instruction writes a vector register
   input  logic                     WriteVLVTYPEM,             // vconfig commits new vl/vtype
   input  logic [P.XLEN-1:0]        NewVLM,                    // new vl value from vset instruction
@@ -270,7 +271,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   if (P.F_SUPPORTED) begin : csru
     csru #(P) csru(.clk, .reset, .InstrValidNotFlushedM,
       .CSRUWriteM, .CSRAdrM, .CSRWriteValM, .STATUS_FS, .CSRUReadValM,
-      .SetFflagsM, .FRM_REGW, .WriteFRMM, .SetOrWriteFFLAGSM,
+      .SetFflagsM, .VSetFflagsW, .FRM_REGW, .WriteFRMM, .SetOrWriteFFLAGSM,
       .IllegalCSRUAccessM);
   end else begin
     assign FRM_REGW = '0;

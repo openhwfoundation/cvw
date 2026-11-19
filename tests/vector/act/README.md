@@ -23,6 +23,7 @@ vector-act vsub.vv vsub.vx         # run only these instructions
 vector-act --all                   # run every Vx64 base test and report what passes
 vector-act --run-only vsub.vv      # skip the build
 vector-act --build-only            # build only
+vector-act --suite Vf64            # floating-point tests (the default suite is Vx64)
 ```
 
 Each test prints `RVCP-SUMMARY: TEST PASSED` or `FAILED`; the first mismatch in a file stops that file and
@@ -30,7 +31,7 @@ reports the register, element, expected and actual values.
 
 ## The passing list
 
-`rv64gcv/passing-Vx64.txt` lists the instructions that are implemented and whose base tests pass. Every entry
+`rv64gcv/passing-Vx64.txt` and `rv64gcv/passing-Vf64.txt` list the instructions that are implemented and whose base tests pass. Every entry
 must keep passing: `vector-act` with no instructions runs the list and fails, printing `REGRESSION: ...`, if any
 entry fails. An instruction that passes by coincidence (e.g. `vredsum.vs` is just an add at vl=1) does not go in
 the list.
@@ -52,8 +53,8 @@ When you implement an instruction:
 - **No vector loads or stores** (`--loadstore move`, the default, `VECTOR_LOADSTORE=move`): operands are set with a
   scalar load and `vmv.v.x`, and results are read with `vmv.x.s`. Use `--loadstore vector` once `vle64.v` and
   `vse64.v` work.
-- Vx64 on rv64gcv: SEW=64. The ACT configuration declares Zve64x, so the 9 tests that need full V at SEW=64
-  (`vmulh*`, `vsmul`) are not built.
+- Vx64 and Vf64 on rv64gcv: SEW=64. The ACT configuration declares Zve64d, not full V, so the 9 tests that need
+  full V at SEW=64 (`vmulh*`, `vsmul`) are not built.
 
 The ACT configuration is in `rv64gcv/`, outside `config/rv64gcv/act`, so that `make act` and
 `regression-wally` do not build vector tests.

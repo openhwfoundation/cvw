@@ -1,4 +1,4 @@
-# Standalone Verilator unit test for src/vpu/vfrecrsqrt7.sv.
+# Standalone Verilator unit test for src/vpu/vfeu/vfrecrsqrt7.sv.
 # Run with: make (requires $WALLY to be set, e.g. `source setup.sh`)
 
 TOP      = tb_vfrecrsqrt7
@@ -7,7 +7,7 @@ RESULTS  = results
 CONFIG   = rv64gc
 INCLUDE  = -I$(WALLY)/config/shared -I$(WALLY)/config/$(CONFIG)
 SRCS     = $(WALLY)/src/cvw.sv $(WALLY)/src/fpu_pkg.sv $(WALLY)/src/fpu/unpackinput.sv \
-           $(WALLY)/src/vpu/vfrecrsqrt7.sv $(WALLY)/src/generic/lzc.sv $(TOP).sv wrapper.c
+           $(WALLY)/src/vpu/vfeu/vfrecrsqrt7.sv $(WALLY)/src/generic/lzc.sv $(TOP).sv wrapper.c
 
 # $(RESULTS) is wiped and recreated on every run (not just on rebuild) so old
 # logs never linger: results/vfrecrsqrt7.log has one PASS/FAIL line per check.

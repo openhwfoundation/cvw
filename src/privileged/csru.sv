@@ -25,6 +25,7 @@ module csru import cvw::*; #(parameter cvw_t P) (
   input  logic [1:0]        STATUS_FS,
   output logic [P.XLEN-1:0] CSRUReadValM,
   input  logic [4:0]        SetFflagsM,
+  input  logic [4:0]        VSetFflagsW,             // vector FP flags, set when instruction commits
   output logic [2:0]        FRM_REGW,
   output logic              WriteFRMM, SetOrWriteFFLAGSM,
   output logic              IllegalCSRUAccessM
@@ -47,8 +48,8 @@ module csru import cvw::*; #(parameter cvw_t P) (
 
   // Write Values: fcsr holds frm in bits 7:5 and fflags in bits 4:0
   assign NextFRMM          = (CSRAdrM == FCSR) ? CSRWriteValM[7:5] : CSRWriteValM[2:0];
-  assign NextFFLAGSM       = WriteFFLAGSM ? CSRWriteValM[4:0] : FFLAGS_REGW | SetFflagsM;
-  assign SetOrWriteFFLAGSM = WriteFFLAGSM | (|SetFflagsM & InstrValidNotFlushedM);
+  assign NextFFLAGSM       = WriteFFLAGSM ? CSRWriteValM[4:0] : FFLAGS_REGW | (SetFflagsM & {5{InstrValidNotFlushedM}}) | VSetFflagsW;
+  assign SetOrWriteFFLAGSM = WriteFFLAGSM | (|SetFflagsM & InstrValidNotFlushedM) | (|VSetFflagsW);
 
   // CSRs
   flopenr #(3) FRMreg(clk, reset, WriteFRMM, NextFRMM, FRM_REGW);

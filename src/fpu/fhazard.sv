@@ -23,6 +23,7 @@ module fhazard(
   input  logic [4:0]  RdE, RdM, RdW,                      // the address being written to
   input  logic [1:0]  FResSelM,                           // the result being selected
   input  logic        XEnD, YEnD, ZEnD,                   // are the inputs needed
+  input  logic        VReadFPD,                           // vector instr .vf reads fs1
   output logic        FPUStallD,                          // stall the decode stage
   output logic [1:0]  ForwardXE, ForwardYE, ForwardZE     // select a forwarded value
 );
@@ -31,7 +32,8 @@ module fhazard(
 
   // Decode-stage instruction source depends on result from execute stage instruction
   assign MatchDE = ((Adr1D == RdE) & XEnD) | ((Adr2D == RdE) & YEnD) | ((Adr3D == RdE) & ZEnD);
-  assign FPUStallD = MatchDE & FRegWriteE;
+  // vector .vf has no forwarding so it waits until an older write to fs1 reaches the register file
+  assign FPUStallD = MatchDE & FRegWriteE | VReadFPD & ((Adr1D == RdE) & FRegWriteE | (Adr1D == RdM) & FRegWriteM);
 
   always_comb begin
     // set defaults

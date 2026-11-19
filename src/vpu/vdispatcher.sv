@@ -60,7 +60,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   // or specific sub categories.
   // The decoder specifies the EU requirements (e.g. type, operation class, addressing mode for load/store).
   // EU selector compares the requirements to the capabilities of each EU.
-  // For this initial version All EUs will accept all instructions. *** fix me later.
+  // For this initial version each EU accepts every class and mode of its type. *** fix me later.
 
   // *** move to configuration when EU are instantiated
   // EU capabilities, Index: [EU][capability]
