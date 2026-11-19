@@ -4,9 +4,9 @@
 // Written: Rose Thompson Rose.Thompson@skyworksinc.com
 // based on regfile.sv by David_Harris@hmc.edu, Sarah.Harris@unlv.edu
 // Created: 2 September
-// Modified:
+// Modified: 17 November 2026 Georgia Tai ytai@g.hmc.edu
 //
-// Purpose: 4-port register file
+// Purpose: Banked vector register file with streaming reads
 //
 // Documentation: RISC-V System on Chip Design Vol 2
 //
@@ -29,31 +29,67 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vregfile #(parameter VLEN) (
-  input  logic             clk, reset,
-  input  logic             we4,                      // Write enable
-  input  logic [4:0]       a1, a2, a3, a4,           // Source registers to read (a1, a2, a3), destination register to write (a4)
-  input  logic [VLEN-1:0]  wd4,                      // Write data for port 4
-  output logic [VLEN-1:0]  rd1, rd2, rd3, v0);       // Read data for ports 1, 2, 3, v0 always available for masks
+// Each bank holds one BLEN beat of all 32 registers.
+// A read request enters bank 0 and moves one bank per cycle, so bank i handles the request issued i cycles ago
+// and a register streams out one beat per cycle.
+// One micro-op issues per cycle, so two requests should not collide in the same bank.
+// Commit writes the whole register to all banks.
+// *** direct bank access for vrgather / vcompress, sVRF read check for chaining
 
-  logic [VLEN-1:0] rf[31:0];
-  integer i;
+module vregfile import cvw::*; #(parameter cvw_t P) (
+  input  logic                            clk, reset,
+  input  logic                            VectorStallE,                  // hold every stream
+  // read request of a micro-op at dispatch
+  input  logic [4:0]                      Vs1D, Vs2D, VdD,               // registers to read
+  input  logic                            OldVdD,                        // vd read fills the micro-op's sVRF entry
+  input  logic [P.VPU_QUEUEDEPTH-1:0]     OrderD,                        // order tag of the micro-op
+  // one beat per bank, bank i from the request issued i cycles ago
+  output logic [P.VPU_BLEN-1:0]           VRD1 [P.VPU_BANKS-1:0],
+  output logic [P.VPU_BLEN-1:0]           VRD2 [P.VPU_BANKS-1:0],
+  output logic [P.VPU_BLEN-1:0]           VRD3 [P.VPU_BANKS-1:0],        // vd, also the old vd beat to the sVRF
+  output logic [P.VPU_BANKS-1:0]          OldVdValid,                    // VRD3 of this bank fills an sVRF entry
+  output logic [P.VPU_QUEUEDEPTH-1:0]     OldVdOrder [P.VPU_BANKS-1:0],
+  output logic [P.VLEN-1:0]               V0,                            // mask, on its own port
+  // commit of the sVRF head entry
+  input  logic                            VRegWriteW,
+  input  logic [4:0]                      VdW,
+  input  logic [P.VLEN-1:0]               DataW,
+  input  logic [P.VLEN/8-1:0]             ByteMaskW
+);
 
-  // four ported register file
-  // Read three ports combinationally (a1/rd1, a2/rd2, a3/rd3)
-  // Write four port on falling edge of clock (a3/wd3/we3)
-  // Write occurs on falling edge of clock
+  localparam BYTES   = P.VPU_BLEN/8;
+  localparam REQBITS = 16 + P.VPU_QUEUEDEPTH;
 
-  // reset is intended for simulation only, not synthesis
-  // can logic be adjusted to not need resettable registers?
+  logic [REQBITS-1:0] Request [P.VPU_BANKS-1:0];  // {vs1, vs2, vd, old vd, order} at each bank
 
-  always_ff @(negedge clk)
-    if (reset) for(i=0; i<32; i++) rf[i] <= '0;
-    else       if (we4)            rf[a4] <= wd4;
+  genvar bank;
 
-  assign rd1 = rf[a1];
-  assign rd2 = rf[a2];
-  assign rd3 = rf[a3];
-  assign v0  = rf[0];
+  assign Request[0] = {Vs1D, Vs2D, VdD, OldVdD, OrderD};
+
+  for (bank = 0; bank < P.VPU_BANKS; bank++) begin : banks
+    logic [P.VPU_BLEN-1:0]      Regs [31:0];
+    logic [4:0]           Vs1, Vs2, Vd;
+    logic [P.VPU_BLEN-1:0]      DataBankW;
+    logic [BYTES-1:0]     ByteMaskBankW;
+
+    // request moves to the next bank one cycle later
+    if (bank > 0) flopenr #(REQBITS) requestreg(clk, reset, ~VectorStallE, Request[bank-1], Request[bank]);
+
+    assign {Vs1, Vs2, Vd, OldVdValid[bank], OldVdOrder[bank]} = Request[bank];
+
+    assign VRD1[bank] = Regs[Vs1];
+    assign VRD2[bank] = Regs[Vs2];
+    assign VRD3[bank] = Regs[Vd];
+    assign V0[bank*P.VPU_BLEN +: P.VPU_BLEN] = Regs[0];
+
+    assign DataBankW     = DataW[bank*P.VPU_BLEN +: P.VPU_BLEN];
+    assign ByteMaskBankW = ByteMaskW[bank*BYTES +: BYTES];
+
+    always_ff @(negedge clk)
+      if (reset) for (int r = 0; r < 32; r++) Regs[r] <= '0;
+      else if (VRegWriteW)
+        for (int b = 0; b < BYTES; b++)
+          if (ByteMaskBankW[b]) Regs[VdW][b*8 +: 8] <= DataBankW[b*8 +: 8];
+  end
 
 endmodule
