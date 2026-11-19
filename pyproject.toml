@@ -15,3 +15,6 @@ dependencies = [
   "scikit-learn>=1.6.0",
   "scipy>=1.13.0",
 ]
+
+[tool.uv]
+constraint-dependencies = ["pillow>=13.0.0"]
