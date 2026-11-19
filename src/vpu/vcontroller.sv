@@ -65,6 +65,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VReductionD,                // instr is a reduction op
   output logic [2:0]                  VdEEWD, Vs2EEWD, Vs1EEWD,   // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
   output logic                        IllegalVPUInstrD,
+  output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
   output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
@@ -90,7 +91,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
-  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        FflagsCSRD;                // csr instruction reads/writes fflags/fcsr
 
   // Micro-ops from LMUL in vtype; fractional LMUL fits in one register
@@ -111,7 +112,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD,
                          .VFUnitD, .VFOpCtrlD, .VFToIntD, .VFOperandOrderD, .VFStaticRmD, .VFRmD,
                          .VFMoveD, .VFMergeD, .VScalarMoveD, .IllegalVPUInstrD,
-                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
   // Decode must not reach an EU or the order queue: its result would arrive in Writeback with a cleared order tag that
