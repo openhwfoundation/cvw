@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP) (
+module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP, parameter R) (
   input  logic                           clk, reset,
   input  logic                           StallM,                            // stall the M stage
   input  logic                           FlushE, FlushM,                    // flush the E and M stages
@@ -49,8 +49,8 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   assign IntToFpE   = CvtOpE & OpCtrlE[2];
   assign FpToIntE   = CvtOpE & ToIntE;
   assign FtoFE      = CvtOpE & ~ToIntE & ~OpCtrlE[2];
-  assign RedFmaE    = VReductionE & FmaOpE;
-  assign RedCmpE    = VReductionE & CmpOpE;
+  assign RedFmaE    = R & VReductionE & FmaOpE;
+  assign RedCmpE    = R & VReductionE & CmpOpE;
   assign CmpNeE     = CmpOpE & (OpCtrlE == 3'b111);
 
   if (P.ZVFH_SUPPORTED | P.ZVFHMIN_SUPPORTED) begin
@@ -98,7 +98,10 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
   logic [P.FLEN-1:0] AccReg;                                         // result of the last completed reduction element
   logic [P.FLEN-1:0] Accumulated;
 
-  assign Accumulated = VReductionStartE ? Z : (VReductionM ? VfResM : AccReg);
+  if (R)
+    assign Accumulated = VReductionStartE ? Z : (VReductionM ? VfResM : AccReg);
+  else
+    assign Accumulated = '0;
 
   logic [P.FLEN-1:0] FmaXin, FmaYin, FmaZin;
 
@@ -326,11 +329,14 @@ module vflane import cvw::*, fpu_pkg::*; #(parameter cvw_t P, parameter fpu_t FP
     {CeE, CvtShiftAmtE, CvtResSubnormUfE, CsE, IntZeroE, CvtLzcInE},
     {CeM, CvtShiftAmtM, CvtResSubnormUfM, CsM, IntZeroM, CvtLzcInM});
   flopenrc #(13+P.FMTBITS) EMRegCtrl(clk, reset, FlushM, ~StallM,
-    {PostProcSelE, PostOpCtrlE, OutFmt, FrmE, FpToIntE, UsePostProcE, VReductionE, FPUActiveE, IntSelE},
+    {PostProcSelE, PostOpCtrlE, OutFmt, FrmE, FpToIntE, UsePostProcE, R & VReductionE, FPUActiveE, IntSelE},
     {PostProcSelM, PostOpCtrlM, FmtM, FrmM, FpToIntM, UsePostProcM, VReductionM, ActiveM, IntSelM});
 
   // reduction accumulator: holds the result of the last completed reduction element
-  flopenr #(P.FLEN) EMFpRegAcc(clk, reset, VReductionM & ~StallM, VfResM, AccReg);
+  if (R)
+    flopenr #(P.FLEN) EMFpRegAcc(clk, reset, VReductionM & ~StallM, VfResM, AccReg);
+  else
+    assign AccReg = '0;
 
   assign SqrtM = PostOpCtrlM[0];
 
