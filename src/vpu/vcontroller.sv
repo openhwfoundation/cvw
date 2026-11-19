@@ -56,6 +56,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [1:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
   output logic                        IllegalVPUInstrD,
+  output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
   // vset controls, sent to vconfig
   output logic                        VsetD,                      // vsetvli, vsetivli, or vsetvl
   output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
@@ -65,9 +66,10 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0],
-  input logic [P.VPU_QUEUEDEPTH-1:0]  ExecutionUnitOrderW [P.VPU_EU-1:0],
-  input logic [P.VPU_EU-1:0]      ExecutionUnitResultValidW,
-  output logic [P.VPU_EU-1:0]     ControllerWBReadyW,
+  // commit of the oldest micro-op
+  output logic [P.VPU_QUEUEDEPTH-1:0] HeadOrderW,                 // order tag at queue head
+  input logic                         HeadCompleteW,              // head sVRF entry has all its beats
+  output logic                        CommitW,                    // write head entry to VRF and dequeue
   output logic                        VPUFrontEndBusyD
 );
 
@@ -80,7 +82,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
-  logic [5:0]  VLSModeD;                  // addressing modes for load/store
+  logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        VReductionD;               // instr is a reduction op
   logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD;  // log2(EEW) of Vd/Vs2/Vs1, 000 = 1b (mask)
 
@@ -101,7 +103,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                          .VShiftSelectD, .IllegalVPUInstrD,
-                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD);
+                         .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in
   // Decode must not reach an EU or the order queue: its result would arrive in Writeback with a cleared order tag that
@@ -127,25 +129,18 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
 
   logic [P.VPU_QUEUEDEPTH - 1 : 0 ] OrderD;
-  logic [P.VPU_EU - 1 : 0 ] MatchW;
-  logic [P.VPU_QUEUEDEPTH - 1 : 0 ]    HeadOrderW;
-  logic                         AnyMatchW;
   logic                         InstrOrderQueueFullD;
   logic                         InstrOrderQueueEmptyD;
 
-  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(AnyMatchW & ~StallW),
+  queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(MicroVectorD & ~VectorStallD), .dequeue(CommitW),
                                                   .wdata(OrderD), .rdata(HeadOrderW), .full(InstrOrderQueueFullD), .empty(InstrOrderQueueEmptyD));
 
   counter #(P.VPU_QUEUEDEPTH) ordercounter(clk, reset, MicroVectorD & ~VectorStallD, OrderD);
 
   genvar i;
-  for (i = 0; i < P.VPU_EU; i++) begin
-    assign MatchW[i] = (HeadOrderW == ExecutionUnitOrderW[i]) & ExecutionUnitResultValidW[i];  // *** two missing inputs
-    assign ControllerWBReadyW[i] = MatchW[i];
-    assign ExecutionUnitOrderD[i] = OrderD;
-  end
+  for (i = 0; i < P.VPU_EU; i++) assign ExecutionUnitOrderD[i] = OrderD;
 
-  assign AnyMatchW = | MatchW;
+  assign CommitW = HeadCompleteW & ~InstrOrderQueueEmptyD & ~StallW;
 
   assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 

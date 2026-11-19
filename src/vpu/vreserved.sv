@@ -39,7 +39,7 @@ module vreserved import cvw::*;  #(parameter cvw_t P) (
   input  logic       VScalarMoveD,                // the vector operand is element 0 only
   input  logic       VWholeRegD,                  // vd and vs2 are nf+1 registers
   input  logic [2:0] NfD,                         // nf field, or simm[2:0] of vmv<nr>r.v
-  input  logic [5:0] VLSModeD,                    // load/store addressing modes, [0] segment
+  input  logic [6:0] VLSModeD,                    // load/store addressing modes, [0] segment
   input  logic       VMD,                         // 0 = masked by v0
   input  logic       VRegWriteD,                  // vd is written; otherwise vd is store data
   input  logic       VdNoOverlapD,                // vd may not overlap a source, nor v0 when masked
@@ -88,7 +88,7 @@ module vreserved import cvw::*;  #(parameter cvw_t P) (
 
   // Segment: the nf+1 fields span more than 8 registers or run past v31
   assign SegRegsD     = ({4'b0, NfD} + 7'd1) << VdGroupSizeD;
-  assign SegReservedD = VLSModeD[0] & ((SegRegsD > 7'd8) | (({2'b0, VdD} + SegRegsD) > 7'd32));
+  assign SegReservedD = VLSModeD[1] & ((SegRegsD > 7'd8) | (({2'b0, VdD} + SegRegsD) > 7'd32));
 
 
   // Overlap checks
@@ -135,7 +135,7 @@ module vreserved import cvw::*;  #(parameter cvw_t P) (
                            ~VMD & VdV0OverlapD & (VdEEWD != 3'b000));
 
   // Segment indexed load: vd across all nf+1 fields overlapping the index
-  assign IndexOverlapReservedD = VLSModeD[0] & VRegWriteD & Vs2EnD &
+  assign IndexOverlapReservedD = VLSModeD[1] & VRegWriteD & Vs2EnD &
     ({1'b0, VdD} < Vs2EndD) & ({2'b0, Vs2D} < ({2'b0, VdD} + SegRegsD));
 
   assign IllegalVOperandD = EMULReservedD | MisalignedD | SegReservedD |

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Build and run a standalone vector unit testbench with Verilator.
+# usage: tests/vector/unit/run svrf
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+set -euo pipefail
+: "${WALLY:?source setup.sh first}"
+name=$1
+unit=$WALLY/tests/vector/unit
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+verilator --binary --timing -Wall -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-GENUNNAMED \
+  --top-module "${name}_tb" --Mdir "$work" -o sim -y "$WALLY/src/vpu" -y "$WALLY/src/generic" -y "$WALLY/src/generic/flop" \
+  "$WALLY/src/generic/mux.sv" "$unit/${name}_tb.sv" > "$work/build.log" 2>&1 || { cat "$work/build.log"; exit 1; }
+grep -E '%(Error|Warning)' "$work/build.log" || true
+
+output=$("$work/sim")
+echo "$output"
+grep -q "${name}_tb PASSED" <<< "$output"

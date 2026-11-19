@@ -36,7 +36,6 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
    input logic                   LocalStallE,
    input logic                   VectorFlushE,
    input logic                   ControllerValidD,
-   input logic                   NotConsummedW,
    output logic                  ExecutionUnitReadyD,
    output logic [BEATBITLEN-1:0] BeatE,
    output logic                  ExecutionUnitResultValidE,
@@ -73,7 +72,7 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
 
   assign BeatIncrD = BeatValidE & ~LocalStallE;
   assign DoneE = BeatE >= BeatLength - 1; // *** optimize
-  assign ExecutionUnitReadyD = ((DoneE & ExecutionUnitResultValidE) | ReadyE) & ~NotConsummedW;
+  assign ExecutionUnitReadyD = (DoneE & ExecutionUnitResultValidE) | ReadyE;
   assign ExecutionUnitResultValidE = DoneE & BeatValidE;
 
 endmodule
