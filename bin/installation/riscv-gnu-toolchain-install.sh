@@ -41,8 +41,11 @@ cd "$RISCV"
 if check_tool_version $RISCV_GNU_TOOLCHAIN_BUILD; then
     git_checkout "riscv-gnu-toolchain" "https://github.com/riscv/riscv-gnu-toolchain" "$RISCV_GNU_TOOLCHAIN_VERSION"
     cd "$RISCV"/riscv-gnu-toolchain
+    uv venv --python 3.12
+    source .venv/bin/activate
     ./configure --prefix="${RISCV}" --with-cmodel=medany --with-multilib-generator="rv32e-ilp32e--;rv32i-ilp32--;rv32im-ilp32--;rv32iac-ilp32--;rv32imac-ilp32--;rv32imafc-ilp32f--;rv32imafdc-ilp32d--;rv64i-lp64--;rv64ic-lp64--;rv64iac-lp64--;rv64imac-lp64--;rv64imafdc-lp64d--;rv64im-lp64--;"
     make -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    deactivate
     if [ "$clean" = true ]; then
         cd "$RISCV"
         rm -rf riscv-gnu-toolchain

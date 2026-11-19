@@ -52,7 +52,7 @@ fi
 if [ ! -e "${WALLY}/.git/hooks/pre-commit" ]; then
     pushd "${WALLY}" || return 1
     echo "Installing pre-commit hooks"
-    uv run pre-commit install
+    mise exec -- uv run pre-commit install
     popd || return
 fi
 
