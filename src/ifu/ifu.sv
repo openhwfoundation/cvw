@@ -210,7 +210,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
-         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW);
+         .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW, .EffectivePrivilegeModeW());
 
     assign ITLBMissOrUpdateRawF = ITLBMissF | (P.SVADU_SUPPORTED & InstrUpdateAF);
 

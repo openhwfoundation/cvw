@@ -81,6 +81,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [3:0]                    ENVCFG_CBE;                      // Cache Block operation enables
   logic [3:0]                    CMOpM;                           // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic                          IFUPrefetchE, LSUPrefetchM;      // instruction / data prefetch hints
+  logic [1:0]                    MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM; // Pointer masking modes for M, S, and U
 
   // floating point unit signals
   logic [2:0]                    FRM_REGW;
@@ -241,6 +242,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .STATUS_MPP,                  // from csr
     .ENVCFG_PBMTE,                // from csr
     .ENVCFG_ADUE,                 // from csr
+    .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, // from csr
     .sfencevmaM, .sfencevmaAllM, .sfencevmaAdrM,  // connects to privilege
     .DCacheStallM,                // connects to privilege
     .IEUAdrxTvalM,                // connects to privilege
@@ -306,14 +308,15 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ReservationValidW, .WaitM, .BigEndianM);
+      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .ReservationValidW, .WaitM, .BigEndianM);
   end else begin
     assign {CSRReadValW, PrivilegeModeW,
             SATP_REGW, STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_MPP, STATUS_FS, FRM_REGW,
             // PMPCFG_ARRAY_REGW, PMPADDR_ARRAY_REGW,
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
-            sfencevmaM, sfencevmaAllM, sfencevmaAdrM, BigEndianM, WaitM} = '0;
+            sfencevmaM, sfencevmaAllM, sfencevmaAdrM, BigEndianM, WaitM,
+            MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM} = '0;
   end
 
   // multiply/divide unit

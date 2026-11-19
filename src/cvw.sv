@@ -124,6 +124,11 @@ typedef struct packed {
   logic         ZCMOP_SUPPORTED;
   logic         ZAAMO_SUPPORTED;
   logic         ZALRSC_SUPPORTED;
+  logic         SMMPM_SUPPORTED;
+  logic         SMNPM_SUPPORTED;
+  logic         SSNPM_SUPPORTED;
+  logic         ZPM_SUPPORTED;
+  logic         PMLEN16_SUPPORTED;
   logic         ZABHA_SUPPORTED;
   logic         ZACAS_SUPPORTED;
   logic         ZAWRS_SUPPORTED;
