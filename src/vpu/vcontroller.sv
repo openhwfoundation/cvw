@@ -68,7 +68,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderD [P.VPU_EU-1:0],
   output logic                        EnqueueD,                   // micro-op enters order queue
   output logic [P.VPU_QUEUEDEPTH-1:0] OrderD,                     // order tag of micro-op
-  output logic [2:0]                  MicroOpIndexD,              // register of the register group the micro-op works on
+  output logic [2:0]                  MicroOpIndexD,              // current micro-op register group index
   // vd elements the micro-op writes
   output logic [2:0]                  VdEEWD,                     // log2(EEW) of vd, 000 = 1b (mask)
   output logic                        VMaskedD,                   // v0 masks the vd write

@@ -44,7 +44,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   output logic [P.VPU_EU-1:0] ControllerValidD,
   input  logic [P.VPU_EU-1:0] ExecutionUnitReadyD,
   output logic MicroOpNotLastD,
-  output logic [2:0] MicroOpIndexD,            // register of the register group the micro-op works on
+  output logic [2:0] MicroOpIndexD,            // current micro-op register group index
   output logic VHazardStallD,
   // output micro vector instruction
   output logic MicroVectorD,

@@ -43,7 +43,7 @@ module lmulsequencer
    output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD,
    output logic MicroVectorD,
    output logic MicroOpNotLastD,
-   output logic [2:0] MicroOpIndexD, // register of the register group the micro-op works on
+   output logic [2:0] MicroOpIndexD, // current micro-op register group index
    output logic VHazardStallD        // hold the first micro-op in Decode until the hazard clears
 );
 

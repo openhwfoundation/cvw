@@ -4,7 +4,7 @@
 // Written: Georgia Tai ytai@g.hmc.edu
 // Created: 13 November 2026
 //
-// Purpose: Bytes of vd a micro-op writes, from vl and the v0 mask
+// Purpose: Creates a VLEN/8 byte mask from vl and the v0 mask
 //
 // Documentation: RISC-V System on Chip Design Volume 2
 //

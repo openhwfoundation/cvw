@@ -132,7 +132,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic                        EnqueueD;
   logic [P.VPU_QUEUEDEPTH-1:0] OrderD;
   logic [P.VPU_QUEUEDEPTH-1:0] OldVdOrderD [BANKS-1:0];
-  logic [P.VPU_INT_BLEN-1:0]   OldVdDataD [BANKS-1:0];
+  logic [P.VPU_INT_BLEN-1:0]   OldVdDataD [BANKS-1:0];  // old vd keeps inactive elements (needed for chaining)
   logic [P.VPU_INT_BLEN/8-1:0] ActiveBankMaskD [BANKS-1:0];
   logic [P.VLEN/8-1:0]         ActiveByteMaskD; // bytes of vd the micro-op writes
   logic [2:0]                  MicroOpIndexD;
