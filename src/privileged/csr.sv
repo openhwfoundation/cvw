@@ -24,7 +24,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0]              InstrOrigM,                // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0]        PCM,                       // program counter, next PC going to trap/return logic
   input  logic [P.XLEN-1:0]        PCSpillM,                  // program counter, next PC going to trap/return logic aligned after an instruction spill
-  input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalMMasked, // SrcA and memory address from IEU
+  input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalM,       // SrcA and memory address from IEU
   input  logic                     CSRReadM, CSRWriteM,       // read or write CSR
   input  logic                     TrapM,                     // trap is occurring
   input  logic                     mretM, sretM,              // return instruction
@@ -80,7 +80,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0]        CSRReadValW,               // value read from CSR
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
   output logic                     BigEndianM,                // memory access is big-endian based on privilege mode and STATUS register endian fields
-  output logic [1:0]               MENVCFG_PMM, SENVCFG_PMM, MSECCFG_PMM // pointer masking config bits
+  output logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM // pointer masking modes for M, S, and U
 );
 
   localparam MIP = 12'h344;
@@ -136,7 +136,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       12, 1:                  NextFaultXtvalM = PCSpillM;  // Instruction page/access faults report the faulting half of a spilled fetch // exclusion-tag: xtval-instr-fault
       3:                      NextFaultXtvalM = PCM;       // Breakpoint reports the address of the ebreak itself, not the second half of a spilled fetch
       2:                      NextFaultXtvalM = {{(P.XLEN-32){1'b0}}, InstrOrigM}; // Illegal instruction fault
-      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalMMasked; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
+      0, 4, 6, 13, 15, 5, 7:  NextFaultXtvalM = IEUAdrxTvalM; // Instruction misaligned, Load/Store Misaligned/page/access faults // exclusion-tag: xtval-data-fault
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 
@@ -296,16 +296,15 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign ENVCFG_CBE   = (PrivilegeModeW == P.M_MODE) ? 4'b1111 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[7:4] :
                                                                         (MENVCFG_REGW[7:4] & SENVCFG_REGW[7:4]);
-  // pointer masking configuration
-  assign MENVCFG_PMM  = MENVCFG_REGW[33:32];
-  // senvcfg is SXLEN bits, so with XLEN = 32 it has no PMM field
+  // Pointer masking modes.  senvcfg is SXLEN bits, so it has no PMM field with XLEN = 32.
+  assign MSECCFG_PMM = MSECCFG_REGW[33:32];
+  assign MENVCFG_PMM = MENVCFG_REGW[33:32];
   if (P.XLEN == 64) assign SENVCFG_PMM = SENVCFG_REGW[33:32];
   else              assign SENVCFG_PMM = 2'b0;
   // FIOM presently doesn't do anything because Wally fences don't do anything
   assign ENVCFG_FIOM  = (PrivilegeModeW == P.M_MODE) ? 1'b1 :
                         (PrivilegeModeW == P.S_MODE | !P.S_SUPPORTED) ? MENVCFG_REGW[0] :
                                                                         (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
-  assign MSECCFG_PMM  = MSECCFG_REGW[33:32];
 
   // merge CSR Reads
   assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM;

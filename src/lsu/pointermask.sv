@@ -4,9 +4,10 @@
 // Written: naichewa@gmail.com 8/6/2026
 // Modified:
 //
-// Purpose: Pointer Masking Module v1.0
-// LSU module that optionally pointer masks explicit memory accesses according to
-// RISC-V specs. 16 bit mask lengths are only supported when Sv57 is unsupported.
+// Purpose: Pointer masking (Smmpm, Smnpm, Ssnpm) for explicit memory accesses.
+// Applies the ignore transformation to the upper PMLEN bits of the address: sign-extension of bit
+// XLEN-PMLEN-1 for virtual addresses, zero-extension for physical addresses.  PMLEN is 7 or 16;
+// PMLEN 16 is only supported without Sv57 so that the masked bits never reach the TLB tag.
 // Documentation: Based on descriptions in RISC-V Privileged Specifications
 // Chapter on Pointer Masking https://docs.riscv.org/reference/isa/v20260120/priv/zpm.html
 // Complete Specifications V20260120 https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
@@ -27,57 +28,37 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module pointermask import cvw::*;   #(parameter cvw_t P) (
-    input logic [1:0]                MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,
-    input logic [1:0]                EffectivePrivilegeModeW,
-    input logic                      STATUS_MXR,
-    input logic [1:0]                MemRWM,
-    input logic [3:0]                CMOpM,
-    input logic [P.XLEN-1:0]         SATP_REGW,
-    input logic [P.XLEN-1:0]         IEUAdrSpillM, IEUAdrxTvalM,
-    output logic                     PointerMaskApplicable, PMLen16Sel,
-    output logic [P.XLEN-1:0]        IEUAdrSpillMMasked, IEUAdrxTvalMMasked
+module pointermask import cvw::*; #(parameter cvw_t P) (
+  input  logic [1:0]        MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // PMM fields: 00 off, 10 PMLEN 7, 11 PMLEN 16
+  input  logic [1:0]        EffectivePrivilegeModeW,               // privilege mode of the access, including MPRV
+  input  logic              STATUS_MXR,                            // MXR disables pointer masking below M-mode
+  input  logic [P.XLEN-1:0] SATP_REGW,                             // satp.MODE = Bare means addresses are physical
+  input  logic [1:0]        MemRWM,                                // load or store
+  input  logic [3:0]        CMOpM,                                 // cache management operation
+  input  logic [P.XLEN-1:0] IEUAdrSpillM,                          // address of the access
+  output logic [P.XLEN-1:0] IEUAdrSpillMaskedM                     // address after pointer masking
 );
 
-  logic MaskApplicableInstr;
-  // Determine if instruction is mask-applicable (explicit memory access)
-  assign MaskApplicableInstr = |(MemRWM) | |(CMOpM);
+  logic [1:0] PMMM;        // PMM of the effective privilege mode
+  logic       EnableM;     // mask this access
+  logic       PMLen16M;    // PMLEN = 16 rather than 7
+  logic       VirtualM;    // address is translated, so the masked bits sign-extend rather than zero-extend
+  logic       AdrSignBitM; // value of the masked bits: sign bit of a virtual address, 0 for a physical address
 
-  // Determine if mask should be applied based on CSR configuration PMM bits and current privilege level
   always_comb
-    case(EffectivePrivilegeModeW)
-      2'b00:    begin
-                  PointerMaskApplicable = ~STATUS_MXR & MaskApplicableInstr & ((|(MENVCFG_PMM) & !P.S_SUPPORTED) | |(SENVCFG_PMM));
-                  PMLen16Sel = P.S_SUPPORTED ? SENVCFG_PMM[0] : MENVCFG_PMM[0];
-                end
-      2'b01:    begin
-                  PointerMaskApplicable = ~STATUS_MXR & MaskApplicableInstr & (|(MENVCFG_PMM));
-                  PMLen16Sel = MENVCFG_PMM[0];
-                end
-      2'b11:    begin
-                  PointerMaskApplicable = MaskApplicableInstr & (|(MSECCFG_PMM));
-                  PMLen16Sel = MSECCFG_PMM[0];
-                end
-      default:  begin
-                  PointerMaskApplicable = 1'b0;
-                  PMLen16Sel = 1'b0;
-                end
+    case (EffectivePrivilegeModeW)
+      P.M_MODE: PMMM = MSECCFG_PMM;
+      P.S_MODE: PMMM = MENVCFG_PMM;
+      default:  PMMM = P.S_SUPPORTED ? SENVCFG_PMM : MENVCFG_PMM; // U-mode
     endcase
-  logic SvInactiveM;   // The address is physical (M mode or satp Bare), so masking zero-extends it
-  logic Fill7SpillM;          // Value of masked bits for PMLEN 7: 0 if physical, else bit 56
-  assign SvInactiveM = ~|(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]) | EffectivePrivilegeModeW[1];
-  assign Fill7SpillM = ~SvInactiveM & IEUAdrSpillM[56];
-  if (P.PMLEN16_SUPPORTED) begin : pmlen16
-    logic Mask16SpillM, Fill16SpillM, TopFillSpillM;
-    assign Mask16SpillM  = PointerMaskApplicable & PMLen16Sel;
-    assign Fill16SpillM  = ~SvInactiveM & IEUAdrSpillM[47];
-    assign TopFillSpillM = PMLen16Sel ? Fill16SpillM : Fill7SpillM;
-    assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{TopFillSpillM}} : IEUAdrSpillM[63:57];
-    assign IEUAdrSpillMMasked[56:48] = Mask16SpillM ? {9{Fill16SpillM}} : IEUAdrSpillM[56:48];
-    assign IEUAdrSpillMMasked[47:0]  = IEUAdrSpillM[47:0];
-  end else begin
-    assign IEUAdrSpillMMasked[63:57] = PointerMaskApplicable ? {7{Fill7SpillM}} : IEUAdrSpillM[63:57];
-    assign IEUAdrSpillMMasked[56:0]  = IEUAdrSpillM[56:0];
-  end
-  assign IEUAdrxTvalMMasked = {IEUAdrSpillMMasked[P.XLEN-1:48], IEUAdrxTvalM[47:0]};
+
+  // Mask loads, stores, atomics, and CMOs when PMM is nonzero and MXR is inactive (MXR has no effect in M-mode)
+  assign EnableM     = |PMMM & (|MemRWM | |CMOpM) & (EffectivePrivilegeModeW == P.M_MODE | ~STATUS_MXR);
+  assign PMLen16M    = P.PMLEN16_SUPPORTED & PMMM[0];
+  assign VirtualM    = (EffectivePrivilegeModeW != P.M_MODE) & |SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS];
+  assign AdrSignBitM = VirtualM & (PMLen16M ? IEUAdrSpillM[47] : IEUAdrSpillM[56]);
+
+  assign IEUAdrSpillMaskedM = {EnableM            ? {7{AdrSignBitM}} : IEUAdrSpillM[63:57],
+                               EnableM & PMLen16M ? {9{AdrSignBitM}} : IEUAdrSpillM[56:48],
+                               IEUAdrSpillM[47:0]};
 endmodule

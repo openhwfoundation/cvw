@@ -147,7 +147,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
 
   if (P.XLEN == 64) begin : senvcfgpmm
     logic [1:0] LegalizedPMM;
-    legalizedpmm #(P) SENVCFGPMM(.REGW(SENVCFG_REGW), .PreWriteValM(CSRWriteValM), .LegalizedPMM);
+    legalizedpmm #(P) SENVCFGPMM(.OldPMM(SENVCFG_REGW[33:32]), .WritePMM(CSRWriteValM[33:32]), .LegalizedPMM);
     assign SENVCFG_WriteValM = {30'b0, LegalizedPMM & {2{P.SSNPM_SUPPORTED}}, SENVCFG_WriteValLowM};
   end else
     assign SENVCFG_WriteValM = SENVCFG_WriteValLowM;

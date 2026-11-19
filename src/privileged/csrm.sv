@@ -198,7 +198,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     logic [1:0] LegalizedPMM;
     assign WriteMENVCFGM = CSRMWriteM & (CSRAdrM == MENVCFG);
     assign LegalizedCBIE = MENVCFG_PreWriteValM[5:4] == 2'b10 ? MENVCFG_REGW[5:4] : MENVCFG_PreWriteValM[5:4]; // Assume WARL for reserved CBIE = 10, keeps old value
-    legalizedpmm #(P) MENVCFGPMM(.REGW(MENVCFG_REGW), .PreWriteValM(MENVCFG_PreWriteValM), .LegalizedPMM);
+    legalizedpmm #(P) MENVCFGPMM(.OldPMM(MENVCFG_REGW[33:32]), .WritePMM(MENVCFG_PreWriteValM[33:32]), .LegalizedPMM);
     // MENVCFG is always 64 bits even for RV32
     assign MENVCFG_WriteValM = {
       MENVCFG_PreWriteValM[63]  & P.SSTC_SUPPORTED,
@@ -247,7 +247,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
     assign WriteMSECCFGM = CSRMWriteM & (CSRAdrM == MSECCFG);
     // PMM is a WARL field: 00 = disabled, 10 = PMLEN 7, 11 = PMLEN 16, and 01 is reserved.
     // PMLEN 16 is available only in PMLEN16_SUPPORTED configurations.  Illegal writes keep the old value, as menvcfg.CBIE does.
-    legalizedpmm #(P) MSECCFGPMM(.REGW(MSECCFG_REGW), .PreWriteValM(MSECCFG_PreWriteValM), .LegalizedPMM);
+    legalizedpmm #(P) MSECCFGPMM(.OldPMM(MSECCFG_REGW[33:32]), .WritePMM(MSECCFG_PreWriteValM[33:32]), .LegalizedPMM);
     assign MSECCFG_WriteValM = {
       30'b0,                                                       // 63:34 WPRI
       LegalizedPMM & {2{P.SMMPM_SUPPORTED}},                       // 33:32 PMM (Smmpm); read-only 0 on RV32

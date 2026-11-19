@@ -19,8 +19,8 @@
 module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic                     clk, reset,
   input  logic                     StallM, FlushM, StallW, FlushW,
-  input  logic                     CommittedF,                            // IFU fetch in flight: the walker holds a fault until the trap
-  output logic                     LSUStallM,                             // LSU stalls pipeline during a multicycle operation
+  input  logic                     CommittedF,                           // IFU fetch in flight: the walker holds a fault until the trap
+  output logic                     LSUStallM,                            // LSU stalls pipeline during a multicycle operation
   // connected to cpu (controls)
   input  logic [1:0]               MemRWE,                               // Read/Write control
   input  logic [1:0]               MemRWM,                               // Read/Write control
@@ -39,10 +39,10 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic                     DCacheMiss,                           // D cache miss for performance counters
   output logic                     DCacheAccess,                         // D cache memory access for performance counters
   // address and write data
-  input  logic [P.XLEN-1:0]        IEUAdrE,                               // Execution stage memory address
-  output logic [P.XLEN-1:0]        IEUAdrM,                               // Memory stage memory address
-  input  logic [P.XLEN-1:0]        WriteDataM,                            // Write data from IEU
-  output logic [P.LLEN-1:0]        ReadDataW,                             // Read data to IEU or FPU
+  input  logic [P.XLEN-1:0]        IEUAdrE,                              // Execution stage memory address
+  output logic [P.XLEN-1:0]        IEUAdrM,                              // Memory stage memory address
+  input  logic [P.XLEN-1:0]        WriteDataM,                           // Write data from IEU
+  output logic [P.LLEN-1:0]        ReadDataW,                            // Read data to IEU or FPU
   // cpu privilege
   input  logic [1:0]               PrivilegeModeW,                       // Current privilege mode
   input  logic                     BigEndianM,                           // Swap byte order to big endian
@@ -50,36 +50,36 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic                     sfencevmaAllM,                        // sfence.vma with rs2=x0: flush all TLB entries including global
   input  logic                     sfencevmaAdrM,                        // sfence.vma with rs1!=x0: flush only entries for the address in rs1 (IEUAdrM)
   output logic                     DCacheStallM,                         // D$ busy with multicycle operation
-  output logic [P.XLEN-1:0]        IEUAdrxTvalMMasked,                   // IEUAdrM, but could be spilled onto the next cacheline or virtual page. Optionally pointer masked
+  output logic [P.XLEN-1:0]        IEUAdrxTvalM,                         // IEUAdrM, but could be spilled onto the next cacheline or virtual page; pointer masked
   // fpu
-  input  logic [P.FLEN-1:0]        FWriteDataM,                           // Write data from FPU
-  input  logic                     FpLoadStoreM,                          // Selects FPU as store for write data
+  input  logic [P.FLEN-1:0]        FWriteDataM,                          // Write data from FPU
+  input  logic                     FpLoadStoreM,                         // Selects FPU as store for write data
   // faults
-  output logic                     LoadPageFaultM, StoreAmoPageFaultM,    // Page fault exceptions
-  output logic                     LoadMisalignedFaultM,                  // Load address misaligned fault
-  output logic                     LoadAccessFaultM,                      // Load access fault (PMA)
-  output logic                     HPTWInstrAccessFaultF,                 // HPTW generated access fault during instruction fetch
-  output logic                     HPTWInstrPageFaultF,                   // HPTW generated page fault during instruction fetch
+  output logic                     LoadPageFaultM, StoreAmoPageFaultM,   // Page fault exceptions
+  output logic                     LoadMisalignedFaultM,                 // Load address misaligned fault
+  output logic                     LoadAccessFaultM,                     // Load access fault (PMA)
+  output logic                     HPTWInstrAccessFaultF,                // HPTW generated access fault during instruction fetch
+  output logic                     HPTWInstrPageFaultF,                  // HPTW generated page fault during instruction fetch
   // cpu hazard unit (trap)
-  output logic                     StoreAmoMisalignedFaultM,              // Store or AMO address misaligned fault
-  output logic                     StoreAmoAccessFaultM,                  // Store or AMO access fault
+  output logic                     StoreAmoMisalignedFaultM,             // Store or AMO address misaligned fault
+  output logic                     StoreAmoAccessFaultM,                 // Store or AMO access fault
   // connect to ahb
-  output logic [P.PA_BITS-1:0]     LSUHADDR,                              // Bus address from LSU to EBU
-  input  logic [P.XLEN-1:0]        HRDATA,                                // Bus read data from EBU to LSU
-  output logic [P.XLEN-1:0]        LSUHWDATA,                             // Bus write data from LSU to EBU
-  input  logic                     LSUHREADY,                             // Bus ready from EBU to LSU
-  output logic                     LSUHWRITE,                             // Bus write operation from LSU to EBU
-  output logic [2:0]               LSUHSIZE,                              // Bus operation size from LSU to EBU
-  output logic [2:0]               LSUHBURST,                             // Bus burst from LSU to EBU
-  output logic [1:0]               LSUHTRANS,                             // Bus transaction type from LSU to EBU
-  output logic [P.XLEN/8-1:0]      LSUHWSTRB,                             // Bus byte write enables from LSU to EBU
+  output logic [P.PA_BITS-1:0]     LSUHADDR,                             // Bus address from LSU to EBU
+  input  logic [P.XLEN-1:0]        HRDATA,                               // Bus read data from EBU to LSU
+  output logic [P.XLEN-1:0]        LSUHWDATA,                            // Bus write data from LSU to EBU
+  input  logic                     LSUHREADY,                            // Bus ready from EBU to LSU
+  output logic                     LSUHWRITE,                            // Bus write operation from LSU to EBU
+  output logic [2:0]               LSUHSIZE,                             // Bus operation size from LSU to EBU
+  output logic [2:0]               LSUHBURST,                            // Bus burst from LSU to EBU
+  output logic [1:0]               LSUHTRANS,                            // Bus transaction type from LSU to EBU
+  output logic [P.XLEN/8-1:0]      LSUHWSTRB,                            // Bus byte write enables from LSU to EBU
   // page table walker
   input  logic [P.XLEN-1:0]        SATP_REGW,                            // SATP (supervisor address translation and protection) CSR
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,  // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
   input  logic [1:0]               STATUS_MPP,                           // Machine previous privilege mode
   input  logic                     ENVCFG_PBMTE,                         // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,                          // HPTW A/D Update enable
-  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking config bits
+  input  logic [1:0]               MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM, // Pointer masking modes for M, S, and U
   input  logic [P.XLEN-1:0]        PCSpillF,                             // Fetch PC
   input  logic                     ITLBMissOrUpdateAF,                   // ITLB miss causes HPTW (hardware pagetable walker) walk or update access bit
   output logic [P.XLEN-1:0]        PTE,                                  // Page table entry write to ITLB
@@ -155,33 +155,17 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic                  DTLBMissOrUpdateDAM;
   logic                  LSUFpLoadStoreM;                        // FpLoadStoreM muxed with the HPTW
   logic [1:0]            EffectivePrivilegeModeW;                // Effective privilege mode accounting for MPRV
-  logic                  PointerMaskApplicable, PMLen16Sel;      // Pointer masking signals
-  logic [P.XLEN-1:0]     IEUAdrSpillMMasked;                     // Optionally masked IEUAdrSpillM
-  logic [P.XLEN-1:0]     IEUAdrxTvalM, IEUAdrSpillM;
-
-  /////////////////////////////////////////////////////////////////////////////////////////////
-  // Pointer masking module
-  // If pointer mask is applicable, perform ignore transformation on IEUAdrM
-  /////////////////////////////////////////////////////////////////////////////////////////////
-  if (P.ZPM_SUPPORTED) begin : pm // pointermasking module determines if pointermasking should be applied based on config bits and privilege mode
-  pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
-                                .STATUS_MXR, .MemRWM, .CMOpM, .SATP_REGW, .IEUAdrSpillM, .IEUAdrxTvalM,
-                                .PointerMaskApplicable, .PMLen16Sel, .IEUAdrSpillMMasked, .IEUAdrxTvalMMasked);
-  end else begin
-    assign PointerMaskApplicable = 1'b0;
-    assign PMLen16Sel            = 1'b0;
-    assign IEUAdrSpillMMasked    = IEUAdrSpillM;
-    assign IEUAdrxTvalMMasked    = IEUAdrxTvalM;
-  end
+  logic [P.XLEN-1:0]     IEUAdrSpillM;                           // IEUAdrM, or the address of the second half of a spill
+  logic [P.XLEN-1:0]     IEUAdrSpillMaskedM;                     // IEUAdrSpillM after pointer masking
+  logic [P.XLEN-1:0]     IEUAdrxTvalUnmaskedM;                   // IEUAdrxTvalM before pointer masking
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Pipeline for IEUAdr E to M
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////
+
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
-
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
-
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
@@ -189,20 +173,32 @@ module lsu import cvw::*; #(parameter cvw_t P) (
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
                      .ByteMaskM, .ByteMaskExtendedM, .LSUWriteDataM, .ByteMaskSpillM, .LSUWriteDataSpillM,
-                     .IEUAdrSpillE, .IEUAdrSpillM, .IEUAdrxTvalM, .SelSpillE, .DCacheReadDataWordSpillM, .SpillStallM);
-    assign IEUAdrExtM = {2'b00, IEUAdrSpillMMasked};
+                     .IEUAdrSpillE, .IEUAdrSpillM, .IEUAdrxTvalM(IEUAdrxTvalUnmaskedM), .SelSpillE, .DCacheReadDataWordSpillM, .SpillStallM);
     assign IEUAdrExtE = {2'b00, IEUAdrSpillE};
   end else begin : zicclsm_align
-    assign IEUAdrExtM = {2'b00, IEUAdrSpillMMasked};
+    assign IEUAdrSpillM = IEUAdrM;
     assign IEUAdrExtE = {2'b00, IEUAdrE};
     assign SelSpillE = 1'b0;
     assign DCacheReadDataWordSpillM = DCacheReadDataWordM;
     assign ByteMaskSpillM = ByteMaskM;
     assign LSUWriteDataSpillM = LSUWriteDataM;
     assign {SpillStallM} = 1'b0;
-    assign IEUAdrxTvalM = IEUAdrM;
-    assign IEUAdrSpillM = IEUAdrM;
+    assign IEUAdrxTvalUnmaskedM = IEUAdrM;
   end
+
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  // Pointer masking (Smmpm, Smnpm, Ssnpm), applied to each half of a spill
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  if (P.ZPM_SUPPORTED) begin : pm
+    pointermask #(P) pointermask(.MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM, .EffectivePrivilegeModeW,
+      .STATUS_MXR, .SATP_REGW, .MemRWM, .CMOpM, .IEUAdrSpillM, .IEUAdrSpillMaskedM);
+    // Masking changes only bits 63:48, where the xtval address and IEUAdrSpillM always agree
+    assign IEUAdrxTvalM = {IEUAdrSpillMaskedM[P.XLEN-1:48], IEUAdrxTvalUnmaskedM[47:0]};
+  end else begin : pm
+    assign IEUAdrSpillMaskedM = IEUAdrSpillM;
+    assign IEUAdrxTvalM = IEUAdrxTvalUnmaskedM;
+  end
+  assign IEUAdrExtM = {2'b00, IEUAdrSpillMaskedM};
 
   if (P.ZICBOZ_SUPPORTED) begin : cboz
     assign WriteDataZM = LSUCMOpM[CMO_ZERO] ? 0 : WriteDataM;

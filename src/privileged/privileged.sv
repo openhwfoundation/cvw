@@ -36,7 +36,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] SrcAM,                                          // rs1 source operand for CSR writes
   input  logic [31:0]       InstrM,                                         // Instruction
   input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
-  input  logic [P.XLEN-1:0] IEUAdrxTvalMMasked,                             // address from IEU, optionally pointer masked
+  input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
   // control signals
@@ -87,7 +87,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]        ENVCFG_CBE,                                     // Cache block operation enables
   output logic              ENVCFG_PBMTE,                                   // Page-based memory type enable
   output logic              ENVCFG_ADUE,                                    // HPTW A/D Update enable
-  output logic [1:0]        MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,          // pointer mask configuration bits from csr registers
+  output logic [1:0]        MSECCFG_PMM, MENVCFG_PMM, SENVCFG_PMM,          // Pointer masking modes for M, S, and U
   // PC logic output from privileged unit to IFU
   output logic [P.XLEN-1:0] EPCM,                                           // Exception Program counter to IFU PC logic
   output logic [P.XLEN-1:0] TrapVectorM,                                    // Trap vector, to IFU PC logic
@@ -138,7 +138,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,
-    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalMMasked,
+    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM,
     .CSRReadM, .CSRWriteM, .TrapM, .mretM, .sretM, .InterruptM,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
     .MTIME_CLINT, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,
@@ -152,7 +152,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
-    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM, .MENVCFG_PMM, .SENVCFG_PMM, .MSECCFG_PMM);
+    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM, .MSECCFG_PMM, .MENVCFG_PMM, .SENVCFG_PMM);
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,

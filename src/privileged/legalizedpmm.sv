@@ -17,11 +17,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module legalizedpmm import cvw::*; #(parameter cvw_t P) (
-    input logic [63:0] REGW,
-    input logic [63:0] PreWriteValM,
-    output logic [1:0] LegalizedPMM
+  input  logic [1:0] OldPMM,       // current PMM field
+  input  logic [1:0] WritePMM,     // PMM field of the CSR write
+  output logic [1:0] LegalizedPMM  // reserved encodings (01, and 11 without PMLEN 16) keep the old value
 );
-  assign LegalizedPMM = ((PreWriteValM[33:32] == 2'b01) |
-                         (PreWriteValM[33:32] == 2'b11 & !P.PMLEN16_SUPPORTED)) ? // If PMM write value is reserved (01 or 11 when PMLEN16 is not supported, do not write)
-                          REGW[33:32] : PreWriteValM[33:32];
+  assign LegalizedPMM = (WritePMM == 2'b01 | (WritePMM == 2'b11 & !P.PMLEN16_SUPPORTED)) ? OldPMM : WritePMM;
 endmodule
