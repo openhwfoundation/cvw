@@ -192,7 +192,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   assign VRegWriteW = CommitW & HeadVRegWriteW;
 
-  vregfile #(P.VLEN, P.VPU_BLEN, P.VPU_QUEUEDEPTH) vregfile(.clk, .reset, .VectorStallE,
+  vregfile #(P) vregfile(.clk, .reset, .VectorStallE,
                               .Vs1D(Vs1FinalD), .Vs2D(Vs2FinalD), .VdD(VdFinalD), .OldVdD(EnqueueD), .OrderD,
                               .VRD1(VRD1D), .VRD2(VRD2D), .VRD3(VRD3D), .OldVdValid, .OldVdOrder, .V0(v0D),
                               .VRegWriteW, .VdW(HeadVdW), .DataW(HeadDataW), .ByteMaskW('1));

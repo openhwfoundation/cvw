@@ -4,8 +4,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
+`include "config.vh"
+
+import cvw::*;
+
 module vregfile_tb;
-  localparam VLEN = 512, BLEN = 128, ORDERBITS = 5, BANKS = VLEN/BLEN, BYTES = BLEN/8;
+  `include "parameter-defs.vh"
+
+  // rv64gcv: VLEN 256 (from config.vh), 2 banks of 128 bits
+  localparam BLEN = P.VPU_BLEN, ORDERBITS = P.VPU_QUEUEDEPTH, BANKS = P.VPU_BANKS, BYTES = BLEN/8;
   localparam CYCLES = 2000;
 
   logic                 clk = 0, reset = 1;
@@ -30,7 +37,7 @@ module vregfile_tb;
   request_t             Current = '{default: '0};
   logic                 CurrentStall = 1;
 
-  vregfile #(VLEN, BLEN, ORDERBITS) dut(.*);
+  vregfile #(P) dut(.*);
 
   always #5 clk = ~clk;
 
@@ -126,7 +133,7 @@ module vregfile_tb;
     end
 
     // reset clears the chain: no old vd beat after reset
-    cycle('{vs1: 5'd1, vs2: 5'd2, vd: 5'd3, oldvd: 1'b1, order: 5'd7}, 1'b0, '0, '0, '0);
+    cycle('{vs1: 5'd1, vs2: 5'd2, vd: 5'd3, oldvd: 1'b1, order: ORDERBITS'(7)}, 1'b0, '0, '0, '0);
     @(posedge clk); #1 reset = 1; OldVdD = 0;
     @(posedge clk); #1;
     if (OldVdValid !== '0) begin errors++; $display("ERROR: old vd valid after reset"); end
