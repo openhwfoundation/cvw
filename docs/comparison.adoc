@@ -234,9 +234,10 @@ the flags of CORE-V-Wally's Embench speed build (`-O3 -flto -funroll-loops`, plu
 (so the floating-point benchmarks use software floating point), riscv64-unknown-elf-gcc 15.2.0 for RV32, and a medany GCC 16.1.0
 toolchain for RV64. The score is that of https://github.com/embench/embench-iot/tree/embench-1.0[Embench 1.0]: the geometric
 mean over its 19 benchmarks of Embench's baseline time divided by the measured cycles at 1 MHz, as Embench's
-`benchmark_speed.py` computes it, and a benchmark counts only if its own check passes. The programs are built from the
-embench-iot commit in `addins/embench-iot`, which keeps Embench 1.0's baselines; its sources for the 19 benchmarks differ from
-Embench 1.0's only in aligning the heap (https://github.com/embench/embench-iot/pull/138[embench-iot #138]).
+`benchmark_speed.py` computes it, and a benchmark counts only if its own check passes. The programs are built from
+`addins/embench-iot`, which pins a 2023 commit of embench-iot's master branch rather than the 1.0 release. For the 19
+benchmarks it keeps 1.0's sources and baselines, except that its allocator returns pointer-aligned blocks
+(https://github.com/embench/embench-iot/pull/138[embench-iot #138]), which affects huffbench, qrduino, and sglib-combined.
 
 ----
 export ACT_CONFIGS=... CI_TOOLS=... RV64_TOOLCHAIN=<bin directory of a medany riscv64-unknown-elf toolchain>
