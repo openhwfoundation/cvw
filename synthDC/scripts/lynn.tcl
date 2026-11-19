@@ -55,7 +55,7 @@ if {[catch {exec grep "cvw_t" "$outputDir/hdl/$::env(DESIGN).sv"}] == 0} {
     echo "Creating wrapper"
     set wrapper 1
     # make the wrapper
-    exec mise exec -- uv run $::env(WALLY)/synthDC/scripts/wrapperGen.py $::env(DESIGN) $outputDir/hdl
+    exec -ignorestderr mise exec -- uv run $::env(WALLY)/synthDC/scripts/wrapperGen.py $::env(DESIGN) $outputDir/hdl
 }
 
 # Enables name mapping
