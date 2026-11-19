@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
+module fdivsqrtiter import fpu_pkg::*;  #(parameter fpu_t P) (
   input  logic              clk,
   input  logic              IFDivStartE,
   input  logic              FDivBusyE,

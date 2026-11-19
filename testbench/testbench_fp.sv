@@ -735,7 +735,7 @@ module testbench_fp;
   end
 
   if (TEST === "div" | TEST === "sqrt" | TEST === "all") begin: fdivsqrt
-    fdivsqrt #(P) fdivsqrt(.clk, .reset, .XsE(Xs), .FmtE(ModFmt), .XmE(Xm), .YmE(Ym),
+    fdivsqrt #(FP) fdivsqrt(.clk, .reset, .XsE(Xs), .FmtE(ModFmt), .XmE(Xm), .YmE(Ym),
       .XeE(Xe), .YeE(Ye), .SqrtE(OpCtrlVal[0]), .SqrtM(OpCtrlVal[0]),
       .XInfE(XInf), .YInfE(YInf), .XZeroE(XZero), .YZeroE(YZero),
       .XNaNE(XNaN), .YNaNE(YNaN), .NfE, .BiasE,
