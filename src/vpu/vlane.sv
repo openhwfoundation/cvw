@@ -30,14 +30,15 @@
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.ELEN-1:0] SrcA, SrcB,      // lane operands
+  input  logic [4:0]        Vs1E,
   input  logic [2:0]        VALUSelectE,
-  input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
+  input  logic [2:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic              VSubE,
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   output logic [P.ELEN-1:0] LaneResult       // lane result
 );
 
-  logic [P.ELEN-1:0] SumE, ProductE, ShiftE;
+  logic [P.ELEN-1:0] SumE, ProductE, ShiftE, ExtResultE;
 
   valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
 
@@ -45,12 +46,15 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
+  vext #(P) vext(.Vs1(Vs1E), .B(SrcB), .ExtResult(ExtResultE));
+
   always_comb
     case (VLaneSelectE)
-      2'b00:   LaneResult = SumE;
-      2'b01:   LaneResult = ProductE;
-      2'b10:   LaneResult = SrcA;     // move
-      2'b11:   LaneResult = ShiftE;
+      3'b000:   LaneResult = SumE;     //VALUResult
+      3'b001:   LaneResult = ProductE;
+      3'b010:   LaneResult = SrcA;     // move
+      3'b011:   LaneResult = ShiftE;
+      3'b100:   LaneResult = ExtResultE;
       default: LaneResult = SumE;
     endcase
 

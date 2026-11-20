@@ -56,14 +56,14 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic                         VALUResultSrcD,
   input logic [2:0]                   VALUSelectD,
   input logic                         VSubD,
-  input logic [1:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  input logic [2:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
-   // datapath from VRF banks, bank i holds beat i of reg read i cycles after dispatch
-  // *** banks are shared by int and float EUs and vieu should take one bank per beat while VPU_BLEN = VPU_INT_BLEN
+   // datapath from vregfile
   input logic [P.VPU_BLEN-1:0]        VRD1D [P.VPU_BANKS-1:0],
   input logic [P.VPU_BLEN-1:0]        VRD2D [P.VPU_BANKS-1:0],
   input logic [P.VPU_BLEN-1:0]        VRD3D [P.VPU_BANKS-1:0],        // vd as an operand (vmacc, vslideup)
   input logic [P.VLEN-1:0]            v0D,                            // v0 as an operand (vmerge, vadc), whole register
+  input logic [4:0]                   Vs1D,
    //
   // from/to the scalar core
   input logic [P.XLEN-1:0]            R1D,                            // Scalar rs1 read in Decode (from IEU)
@@ -89,7 +89,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [1:0] VALUSrcAE;
   logic       VALUResultSrcE;
   logic [2:0] VALUSelectE;
-  logic [1:0] VLaneSelectE;
+  logic [2:0] VLaneSelectE;
   logic       VSubE;
   logic [1:0] VShiftSelectE;
 
@@ -108,6 +108,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [BEATSELBITS-1:0]    ReadBankD;           // bank holding the beat Execute computes next
   logic [P.VPU_INT_BLEN-1:0] VRD1E, VRD2E, VRD3E; // operand beat in Execute
   logic [P.VLEN-1:0]         v0E;                 // v0 read once per micro-op
+  logic [4:0]                Vs1E;
   logic                      BeatValidE, BeatValidM;
 
   logic [P.VPU_INT_BLEN-1:0] VImmE;
@@ -150,7 +151,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(27+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(28+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~VectorStallE & CaptureD,
      {VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD, VALUSelectD, VSubD, VLaneSelectD,
       VShiftSelectD, ExecutionUnitOrderD},
@@ -162,11 +163,12 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   mux3 #(P.VPU_INT_BLEN) vscramux(VRD1E, VImmE, {XLENTOINTLANES{R1E}}, VALUSrcAE, VSrcAE);
 
+  assign Vs1E = InstrE[19:15];
   assign VSrcBE = VRD2E;
   assign VSrcCE = VRD3E; // *** to the lanes for vmacc
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE,
-                                         .VShiftSelectE, .LaneResult(VALUResultE));
+                                         .VShiftSelectE, .LaneResult(VALUResultE), .Vs1E);
 
   flopenrc #(P.VPU_INT_BLEN) VALUResultMReg(clk, reset, VectorFlushM, ~StallM, VALUResultE, VALUResultM); // *** may need an enable
 

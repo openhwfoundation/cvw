@@ -5,7 +5,7 @@
 // Created: 2 November 2026
 // Modified: 2 November 2026
 //
-// Purpose: Vector mask scan and count
+// Purpose: Vector population count
 //
 // Documentation: RISC-V System on Chip Design Volume 2
 //

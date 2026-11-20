@@ -53,7 +53,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VALUResultSrcD,
   output logic [2:0]                  VALUSelectD,
   output logic                        VSubD,
-  output logic [1:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  output logic [2:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
   output logic                        IllegalVPUInstrD,
   output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
@@ -62,6 +62,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VsetvlD,                    // vsetvl: vtype comes from rs2 rather than an immediate
   output logic                        VsetivliD,                  // vsetivli: AVL is the uimm5 in the rs1 field
   output logic [10:0]                 VTYPEImmD,                  // zero-extended vtype immediate for vsetvli / vsetivli
+  output logic [4:0]                  Vs1D,
   // hand shaking controls
   output logic [P.VPU_EU-1:0]     ControllerValidD,
   input logic [P.VPU_EU-1:0]      ExecutionUnitReadyD,
@@ -81,9 +82,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 );
 
   logic        MicroVectorD;
-  logic [4:0]  Vs1D, Vs2D;               // Vector Source 1 and 2
-  logic [4:0]  VdD;                      // Vector Destination read (overwrite)
-  logic [3:0]  MicroOpsD;                // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
+  logic [4:0]  Vs2D;                      // Vector Source 2
+  logic [4:0]  VdD;                       // Vector Destination read (overwrite)
+  logic [3:0]  MicroOpsD;                 // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
   logic        MicroOpNotLastD;
   logic        VHazardStallD;             // wait for all older vector instructions to write back
 
