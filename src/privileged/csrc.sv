@@ -21,6 +21,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   input  logic              StallE, StallM, StallW,
   input  logic              FlushM,
   input  logic              InstrValidNotFlushedM, LoadStallD, StoreStallD,
+  input  logic              Issue1M,                  // A second instruction retires with this one (superscalar)
   input  logic              CSRMWriteM, CSRWriteM,
   input  logic              BPDirWrongM,
   input  logic              BTAWrongM,
@@ -73,6 +74,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   logic [HPMEVENTTOP:3]    WriteMHPMEVENTM;
   logic [31:0]             CounterEvent; // keep all events here even if P.COUNTERS < 32
   logic [P.COUNTERS-1:0]   CounterInc;
+  logic                    Instr1RetireM;    // A second instruction retired this cycle (superscalar slot 1)
   logic [63:0]             HPMCOUNTERPlusM[P.COUNTERS-1:0];
   logic [P.XLEN-1:0]       NextHPMCOUNTERHM[P.COUNTERS-1:0];
   logic [P.XLEN-1:0]       NextHPMCOUNTERM[P.COUNTERS-1:0];
@@ -91,6 +93,11 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   assign CounterEvent[0]    = 1'b1;                                                      // MCYCLE always increments
   assign CounterEvent[1]    = 1'b0;                                                      // Counter 1 doesn't exist
   assign CounterEvent[2]    = InstrValidNotFlushedM;                                     // MINSTRET instructions retired
+  // Slot 1 retires alongside slot 0, so minstret advances by two that cycle.  It honours
+  // mcountinhibit.IR for the same reason slot 0 does: with the counter frozen by software, an
+  // ungated second retirement would let minstret drift upward.  Only minstret is affected -- slot 1
+  // is restricted to ALU operations, so it is never a branch, jump, load, store or CSR access.
+  assign Instr1RetireM      = Issue1M & InstrValidNotFlushedM & ~MCOUNTINHIBIT_REGW[2];
   if (P.COUNTERS > 3) begin : cevent                                                   // User-defined counters
     // Ideally all events would be counted in the M stage, but the pipelining is costly. The counters may
     // count an event in a previous pipeline stage.
@@ -133,14 +140,14 @@ module csrc import cvw::*; #(parameter cvw_t P) (
       else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
 
     if (P.XLEN == 32) begin // write high and low separately
-      assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
+      assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]} + {63'b0, Instr1RetireM & (i == 2)};
       assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
       assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32]; // exclusion-tag: next-hpmcounterh
       always_ff @(posedge clk)
         if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
         else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
     end else begin // XLEN=64; write entire register
-      assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]};
+      assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]} + {63'b0, Instr1RetireM & (i == 2)};
       assign HPMCOUNTERH_REGW[i] = '0; // disregard for RV64
     end
   end

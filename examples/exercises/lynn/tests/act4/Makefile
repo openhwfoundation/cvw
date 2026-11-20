@@ -20,6 +20,7 @@ $(STAMP): Makefile
 	@$(MAKE) -C $(RISCV_ARCH_TEST) \
 		CONFIG_FILES=$(CONFIG_FILES) \
 		WORKDIR=$(WORK_DIR) \
+		EXTENSIONS=I,Zicntr,Zihpm,Zmmul \
 		--jobs $$(nproc)
 	@rm -rf $(ELFS_DIR)/Zicsr
 	@rm -f  $(ELFS_DIR)/Zicntr/*csrrc*

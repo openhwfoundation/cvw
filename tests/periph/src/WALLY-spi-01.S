@@ -502,6 +502,7 @@ WORD cs_def, 0x0000000D, write32_test     # change selected cs pins def value. s
 WORD cs_mode, 0x00000000, write32_test    # change cs_mode to auto, should deassert cs[1], have now gone through all deassertion conditions
 WORD cs_def, 0x0000000F, write32_test     # reset cs_def
 WORD cs_id, 0x00000000, write32_test      # reset cs_id
+WORD 0x0, 0x00000000, spi_data_wait       # wait for the 0xCE transfer to be received; without this the read races the SPI clock
 WORD rx_data, 0x000000CE, read32_test     # clear rx_fifo
 
 # =========== Test frame format (fmt) register ===========

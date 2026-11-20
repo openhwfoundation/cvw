@@ -184,3 +184,6 @@ external
 config/deriv
 sim/slack-notifier/slack-webhook-url.txt
 sim/*/testlists/
+
+# PPA benchmark logs (results are tracked in benchmarks/ppa_history.csv)
+benchmarks/ppa_logs/

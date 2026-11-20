@@ -28,7 +28,7 @@ SYNTH_TOP 			?= $(PROCESSOR_TOP) # change to different module to find critical p
 #ARCH := rv$(XLEN)gc
 #ARCH := rv$(XLEN)imc_zicsr
 #ARCH := rv$(XLEN)im_zicsr
-ARCH := rv$(XLEN)i_zicsr
+ARCH := rv$(XLEN)i_zicsr_zmmul # rv$(XLEN)i_zicsr
 
 # ---- Command line optional parameters ---- #
 ELFS 				?=

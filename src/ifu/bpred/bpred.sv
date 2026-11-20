@@ -23,7 +23,9 @@ module bpred import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0]       InstrD,                    // Decompressed decode stage instruction. Used to decode instruction class
   input  logic [P.XLEN-1:0] PCNextF,                   // Next Fetch Address
   input  logic [P.XLEN-1:0] PCPlus2or4F,               // PCF+2/4
+  input  logic [P.XLEN-1:0] PCNextSeqF,                // Sequential next PC: after slot 0, or after both slots when they issue together
   output logic [P.XLEN-1:0] PC1NextF,                  // Branch Predictor predicted or corrected fetch address on misprediction
+  output logic              BPPCSrcF,                  // Predicted taken, so the next PC is the predicted target rather than sequential
   output logic [P.XLEN-1:0] NextValidPCE,              // Address of next valid instruction after the instruction in the Memory stage
 
   // Update Predictor
@@ -36,12 +38,16 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
   // Branch and jump outcome
   input  logic              InstrValidD, InstrValidE,
+  input  logic              Commit1E,                  // Slot 1 will commit alongside slot 0, so the bundle is two instructions long
+  input  logic [P.XLEN-1:0] PCLink1E,                  // ... and this is the address just past slot 1, where the bundle then ends
   input  logic              BranchD, BranchE,
   input  logic              JumpD, JumpE,
   input  logic              PCSrcE,                    // Execution stage branch is taken
   input  logic [P.XLEN-1:0] IEUAdrE,                   // The branch/jump target address
   input  logic [P.XLEN-1:0] IEUAdrM,                   // The branch/jump target address
   input  logic [P.XLEN-1:0] PCLinkE,                   // The address following the branch instruction. (AKA Fall through address)
+  input  logic              LateBrM,                   // The branch in Memory was resolved there (ieu.sv late branch) ...
+  input  logic              LateBrTakenM,              // ... and this is its real direction; PCSrcE was only the assumed one
   output logic [3:0]        IClassM,                   // The valid instruction class. 1-hot encoded as {call, return, jump, branch}
 
   // Report branch prediction status
@@ -73,6 +79,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     assign BPDirWrongM = BPWrongM;
     assign BTAWrongM = BPWrongM;
     assign NextValidPCE = PCE;
+    assign BPPCSrcF = 1'b0;                 // the static predictor redirects from Decode, never from Fetch
 
   end else begin : dynamicbp
     logic [1:0]              BPDirF;
@@ -80,10 +87,10 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     logic                    BPDirWrongE;
     logic [P.XLEN-1:0]       BPBTAF, RASPCF;
 
-    logic                    BPPCSrcF;
     logic [P.XLEN-1:0]       BPPCF;
     logic [P.XLEN-1:0]       PC0NextF;
     logic [P.XLEN-1:0]       PCCorrectE;
+    logic [P.XLEN-1:0]       PCFallThroughE;  // Address after everything that issued in Execute
 
     logic                    BPBTAWrongM;
     logic                    PCSrcM;
@@ -99,13 +106,13 @@ module bpred import cvw::*; #(parameter cvw_t P) (
       gshare #(P, P.XLEN, P.BPRED_SIZE) DirPredictor(.clk, .reset, .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCF, .PCD, .PCE, .PCM, .BPDirF, .BPDirWrongE,
         .BPBranchF, .BranchD, .BranchE, .BranchM, .BranchW,
-        .PCSrcE);
+        .PCSrcE, .LateBrM, .LateBrTakenM);
 
     end else if (P.BPRED_TYPE == BP_GLOBAL) begin : Predictor
       gshare #(P, P.XLEN, P.BPRED_SIZE, 0) DirPredictor(.clk, .reset, .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCF, .PCD, .PCE, .PCM, .BPDirF, .BPDirWrongE,
         .BPBranchF, .BranchD, .BranchE, .BranchM, .BranchW,
-        .PCSrcE);
+        .PCSrcE, .LateBrM, .LateBrTakenM);
 
     end else if (P.BPRED_TYPE == BP_GSHARE_BASIC) begin : Predictor
       gsharebasic #(P, P.XLEN, P.BPRED_SIZE) DirPredictor(.clk, .reset, .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
@@ -143,11 +150,17 @@ module bpred import cvw::*; #(parameter cvw_t P) (
         .IClassW({CallW, ReturnW, JumpW, BranchW}));
 
     // Part 3 RAS
+    // A call pushes the address after itself.  That is the bundle's fall-through, whichever slot holds the
+    // call: a slot 0 call never pairs, so the bundle ends at PCLinkE, and a slot 1 call ends it at PCLink1E.
+    //   0x100 jal ra,f                       pushes 0x104
+    //   0x100 addi a0,a0,1 ; 0x104 jal ra,f   pushes 0x108
+    // PCLinkD, the same address while the call is in Decode, is the sequential next PC fetch chose, which
+    // is past slot 1 when both slots issued (PCNextSeqF; PCPlus2or4F on a single-issue core).
     logic [P.XLEN-1:0] PCLinkD;
-    flopenr #(P.XLEN) PCLinkDReg(clk, reset, ~StallD, PCPlus2or4F, PCLinkD); // link address of the instruction in D
+    flopenr #(P.XLEN) PCLinkDReg(clk, reset, ~StallD, PCNextSeqF, PCLinkD); // link address of the bundle in D
     RASPredictor #(P) RASPredictor(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
       .BPReturnF, .ReturnD, .ReturnE, .CallE, .BPCallD, .PCLinkD,
-      .BPReturnWrongD, .BPReturnD, .RASPCF, .PCLinkE);
+      .BPReturnWrongD, .BPReturnD, .RASPCF, .PCLinkE(PCFallThroughE));
 
     // Check the prediction
     // if it is a CFI then check if the next instruction address (PCD) matches the branch's target or fallthrough address.
@@ -162,11 +175,19 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     assign BPPCSrcF = (BPBranchF & BPDirF[1]) | BPJumpF;
     mux2 #(P.XLEN) pcmuxbp(BPBTAF, RASPCF, BPReturnF, BPPCF);
     // Selects the BP or PC+2/4.
-    mux2 #(P.XLEN) pcmux0(PCPlus2or4F, BPPCF, BPPCSrcF, PC0NextF);
+    mux2 #(P.XLEN) pcmux0(PCNextSeqF, BPPCF, BPPCSrcF, PC0NextF);
     // If the prediction is wrong select the correct address.
     mux2 #(P.XLEN) pcmux1(PC0NextF, PCCorrectE, BPWrongE, PC1NextF);
-    // Correct branch/jump target.
-    mux2 #(P.XLEN) pccorrectemux(PCLinkE, IEUAdrE, PCSrcE, PCCorrectE);
+    // Correct branch/jump target.  When not taken, execution continues after everything that issued in
+    // Execute, which is one instruction past PCLinkE when slot 1 issued alongside slot 0.  Without
+    // this, BPWrongE fires on every dual-issue cycle and redirects to slot 1, which has already
+    // committed, so it would execute twice.
+    // PCLinkE itself must not change: it is also the address a slot 0 jal writes to rd.
+    // The bundle is two instructions long only if slot 1 actually commits.  When slot 1 is killed --
+    // because slot 0 turned out to be a taken branch -- the fall-through is slot 1's own address, so
+    // this comparison against PCD makes BPWrongE fire and redirect there, re-executing it as slot 0.
+    assign PCFallThroughE = Commit1E ? PCLink1E : PCLinkE;
+    mux2 #(P.XLEN) pccorrectemux(PCFallThroughE, IEUAdrE, PCSrcE, PCCorrectE);
 
     // If the fence/csrw was predicted as a taken branch then we select PCF, rather than PCE.
     // Effectively this is PCM+4 or the non-existent PCLinkM
