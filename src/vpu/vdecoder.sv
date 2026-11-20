@@ -48,9 +48,11 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VWriteIntD, VWriteFPD, VRegWriteD,
   output logic [2:0]  VEUTypeD,                 // type of EU an instruction needs (INT, FP, LSU)
   output logic [4:0]  VOpClassD,                // execution block requirement for EU, VOPCLASS_* below
-  output logic [5:0]  VLSModeD,                 // addressing modes for load/store
+  output logic [6:0]  VLSModeD,                 // addressing modes for load/store
   output logic        VReductionD,              // instr is a reduction op
   output logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD, // log2(EEW) of Vd/Vs2/Vs1: 000 1b (mask), 011 8b ... 110 64b
+  output logic        VMaskedD,                 // v0 masks the vd write (vm=0 and v0 is not an operand)
+  output logic [1:0]  VWriteElementsD,          // vd elements written: 00 below vl, 01 element 0, 10 mask result, 11 whole register
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
@@ -62,7 +64,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
   output logic        VsetivliD,                // vsetivli: AVL is the uimm5 in the rs1 field
-  output logic [10:0] VTYPEImmD                 // zero-extended vtype immediate for vsetvli / vsetivli
+  output logic [10:0] VTYPEImmD,                 // zero-extended vtype immediate for vsetvli / vsetivli
+  output logic [1:0]  VMemRWD                  // vector memory read/write: [1] = read, [0] = write
 );
 
 
@@ -98,13 +101,17 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   logic       MewD;                      // element width extension (mew=1 reserved)
   logic       SupportedEEWD;             // element width is defined and fits in ELEN
   logic [2:0] VLSEEWD;                   // log2(EEW) named by the width field
+  logic       VLoadD, VStoreD;            // is a vector load or store instruction
   logic       VLoadStoreD;               // is vector load/store
 
   assign NfD     = InstrD[31:29];
   assign MewD    = InstrD[28];
   assign MopD    = InstrD[27:26];
   assign LSumopD = InstrD[24:20];
-  assign VLoadStoreD = (OpD == 7'b0000111) | (OpD == 7'b0100111);
+  assign VLoadD = (OpD == 7'b0000111);
+  assign VStoreD = (OpD == 7'b0100111);
+  assign VMemRWD = {VLoadD, VStoreD};
+  assign VLoadStoreD = VLoadD | VStoreD;
 
   // vtype element width
   logic [2:0] SewD;                      // log2(SEW)
@@ -126,27 +133,28 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   end
 
   // Vls addressing modes
-  localparam logic [5:0] VLSMODE_SEGMENT    = 6'b000001,
-                         VLSMODE_STRIDED    = 6'b000010,
-                         VLSMODE_INDEXED    = 6'b000100,
-                         VLSMODE_ORDERED    = 6'b001000,
-                         VLSMODE_FAULTFIRST = 6'b010000,
-                         VLSMODE_WHOLEREG   = 6'b100000;
+  localparam logic [6:0] VLSMODE_UNIT       = 7'b0000001,
+                         VLSMODE_SEGMENT    = 7'b0000010,
+                         VLSMODE_STRIDED    = 7'b0000100,
+                         VLSMODE_INDEXED    = 7'b0001000,
+                         VLSMODE_ORDERED    = 7'b0010000,
+                         VLSMODE_FAULTFIRST = 7'b0100000,
+                         VLSMODE_WHOLEREG   = 7'b1000000;
 
   logic       VLSFunctD;
-  logic [5:0] VSegmentD;
+  logic [6:0] VSegmentD;
 
-  assign VSegmentD = (NfD == 3'd0) ? 6'b000000 : VLSMODE_SEGMENT;
+  assign VSegmentD = (NfD == 3'd0) ? 7'b0000001 : VLSMODE_SEGMENT;
 
   always_comb begin
-    VLSModeD  = 6'b000000;
+    VLSModeD  = 7'b0000000;
     VLSFunctD = 1'b0;
     if (VLoadStoreD & SupportedEEWD)
       case (MopD)
         2'b00: case (LSumopD)      // unit-stride
                  5'b00000: begin   // vle{8,16,32,64}.v, vse...
                              VLSFunctD = 1'b1;
-                             VLSModeD  = VSegmentD;
+                             VLSModeD  = |VSegmentD ? VSegmentD : VLSMODE_UNIT;
                            end
                  5'b01000: begin   // vl<nr>re<eew>.v, vs<nr>r.v
                              VLSFunctD = VMD & ((NfD == 3'd0) | (NfD == 3'd1) | (NfD == 3'd3) | (NfD == 3'd7)) &
@@ -582,9 +590,18 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
                   (OpD == 7'b1010111) & ~OPCFGD & ~(OPMVVD & (Funct6D == 6'b010100) & (Vs1D == 5'b10001));  // not vid.v
   assign Vs1EnD = (OPIVVD | OPMVVD | OPFVVD) & ~VUnaryD;
   assign VScalarMoveD = (OPMVXD | OPFVFD) & (Funct6D == 6'b010000) | VUnaryWriteIntD | VUnaryWriteFPD;
-  assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[5];
+  assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[6];
   assign VdNoOverlapD = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS) |
                         (VOpClassD == VOPCLASS_MASK) | (VOpClassD == VOPCLASS_SLIDE) & ~Funct6D[0];   // slideups
+
+  // v0 is an operand of vadc, vsbc, vmerge, and vfmerge and not a mask
+  logic V0OperandD;
+  assign V0OperandD = (OPIVVD | OPIVXD | OPIVID) & ((Funct6D == 6'b010000) | (Funct6D == 6'b010010) | (Funct6D == 6'b010111)) |
+                      OPFVFD & (Funct6D == 6'b010111);
+  assign VMaskedD = ~VMD & ~V0OperandD;
+  assign VWriteElementsD = VWholeRegD                   ? 2'b11 :
+                           (VdEEWD == 3'b000)           ? 2'b10 :
+                           (VReductionD | VScalarMoveD) ? 2'b01 : 2'b00;
 
   vreserved #(P) vreserved(.SewD, .VlmulD(VTYPED[2:0]), .VdD, .Vs2D, .Vs1D, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
     .VdEnD, .Vs2EnD, .Vs1EnD, .VReductionD, .VScalarMoveD, .VWholeRegD, .NfD(VLoadStoreD ? NfD : Vs1D[2:0]),

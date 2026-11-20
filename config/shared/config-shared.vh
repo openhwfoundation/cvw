@@ -133,6 +133,7 @@ localparam NORMSHIFTSZ = `max(`max((CVTLEN+NF+1), (DIVb + 1 + NF + 1)), (FMALEN 
 localparam LOGNORMSHIFTSZ = ($clog2(NORMSHIFTSZ));                  // log_2(NORMSHIFTSZ)
 
 // *** change 64 to the max vector element length
+localparam VPU_LSU_EU = 32'd1;  // exactly one vector LSU interface; not user configurable
 localparam VPU_EU = VPU_INT_EU + VPU_FP_EU + VPU_LSU_EU;  // *** change the name to VPU_EU
 // vector unit constants
 localparam ELEN = (ZVE64X_SUPPORTED | ZVE64F_SUPPORTED | ZVE64D_SUPPORTED) ? 32'd64 : 32'd32;
@@ -141,5 +142,7 @@ localparam VPU_INT_BLEN = ELEN * VPU_INT_LANES;
 localparam VPU_INT_NO_MUL_BLEN = ELEN * VPU_INT_NO_MUL_LANES;
 localparam VPU_FP_BLEN = ELEN * VPU_FP_LANES;
 localparam VPU_INT_MAX_BEATS = VLEN/VPU_INT_BLEN;
+localparam VPU_BLEN = VPU_INT_BLEN;    // VRF bank width, shared by all EU types *** should be across int and float
+localparam VPU_BANKS = VLEN/VPU_BLEN;  // VRF banks
 localparam VPU_QUEUESIZE = VPU_EU * 4;
 localparam VPU_QUEUEDEPTH = $clog2(VPU_QUEUESIZE);

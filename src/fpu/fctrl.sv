@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module fctrl import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
+module fctrl import fpu_pkg::*; #(parameter fpu_t P) (
   input  logic                 clk,
   input  logic                 reset,
   // input control signals
@@ -364,8 +364,8 @@ module fctrl import cvw::*, fpu_pkg::*; #(parameter cvw_t P) (
   flopenrc #(3) DEEnReg(clk, reset, FlushE, ~StallE, {XEnD, YEnD, ZUnpackEnD}, {XEnE, YEnE, ZEnE});
 
   // Integer division on FPU divider
-  if (P.M_SUPPORTED & P.IDIV_ON_FPU) assign IDivStartE = IntDivE;
-  else                               assign IDivStartE = 1'b0;
+  if (P.IDIV_ON_FPU) assign IDivStartE = IntDivE;
+  else               assign IDivStartE = 1'b0;
 
   // E/M pipeline register
   flopenrc #(14+int'(P.FMTBITS)) EMCtrlReg (clk, reset, FlushM, ~StallM,
