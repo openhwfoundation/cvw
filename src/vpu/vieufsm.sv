@@ -36,29 +36,23 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
    input logic                   LocalStallE,
    input logic                   VectorFlushE,
    input logic                   ControllerValidD,
-   input logic                   NotConsummedW,
    output logic                  ExecutionUnitReadyD,
    output logic [BEATBITLEN-1:0] BeatE,
    output logic                  ExecutionUnitResultValidE,
-   output logic                  BeatValidE,
-   input logic [BEATBITLEN-1:0]  vlE
+   output logic                  BeatValidE
    );
 
 
   typedef enum logic {STATE_RDY, STATE_BEAT} statetype;
   statetype CurrState, NextState;
   logic BeatResetD, BeatIncrD;
-  logic [BEATBITLEN-1:0] BeatLength;
-
-  localparam             SPLIT = $clog2(P.VPU_INT_EU);
 
   logic                  BeatNotValidE;
   logic                  DoneE, ReadyE;
   logic                  CaptureInstrD;
 
-  // computes vl / how many ELEN elements are consummed each beat.
-  // vl / # Lanes. If there is a remainder, there is one extra beat.
-  assign BeatLength = vlE[BEATBITLEN-1:SPLIT] + (BEATBITLEN-SPLIT)'(|(vlE[SPLIT-1:0]));
+  // every beat of the register is computed; the sVRF keeps only the bytes of active elements
+  // *** skip beats past vl
 
 
 
@@ -72,8 +66,8 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
   counter #(BEATBITLEN) beatcounter(clk, BeatResetD, BeatIncrD, BeatE);
 
   assign BeatIncrD = BeatValidE & ~LocalStallE;
-  assign DoneE = BeatE >= BeatLength - 1; // *** optimize
-  assign ExecutionUnitReadyD = ((DoneE & ExecutionUnitResultValidE) | ReadyE) & ~NotConsummedW;
+  assign DoneE = BeatE == BEATBITLEN'(P.VPU_INT_MAX_BEATS - 1);
+  assign ExecutionUnitReadyD = (DoneE & ExecutionUnitResultValidE) | ReadyE;
   assign ExecutionUnitResultValidE = DoneE & BeatValidE;
 
 endmodule
