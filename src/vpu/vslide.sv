@@ -18,52 +18,51 @@
 
 module vslide import cvw::*; #(parameter cvw_t P) (
   input  logic                      clk, reset,
-  input  logic                      NextBeat,  // vector destination
-  input  logic [P.VLEN-1:0]         B,         // SrcB
-  input  logic [BLEN-1:0]           Vd,
+  input  logic                      NextBeat,  // 1 = move to next beat
+  input  logic [BLEN-1:0]           B,         // SrcB
   input  logic [P.XLEN-1:0]         Rs1,
   input  logic [4:0]                Imm,
   input  logic [2:0]                Funct3,
   input  logic                      Down,
   input  logic [1:0]                SEW,
   input  logic [$clog2(P.VLEN):0]   Vl,
-  input  logic [BEATBITLEN-1:0]     Beat,
-  output logic [BLEN-1:0]           VdBeat
+  input  logic [BEATBITLEN-1:0]     Beat,      // number of the B beat arriving this cycle
+  output logic [BLEN-1:0]           VdBeat,
+  output logic [BEATBITLEN-1:0]     VdBeatNum, // which vd beat VdBeat is written to
+  output logic [BLEN/8-1:0]         VdByteMask  // Bytes of the vd beat to write, others keep old vd
 );
 
   localparam BEATBITLEN = $clog2(P.VLEN/P.ELEN) + 1;
   localparam BLEN  = P.VPU_INT_BLEN;
   localparam BEATS = P.VLEN / BLEN;
+  localparam BYTES = BLEN / 8;
 
   logic [P.XLEN-1:0]                ElementShftAmt;    // OFFSET in elements
   logic [P.XLEN + 6-1:0]            BitShftAmt;        // OFFSET in bits
-  logic [P.XLEN + 6-1:0]            BeatShftAmt;       // OFFSET in beats, this is temporary and will become "head" once vs2 is one beat/cycle
+  logic [P.XLEN + 6-1:0]            BeatShftAmt;       // OFFSET in whole beats
   logic [$clog2(BLEN)-1:0]          ShftAmt;           // OFFSET bits left over after whole beats
-  logic [P.XLEN + 6-1:0]            UpperIdx, LowerIdx;// beat numbers of the two vs2 beats
-  logic [BLEN-1:0]                  Upper, Lower;      // the two vs2 beats
-  logic [2*BLEN-2:0]                Z, ZShift;         // shifter input
+  logic [BLEN-1:0]                  Current, Head;     // current B beat, head is B beat from last cycle
+  logic [P.XLEN + 6-1:0]            VdIdx;             // vd beat that this cycle makes
+  logic                             InRange;           // VdIdx is a real vd beat (not below 0 or past end)
+  logic [2*BLEN-2:0]                Z, ZShift;         // shifter input (Z) and shifter output (ZShift)
   logic [$clog2(BLEN)-1:0]          Offset;            // right-shift amount
   logic [BLEN-1:0]                  SlidBeat;          // the bottom beat of ZShift
+  logic [BLEN-1:0]                  Result;            // SlidBeat, or 0 when B data it would copy is past the end of B
+  logic [BYTES-1:0]                 DataMask;          // bytes of Result to write
   logic [63:0]                      Rs1Ext;            // rs1 sign-extended to 64 bits
-  logic [P.VLEN-1:0]                KeepOld;
-  logic [$clog2(P.VLEN)+1:0]        ElPerBeat;         // elements in one beat
-  logic [$clog2(P.VLEN)+1:0]        VlCount;           // counts backwards from vl
-  logic [$clog2(P.VLEN)+1:0]        NextVlCount, SavedVlCount;
-  logic                             Stopped;           // VlCount reached 0 or is negative
-  logic                             LastBeat;          // VlCount reaches 0 or goes negative on this beat
-  logic [$clog2(P.VLEN)+1:0]        ElementPos;        // NextVlCount with ElPerBeat added back
-  logic                             Rs1Here;           // rs1 goes into this beat
-  logic [$clog2(BLEN)-1:0]          Rs1Pos;            // bit in this beat where the rs1 element starts
-  logic [BLEN-1:0]                  KeepOldMask, Kept; // vpu's byte mask currently all 1s, so need these for now
+  logic [$clog2(P.VLEN)+5:0]        InsertPos;         // bit in the vd register where rs1 goes
+  logic                             Rs1Here;           // rs1 goes into this vd beat
+  logic [$clog2(BLEN)-1:0]          Rs1Pos;            // bit in this vd beat where the rs1 element starts
+  logic [BYTES-1:0]                 Rs1Mask;           // bytes of the rs1 element
 
-  always_comb // mux selects ElementShftAmt
+  always_comb
     case (Funct3)
       3'b011:  ElementShftAmt = P.XLEN'(Imm);          // vslideup.vi, vslidedown.vi
       3'b100:  ElementShftAmt = P.XLEN'(Rs1);          // vslideup.vx, vslidedown.vx
       default: ElementShftAmt = P.XLEN'(1);            // vslide1up, vslide1down
     endcase
 
-// Shift Amount = ElementShftAmt*SEW. Multiplying is a left shift by SEW + 3
+// Shift Amount = ElementShftAmt*SEW. multiplying = a left shift by SEW + 3
   always_comb
     case (SEW)
       2'b00:   BitShftAmt = {6'b0, ElementShftAmt} << 3;   // *8
@@ -72,94 +71,79 @@ module vslide import cvw::*; #(parameter cvw_t P) (
       default: BitShftAmt = {6'b0, ElementShftAmt} << 6;   // *64
     endcase
 
-// split bits into whole beats and leftover bits.
-// the shifter only sees two beats of B at a time (upper and lower), so it can only shift by less than one beat.
-// to slide farther, we can split BitShftAmt into whole beats and the leftover bits (which the shifter handles.)
+// the shifter only sees two beats of B at a time (Current and Head), so it can only shift by less than one beat.
+// to slide farther, we can split BitShftAmt into whole beats and the leftover bits.
+// whole beats handled by writing the result to a different vd beat, leftover bits handled by the shifter
   assign BeatShftAmt = BitShftAmt >> $clog2(BLEN);
   assign ShftAmt = BitShftAmt[$clog2(BLEN)-1:0];
 
-  always_comb // pick the two SrcB beats the vd beat comes from
+// Slidedown runs one extra cycle past the end of B. No B beat on that cycle, so uses 0
+  always_comb
+    if (Beat < BEATBITLEN'(BEATS)) Current = B;
+    else                           Current = '0;
+
+  flopenr #(BLEN) headreg(clk, reset, NextBeat, Current, Head);  // head saves current B beat for the next cycle. on beat 0, head still holds a beat from the instruction before, but those bits are not written (below OFFSET for slideup).
+
+// for slideup, vd beat Beat+BeatShftAmt is made of this B beat and the previous one shifted up
+// for slidedown: vd beat Beat-1-BeatShftAmt is made of the previous B beat and this one shifted down
+  always_comb
     if (Down) begin
-      LowerIdx = (P.XLEN+6)'(Beat) + BeatShftAmt;     // Down
-      UpperIdx = LowerIdx + 1;
+      VdIdx   = (P.XLEN+6)'(Beat) - 1 - BeatShftAmt;
+      InRange = (P.XLEN+6)'(Beat) > BeatShftAmt;              // VdIdx >= 0
     end else begin
-      UpperIdx = (P.XLEN+6)'(Beat) - BeatShftAmt;     // Up
-      LowerIdx = UpperIdx - 1;
+      VdIdx   = (P.XLEN+6)'(Beat) + BeatShftAmt;
+      InRange = VdIdx < (P.XLEN+6)'(BEATS);
     end
 
-// read one beat out of SrcB: shift B right until beat at bottom, then keep one beat
-  always_comb begin
-    if (LowerIdx < (P.XLEN+6)'(BEATS)) Lower = BLEN'(B >> (LowerIdx*BLEN));
-    else Lower = '0;
-    if (UpperIdx < (P.XLEN+6)'(BEATS)) Upper = BLEN'(B >> (UpperIdx*BLEN));
-    else Upper = '0;
-  end
+// keeps only the bits that count beats. vd beat below 0 or past the end wraps around to other end
+  assign VdBeatNum = BEATBITLEN'(VdIdx) & BEATBITLEN'(BEATS-1);
 
 // << >> shifter built like scalar shifter, A slidedown shifts right by ShftAmt, a slideup shifts right by BLEN-1-ShftAmt (~ShftAmt)
   always_comb
-    if (Down) Z = {Upper[BLEN-2:0], Lower};  // Down
-    else      Z = {Upper, Lower[BLEN-1:1]};  // Up
+    if (Down) Z = {Current[BLEN-2:0], Head};      // Down
+    else      Z = {Current, Head[BLEN-1:1]};      // Up
 
   always_comb
-      if (Down) Offset = ShftAmt;
-      else      Offset = ~ShftAmt;
+    if (Down) Offset = ShftAmt;
+    else      Offset = ~ShftAmt;
 
   assign ZShift = Z >> Offset;
   assign SlidBeat = ZShift[BLEN-1:0];
 
-// for slideup, vd elements below OFFSET keep their old value ***SK convert to byte mask
-    always_comb
-        if (Down) KeepOld = '0;
-        else KeepOld = ~({P.VLEN{1'b1}} << BitShftAmt);
+  always_comb
+    if (InRange) Result = SlidBeat;
+    else         Result = '0; //vd beats that no B data reaches get 0
 
-   assign KeepOldMask = KeepOld[Beat*BLEN +: BLEN];
-   assign Kept = (KeepOldMask & Vd) | (~KeepOldMask & SlidBeat);
+// which bytes to write (bytes not written keep old vd)
+// slideup: first vd beat the elements below OFFSET keep old vd, beats that wrap past the end are not written
+// slidedown: every beat written & beats that wrap around get 0. first cycle's beat is wrong (the next B beat isn't there yet) but the extra cycle writes it again
+  always_comb
+    if (Down)            DataMask = '1;     //slidedown
+    else if (~InRange)   DataMask = '0;     //slideup: beats past end write nothing
+    else if (Beat == '0) DataMask = {BYTES{1'b1}} << (ShftAmt >> 3); //slideup first beat: skip bytes below OFFSET
+    else                 DataMask = '1;     // slideup other beats: write every byte
 
 // rs1 sign-extended to 64 bits (when XLEN < SEW, the value is sign-extended to SEW bits)
   if (P.XLEN == 32) assign Rs1Ext = {{32{Rs1[31]}}, Rs1};
   else assign Rs1Ext = Rs1;
 
-// number of elements operated on each beat
+// vslide1up puts rs1 in element 0, vslide1down puts rs1 in element vl-1
   always_comb
-    case (SEW)
-      2'b00:   ElPerBeat = ($clog2(P.VLEN)+2)'(BLEN/8);
-      2'b01:   ElPerBeat = ($clog2(P.VLEN)+2)'(BLEN/16);
-      2'b10:   ElPerBeat = ($clog2(P.VLEN)+2)'(BLEN/32);
-      default: ElPerBeat = ($clog2(P.VLEN)+2)'(BLEN/64);
-    endcase
+    if (Down) InsertPos = ($clog2(P.VLEN)+6)'(Vl-1) << (SEW+3);
+    else      InsertPos = '0;
 
-// VlCount used to keep track of how far along we are for vl
-  always_comb
-    if (Beat == '0) VlCount = {1'b0, Vl};
-    else            VlCount = SavedVlCount;
 
-// each beat subtracts number of elements operated on
-  assign Stopped = VlCount[$clog2(P.VLEN)+1] | (VlCount == '0);
+  assign Rs1Here = (Funct3 == 3'b110) & (VdBeatNum == BEATBITLEN'(InsertPos >> $clog2(BLEN))); // split InsertPos into which vd beat
+  assign Rs1Pos  = InsertPos[$clog2(BLEN)-1:0];                                                // and which bit in that beat
 
   always_comb
-    if (Stopped) NextVlCount = VlCount;
-    else         NextVlCount = VlCount - ElPerBeat;
-
-  flopenr #($clog2(P.VLEN)+2) vlcountreg(clk, reset, NextBeat, NextVlCount, SavedVlCount);
-
-// when total becomes negative or 0, add the number of elements back to get the element position
-  assign LastBeat = ~Stopped & (NextVlCount[$clog2(P.VLEN)+1] | (NextVlCount == '0));
-  assign ElementPos = NextVlCount + ElPerBeat;
-
-// vslide1up puts rs1 in element 0 of the first beat, vslide1down puts rs1 in vl-1, which is the one below ElPos in the last beat
-  always_comb
-    if (Down) begin
-      Rs1Here = LastBeat;
-      Rs1Pos  = ($clog2(BLEN))'(ElementPos - 1) << (SEW+3);
-    end else begin
-      Rs1Here = (Beat == '0);
-      Rs1Pos  = '0;
-    end
+    if (Rs1Here) Rs1Mask = ~({BYTES{1'b1}} << (1 << SEW)) << (Rs1Pos >> 3);
+    else         Rs1Mask = '0;
 
 // if slide1 and rs1 goes into this beat, write rs1
-always_comb begin
-    VdBeat = Kept;
-    if ((Funct3 == 3'b110) & Rs1Here)
+  always_comb begin
+    VdBeat = Result;
+    if (Rs1Here)
       case (SEW)
         2'b00:   VdBeat[Rs1Pos +: 8]  = Rs1Ext[7:0];
         2'b01:   VdBeat[Rs1Pos +: 16] = Rs1Ext[15:0];
@@ -167,5 +151,7 @@ always_comb begin
         default: VdBeat[Rs1Pos +: 64] = Rs1Ext;
       endcase
   end
+
+  assign VdByteMask = DataMask | Rs1Mask;
 
 endmodule

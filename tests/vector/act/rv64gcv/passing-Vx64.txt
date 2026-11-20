@@ -17,6 +17,8 @@ vor.vv
 vor.vx
 vslide1down.vx
 vslide1up.vx
+vslidedown.vi
+vslidedown.vx
 vslideup.vi
 vslideup.vx
 vsll.vv
