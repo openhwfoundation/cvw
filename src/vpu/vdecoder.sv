@@ -58,7 +58,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VALUResultSrcD,
   output logic [2:0]  VALUSelectD,
   output logic        VSubD,
-  output logic [1:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
+  output logic [2:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]  VShiftSelectD,            // vlane shift: 00 sll, 10 srl, 11 sra
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
@@ -562,13 +562,14 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
       endcase
   end
 
-  // lane result select: 00 for alu, 01 for vmul, 10 for move, 11 for shift
+  // lane result select: 000 for alu, 001 for vmul, 010 for move, 011 for shift, 100 for slide
   always_comb begin
     case (VOpClassD)
-      VOPCLASS_MUL: VLaneSelectD = 2'b01;
-      VOPCLASS_MOVE: VLaneSelectD = 2'b10; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
-      VOPCLASS_SHIFT: VLaneSelectD = 2'b11; // vsll, vsrl, vsra, vssrl, vssra
-      default:      VLaneSelectD = 2'b00;
+      VOPCLASS_MUL: VLaneSelectD = 3'b001;
+      VOPCLASS_MOVE: VLaneSelectD = 3'b010; //***SK: VOPCLASS_MOVE includes more than vmv.v.v/vmv.v.x. vmerge, mask logicals, vredand/or/xor, and vmvr.v
+      VOPCLASS_SHIFT: VLaneSelectD = 3'b011; // vsll, vsrl, vsra, vssrl, vssra
+      VOPCLASS_SLIDE: VLaneSelectD = 3'b100; // vslideup, vslidedown, vslide1up, vslide1down
+      default:      VLaneSelectD = 3'b000;
     endcase
   end
 
