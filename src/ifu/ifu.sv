@@ -261,6 +261,12 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   if (P.BUS_SUPPORTED) begin : bus
     localparam   BEATSPERLINE = P.ICACHE_SUPPORTED ? P.ICACHE_LINELENINBITS/P.AHBW : 1;
     localparam   AHBWLOGBWPL = P.ICACHE_SUPPORTED ? $clog2(BEATSPERLINE) : 1;
+    localparam   AHBWBYTES = $clog2(P.AHBW/8);
+    // An uncached fetch reads the whole bus word containing PCPF; UncachedShiftInstrMux selects the instruction.
+    // HADDR must be aligned to HSIZE, and a word at PCPF is misaligned whenever PCPF[1] = 1 with compressed instructions.
+    localparam logic [2:0] AHBWSIZE = 3'(AHBWBYTES);
+    logic [P.PA_BITS-1:0] PCPFBusWord;
+    assign PCPFBusWord = {PCPF[P.PA_BITS-1:AHBWBYTES], {AHBWBYTES{1'b0}}};
 
     if (P.ICACHE_SUPPORTED) begin : icache
       localparam            LLENPOVERAHBW = P.LLEN / P.AHBW; // Number of AHB beats in a LLEN word. AHBW cannot be larger than LLEN. (implementation limitation)
@@ -297,20 +303,20 @@ module ifu import cvw::*; #(parameter cvw_t P) (
       ahbcacheinterface(.HCLK(clk), .HRESETn(~reset),
             .HRDATA,
             .Flush(FlushD), .CacheBusRW, .BusCMOZero(1'b0), .HSIZE(IFUHSIZE), .HBURST(IFUHBURST), .HTRANS(IFUHTRANS), .HWSTRB(),
-            .Size(3'b010), .HADDR(IFUHADDR), .HREADY(IFUHREADY), .HWRITE(IFUHWRITE), .CacheBusAdr(ICacheBusAdr),
+            .Size(AHBWSIZE), .HADDR(IFUHADDR), .HREADY(IFUHREADY), .HWRITE(IFUHWRITE), .CacheBusAdr(ICacheBusAdr),
             .BeatCount(), .Cacheable(CacheableF), .SelBusBeat(), .WriteDataM('0), .BusAtomic('0),
             .CacheBusAck(ICacheBusAck), .HWDATA(), .CacheableOrFlushCacheM(1'b0), .CacheReadDataWordM('0),
-            .FetchBuffer, .PAdr(PCPF),
+            .FetchBuffer, .PAdr(PCPFBusWord),
             .BusRW, .Stall(GatedStallD),
             .BusStall, .BusCommitted(BusCommittedF));
 
       mux3 #(32) UnCachedDataMux(.d0(ICacheInstrF), .d1(ShiftUncachedInstr), .d2(IROMInstrF),
                                  .s({SelIROM, ~CacheableF}), .y(InstrRawF[31:0]));
     end else begin : passthrough
-      assign IFUHADDR = PCPF;
+      assign IFUHADDR = PCPFBusWord;
       logic [1:0] BusRW;
       assign BusRW = ~ITLBMissOrUpdateRawF & ~SelIROM & ~IFUFaultF ? IFURWF : 0;
-      assign IFUHSIZE = 3'b010;
+      assign IFUHSIZE = AHBWSIZE;
 
       ahbinterface #(P.XLEN, 1'b0) ahbinterface(.HCLK(clk), .Flush(FlushD), .HRESETn(~reset), .HREADY(IFUHREADY),
         .HRDATA(HRDATA), .HTRANS(IFUHTRANS), .HWRITE(IFUHWRITE), .HWDATA(),

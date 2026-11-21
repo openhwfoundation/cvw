@@ -113,8 +113,9 @@ WORD 0x0, 0x00000000, pwm_cycle_wait_center   # use center wait function to wait
 #============ OneShot test =====================
 WORD PWMCompare1, 0x0000FFFF, write32_test
 WORD PWMCompare0, 0x00000001, write32_test
+WORD high_ip, 0xFFFFFFFF, write32_test        # clear high_ip before the one shot starts: its pulse may end before the wait begins
 WORD PWMConfig, 0x00002206, write32_test      # enable one shot
-WORD 0x0, 0x00000002, pwm_cycle_wait          # wait 4 cycles, should be high once
+WORD 0x0, 0x00000002, pwm_oneshot_wait        # wait 4 cycles, should be high once
 
 #============ Scale min tests ===
 WORD PWMConfig, 0x00000200, write32_test      # initialize config register with ZeroCompare bit set

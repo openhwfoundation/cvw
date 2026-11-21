@@ -214,23 +214,25 @@ trig_loop:
 // ---------------- Character timeout (8.11) ----------------
 // With characters in the FIFO below the trigger level, IIR = 0xCC once no character has been
 // received and none read for 4 character times.  A read clears it and restarts the timer.  Times
-// below are counted from TEMT (the end of the last character's stop bit) or from the RBR read.
+// below are counted from TEMT (the end of the last character's stop bit) or from the RBR read, and each
+// check waits from that event (s2), so the checks before it do not delay it on a slow core.
     UW UART_FCR, 0x87               // trigger level 8
     UW UART_IER, 0x01
     UW UART_THR, 0x61
     UW UART_THR, 0x62
     WAIT_LSR 0x40, 0x40
-    WAIT_HALF_CHARS 5
+    mv s2, a7                       // TEMT
+    WAIT_HALF_CHARS_AFTER s2, 5
     CHK UART_IIR                    // 52: 0xC1 at 2.5 character times
-    WAIT_HALF_CHARS 2
+    WAIT_HALF_CHARS_AFTER s2, 7
     CHK UART_IIR                    // 53: 0xC1 at 3.5
-    WAIT_HALF_CHARS 3
+    WAIT_HALF_CHARS_AFTER s2, 10
     CHK UART_IIR                    // 54: 0xCC at 5
-    CHK UART_RBR                    // 55: 0x61
+    CHK_MARK UART_RBR, s2           // 55: 0x61
     CHK UART_IIR                    // 56: 0xC1, cleared by the read
-    WAIT_HALF_CHARS 7
+    WAIT_HALF_CHARS_AFTER s2, 7
     CHK UART_IIR                    // 57: 0xC1 at 3.5 after the read
-    WAIT_HALF_CHARS 3
+    WAIT_HALF_CHARS_AFTER s2, 10
     CHK UART_IIR                    // 58: 0xCC at 5 after the read
     CHK UART_RBR                    // 59: 0x62
     WAIT_HALF_CHARS 12
@@ -252,9 +254,10 @@ trig_loop:
     WAIT_HALF_CHARS 4
     UW UART_THR, 0x66
     WAIT_LSR 0x40, 0x40
-    WAIT_HALF_CHARS 5
+    mv s2, a7                       // TEMT of the second character
+    WAIT_HALF_CHARS_AFTER s2, 5
     CHK UART_IIR                    // 66: 0xC1 at 2.5 after the second character
-    WAIT_HALF_CHARS 5
+    WAIT_HALF_CHARS_AFTER s2, 10
     CHK UART_IIR                    // 67: 0xCC at 5
     CHK UART_RBR                    // 68: 0x65
     CHK UART_RBR                    // 69: 0x66
