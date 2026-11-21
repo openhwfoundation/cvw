@@ -6,9 +6,9 @@ MAKEFLAGS += --output-sync --no-print-directory
 
 SIM = ${WALLY}/sim
 
-.PHONY: all act periph testfloat zsbl coverage sim_bp deriv clean
+.PHONY: all act periph testfloat coverfloat zsbl coverage sim_bp deriv clean
 
-all: act periph testfloat zsbl coverage sim_bp deriv
+all: act periph testfloat coverfloat zsbl coverage sim_bp deriv
 
 # act builds the riscv-arch-test suite for every cvw configuration that has an ACT test-generation
 # configuration (config/<cfg>/act/test_config.yaml, owned by cvw; see bin/actconfig-sync)
@@ -21,12 +21,15 @@ act: $(ACT_WORKDIRS:%=%/.cvw_config_stamp)
 
 # ACT's incremental build never deletes ELFs, so the ELFs of tests that a changed configuration no longer
 # supports would be left behind and still run.  When a configuration's files change, discard its ELFs so
-# that ACT rebuilds exactly the current set.
-.SECONDEXPANSION:
-$(ACTDIR)/work/cvw-%/.cvw_config_stamp: $$(wildcard ${WALLY}/config/$$*/act/*)
-	rm -rf $(@D)/elfs
-	mkdir -p $(@D)
-	touch $@
+# that ACT rebuilds exactly the current set.  The stamp holds a hash of the files' names and contents, not
+# a time, so a fresh checkout (or restored ELFs) of unchanged files keeps the ELFs, as ACT's own build does.
+$(ACTDIR)/work/cvw-%/.cvw_config_stamp: FORCE
+	@mkdir -p $(@D)
+	@hash=$$(cd ${WALLY}/config/$*/act && sha256sum * | sha256sum); \
+	if [ "$$(cat $@ 2> /dev/null)" != "$$hash" ]; then rm -rf $(@D)/elfs; echo "$$hash" > $@; fi
+
+.PHONY: FORCE
+FORCE:
 
 # periph builds the self-checking peripheral tests
 periph:
@@ -34,6 +37,10 @@ periph:
 
 testfloat:
 	$(MAKE) -C ${WALLY}/tests/fp vectors
+
+# coverfloat generates the cover-float floating-point vectors (addins/cover-float) for testbench_fp
+coverfloat:
+	$(MAKE) -C ${WALLY}/tests/fp coverfloat
 
 zsbl:
 	$(MAKE) -C ${WALLY}/fpga/zsbl

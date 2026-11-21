@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Shared CI job setup with cvw's own installer scripts, so CI uses the versions a local installation does:
+# - the system packages (bin/wally-package-install.sh), which include Verilator's mold, numactl and tcmalloc
+# - mise and the tools in cvw's .mise.toml, uv and prek (bin/installation/mise-install.sh)
+# - optionally Verilator (verilator-install.sh), and for the ACT tests the multilib RISC-V GCC, Sail
+#   (sail-install.sh) and riscv-arch-test's own tools and dependencies (`mise deps`, from its .mise.toml)
+# - optionally the buildroot Linux testvectors in $RISCV
+# The multilib GCC and the buildroot testvectors take hours to build, so tools.yml builds them in jobs of
+# their own, which the jobs using them need; here they are only restored.  The other tools build here,
+# cached by the hash of the script that installs them.  These caches are saved only from main: pull-request
+# and merge-queue refs cannot share caches with each other, so saving there would only fill the cache limit.
+
+name: Set up tools
+description: Install cvw's CI tools with its installer scripts
+
+inputs:
+  verilator:
+    description: Install Verilator
+    required: false
+    default: "false"
+  act:
+    description: Install the multilib RISC-V GCC, Sail, and riscv-arch-test's dependencies to build the ACT tests
+    required: false
+    default: "false"
+  buildroot:
+    description: Restore the buildroot Linux testvectors into $RISCV (/opt/riscv) for the buildroot boot tests
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare tool directories
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        sudo mkdir -p /opt/cvw-tools /opt/riscv
+        sudo chown "$USER:$USER" /opt/cvw-tools /opt/riscv
+        echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"
+
+    - name: Install system packages
+      if: inputs.verilator == 'true' || inputs.act == 'true'
+      shell: bash
+      run: sudo --preserve-env=WALLY bash bin/wally-package-install.sh --no-upgrade
+
+    # --- mise, uv, and prek ---
+    - name: Restore mise
+      id: mise-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          /opt/cvw-tools/mise
+          ~/.local/share/mise
+        key: mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/mise-install.sh', '.mise.toml', 'addins/riscv-arch-test/.mise.toml') }}
+
+    - name: Install mise, uv, and prek
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        bash bin/installation/mise-install.sh /opt/cvw-tools/mise
+        echo /opt/cvw-tools/mise/bin >> "$GITHUB_PATH"
+        /opt/cvw-tools/mise/bin/mise bin-paths --cd "$GITHUB_WORKSPACE" >> "$GITHUB_PATH"
+
+    # --- Verilator ---
+    - name: Restore Verilator
+      if: inputs.verilator == 'true'
+      id: verilator-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/verilator
+        key: verilator-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/verilator-install.sh') }}
+
+    - name: Install Verilator
+      if: inputs.verilator == 'true' && steps.verilator-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bash bin/installation/verilator-install.sh --clean /opt/cvw-tools/verilator
+
+    - name: Save Verilator
+      if: inputs.verilator == 'true' && github.ref == 'refs/heads/main' && steps.verilator-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/verilator
+        key: verilator-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/verilator-install.sh') }}
+
+    - name: Add Verilator to PATH
+      if: inputs.verilator == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/verilator/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- multilib RISC-V GCC (built by tools.yml) ---
+    - name: Restore multilib RISC-V GCC
+      if: inputs.act == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/gcc
+        key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+        fail-on-cache-miss: true
+
+    - name: Add RISC-V GCC to PATH
+      if: inputs.act == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/gcc/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- Sail (riscv-arch-test generates the expected results with it) ---
+    - name: Restore Sail
+      if: inputs.act == 'true'
+      id: sail-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/sail
+        key: sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/sail-install.sh') }}
+
+    - name: Install Sail
+      if: inputs.act == 'true' && steps.sail-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bash bin/installation/sail-install.sh --clean /opt/cvw-tools/sail
+
+    - name: Save Sail
+      if: inputs.act == 'true' && github.ref == 'refs/heads/main' && steps.sail-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: /opt/cvw-tools/sail
+        key: sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/sail-install.sh') }}
+
+    - name: Add Sail to PATH
+      if: inputs.act == 'true'
+      shell: bash
+      run: echo /opt/cvw-tools/sail/bin >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
+    # --- riscv-arch-test's own tools and dependencies, from its .mise.toml ---
+    # The UDB gems go into a directory of their own so that they can be cached apart from Ruby.
+    # ~/.cache/udb holds the z3/espresso binaries the udb gem downloads when it is installed; a
+    # restored gem cache skips `bundle install`, so they are cached with the gems.
+    - name: Restore UDB gems
+      if: inputs.act == 'true'
+      id: udb-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          .bundle-gems
+          ~/.cache/udb
+        key: udb-gems-${{ runner.os }}-${{ hashFiles('addins/riscv-arch-test/.mise.toml', 'addins/riscv-arch-test/framework/src/act/data/Gemfile.lock') }}
+
+    - name: Install riscv-arch-test dependencies
+      if: inputs.act == 'true'
+      shell: bash
+      working-directory: addins/riscv-arch-test
+      run: |
+        for attempt in 1 2 3; do
+          mise install &&
+            mise exec -- bundle config set --global path "${GITHUB_WORKSPACE}/.bundle-gems" &&
+            mise deps && exit 0
+          [[ $attempt -eq 3 ]] && exit 1
+          echo "mise install/deps failed; retrying in $((attempt * 10))s"
+          sleep $((attempt * 10))
+        done
+
+    - name: Save UDB gems
+      if: inputs.act == 'true' && github.ref == 'refs/heads/main' && steps.udb-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          .bundle-gems
+          ~/.cache/udb
+        key: udb-gems-${{ runner.os }}-${{ hashFiles('addins/riscv-arch-test/.mise.toml', 'addins/riscv-arch-test/framework/src/act/data/Gemfile.lock') }}
+
+    - name: Save mise
+      if: github.ref == 'refs/heads/main' && steps.mise-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          /opt/cvw-tools/mise
+          ~/.local/share/mise
+        key: mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/mise-install.sh', '.mise.toml', 'addins/riscv-arch-test/.mise.toml') }}
+
+    # --- buildroot Linux testvectors (built by tools.yml) ---
+    - name: Restore Linux testvectors
+      if: inputs.buildroot == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          /opt/riscv/linux-testvectors/ram.bin
+          /opt/riscv/linux-testvectors/bootmem.bin
+          /opt/riscv/buildroot/output/images/disassembly/*.objdump.addr
+          /opt/riscv/buildroot/output/images/disassembly/*.objdump.lab
+        key: buildroot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('linux/**', 'bin/installation/buildroot-install.sh', 'bin/installation/qemu-install.sh', 'bin/installation/riscv-gnu-toolchain-install.sh') }}
+        fail-on-cache-miss: true

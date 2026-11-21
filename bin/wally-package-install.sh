@@ -82,6 +82,8 @@ case "$FAMILY" in
         fi
         PACKAGE_MANAGER="DEBIAN_FRONTEND=noninteractive apt-get -y"
         UPDATE_COMMAND="$PACKAGE_MANAGER update && $PACKAGE_MANAGER upgrade --with-new-pkgs"
+        # --no-upgrade (CI): install the packages without upgrading the rest of the system
+        if [ "${1}" == "--no-upgrade" ]; then UPDATE_COMMAND="$PACKAGE_MANAGER update"; fi
         GENERAL_PACKAGES+=(curl "$PYTHON_VERSION" python3-pip "$PYTHON_VERSION"-venv pkg-config build-essential g++ ssmtp wget)
         GNU_PACKAGES+=(autotools-dev libmpc-dev libmpfr-dev libgmp-dev zlib1g-dev libexpat1-dev libglib2.0-dev libslirp-dev)
         QEMU_PACKAGES+=(libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build)

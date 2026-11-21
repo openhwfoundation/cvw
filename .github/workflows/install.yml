@@ -24,6 +24,9 @@ on:
   schedule:
     - cron: "0 7 * * 3" # Run at 12:00 AM Pacific Time on Wednesdays
 
+permissions:
+  contents: read
+
 # Use bash shell with extra GitHub Actions options for all jobs
 defaults:
   run:
@@ -143,7 +146,9 @@ jobs:
               zypper install -y git
             fi
       # Only clone submodules needed for standard tests/regression to save space
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Clone Necessary Submodules
         run: |
               git config --global --add safe.directory '*'
@@ -168,7 +173,7 @@ jobs:
               else
                 export RISCV=/opt/riscv
               fi
-              echo "RISCV=${RISCV}" >> $GITHUB_ENV
+              echo "RISCV=${RISCV}" >> "$GITHUB_ENV"
       # Run main tool chain installation script, either as a user or system wide
       - name: Install
         run: |
@@ -186,7 +191,7 @@ jobs:
         run: sed -i 's,~/riscv,${{ matrix.riscv_path }},g' setup.sh
       # Upload installation logs for debugging
       - name: Upload Installation Logs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: installation-logs-${{ matrix.name }}
@@ -195,8 +200,8 @@ jobs:
       # Logs have already been uploaded so they can be removed
       - name: Clean up installation
         run: |
-            rm -rf $RISCV/buildroot/ || sudo rm -rf $RISCV/buildroot/
-            rm -rf $RISCV/logs || sudo rm -rf $RISCV/logs
+            rm -rf "$RISCV"/buildroot/ || sudo rm -rf "$RISCV"/buildroot/
+            rm -rf "$RISCV"/logs || sudo rm -rf "$RISCV"/logs
             df -h
       # Build only what the smoke test below needs: the self-checking peripheral tests, the ZSBL,
       # the derivative configurations and the coverage tests.  The riscv-arch-test suite is built by
@@ -204,7 +209,7 @@ jobs:
       - name: make tests
         run: |
               source setup.sh
-              make periph zsbl deriv coverage --jobs $(nproc --ignore 1)
+              make periph zsbl deriv coverage --jobs "$(nproc --ignore 1)"
       # Run standard regression (disabled for space reasons)
       # - name: Regression
       #   run: |
@@ -213,12 +218,12 @@ jobs:
       - name: Lint + wsim Test Only
         run: |
               source setup.sh
-              mkdir -p $WALLY/sim/verilator/logs/
+              mkdir -p "$WALLY"/sim/verilator/logs/
               lint-wally
-              wsim rv32imc $WALLY/tests/periph/rv32/WALLY-periph-m-01.elf --sim verilator | tee $WALLY/sim/verilator/logs/rv32imc_WALLY-periph-m-01.log
+              wsim rv32imc "$WALLY"/tests/periph/rv32/WALLY-periph-m-01.elf --sim verilator | tee "$WALLY"/sim/verilator/logs/rv32imc_WALLY-periph-m-01.log
       # Upload regression logs for debugging
       - name: Upload regression logs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: regression-logs-${{ matrix.name }}

@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# Checks every pull request, merge-queue entry, and push to main:
+# - the pre-commit hooks (prek), for the oldest and newest Python versions Wally supports
+# - Verilator lint of the standard configurations (lint-wally)
+# - the standard regression, one job per configuration (regression-wally --ci --config <cfg>):
+#   the configuration's riscv-arch-test and peripheral tests on Verilator, and for rv64gc the short
+#   buildroot boot.  rv32gc and rv64gc, which take the longest, are split across several jobs (--shard I/N)
+# The multilib GCC and the buildroot testvectors come from tools.yml, which rebuilds them only when their
+# installers change.  ci_pass is the single required status check.
+
+name: Regression
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - main
+
+# Only run CI on the latest commit if a PR is updated
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  WALLY: ${{ github.workspace }}
+  # The buildroot tests load the Linux testvectors from $RISCV
+  RISCV: /opt/riscv
+  # Trust cvw's and riscv-arch-test's .mise.toml
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  tools:
+    name: Tools
+    uses: ./.github/workflows/tools.yml # zizmor: ignore[self-repository]
+
+  prek:
+    name: Pre-commit (Python ${{ matrix.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [39, 313] # Oldest and newest versions used in wally-package-install.sh
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set Python version
+        env:
+          VERSION: ${{ matrix.version }}
+        run: sed -i "/^target-version/c\\target-version = \"py${VERSION}\"" .ruff.toml
+
+      - name: Set up tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
+
+      - name: Restore prek hook environments
+        id: prek-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.mise.toml', '.pre-commit-config.yaml') }}
+
+      - name: Run prek
+        run: prek run --all-files --show-diff-on-failure --color=always
+
+      - name: Save prek hook environments
+        if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.mise.toml', '.pre-commit-config.yaml') }}
+
+  lint:
+    name: Lint (Verilator)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
+        with:
+          verilator: "true"
+
+      # lint-wally also lints a derivative configuration
+      - name: Lint
+        run: |
+          make deriv
+          lint-wally
+
+  regression:
+    name: Regression (${{ matrix.config }}${{ matrix.shards > 1 && format(' {0}/{1}', matrix.shard, matrix.shards) || '' }})
+    needs: tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      # standard_configs in regression-wally.  The simulations of rv32gc and rv64gc are split into
+      # shards of about equal size, so that no one job sets the length of the run; every shard builds
+      # (or restores) all of its configuration's ACT tests, then runs its share of them.
+      matrix:
+        include:
+          - { config: rv32i, shard: 1, shards: 1 }
+          - { config: rv64i, shard: 1, shards: 1 }
+          - { config: rv32imc, shard: 1, shards: 1 }
+          - { config: rv32imcb, shard: 1, shards: 1 }
+          - { config: rv32gc, shard: 1, shards: 2 }
+          - { config: rv32gc, shard: 2, shards: 2 }
+          - { config: rv64gc, shard: 1, shards: 3 }
+          - { config: rv64gc, shard: 2, shards: 3 }
+          - { config: rv64gc, shard: 3, shards: 3 }
+    env:
+      CONFIG: ${{ matrix.config }}
+      SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+      # Build the ACT ELFs without their intermediate files, which the testbench does not need and which
+      # would make the cached work directory much larger
+      CLEAN_INTERMEDIATES: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out riscv-arch-test
+        run: git submodule update --init --depth 1 addins/riscv-arch-test
+
+      - name: Set up tools
+        # The $/ self-repository form downloads cvw as an action archive, which fails on the dangling
+        # bin/sim_bp symlink, so use the checkout
+        uses: ./.github/actions/setup-tools # zizmor: ignore[self-repository]
+        with:
+          verilator: "true"
+          act: "true"
+          buildroot: ${{ matrix.config == 'rv64gc' }}
+
+      # The ACT ELFs depend only on the riscv-arch-test commit, the configuration's ACT files, the
+      # GCC and Sail versions (set by their installers) and the build rules.  Most
+      # PRs change none of these, so they reuse the ELFs built on main.  Only an exact key match is
+      # restored, because ACT never deletes an ELF it no longer builds, and a partial match could
+      # leave a stale test behind to run.
+      - name: Compute ACT test cache key
+        id: act-key
+        env:
+          INPUTS_HASH: ${{ hashFiles(format('config/{0}/act/**', matrix.config), 'bin/installation/riscv-gnu-toolchain-install.sh', 'bin/installation/sail-install.sh', 'Makefile') }}
+        run: echo "key=act-elfs-${CONFIG}-$(git -C addins/riscv-arch-test rev-parse HEAD)-${INPUTS_HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore ACT tests
+        id: act-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: addins/riscv-arch-test/work/cvw-${{ matrix.config }}
+          key: ${{ steps.act-key.outputs.key }}
+
+      # regression-wally builds the ACT tests (make act) and runs this shard's share of them
+      - name: Regression
+        run: regression-wally --ci --config "$CONFIG" --shard "$SHARD"
+
+      # Every shard of a configuration builds the same tests, so only the first saves them, with the
+      # memfiles and label maps its simulations added (the other shards' tests rebuild theirs)
+      - name: Save ACT tests
+        if: >-
+          !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 &&
+          steps.act-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: addins/riscv-arch-test/work/cvw-${{ matrix.config }}
+          key: ${{ steps.act-key.outputs.key }}
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: regression-logs-${{ matrix.config }}-${{ matrix.shard }}
+          path: sim/verilator/logs
+
+  # The one check that branch protection and the merge queue require, so that they need not list
+  # every matrix job
+  ci_pass:
+    name: CI pass
+    runs-on: ubuntu-latest
+    needs: [prek, lint, regression]
+    if: always()
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            [[ "$result" == "success" ]] || exit 1
+          done

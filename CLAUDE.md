@@ -49,6 +49,8 @@ Key options: `--sim {questa,verilator,vcs}`, `--gui`, `--ccov` (code coverage), 
 ```bash
 regression-wally                        # rv32i, rv64i, rv32imc, rv32imcb, rv32gc, rv64gc ACT + periph tests + lint, Verilator by default
 regression-wally --nightly              # extended nightly suite
+regression-wally --ci --config rv64gc   # one configuration's standard tests, as each CI job runs them
+regression-wally --ci --nightly         # the nightly's Verilator part, as the weekly CI run does
 ```
 `regression-wally` first builds the tests it needs with the root Makefile (`make -C $WALLY act zsbl periph coverage`, incremental; `make act` discards a configuration's ELFs when its `config/<cfg>/act` files change), then runs each leaf directory of ACT ELFs as one `wsim` session, in parallel across directories. Compiled designs in `sim/<sim>/wkdir` are kept between regressions and recompiled only when a source file is newer. Set `ACTDIR` to use a different riscv-arch-test checkout.
 
@@ -80,7 +82,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 - `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
 - `tests/` — Test suites (`coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests)
-- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, etc.)
+- `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, cover-float, etc.)
 - `bin/` — Scripts (`wsim`, `regression-wally`, `lint-wally`, `derivgen.pl`, etc.)
 - `fpga/` — FPGA-specific files
 - `linux/` — Linux boot support
@@ -122,8 +124,8 @@ Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stal
 
 ### Simulators
 
-- **Verilator**: Default for regression; open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`. Also runs lockstep (needs an ImperasDV license); a lockstep Linux boot uses two threads.
-- **Questa** (Siemens): Required for testbench_fp and GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
+- **Verilator**: Default for regression, including the TestFloat and cover-float tests (`testbench_fp`); open-source; no license needed. Compiled per config in `sim/verilator/wkdir/`. Also runs lockstep (needs an ImperasDV license); a lockstep Linux boot uses two threads.
+- **Questa** (Siemens): Required for GUI waveforms; runs code/functional coverage and lockstep. Uses `sim/questa/wkdir/`.
 - **VCS** (Synopsys): Supports standard tests, lockstep, and code/functional coverage (merged and reported with `urg`).
 
 All three collect functional coverage (`wsim --fcov`) into `sim/questa/fcov_ucdb`, `sim/verilator/fcov_dat` or `sim/vcs/fcov_ucdb`; `make -C sim QuestaFunctCoverage`, `VerilatorFunctCoverage` or `VcsFunctCoverage` merges the runs of `CONFIG` (default rv64gc) and writes reports to `sim/<simulator>/fcov/<CONFIG>_*`.
