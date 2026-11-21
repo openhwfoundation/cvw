@@ -17,7 +17,8 @@ hazard3|hazard3-rv32imacb-u-pmp|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|10||hazard3
 ibex|ibex-opentitan|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DIBEX_ICACHE|ibex.env|run-ibex.sh --cycles 400000000 --timeout 3000 --elf
 neorv32|neorv32-rv32imacb-u-pmp|rv32imc_zicsr_zba_zbb_zbs_zbc|ilp32|10||neorv32.env|run-neorv32.sh --cycles 400000000 --timeout 3000 --elf
 picorv32|picorv32-rv32imc|rv32imc_zicsr|ilp32|10|-DUSE_RDCYCLE|picorv32.env|run-picorv32.sh --max-cycles 400000000 --timeout 3000 --elf
-sargantana|sargantana-rv64imafdb|rv64imafd_zicsr_zba_zbb_zbs|lp64|10||sargantana.env|run-sargantana.sh --max-cycles 400000000 --timeout 3000 --elf
+blackparrot|blackparrot-rv64gcb|rv64imafdc_zicsr_zba_zbb_zbs|lp64|10||blackparrot.env|run-blackparrot.sh --timeout 7200 --elf
+sargantana|sargantana4-rv64gcbh|rv64imafdc_zicsr_zba_zbb_zbs|lp64|10||sargantana.env|run-sargantana.sh --max-cycles 400000000 --timeout 3000 --elf
 serv|serv-rv32imc|rv32imc_zicsr|ilp32|2|-DMTIME_ADDR=0xC0000000|serv.env|run-serv.sh --timeout 7200 --elf
 veer-eh1|veer-eh1-rv32imc|rv32imc_zicsr|ilp32|10|-DVEER_STACK_TOP=0xf0050000|veer-eh1.env|run-veer-eh1.sh --timeout 3000 --elf
 veer-eh2|veer-eh2-rv32imacb|rv32imac_zicsr_zba_zbb_zbs_zbc|ilp32|10|-DVEER_STACK_TOP=0xf0050000|veer-eh2.env|run-veer-eh2.sh --timeout 3000 --elf
