@@ -55,7 +55,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: /opt/cvw-tools/gcc
-          key: gcc-multilib-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bin/installation/riscv-gnu-toolchain-install.sh') }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   buildroot:
     name: Buildroot Linux and testvectors
@@ -114,6 +114,8 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: bash bin/installation/buildroot-install.sh "$RISCV"
 
+      # The build writes the device trees into linux/devicetree/build, which changes hashFiles('linux/**'),
+      # so save under the key looked up before it, which the regression jobs restore
       - name: Save Linux testvectors
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -123,4 +125,4 @@ jobs:
             /opt/riscv/linux-testvectors/bootmem.bin
             /opt/riscv/buildroot/output/images/disassembly/*.objdump.addr
             /opt/riscv/buildroot/output/images/disassembly/*.objdump.lab
-          key: buildroot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('linux/**', 'bin/installation/buildroot-install.sh', 'bin/installation/qemu-install.sh', 'bin/installation/riscv-gnu-toolchain-install.sh') }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
