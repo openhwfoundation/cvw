@@ -52,7 +52,7 @@ repos:
         name: ruff check (uv scripts)
         args: [ --fix ]
         types_or: [text]
-        files: &uv_scripts ^(bin/(actconfig-sync|elf2hex|iterelf|lint-wally|regression-wally|wsim)|fpga/(generator/probe|probe|proberange|probes)|sim/vcs/(exclusions2el|run_vcs))$
+        files: &uv_scripts ^(bin/(actconfig-sync|coverfloat2tv|elf2hex|iterelf|lint-wally|regression-wally|wsim)|fpga/(generator/probe|probe|proberange|probes)|sim/vcs/(exclusions2el|run_vcs))$
 
   - repo: local
     hooks:

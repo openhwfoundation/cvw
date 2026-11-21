@@ -26,3 +26,7 @@
   path = addins/riscv-arch-test
   url = https://github.com/riscv/riscv-arch-test
   branch = act4
+[submodule "addins/cover-float"]
+  path = addins/cover-float
+  url = https://github.com/cover-float/cover-float
+  ignore = untracked
