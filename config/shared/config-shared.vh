@@ -142,5 +142,7 @@ localparam VPU_INT_BLEN = ELEN * VPU_INT_LANES;
 localparam VPU_INT_NO_MUL_BLEN = ELEN * VPU_INT_NO_MUL_LANES;
 localparam VPU_FP_BLEN = ELEN * VPU_FP_LANES;
 localparam VPU_INT_MAX_BEATS = VLEN/VPU_INT_BLEN;
+localparam VPU_BLEN = VPU_INT_BLEN;    // VRF bank width, shared by all EU types *** should be across int and float
+localparam VPU_BANKS = VLEN/VPU_BLEN;  // VRF banks
 localparam VPU_QUEUESIZE = VPU_EU * 4;
 localparam VPU_QUEUEDEPTH = $clog2(VPU_QUEUESIZE);

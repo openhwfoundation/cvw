@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Build and run a directed vector test on rv64gcv with Verilator.
+# usage: tests/vector/directed/run lmul
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+set -euo pipefail
+: "${WALLY:?source setup.sh first}"
+name=$1
+dir=$WALLY/tests/vector/directed
+mkdir -p "$dir/rv64"
+
+riscv64-unknown-elf-gcc -march=rv64gcv -mabi=lp64 -static -mcmodel=medany -nostdlib -nostartfiles \
+  -T "$WALLY/tests/periph/link.ld" -Wl,--no-warn-rwx-segments -o "$dir/rv64/$name.elf" "$dir/$name.S"
+wsim rv64gcv "$dir/rv64/$name.elf" --sim verilator

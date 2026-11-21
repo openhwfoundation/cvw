@@ -43,6 +43,7 @@ module lmulsequencer
    output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD,
    output logic MicroVectorD,
    output logic MicroOpNotLastD,
+   output logic [2:0] MicroOpIndexD, // current micro-op register group index
    output logic VHazardStallD        // hold the first micro-op in Decode until the hazard clears
 );
 
@@ -62,6 +63,7 @@ module lmulsequencer
   assign VectorStartD  = VectorD & ~(CurrState == STATE_BEGIN & VHazardD);
   assign VHazardStallD = VectorD &  (CurrState == STATE_BEGIN & VHazardD);
   assign lmulCntrFirstCaptureD = lmulCntrD > 1;
+  assign MicroOpIndexD = 3'(lmulCntrD - 4'd1);
 
   assign Vs1P1D = Vs1FinalD + 5'b00001;
   flopenr #(5) Vs1IncrReg (clk, reset, IncrD, Vs1P1D, Vs1P1QD);

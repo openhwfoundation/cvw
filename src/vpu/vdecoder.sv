@@ -51,6 +51,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [6:0]  VLSModeD,                 // addressing modes for load/store
   output logic        VReductionD,              // instr is a reduction op
   output logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD, // log2(EEW) of Vd/Vs2/Vs1: 000 1b (mask), 011 8b ... 110 64b
+  output logic        VMaskedD,                 // v0 masks the vd write (vm=0 and v0 is not an operand)
+  output logic [1:0]  VWriteElementsD,          // vd elements written: 00 below vl, 01 element 0, 10 mask result, 11 whole register
   output logic [1:0]  VALUSrcAD,
   output logic        VALUSrcBD,
   output logic        VALUResultSrcD,
@@ -603,6 +605,15 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[6];
   assign VdNoOverlapD = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS) |
                         (VOpClassD == VOPCLASS_MASK) | (VOpClassD == VOPCLASS_SLIDE) & ~Funct6D[0];   // slideups
+
+  // v0 is an operand of vadc, vsbc, vmerge, and vfmerge and not a mask
+  logic V0OperandD;
+  assign V0OperandD = (OPIVVD | OPIVXD | OPIVID) & ((Funct6D == 6'b010000) | (Funct6D == 6'b010010) | (Funct6D == 6'b010111)) |
+                      OPFVFD & (Funct6D == 6'b010111);
+  assign VMaskedD = ~VMD & ~V0OperandD;
+  assign VWriteElementsD = VWholeRegD                   ? 2'b11 :
+                           (VdEEWD == 3'b000)           ? 2'b10 :
+                           (VReductionD | VScalarMoveD) ? 2'b01 : 2'b00;
 
   vreserved #(P) vreserved(.SewD, .VlmulD(VTYPED[2:0]), .VdD, .Vs2D, .Vs1D, .VdEEWD, .Vs2EEWD, .Vs1EEWD,
     .VdEnD, .Vs2EnD, .Vs1EnD, .VReductionD, .VScalarMoveD, .VWholeRegD, .NfD(VLoadStoreD ? NfD : Vs1D[2:0]),

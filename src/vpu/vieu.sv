@@ -61,9 +61,12 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
   input logic [1:0]                   VMulSelectD,                    // vmul result: 00 vmul, 01 vmulh, 10 vwmul
   input logic [1:0]                   VMulSignD,                      // vmul signedness: {vs1 signed, vs2 signed}
-   // datapath from vregfile
-  input logic [P.VLEN-1:0]            VRD1D, VRD2D, VRD3D,
-  input logic [P.VLEN-1:0]            v0D,
+   // datapath from VRF banks, bank i holds beat i of reg read i cycles after dispatch
+  // *** banks are shared by int and float EUs and vieu should take one bank per beat while VPU_BLEN = VPU_INT_BLEN
+  input logic [P.VPU_BLEN-1:0]        VRD1D [P.VPU_BANKS-1:0],
+  input logic [P.VPU_BLEN-1:0]        VRD2D [P.VPU_BANKS-1:0],
+  input logic [P.VPU_BLEN-1:0]        VRD3D [P.VPU_BANKS-1:0],        // vd as an operand (vmacc, vslideup)
+  input logic [P.VLEN-1:0]            v0D,                            // v0 as an operand (vmerge, vadc), whole register
    //
   // from/to the scalar core
   input logic [P.XLEN-1:0]            R1D,                            // Scalar rs1 read in Decode (from IEU)
@@ -78,6 +81,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // might have to bring back notconsummedW and the localStall back when later making svrf entries less than EU number
 
   localparam BEATBITLEN = $clog2((P.VLEN/P.ELEN) + 1);
+  localparam BEATSELBITS = (P.VPU_INT_MAX_BEATS > 1) ? $clog2(P.VPU_INT_MAX_BEATS) : 1;  // selects a beat of the register
   //localparam VLBITLEN = $clog2(P.VLEN);
   localparam XLENTOINTLANES = P.VPU_INT_BLEN / P.XLEN;
 
@@ -101,21 +105,17 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   logic       VALUResultSrcW;
 
-  logic [BEATBITLEN-1:0]   vlE;
   logic [BEATBITLEN-1:0] BeatE, BeatM;
   logic                  CaptureD;
   logic                  ExecutionUnitResultValidE, ExecutionUnitResultValidM;
   logic [P.VPU_QUEUEDEPTH-1:0] ExecutionUnitOrderE, ExecutionUnitOrderM;
 
-  logic [P.VLEN-1:0]     VRD1E, VRD2E, VRD3E, v0E;
-  logic [P.XLEN-1:0]     R1E;                   // scalar rs1 captured with the micro-op
-  logic [P.VPU_INT_BLEN-1:0] VRD1BeatE [P.VPU_INT_MAX_BEATS-1:0];
-  logic [P.VPU_INT_BLEN-1:0] VRD2BeatE [P.VPU_INT_MAX_BEATS-1:0];
-  logic [P.VPU_INT_BLEN-1:0] VRD3BeatE [P.VPU_INT_MAX_BEATS-1:0];
-  logic [P.VPU_INT_BLEN-1:0] v0BeatE [P.VPU_INT_MAX_BEATS-1:0];
+  logic [P.XLEN-1:0]         R1E;                 // scalar rs1 captured with the micro-op
+  logic [BEATSELBITS-1:0]    ReadBankD;           // bank holding the beat Execute computes next
+  logic [P.VPU_INT_BLEN-1:0] VRD1E, VRD2E, VRD3E; // operand beat in Execute
+  logic [P.VLEN-1:0]         v0E;                 // v0 read once per micro-op
   logic                      BeatValidE, BeatValidM;
 
-  logic [P.VPU_INT_BLEN-1:0] VRD1SelectedE, VRD2SelectedE, VRD3SelectedE, v0SelectedE;
   logic [P.VPU_INT_BLEN-1:0] VImmE;
 
   logic [P.VPU_INT_BLEN-1:0] VSrcAE, VSrcBE, VSrcCE;
@@ -134,37 +134,26 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
 
-  // *** add vector length later
-  assign vlE = 1;
   // simm5 from the vs1 field, sign-extended to ELEN
   // *** make SEW-dependent when lanes support SEW < ELEN
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
   assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
-                       .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE, .vlE);
+                       .ControllerValidD, .ExecutionUnitReadyD, .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
   assign CaptureD = ControllerValidD & ExecutionUnitReadyD; // *** duplicated in vieufsm
 
-  flopenrc #(P.VLEN) VRD1EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD1D, VRD1E);
-  flopenrc #(P.VLEN) VRD2EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD2D, VRD2E);
-  flopenrc #(P.VLEN) VRD3EReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VRD3D, VRD3E);
-  flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, v0D,   v0E);
   flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, R1D,   R1E);
+  // *** select the mask bits of the beat for vmerge / vadc / vmadc
+  flopenrc #(P.VLEN) v0EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, v0D,   v0E);
 
-  // convert to index format
-  genvar index;
-  for (index = 0; index < P.VPU_INT_MAX_BEATS; index++) begin : laneconvert
-    assign VRD1BeatE[index] = VRD1E[(index*P.VPU_INT_BLEN)+P.VPU_INT_BLEN-1 : (index*P.VPU_INT_BLEN)];
-    assign VRD2BeatE[index] = VRD2E[(index*P.VPU_INT_BLEN)+P.VPU_INT_BLEN-1 : (index*P.VPU_INT_BLEN)];
-    assign VRD3BeatE[index] = VRD3E[(index*P.VPU_INT_BLEN)+P.VPU_INT_BLEN-1 : (index*P.VPU_INT_BLEN)];
-    assign v0BeatE[index]   = v0E[(index*P.VPU_INT_BLEN)+P.VPU_INT_BLEN-1   : (index*P.VPU_INT_BLEN)];
-  end
-
-  // mux down to the current lane(s)
-  assign VRD1SelectedE = VRD1BeatE[BeatE[BEATBITLEN-3:0]];
-  assign VRD2SelectedE = VRD2BeatE[BeatE[BEATBITLEN-3:0]];
-  assign VRD3SelectedE = VRD3BeatE[BeatE[BEATBITLEN-3:0]];
-  assign v0SelectedE   = v0BeatE[BeatE[BEATBITLEN-3:0]];
+  // take one beat per cycle from the stream
+  // not cleared by flush
+  // stream holds while Execute stalls
+  assign ReadBankD = CaptureD ? '0 : BeatE[BEATSELBITS-1:0] + 1'b1;
+  flopenr #(P.VPU_INT_BLEN) VRD1EReg(clk, reset, ~VectorStallE, VRD1D[ReadBankD], VRD1E);
+  flopenr #(P.VPU_INT_BLEN) VRD2EReg(clk, reset, ~VectorStallE, VRD2D[ReadBankD], VRD2E);
+  flopenr #(P.VPU_INT_BLEN) VRD3EReg(clk, reset, ~VectorStallE, VRD3D[ReadBankD], VRD3E);
 
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
@@ -179,9 +168,10 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, InstrD, InstrE);
 
-  mux3 #(P.VPU_INT_BLEN) vscramux(VRD1SelectedE, VImmE, {XLENTOINTLANES{R1E}}, VALUSrcAE, VSrcAE);
+  mux3 #(P.VPU_INT_BLEN) vscramux(VRD1E, VImmE, {XLENTOINTLANES{R1E}}, VALUSrcAE, VSrcAE);
 
-  assign VSrcBE = VRD2SelectedE;
+  assign VSrcBE = VRD2E;
+  assign VSrcCE = VRD3E; // *** to the lanes for vmacc
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .StallM, .FlushM(VectorFlushM), .SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE, .VSubE, .VSewE, .VMulSelectE, .VMulSignE,
                                          .VShiftSelectE, .LaneResultE(VALUResultE), .ProductM(VProductM));
