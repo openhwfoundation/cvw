@@ -493,12 +493,6 @@ coverage exclude -scope /core/lsu -feccondrow $line 4
 set line [GetLineNum ${SRC}/lsu/lsu.sv "assign CacheRWM"]
 coverage exclude -scope /core/lsu -feccondrow $line 2
 
-# Exclude system reset case in ebu
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "BeatCounter\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "FinalBeatReg\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicWait"]
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line -item bc 1
 
@@ -571,7 +565,7 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # nonzero outside a cache state if a burst was cut off by a flush, and a D$ burst is never flushed: a cache
 # instruction that faults on its own is squashed before its writeback starts (lsu.sv SelfFaultM).
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "CacheAccess & \\|BeatCount\\) ?"] 1
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign HBURST"] 5
+coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign HBURST"] 7
 
 # D$ AHBBuscachefsm CaptureEn ((~Flush & DATA_PHASE) & BusRW[1]) Flush_1: unreachable for the D$ -- a
 # DATA_PHASE access with BusRW[1] is a committed, non-speculative uncached load read; the D$ Flush input

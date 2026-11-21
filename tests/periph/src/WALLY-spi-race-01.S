@@ -77,6 +77,9 @@ EXPECT_BEGIN
 // measurement includes the polling latency, so the read lands roughly 60-80 cycles later than s6 says,
 // still before the frame's last SCK edge; checked with the pin probe).
     SPIW SPI_SCKDIV, 31
+    li s6, 200
+    jal ra, full_trial              // warm-up, not checked: brings full_trial's code into the I$, so the first
+                                    // checked trial's read is not delayed by misses (on a slow core, past the frame)
     .set lead, 96
     .rept 14
     li s6, lead

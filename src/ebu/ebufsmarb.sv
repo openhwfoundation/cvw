@@ -19,8 +19,6 @@
 module ebufsmarb (
   input  logic       HCLK,
   input  logic       HRESETn,
-  input  logic [2:0] HBURST,     // AHB burst length
-
   input  logic       HREADY,
 
   input  logic       LSUReq,
@@ -38,16 +36,12 @@ module ebufsmarb (
 
   logic              both;                       // Both the LSU and IFU request at the same time
   logic              IFUReqDelay;                // 1 cycle delayed IFU request. Part of arbitration
-  logic              FinalBeat, FinalBeatD;      // Indicates the last beat of a burst
-  logic              BeatCntEn;
-  logic [3:0]        BeatCount;                  // Position within a burst transfer
-  logic              BeatCntReset;
-  logic [3:0]        Threshold;                  // Number of beats derived from HBURST
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // Arbitration scheme
-  // FSM decides if arbitration needed.  Arbitration is held until the last beat of
-  // a burst is completed.
+  // FSM decides if arbitration needed.  Arbitration is held until the LSU stops requesting: the LSU never
+  // drives IDLE inside a burst, so the first ready cycle with no LSU request is the data phase of its last
+  // transfer (or later), and the IFU's saved address phase can be issued alongside it.
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
   assign both = LSUReq & IFUReq;
@@ -56,7 +50,7 @@ module ebufsmarb (
     case (CurrState)
       IDLE:      if (both)                                      NextState = ARBITRATE; // exclusion-tag: arb-idle
                  else                                           NextState = IDLE;
-      ARBITRATE: if (HREADY & FinalBeatD & ~both)               NextState = IDLE; // exclusion-tag: arb-arbitrate-exit
+      ARBITRATE: if (HREADY & ~both)                            NextState = IDLE; // exclusion-tag: arb-arbitrate-exit
                  else                                           NextState = ARBITRATE; // exclusion-tag: arb-arbitrate-hold
       default:                                                  NextState = IDLE;
     endcase
@@ -78,31 +72,4 @@ module ebufsmarb (
   assign LSUDisable = (CurrState != ARBITRATE) & IFUReqDelay;
   assign LSUSelect = (NextState == ARBITRATE) ? 1'b1 : LSUReq; // exclusion-tag: arb-lsuselect
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Burst mode logic
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  assign BeatCntReset = NextState == IDLE;
-  assign FinalBeat = (BeatCount == Threshold) & HREADY; // The final access completes. HREADY prevents
-  // FinalBeat from pulsing and therefore reseting when the bus is not ready.
-  // Counting the beats in the EBU is only necessary when both the LSU and IFU request concurrently.
-  // LSU has priority. HREADY serves double duty during a burst transaction.  It indicates when the
-  // beat completes and when the transaction finishes.  However there is nothing external to
-  // differentiate them.  The EBU counts the HREADY beats so it knows when to switch to the IFU's
-  // request.
-  assign BeatCntEn = (NextState == ARBITRATE) & HREADY;
-  counter #(4) BeatCounter(HCLK, ~HRESETn | BeatCntReset | FinalBeat, BeatCntEn, BeatCount);
-
-  // Used to store data from data phase of AHB.
-  flopenr #(1) FinalBeatReg(HCLK, ~HRESETn | BeatCntReset, BeatCntEn, FinalBeat, FinalBeatD); // exclusion-tag: arb-finalbeat-reset
-
-  // unlike the bus fsm in lsu/ifu, we need to derive the number of beats from HBURST, Threshold = num beats - 1.
-  //  HBURST[2:1] Beats  threshold
-  //  00          1      0
-  //  01          4      3
-  //  10          8      7
-  //  11          16     15
-  always_comb
-    if (HBURST[2:1] == 2'b00) Threshold = 4'b0000;
-    else                      Threshold = ('d2 << HBURST[2:1]) - 'd1;
 endmodule
