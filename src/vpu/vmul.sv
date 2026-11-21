@@ -24,7 +24,7 @@ module vmul import cvw::*; #(parameter cvw_t P)
    input logic                 StallM,          // holds the Memory stage registers
    input logic                 FlushM,          // clears the Memory stage registers
    input logic [P.ELEN-1:0]    A, B,            // A = vs1/rs1, B = vs2
-   input logic [1:0]           Sew,
+   input logic [2:0]           SEW,
    input logic [1:0]           MulSelect,       // 00 = vmul, 01 = vmulh, 10 = vwmul
    input logic [1:0]           MulSign,         // {A signed, B signed}: element signedness of the instruction
    output logic [P.ELEN-1:0]   Product
@@ -40,11 +40,11 @@ module vmul import cvw::*; #(parameter cvw_t P)
   logic [7:0] ASByte, BSByte;             // signed bytes of A and B
 
   always_comb
-    case (Sew)
-      2'b00:   TopByte = 8'b11111111; // 8
-      2'b01:   TopByte = 8'b10101010; // 16
-      2'b10:   TopByte = 8'b10001000; // 32
-      default: TopByte = 8'b10000000; // 64
+    case (SEW)
+      3'b000:  TopByte = 8'b11111111; // 8
+      3'b001:  TopByte = 8'b10101010; // 16
+      3'b010:  TopByte = 8'b10001000; // 32
+      default: TopByte = 8'b10000000; // 64 (1xx is reserved)
     endcase
 
   assign ASByte = {8{MulSign[1]}} & TopByte;
@@ -93,7 +93,7 @@ module vmul import cvw::*; #(parameter cvw_t P)
                Prod_16_44M, Prod_16_46M, Prod_16_64M, Prod_16_66M;
   logic [63:0] Prod_32_00M, Prod_32_04M, Prod_32_40M, Prod_32_44M;
   logic [127:0] Prod_64_00M;
-  logic [1:0]   SewM;
+  logic [2:0]   SEWM;
   logic [1:0]   MulSelectM;
   logic [2*P.ELEN-1:0] FullProductM;      // full 2*SEW product of every element
   logic [P.ELEN-1:0]   SingleProductM;    // low or high SEW bits of every element
@@ -208,7 +208,7 @@ module vmul import cvw::*; #(parameter cvw_t P)
     {Sig_8_01E, Sig_8_10E, Sig_8_23E, Sig_8_32E, Sig_8_45E, Sig_8_54E, Sig_8_67E, Sig_8_76E, Sig_16_02E, Sig_16_20E, Sig_16_46E, Sig_16_64E, Sig_32_04E, Sig_32_40E},
     {Sig_8_01M, Sig_8_10M, Sig_8_23M, Sig_8_32M, Sig_8_45M, Sig_8_54M, Sig_8_67M, Sig_8_76M, Sig_16_02M, Sig_16_20M, Sig_16_46M, Sig_16_64M, Sig_32_04M, Sig_32_40M});
 
-  flopenrc #(4) CtrlReg(clk, reset, FlushM, ~StallM, {Sew, MulSelect}, {SewM, MulSelectM});
+  flopenrc #(5) CtrlReg(clk, reset, FlushM, ~StallM, {SEW, MulSelect}, {SEWM, MulSelectM});
 
   // Memory stage: adder tree
   // The [0][0] block is unsigned whenever the sum is used, and the [1][1] block fills the top bits,
@@ -232,26 +232,27 @@ module vmul import cvw::*; #(parameter cvw_t P)
 
   // Full products for widening multiplications
   always_comb
-    case (SewM)
-      2'b00: FullProductM = {Prod_8_77M, Prod_8_66M, Prod_8_55M, Prod_8_44M, Prod_8_33M, Prod_8_22M, Prod_8_11M, Prod_8_00M};
-      2'b01: FullProductM = {Prod_16_66M, Prod_16_44M, Prod_16_22M, Prod_16_00M};
-      2'b10: FullProductM = {Prod_32_44M, Prod_32_00M};
-      2'b11: FullProductM = Prod_64_00M;
+    case (SEWM)
+      3'b000:  FullProductM = {Prod_8_77M, Prod_8_66M, Prod_8_55M, Prod_8_44M, Prod_8_33M, Prod_8_22M, Prod_8_11M, Prod_8_00M};
+      3'b001:  FullProductM = {Prod_16_66M, Prod_16_44M, Prod_16_22M, Prod_16_00M};
+      3'b010:  FullProductM = {Prod_32_44M, Prod_32_00M};
+      default: FullProductM = Prod_64_00M;              // 64 (1xx is reserved)
     endcase
 
   // Single width: vmul or vmulh SEW bits of each element
   always_comb
-    case ({SewM, MulSelectM[0]})
-      3'b000: SingleProductM = {Prod_8_77M[7:0],  Prod_8_66M[7:0],  Prod_8_55M[7:0],  Prod_8_44M[7:0],
+    case ({SEWM, MulSelectM[0]})
+      4'b0000: SingleProductM = {Prod_8_77M[7:0],  Prod_8_66M[7:0],  Prod_8_55M[7:0],  Prod_8_44M[7:0],
                                 Prod_8_33M[7:0],  Prod_8_22M[7:0],  Prod_8_11M[7:0],  Prod_8_00M[7:0]};
-      3'b001: SingleProductM = {Prod_8_77M[15:8], Prod_8_66M[15:8], Prod_8_55M[15:8], Prod_8_44M[15:8],
+      4'b0001: SingleProductM = {Prod_8_77M[15:8], Prod_8_66M[15:8], Prod_8_55M[15:8], Prod_8_44M[15:8],
                                 Prod_8_33M[15:8], Prod_8_22M[15:8], Prod_8_11M[15:8], Prod_8_00M[15:8]};
-      3'b010: SingleProductM = {Prod_16_66M[15:0],  Prod_16_44M[15:0],  Prod_16_22M[15:0],  Prod_16_00M[15:0]};
-      3'b011: SingleProductM = {Prod_16_66M[31:16], Prod_16_44M[31:16], Prod_16_22M[31:16], Prod_16_00M[31:16]};
-      3'b100: SingleProductM = {Prod_32_44M[31:0],  Prod_32_00M[31:0]};
-      3'b101: SingleProductM = {Prod_32_44M[63:32], Prod_32_00M[63:32]};
-      3'b110: SingleProductM = Prod_64_00M[63:0];
-      3'b111: SingleProductM = Prod_64_00M[127:64];
+      4'b0010: SingleProductM = {Prod_16_66M[15:0],  Prod_16_44M[15:0],  Prod_16_22M[15:0],  Prod_16_00M[15:0]};
+      4'b0011: SingleProductM = {Prod_16_66M[31:16], Prod_16_44M[31:16], Prod_16_22M[31:16], Prod_16_00M[31:16]};
+      4'b0100: SingleProductM = {Prod_32_44M[31:0],  Prod_32_00M[31:0]};
+      4'b0101: SingleProductM = {Prod_32_44M[63:32], Prod_32_00M[63:32]};
+      4'b0110: SingleProductM = Prod_64_00M[63:0];
+      4'b0111: SingleProductM = Prod_64_00M[127:64];
+      default: SingleProductM = '0;                     // 1xx is reserved
     endcase
 
   // ***TODO: Figure out beat so we can select upper 64 bits of vwmul in one beat and lower 64 bit on th next

@@ -22,13 +22,13 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic              clk, reset,
   input  logic              StallM, FlushM,  // for the vmul Memory stage registers
   input  logic [P.ELEN-1:0] SrcA, SrcB,      // lane operands
+  input  logic [2:0]        VSEWE,           // vtype.vsew: 000 e8, 001 e16, 010 e32, 011 e64
   input  logic [2:0]        VALUSelectE,
-  input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic              VSubE,
-  input  logic [1:0]        VSewE,
+  input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
+  input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
   input  logic [1:0]        VMulSignE,       // {SrcA signed, SrcB signed}
-  input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   output logic [P.ELEN-1:0] LaneResultE,      // lane result in Execute stage
   output logic [P.ELEN-1:0] ProductM         // vmul result in Memory stage
 );
@@ -39,7 +39,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   // vmul, vmulh, vmulhu, vmulhsu. Currently widening multiplies return only the lower half of the elements
   // The product is ready in Memory stage and is selected in vieu after the M register
-  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .A(SrcA), .B(SrcB), .Sew(VSewE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
+  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .A(SrcA), .B(SrcB), .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
