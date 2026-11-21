@@ -68,7 +68,17 @@ module btb import cvw::*; #(parameter cvw_t P,
                            MatchM ? {IClassM, IEUAdrM} :
                            {IClassW, IEUAdrW};
 
-  assign {BTBIClassF, BPBTAF} = MatchX ? ForwardBTBPredF : {TableBTBPredF};
+  // Valid bit per entry, cleared on reset: an entry written by an earlier program must not steer fetch.
+  logic [2**Depth-1:0] BTBValid;
+  logic [Depth-1:0]    ValidAdrF;
+  logic                TableValidF;
+  flopen #(Depth) ValidAdrReg(clk, ~StallF | reset, PCNextFIndex, ValidAdrF);
+  assign TableValidF = BTBValid[ValidAdrF];
+  logic [2**Depth-1:0] BTBValidNext;
+  assign BTBValidNext = BTBValid | ((~StallW & ~FlushW & BTBWrongM) ? ({{(2**Depth-1){1'b0}}, 1'b1} << PCMIndex) : '0);
+  flopr #(2**Depth) BTBValidReg(clk, reset, BTBValidNext, BTBValid);
+
+  assign {BTBIClassF, BPBTAF} = MatchX ? ForwardBTBPredF : (TableValidF ? {TableBTBPredF} : '0);
 
   // An optimization may be using a PC relative address.
   ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**Depth), .WIDTH(P.XLEN+4)) memory(

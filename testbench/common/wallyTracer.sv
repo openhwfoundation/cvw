@@ -44,16 +44,16 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   // wally specific signals
   logic                  reset;
   logic                  clk;
-  logic                  InstrValidD, InstrValidE;
+  logic                  Slot0InstrValidD, InstrValidE;
   logic                  StallF, StallD;
   logic [1:0]            STATUS_SXL, STATUS_UXL;
   logic [P.XLEN-1:0]     PCNextF, PCF, PCD, PCE, PCM, PCW;
   logic [31:0]           InstrRawD, InstrRawE, InstrRawM, InstrRawW;
   logic                  InstrValidM, InstrValidW;
   // Superscalar slot 1: its own instruction, PC, and the bit saying it really issued
-  logic [31:0]           Instr1RawD, Instr1RawE, Instr1RawM, Instr1RawW;
+  logic [31:0]           Slot1InstrRawD, Instr1RawE, Instr1RawM, Instr1RawW;
   logic [P.XLEN-1:0]     Instr1PCD, Instr1PCE, Instr1PCM, Instr1PCW;
-  logic                  Issue1D, Issue1E, Issue1M, Issue1W;
+  logic                  Slot1IssueD, Slot1IssueE, Slot1IssueM, Slot1IssueW;
   logic                  valid1;
   logic                  StallE, StallM, StallW;
   logic                  GatedStallW;
@@ -80,7 +80,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
 
   assign clk = testbench.dut.clk;
   //  assign InstrValidF = testbench.dut.core.ieu.InstrValidF;  // not needed yet
-  assign InstrValidD    = testbench.dut.core.ieu.c.InstrValidD;
+  assign Slot0InstrValidD    = testbench.dut.core.ieu.c.Slot0InstrValidD;
   assign InstrValidE    = testbench.dut.core.ieu.c.InstrValidE;
   assign InstrValidM    = testbench.dut.core.ieu.InstrValidM;
   assign InstrRawD      = testbench.dut.core.ifu.InstrRawD;
@@ -301,11 +301,11 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign rf_samerd = rf_we3 & rf_we6 & (rf_a3 == rf_a6);
   // A fused indexed load (ieu.sv) retires two instructions but writes rd once, on slot 0's port, with the
   // load data.  The add's record reports the sum it would have written, which is still in IFResultW, and
-  // the load's record reports the write.  Issue1W is low when the pair was replayed unfused: then slot 0
+  // the load's record reports the write.  Slot1IssueW is low when the pair was replayed unfused: then slot 0
   // really did write the sum, and the load has not retired.
   logic FuseW, FusedW;
   flopenrc #(1) FuseWReg(clk, reset, FlushW, ~StallW, testbench.dut.core.ieu.FuseM, FuseW);
-  assign FusedW = FuseW & Issue1W;
+  assign FusedW = FuseW & Slot1IssueW;
 
   always_comb begin
     rf_wb = 0;
@@ -347,12 +347,12 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
     assign CSRWriteM = 1'b0;
   end
 
-  // Superscalar slot 1.  Instr1RawD is the undecompressed slot 1 instruction and Instr1PCD its
-  // address; both are already registered into Decode by the IFU.  Issue1W comes from the core rather
+  // Superscalar slot 1.  Slot1InstrRawD is the undecompressed slot 1 instruction and Instr1PCD its
+  // address; both are already registered into Decode by the IFU.  Slot1IssueW comes from the core rather
   // than being re-derived here, so the record is emitted exactly when the hardware committed slot 1.
-  assign Instr1RawD = testbench.dut.core.ifu.Instr1RawD;
+  assign Slot1InstrRawD = testbench.dut.core.ifu.Slot1InstrRawD;
   assign Instr1PCD  = testbench.dut.core.ifu.Instr1PCD;
-  assign Issue1W    = testbench.dut.core.ifu.Issue1W;
+  assign Slot1IssueW    = testbench.dut.core.ifu.Slot1IssueW;
 
   // pipeline to writeback stage
   flopenrc #(32)    InstrRawEReg (clk, reset, FlushE, ~StallE, InstrRawD, InstrRawE);
@@ -361,7 +361,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   flopenrc #(P.XLEN)PCWReg       (clk, reset, FlushW & ~TrapM, ~StallW, PCM, PCW);
   flopenrc #(1)     InstrValidMReg (clk, reset, FlushW & ~TrapM, ~StallW, InstrValidM, InstrValidW);
   // Slot 1's instruction and PC follow slot 0's path so the two records line up in the same cycle
-  flopenrc #(32)    Instr1RawEReg(clk, reset, FlushE, ~StallE, Instr1RawD, Instr1RawE);
+  flopenrc #(32)    Instr1RawEReg(clk, reset, FlushE, ~StallE, Slot1InstrRawD, Instr1RawE);
   flopenrc #(32)    Instr1RawMReg(clk, reset, FlushM, ~StallM, Instr1RawE, Instr1RawM);
   flopenrc #(32)    Instr1RawWReg(clk, reset, FlushW & ~TrapM, ~StallW, Instr1RawM, Instr1RawW);
   flopenrc #(P.XLEN) Instr1PCEReg(clk, reset, FlushE, ~StallE, Instr1PCD, Instr1PCE);
@@ -561,7 +561,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   assign valid  = ((InstrValidW | TrapW) & ~StallW) & ~reset;
   // Slot 1 retires only alongside slot 0, and never on a trap: a trap squashes the whole bundle and
   // that cycle's record belongs to the trapping instruction.
-  assign valid1 = valid & Issue1W & ~TrapW;
+  assign valid1 = valid & Slot1IssueW & ~TrapW;
   assign rvvi.clk = clk;
   assign rvvi.valid[0][0]    = valid;
   assign rvvi.order[0][0]    = order;

@@ -23,7 +23,7 @@
                              dut.core.ifu.ITLBMissF | dut.core.TrapM | probe_pahit;
   always @(posedge clk) begin
     if (~reset & ($time >= probe_t0) & ($time <= probe_t1) & (probe_all | probe_interesting)) begin
-      $display("[%0t] S=%b%b%b%b%b F=%b%b%b%b %s | PCF=%h ITLBm=%b IFUst=%b I$=%0d | PCM=%h vM=%b MemRW=%b Adr=%h PA=%h | HPTW=%0d DTLBw=%b Dm=%b Im=%b St=%b Fl=%b Sel=%b SelAdr=%b PTE=%h DW=%b IW=%b | D$=%0d RW=%b Bus=%b Hit=%b En=%b Stall=%b SD=%b SV=%b SelT=%b SelD=%b SetT=%h SetD=%h D$st=%b BusSt=%b LSUFl=%b | busfsm=%0d HTRANS=%b HADDR=%h HRDY=%b | RdM=%h",
+      $display("[%0t] S=%b%b%b%b%b F=%b%b%b%b %s | PCF=%h ITLBm=%b IFUst=%b I$=%0d | PCM=%h vM=%b MemRW=%b Adr=%h PA=%h | HPTW=%0d DTLBw=%b Dm=%b Im=%b St=%b Fl=%b Sel=%b SelAdr=%b PTE=%h DW=%b IW=%b | D$=%0d RW=%b Bus=%b Hit=%b En=%b Stall=%b SD=%b SV=%b SelT=%b SelD=%b SetT=%h SetD=%h D$st=%b BusSt=%b LSUFl=%b | busfsm=%0d HTRANS=%b HADDR=%h HRDY=%b | Slot0RdM=%h",
         $time,
         dut.core.StallF, dut.core.StallD, dut.core.StallE, dut.core.StallM, dut.core.StallW,
         dut.core.FlushD, dut.core.FlushE, dut.core.FlushM, dut.core.FlushW,

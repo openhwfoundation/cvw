@@ -426,7 +426,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // Decode because the PC advance below depends on it: a bundle of two advances the PC by both
   // lengths at once.  When Issue1F is low the core behaves exactly as single-issue Wally.
   if (P.SUPERSCALAR_SUPPORTED) begin : dualissue
-    issue #(P) issue(.Instr0F(InstrRawF), .Instr1F(Instr1RawF), .Instr1ValidF, .BPPCSrcF, .Issue1F, .LateA1F, .LateB1F, .LateOK1F, .Fuse1F, .FuseBr1F, .FuseBrAdd1F);
+    issue #(P) issue(.Slot0InstrF(InstrRawF), .Slot1InstrF(Instr1RawF), .Instr1ValidF, .BPPCSrcF, .Slot1IssueF(Issue1F), .Slot1LateAF(LateA1F), .Slot1LateBF(LateB1F), .LateOK1F, .Slot1FuseF(Fuse1F), .Slot1FuseBrF(FuseBr1F), .Slot1FuseBrAddF(FuseBrAdd1F));
   end else begin : singleissue
     assign {Issue1F, LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F} = '0;
   end

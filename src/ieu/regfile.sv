@@ -48,14 +48,14 @@ module regfile #(parameter XLEN, E_SUPPORTED, LATCH_BASED, SUPERSCALAR = 1) (
     // This replaces a flop and a write-enable mux per bit with one latch.  A clock gate per register,
     // clocked by ~clk, opens the latches; wd3 (and wd6) come from Writeback-stage flops, so they are
     // stable while clk is low.
-    logic [NUMREGS-1:1] WriteEn, WriteClk, Write1;
+    logic [NUMREGS-1:1] WriteEn, WriteClk, Slot1Write;
     for (genvar r = 1; r < NUMREGS; r++) begin : rows
-      assign Write1[r]  = SUPERSCALAR & we6 & (a6 == r);          // slot 1 writes this register
-      assign WriteEn[r] = reset | we3 & (a3 == r) | Write1[r];
+      assign Slot1Write[r]  = SUPERSCALAR & we6 & (a6 == r);          // slot 1 writes this register
+      assign WriteEn[r] = reset | we3 & (a3 == r) | Slot1Write[r];
       clockgate cg(.clk(~clk), .en(WriteEn[r]), .gclk(WriteClk[r]));
     end
     always_latch
-      for (i=1; i<NUMREGS; i++) if (WriteClk[i]) rf[i] = reset ? '0 : Write1[i] ? wd6 : wd3;
+      for (i=1; i<NUMREGS; i++) if (WriteClk[i]) rf[i] = reset ? '0 : Slot1Write[i] ? wd6 : wd3;
   end else if (SUPERSCALAR) begin : regs
     always_ff @(negedge clk)
       if (reset) for (i=1; i<NUMREGS; i++) rf[i] <= '0;

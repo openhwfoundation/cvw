@@ -10,7 +10,7 @@
 
 module instrTrackerTB #(parameter XLEN) (
   input  logic            clk, reset, FlushE,
-  input  logic [31:0]     InstrF, InstrD,
+  input  logic [31:0]     InstrF, Slot0InstrD,
   input  logic [31:0]     InstrE, InstrM,
   input  logic [31:0]     InstrW,
 //  output logic [31:0]     InstrW,
@@ -20,7 +20,7 @@ module instrTrackerTB #(parameter XLEN) (
   // flopr  #(32) InstrWReg(clk, reset, InstrM, InstrW);
 
   instrNameDecTB #(XLEN) fdec(InstrF, InstrFName);
-  instrNameDecTB #(XLEN) ddec(InstrD, InstrDName);
+  instrNameDecTB #(XLEN) ddec(Slot0InstrD, InstrDName);
   instrNameDecTB #(XLEN) edec(InstrE, InstrEName);
   instrNameDecTB #(XLEN) mdec(InstrM, InstrMName);
   instrNameDecTB #(XLEN) wdec(InstrW, InstrWName);
