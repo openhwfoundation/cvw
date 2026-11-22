@@ -154,6 +154,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
   logic                    WriteHIEM, WriteVSIEM;
+  logic                    TrapLoadStoreM;
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
@@ -177,15 +178,23 @@ module csr import cvw::*; #(parameter cvw_t P) (
     // Cause 3 (breakpoint) is included because this implementation writes PC
     // for [C.]EBREAK (also permitted by spec) and address breakpoints write VA.
     // Guest-page-fault causes are included for future two-stage support.
-    always_comb
+    always_comb begin
       case (CauseM)
         5'd0, 5'd1, 5'd3, 5'd4, 5'd5, 5'd6, 5'd7, 5'd12, 5'd13, 5'd15, 5'd20, 5'd21, 5'd23:
           TrapWritesVAToTvalM = 1'b1;
         default:
           TrapWritesVAToTvalM = 1'b0;
       endcase
+      case (CauseM)
+        5'd4, 5'd5, 5'd6, 5'd7, 5'd13, 5'd15, 5'd21, 5'd23:
+          TrapLoadStoreM = 1'b1;
+        default:
+          TrapLoadStoreM = 1'b0;
+      endcase
+    end
   end else begin: no_trapwritesva
     assign TrapWritesVAToTvalM = 1'b0;
+    assign TrapLoadStoreM = 1'b0;
   end
 
   if (P.H_SUPPORTED) begin: trapcause_h
@@ -277,7 +286,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   if (P.H_SUPPORTED) begin: csradr_h
     csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM, .TrapM, .ExceptionM,
       .VirtModeW, .PrivilegeModeW, .MCOUNTEREN_REGW, .HCOUNTEREN_REGW, .HENVCFG_REGW,
-      .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM);
+      .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM, .TrapLoadStoreM, .STATUS_MPRV, .MSTATUS_MPV, .STATUS_MPP);
   end else begin: csradr_noh
     assign CSRAdrM = CSRAdrM_In;
     assign VirtualCSRAccessM = 1'b0;

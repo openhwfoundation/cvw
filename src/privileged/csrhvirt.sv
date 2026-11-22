@@ -37,6 +37,9 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   input  logic              TrapWritesVAToTvalM,
   input  logic              HLVHSVLegalM,
   input  logic              MENVCFG_STCE,
+  input  logic              TrapLoadStoreM,
+  input  logic              STATUS_MPRV, MSTATUS_MPV,
+  input  logic [1:0]        STATUS_MPP,
   output logic [11:0]       CSRAdrM,
   output logic              VirtualCSRAccessM,
   output logic              TrapGVAM
@@ -86,7 +89,7 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
 
   logic HasVSCSR, HSQualifiedSCSRAccessM, HSQualifiedHCSRAccessM, HSQualifiedVSCSRAccessM;
   logic VirtualSCSRAccessM, VirtualHCSRAccessM, VirtualVSCSRAccessM, VirtualVSTimecmpAccessM;
-  logic MapVSCSR;
+  logic MapVSCSR, MPRVVirtM;
 
   // H spec norm:H_vscsrs_sub substitutes only S CSRs with matching VS CSRs.
   // norm:H_scsrs_nomatch leaves S CSRs such as senvcfg/scounteren on their S addresses when V=1.
@@ -170,5 +173,7 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   // GVA gets set when traps from virtualized execution write a VA to tval.
   // H spec hstatus.GVA note: HLV/HLVX/HSV address faults write guest virtual
   // addresses even though V=0 for the executing hypervisor instruction.
-  assign TrapGVAM = TrapM & ExceptionM & (VirtModeW | HLVHSVLegalM) & TrapWritesVAToTvalM;
+  // Covers when M mode acts as VS/VU access for load/store with MPRV
+  assign MPRVVirtM = ((PrivilegeModeW == P.M_MODE) & STATUS_MPRV & MSTATUS_MPV & (STATUS_MPP != P.M_MODE)) & TrapLoadStoreM;
+  assign TrapGVAM = TrapM & ExceptionM & (VirtModeW | HLVHSVLegalM | MPRVVirtM) & TrapWritesVAToTvalM;
 endmodule
