@@ -25,6 +25,9 @@ VERILATOR_FLAGS = --assert --no-trace-top --stats
 # Verilator's own -O3, is slower than -O2.
 VERILATOR_FLAGS += --MAKEFLAGS OPT_FAST=-O2 --MAKEFLAGS OPT_SLOW=-O1 --MAKEFLAGS OPT_GLOBAL=-O2
 
+# Verilator requires python to build
+VERILATOR_FLAGS += --MAKEFLAGS PYTHON3=$(shell mise exec -- uv python find)
+
 # Compiling the generated C++ dominates the build, and Verilator does it serially by default.
 JOBS ?= $(shell nproc)
 

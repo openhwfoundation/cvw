@@ -37,9 +37,9 @@ if [ ! -e "$RISCV"/include/glib-2.0 ]; then
     tar -xJf glib.tar.xz
     rm -f glib.tar.xz
     cd glib-$GLIB_VERSION
-    uvx meson setup _build --prefix="$RISCV"
-    uvx meson compile -C _build -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
-    uvx meson install -C _build 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    uvx --python 3.12 meson setup _build --prefix="$RISCV"
+    uvx --python 3.12 meson compile -C _build -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    uvx --python 3.12 meson install -C _build 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     cd "$RISCV"
     rm -rf glib-$GLIB_VERSION
     echo -e "${SUCCESS_COLOR}glib successfully installed!${ENDC}"

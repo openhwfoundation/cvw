@@ -17,7 +17,7 @@
 ##
 ################################################################################################
 
-UV_VERSION=0.12.23 # Latest release as of October 7, 2026
+UV_VERSION=0.13.7 # Latest release as of November 8, 2026
 
 set -e # break on error
 # If run standalone, check environment. Otherwise, use info from main install script

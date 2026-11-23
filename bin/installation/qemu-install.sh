@@ -40,10 +40,11 @@ if check_tool_version $QEMU_VERSION; then
     # Use uv managed Python to avoid issue with missing components of stdlib in some distros' Python builds.
     uv venv --managed-python --python 3.12
     uv pip install sphinx sphinx_rtd_theme pip setuptools
-    QEMU_PYTHON="$RISCV/qemu/.venv/bin/python3"
-    ./configure --target-list=riscv64-softmmu,riscv32-softmmu --prefix="$RISCV" --python=$QEMU_PYTHON
+    source .venv/bin/activate
+    ./configure --target-list=riscv64-softmmu,riscv32-softmmu --prefix="$RISCV"
     make -j "${NUM_THREADS}" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     make install 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    deactivate
     if [ "$clean" = true ]; then
         cd "$RISCV"
         rm -rf qemu
