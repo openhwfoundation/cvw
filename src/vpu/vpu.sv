@@ -91,7 +91,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic       VALUResultSrcD;
   logic [2:0] VALUSelectD;
   logic       VSubD;
-  logic [1:0] VLaneSelectD;                   // vlane result select
+  logic [2:0] VLaneSelectD;                   // vlane result select
   logic [1:0] VShiftSelectD;                  // vlane shift: 00 sll, 10 srl, 11 sra
   logic [1:0] VMulSelectD;                    // vmul result: 00 low, 01 high (vmulh*), 10 widening (vwmul*)
   logic [1:0] VMulSignD;                      // vmul signedness: {vs1 signed, vs2 signed}
@@ -171,7 +171,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   // *** BLEN should be ELEN * max lanes across EU types when the other EUs are added
   // *** byte enables are all ones until masking is added
-  for (i = 0; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
+  for (i = P.VPU_INT_EU; i < P.VPU_EU; i++) assign VIEUByteMaskW[i] = '1;
 
   // Old vd streams from VRF banks and fills micro-op's sVRF entry before its result beats arrive
   vactivemask #(P.VLEN) vactivemask(.VLD(VLD[$clog2(P.VLEN):0]), .VdEEWD, .MicroOpIndexD, .VMaskedD, .VWriteElementsD, .v0D,
@@ -206,9 +206,9 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VSEWD(VTYPED[5:3]), .VALUSelectD, .VSubD,
-                   .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD,
+                   .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD, .VLD(VLD[$clog2(P.VLEN):0]),
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
-                   .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]),
+                   .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]), .VIEUByteMaskW(VIEUByteMaskW[i]),
                    .VIEUBeatValidW(VIEUBeatValidW[i]), .VIEUBeatW(VIEUBeatW[i]), .VIEUVdFinalW(VIEUVdFinalW[i]));
   end
 
