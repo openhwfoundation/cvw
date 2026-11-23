@@ -91,14 +91,14 @@ module lmulsequencer
     NextState = STATE_BEGIN;
     case(CurrState)
       STATE_BEGIN: if(VectorStartD & (MicroOpsD > 4'd1) & IncrD) NextState = STATE_INCR;
-      STATE_INCR:  if(lmulCntrDone) NextState = STATE_BEGIN;
+      STATE_INCR:  if(lmulCntrDone & IncrD) NextState = STATE_BEGIN; // until last micro-op dispatches
       else NextState = STATE_INCR;
       default: NextState = STATE_BEGIN;
     endcase
   end
 
   //assign lmulCntrLoad = CurrState == STATE_BEGIN & VectorD;
-  assign lmulCntrLoad = (CurrState == STATE_INCR & lmulCntrDone) | (MicroOpsD == 4'd1); // a single micro-op never leaves the first register
+  assign lmulCntrLoad = (CurrState == STATE_INCR & lmulCntrDone & IncrD) | (MicroOpsD == 4'd1); // a single micro-op never leaves the first register
   //assign MicroOpNotLastD = AnyExecutionUnitReadyD & (CurrState == STATE_INCR);
   assign MicroOpNotLastD = (CurrState == STATE_INCR & ~lmulCntrDone) | (CurrState == STATE_BEGIN & MicroOpsD > 4'd1 & VectorStartD);
   assign IncrD = ((AnyExecutionUnitReadyD & VectorStartD) | MicroOpNotLastD) & ~VectorStallD;
