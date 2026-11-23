@@ -39,7 +39,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   // vmul, vmulh, vmulhu, vmulhsu. Currently widening multiplies return only the lower half of the elements
   // The product is ready in Memory stage and is selected in vieu after the M register
-  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .A(SrcA), .B(SrcB), .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
+  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .SrcA, .SrcB, .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
