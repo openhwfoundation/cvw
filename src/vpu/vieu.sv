@@ -177,8 +177,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.SrcA(VSrcAE), .SrcB(VSrcBE), .VALUSelectE, .VLaneSelectE(VLaneSelectE[1:0]), .VSubE,
                                          .VShiftSelectE, .LaneResult(VALUResultE));
-  vslide #(P) vslide(.clk, .reset, .NextBeat(BeatValidE & ~VectorStallE), .B(VRD2E), .Rs1(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
-                                          .SEW(VSEWE), .Vl(VLE), .Beat(BeatE), .VdBeat(VSlideResultE), .VdBeatNum(VSlideBeatE), .VdByteMask(VSlideByteMaskE));
+  vslide #(P) vslide(.clk, .reset, .NextBeat(BeatValidE & ~VectorStallE), .VSrcB(VSrcBE), .SrcA(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
+                                          .SEW(VSEWE), .Vl(VLE), .Beat(BeatE), .VSlideResult(VSlideResultE), .VSlideBeat(VSlideBeatE), .VSlideByteMask(VSlideByteMaskE));
   mux2 #(P.VPU_INT_BLEN) veuresultumux(VALUResultE, VSlideResultE, VLaneSelectE[2], VEUResultE);
   mux2 #(BEATBITLEN) vdbeatmux(BeatE, VSlideBeatE, VLaneSelectE[2], VdBeatE);
   mux2 #(P.VPU_INT_BLEN/8) bytemaskmux('1, VSlideByteMaskE, VLaneSelectE[2], ByteMaskE);
