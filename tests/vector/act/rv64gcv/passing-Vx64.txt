@@ -8,6 +8,7 @@ vand.vv
 vand.vx
 vmul.vv
 vmul.vx
+vmv.s.x
 vmv.v.i
 vmv.v.v
 vmv.v.x
@@ -21,10 +22,13 @@ vslidedown.vi
 vslidedown.vx
 vslideup.vi
 vslideup.vx
+vsll.vi
 vsll.vv
 vsll.vx
+vsra.vi
 vsra.vv
 vsra.vx
+vsrl.vi
 vsrl.vv
 vsrl.vx
 vsub.vv
