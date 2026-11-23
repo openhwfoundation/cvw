@@ -36,6 +36,7 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
    input logic                   LocalStallE,
    input logic                   VectorFlushE,
    input logic                   ControllerValidD,
+   input logic                   ExtraBeatE,  // run one extra beat past the last for slidedown
    output logic                  ExecutionUnitReadyD,
    output logic [BEATBITLEN-1:0] BeatE,
    output logic                  ExecutionUnitResultValidE,
@@ -66,7 +67,7 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
   counter #(BEATBITLEN) beatcounter(clk, BeatResetD, BeatIncrD, BeatE);
 
   assign BeatIncrD = BeatValidE & ~LocalStallE;
-  assign DoneE = BeatE == BEATBITLEN'(P.VPU_INT_MAX_BEATS - 1);
+  assign DoneE = BeatE == BEATBITLEN'(P.VPU_INT_MAX_BEATS - 1) + BEATBITLEN'(ExtraBeatE);
   assign ExecutionUnitReadyD = (DoneE & ExecutionUnitResultValidE) | ReadyE;
   assign ExecutionUnitResultValidE = DoneE & BeatValidE;
 
