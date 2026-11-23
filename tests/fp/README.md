@@ -19,7 +19,7 @@ make --jobs
 
 This compiles SoftFloat for an x86_64 environment in its `build/Linux-x86_64-GCC` directory using the `SPECIALIZE_TYPE=RISCV` flag to get RISC-V behavior. TestFloat is then compiled in its `build/Linux-x86_64-GCC` directory using this SoftFloat library.
 
-The Makefile in the vectors subdirectory of this directory is then called to  generate testvectors for each rounding mode and operation. It also puts an underscore between each vector instead of a space to allow SystemVerilog `$readmemh` to read correctly.
+The Makefile in the vectors subdirectory of this directory is then called to  generate testvectors for each rounding mode and operation. It also puts an underscore between the fields of each vector instead of a space, so that the testbench reads each line as one hexadecimal number.
 
 Testvectors for the combined integer floating-point divider are also generated.
 
@@ -36,21 +36,38 @@ regression-wally --testfloat
 
 To run a single test, use
 ```bash
-wsim <config> <test> --tb testbench_fp
+wsim <config> <test> --tb testbench_fp            # Verilator by default; --sim questa or vcs also work
+wsim <config> <test> --tb testbench_fp --args +TEST_SIZE=DP   # only one precision: QP, DP, SP or HP
 ```
+The test is a runtime plusarg, so each configuration is compiled once for all of its tests.
 The choices for `<test>` are as follows:
 
     cvtint - test integer conversion unit (fcvtint)
     cvtfp  - test floating-point conversion unit (fcvtfp)
-    cmp    - test comparison unit's LT, LE, EQ operations (fcmp)
+    cmp    - test comparison unit's LT, LE, EQ operations, and the Zfa quiet LE and LT (fleq, fltq) (fcmp)
     add    - test addition
     fma    - test fma
     mul    - test mult with fma
     sub    - test subtraction
     div    - test division
     sqrt   - test square root
+    round  - test Zfa round to integer, fround and froundnx (fround)
+    class  - test classify (fclassify); cover-float vectors only
+    sgnj   - test sign injection fsgnj, fsgnjn, fsgnjx (fsgninj); cover-float vectors only
+    minmax - test fmin and fmax (fcmp); cover-float vectors only
+
+TestFloat has no classify, sign injection or min/max operations, so those tests run only with a vector set that has them (`+VECTORS=`, below); `all` includes them when it does. TestFloat's `roundToInt` without and with `-exact` gives the fround and froundnx vectors, and `le_quiet` and `lt_quiet` the fleq and fltq vectors; the Zfa tests run on configurations with Zfa.
 
 Any config that includes floating point support can be used. Each test will test all its vectors for all precisions supported by the given config.
+
+## cover-float Vectors
+
+The FPU is also tested with the vectors of [cover-float](https://github.com/cover-float/cover-float) (submodule `addins/cover-float`), which are generated to hit the corner cases of its floating-point coverage models.
+```bash
+make coverfloat                                     # in $WALLY; AGGRESSIVENESS=0 for cover-float's smaller set
+wsim <config> all --tb testbench_fp --args +VECTORS=$WALLY/tests/fp/coverfloat/vectors/
+```
+cover-float generates its vectors in `addins/cover-float/tests/testvectors`, and `bin/coverfloat2tv` converts them into `coverfloat/vectors`, one file per operation, precision and rounding mode named like the TestFloat files, so `testbench_fp` runs them with any `<test>`. cover-float's round to integer gives both froundnx vectors and fround vectors (the same results with inexact cleared). Remainder, which RISC-V lacks, BF16 and round-to-odd are not converted. `regression-wally --testfloat` and `--nightly` run the cover-float vectors after the TestFloat vectors.
 
 ### Testvector Count
 
