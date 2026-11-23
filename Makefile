@@ -47,8 +47,13 @@ coverage:
 	$(MAKE) -C tests/coverage32gc
 	$(MAKE) -C tests/coverage32imc
 
-deriv:
+# deriv regenerates config/deriv only when derivlist.txt, a base configuration or derivgen.pl changes:
+# derivgen.pl rewrites every config.vh, and wsim rebuilds every model whose configuration is newer than it
+deriv: config/deriv/.derivgen_stamp
+
+config/deriv/.derivgen_stamp: config/derivlist.txt bin/derivgen.pl $(wildcard config/*/config.vh config/*/imperas.ic config/*/coverage.svh)
 	derivgen.pl
+	touch $@
 
 sim_bp: ${WALLY}/addins/branch-predictor-simulator/src/sim_bp
 
