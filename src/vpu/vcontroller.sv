@@ -55,6 +55,8 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        VSubD,
   output logic [2:0]                  VLaneSelectD,               // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]                  VShiftSelectD,              // vlane shift: 00 sll, 10 srl, 11 sra
+  output logic [1:0]                  VMulSelectD,                // vmul result: 00 vmul, 01 vmulh, 10 vwmul
+  output logic [1:0]                  VMulSignD,                  // vmul signedness: {vs1 signed, vs2 signed}
   output logic                        IllegalVPUInstrD,
   output logic [1:0]                  VMemRWD,                    // vector memory read/write: [1] = read, [0] = write
   // vset controls, sent to vconfig
@@ -109,7 +111,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                          .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD, .VMaskedD, .VWriteElementsD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
-                         .VShiftSelectD, .IllegalVPUInstrD,
+                         .VShiftSelectD, .VMulSelectD, .VMulSignD, .IllegalVPUInstrD,
                          .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD, .VMemRWD);
 
   // Only dispatch a vector instruction that will actually execute.  A flushed (wrong-path) or illegal instruction in

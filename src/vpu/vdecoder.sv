@@ -60,6 +60,8 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic        VSubD,
   output logic [2:0]  VLaneSelectD,             // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   output logic [1:0]  VShiftSelectD,            // vlane shift: 00 sll, 10 srl, 11 sra
+  output logic [1:0]  VMulSelectD,              // vmul result: 00 vmul, 01 vmulh, 10 vwmul
+  output logic [1:0]  VMulSignD,                // vmul signedness: {vs1 signed, vs2 signed}
   output logic        IllegalVPUInstrD,
   output logic        VsetD,                    // vsetvli, vsetivli, or vsetvl
   output logic        VsetvlD,                  // vsetvl: vtype comes from rs2 rather than an immediate
@@ -578,6 +580,17 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   logic VShiftRightD;
   assign VShiftRightD  = (Funct6D[5:2] == 4'b1010);         // vsrl, vsra, vssrl, vssra
   assign VShiftSelectD = {VShiftRightD, VShiftRightD & Funct6D[0]};  // arithmetic is the LSB of funct6
+
+  // vmul controls
+  // OPM only: vsmul (OPIVV/OPIVX) shares funct6 100111 with vmulh
+  logic VMulOpD;
+  assign VMulOpD     = OPMVVD | OPMVXD;
+  assign VMulSelectD = {VMulOpD & (Funct6D[5:3] == 3'b111),                                  // vwmul* (and vwmacc*)
+                        VMulOpD & (Funct6D[5:2] == 4'b1001) & (Funct6D[1:0] != 2'b01)};      // vmulh, vmulhu, vmulhsu
+
+  // signedness of vs1 (or rs1) and vs2
+  // vmulhu 00, vmul 01, vmulhsu 10, vmulh 11, others flavors are unsigned. This does not handle widening multiplies yet
+  assign VMulSignD = (VMulOpD & (Funct6D[5:2] == 4'b1001)) ? {Funct6D[1] & Funct6D[0], Funct6D[1]} : 2'b00;
 
   // Reserved operands: element width, group size and alignment, and overlap
   logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand

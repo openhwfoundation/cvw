@@ -16,42 +16,40 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); you may not use this file
-// except in compliance with the License, or, at your option, the Apache License version 2.0. You
-// may obtain a copy of the License at
-//
-// https://solderpad.org/licenses/SHL-2.1/
-//
-// Unless required by applicable law or agreed to in writing, any work distributed under the
-// License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-// either express or implied. See the License for the specific language governing permissions
-// and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module vlane import cvw::*;  #(parameter cvw_t P) (
+  input  logic              clk, reset,
+  input  logic              StallM, FlushM,  // for the vmul Memory stage registers
   input  logic [P.ELEN-1:0] SrcA, SrcB,      // lane operands
+  input  logic [2:0]        VSEWE,           // vtype.vsew: 000 e8, 001 e16, 010 e32, 011 e64
   input  logic [2:0]        VALUSelectE,
-  input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic              VSubE,
+  input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
-  output logic [P.ELEN-1:0] LaneResult       // lane result
+  input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
+  input  logic [1:0]        VMulSignE,       // {SrcA signed, SrcB signed}
+  output logic [P.ELEN-1:0] LaneResultE,      // lane result in Execute stage
+  output logic [P.ELEN-1:0] ProductM         // vmul result in Memory stage
 );
 
-  logic [P.ELEN-1:0] SumE, ProductE, ShiftE;
+  logic [P.ELEN-1:0] SumE, ShiftE;
 
   valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
 
-  vmul #(P) vmul(.A(SrcA), .B(SrcB), .Product(ProductE));
+  // vmul, vmulh, vmulhu, vmulhsu. Currently widening multiplies return only the lower half of the elements
+  // The product is ready in Memory stage and is selected in vieu after the M register
+  vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .SrcA, .SrcB, .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
 
   vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
 
   always_comb
     case (VLaneSelectE)
-      2'b00:   LaneResult = SumE;
-      2'b01:   LaneResult = ProductE;
-      2'b10:   LaneResult = SrcA;     // move
-      2'b11:   LaneResult = ShiftE;
-      default: LaneResult = SumE;
+      2'b00:   LaneResultE = SumE;
+      2'b01:   LaneResultE = '0;       // vmul, ProductM is selected in Memory stage
+      2'b10:   LaneResultE = SrcA;     // move
+      2'b11:   LaneResultE = ShiftE;
+      default: LaneResultE = SumE;
     endcase
 
 endmodule
