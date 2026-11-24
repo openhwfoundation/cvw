@@ -35,6 +35,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   input  logic        VectorD,                 // This instruction is a vector
   input  logic        VHazardD,                // an older vector instruction has not written back yet
   input  logic [4:0]  Vs1D, Vs2D, VdD,
+  input  logic        Vs1EnD, Vs2EnD,          // vs1/vs2 field is a vector register, not scalar or imm
   input  logic [3:0]  MicroOpsD,
   // EU requirements
   input  logic [2:0]  VEUTypeD,                // type of EU an instruction needs (INT, FP, LSU)
@@ -109,7 +110,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   flopr #(1) DirectAccessReg(clk, reset, DirectAccessNextD, DirectAccessD);
 
   lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD(DispatchStallD), .VectorFlushD,
-                                   .VectorD, .Vs1D, .Vs2D, .VdD, .MicroOpsD,
+                                   .VectorD, .Vs1D, .Vs2D, .VdD, .Vs1EnD, .Vs2EnD, .MicroOpsD,
                                    .AnyExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                               .MicroVectorD, .MicroOpNotLastD, .MicroOpIndexD, .VHazardD, .VHazardStallD, .EUBusyStallD);
 

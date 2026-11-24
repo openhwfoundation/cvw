@@ -36,6 +36,7 @@ module lmulsequencer
    input logic       VectorD,        // This instruction is a vector
    input logic       VHazardD,       // an older vector instruction has not written back yet
    input logic [4:0] Vs1D, Vs2D, VdD,
+   input logic       Vs1EnD, Vs2EnD, // vs1/vs2 field is a vector register, not scalar or imm
    input logic [3:0] MicroOpsD,      // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
    // hand shaking controls
    input logic       AnyExecutionUnitReadyD,
@@ -68,11 +69,12 @@ module lmulsequencer
 
   assign Vs1P1D = Vs1FinalD + 5'b00001;
   flopenr #(5) Vs1IncrReg (clk, reset, IncrD, Vs1P1D, Vs1P1QD);
-  mux2 #(5) Vs1Mux (Vs1D, Vs1P1QD, lmulCntrFirstCaptureD, Vs1FinalD);
+  // scalar or imm in the vs1/vs2 field (.vx, .vi, ...) stays the same for every micro-op
+  mux2 #(5) Vs1Mux (Vs1D, Vs1P1QD, lmulCntrFirstCaptureD & Vs1EnD, Vs1FinalD);
 
   assign Vs2P1D = Vs2FinalD + 5'b00001;
   flopenr #(5) Vs2IncrReg (clk, reset, IncrD, Vs2P1D, Vs2P1QD);
-  mux2 #(5) Vs2Mux (Vs2D, Vs2P1QD, lmulCntrFirstCaptureD, Vs2FinalD);
+  mux2 #(5) Vs2Mux (Vs2D, Vs2P1QD, lmulCntrFirstCaptureD & Vs2EnD, Vs2FinalD);
 
   assign VdP1D = VdFinalD + 5'b00001;
   flopenr #(5) VdIncrReg  (clk, reset, IncrD, VdP1D,  VdP1QD);

@@ -97,6 +97,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
   logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        VReductionD;               // instr is a reduction op
+  logic        Vs1EnD, Vs2EnD;            // vs1/vs2 field is a vector register, not scalar or imm
   logic        DirectReadD;               // vector instr requiring direct bank access (e.g. vrgather/vcompress)
   logic        DirectStallD;              // direct access stall (wait for bank drain or direct micro-op end)
   logic [2:0]  Vs2EEWD, Vs1EEWD;          // log2(EEW) of Vs2/Vs1, 000 = 1b (mask)
@@ -114,7 +115,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   vdecoder #(P) vdecoder(.clk, .reset, .VectorStallD, .VectorFlushD,
                          .InstrD, .STATUS_VS, .VTYPED, .Vs1D, .Vs2D, .VdD, .VMD,
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
-                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD, .DirectReadD,
+                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD, .Vs1EnD, .Vs2EnD, .DirectReadD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD, .VMaskedD, .VWriteElementsD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD,
                          .VShiftSelectD, .VMulSelectD, .VMulSignD, .IllegalVPUInstrD,
@@ -127,7 +128,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   assign DispatchVectorD = VectorD & ~VectorFlushD & ~IllegalVPUInstrD;
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
-                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .Vs1EnD, .Vs2EnD, .VEUTypeD, .VOpClassD, .VLSModeD,
                                .DirectReadD, .BanksDrainedD, .DirectAccessD, .DirectStallD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .MicroOpsD,

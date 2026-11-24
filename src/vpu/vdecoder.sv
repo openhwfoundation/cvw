@@ -50,6 +50,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [4:0]  VOpClassD,                // execution block requirement for EU, VOPCLASS_* below
   output logic [6:0]  VLSModeD,                 // addressing modes for load/store
   output logic        VReductionD,              // instr is a reduction op
+  output logic        Vs1EnD, Vs2EnD,           // vs1/vs2 field is a vector register, not scalar or imm
   output logic        DirectReadD,              // vector instr requiring direct bank access (e.g. vrgather/vcompress)
   output logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD, // log2(EEW) of Vd/Vs2/Vs1: 000 1b (mask), 011 8b ... 110 64b
   output logic        VMaskedD,                 // v0 masks the vd write (vm=0 and v0 is not an operand)
@@ -594,7 +595,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign VMulSignD = (VMulOpD & (Funct6D[5:2] == 4'b1001)) ? {Funct6D[1] & Funct6D[0], Funct6D[1]} : 2'b00;
 
   // Reserved operands: element width, group size and alignment, and overlap
-  logic VdEnD, Vs2EnD, Vs1EnD;                     // a vector register is used as an operand
+  logic VdEnD;                                     // a vector register is used as an operand
   logic VScalarMoveD;                              // vmv.s.x, vfmv.s.f, vmv.x.s, vfmv.f.s: element 0 only
   logic VWholeRegD;                                // vmv<nr>r.v, vl<nr>r.v, vs<nr>r.v
   logic VdNoOverlapD;                              // vd may not overlap a source, nor v0 when masked
