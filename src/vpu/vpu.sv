@@ -141,6 +141,8 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic [2:0]                  VdEEWD;
   logic                        VMaskedD;
   logic [1:0]                  VWriteElementsD;
+  logic                        BanksDrainedD, DirectAccessD; // direct bank access for vrgather / vcompress
+  logic [4:0]                  DirectVs1D, DirectVs2D;
 
   // divide into control and data path
 
@@ -164,7 +166,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                                .VALUResultSrcD, .VALUSelectD, .VSubD, .VRSubD, .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD,
                                .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
-                               .ExecutionUnitOrderD, .EnqueueD, .OrderD, .MicroOpIndexD, .VdEEWD, .VMaskedD, .VWriteElementsD,
+                               .ExecutionUnitOrderD, .EnqueueD, .OrderD, .MicroOpIndexD, .BanksDrainedD, .DirectAccessD, .VdEEWD, .VMaskedD, .VWriteElementsD,
                                .HeadOrderW, .HeadCompleteW, .CommitW,
                                .VPUFrontEndBusyD);
 
@@ -195,8 +197,13 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
 
   assign VRegWriteW = CommitW & HeadVRegWriteW;
 
+  // *** registers come from the gather / compress EU when it is added
+  assign DirectVs1D = '0;
+  assign DirectVs2D = '0;
+
   vregfile #(P) vregfile(.clk, .reset, .VectorStallE,
                               .Vs1D(Vs1FinalD), .Vs2D(Vs2FinalD), .VdD(VdFinalD), .OldVdD(EnqueueD), .OrderD,
+                              .DirectAccessD, .DirectVs1D, .DirectVs2D, .BanksDrainedD,
                               .VRD1(VRD1D), .VRD2(VRD2D), .VRD3(VRD3D), .OldVdValid, .OldVdOrder, .V0(v0D),
                               .VRegWriteW, .VdW(HeadVdW), .DataW(HeadDataW), .ByteMaskW('1));
 

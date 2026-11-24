@@ -36,6 +36,7 @@ module lmulsequencer
    input logic       VectorD,        // This instruction is a vector
    input logic       VHazardD,       // an older vector instruction has not written back yet
    input logic [4:0] Vs1D, Vs2D, VdD,
+   input logic       Vs1EnD, Vs2EnD, // vs1/vs2 field is a vector register, not scalar or imm
    input logic [3:0] MicroOpsD,      // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
    // hand shaking controls
    input logic       AnyExecutionUnitReadyD,
@@ -44,7 +45,8 @@ module lmulsequencer
    output logic MicroVectorD,
    output logic MicroOpNotLastD,
    output logic [2:0] MicroOpIndexD, // current micro-op register group index
-   output logic VHazardStallD        // hold the first micro-op in Decode until the hazard clears
+   output logic VHazardStallD,       // hold the first micro-op in Decode until the hazard clears
+   output logic EUBusyStallD         // hold the micro-op in Decode until an eligible EU is ready
 );
 
 
@@ -67,11 +69,12 @@ module lmulsequencer
 
   assign Vs1P1D = Vs1FinalD + 5'b00001;
   flopenr #(5) Vs1IncrReg (clk, reset, IncrD, Vs1P1D, Vs1P1QD);
-  mux2 #(5) Vs1Mux (Vs1D, Vs1P1QD, lmulCntrFirstCaptureD, Vs1FinalD);
+  // scalar or imm in the vs1/vs2 field (.vx, .vi, ...) stays the same for every micro-op
+  mux2 #(5) Vs1Mux (Vs1D, Vs1P1QD, lmulCntrFirstCaptureD & Vs1EnD, Vs1FinalD);
 
   assign Vs2P1D = Vs2FinalD + 5'b00001;
   flopenr #(5) Vs2IncrReg (clk, reset, IncrD, Vs2P1D, Vs2P1QD);
-  mux2 #(5) Vs2Mux (Vs2D, Vs2P1QD, lmulCntrFirstCaptureD, Vs2FinalD);
+  mux2 #(5) Vs2Mux (Vs2D, Vs2P1QD, lmulCntrFirstCaptureD & Vs2EnD, Vs2FinalD);
 
   assign VdP1D = VdFinalD + 5'b00001;
   flopenr #(5) VdIncrReg  (clk, reset, IncrD, VdP1D,  VdP1QD);
@@ -91,18 +94,19 @@ module lmulsequencer
     NextState = STATE_BEGIN;
     case(CurrState)
       STATE_BEGIN: if(VectorStartD & (MicroOpsD > 4'd1) & IncrD) NextState = STATE_INCR;
-      STATE_INCR:  if(lmulCntrDone) NextState = STATE_BEGIN;
+      STATE_INCR:  if(lmulCntrDone & IncrD) NextState = STATE_BEGIN; // until last micro-op dispatches
       else NextState = STATE_INCR;
       default: NextState = STATE_BEGIN;
     endcase
   end
 
   //assign lmulCntrLoad = CurrState == STATE_BEGIN & VectorD;
-  assign lmulCntrLoad = (CurrState == STATE_INCR & lmulCntrDone) | (MicroOpsD == 4'd1); // a single micro-op never leaves the first register
+  assign lmulCntrLoad = (CurrState == STATE_INCR & lmulCntrDone & IncrD) | (MicroOpsD == 4'd1); // a single micro-op never leaves the first register
   //assign MicroOpNotLastD = AnyExecutionUnitReadyD & (CurrState == STATE_INCR);
   assign MicroOpNotLastD = (CurrState == STATE_INCR & ~lmulCntrDone) | (CurrState == STATE_BEGIN & MicroOpsD > 4'd1 & VectorStartD);
-  assign IncrD = ((AnyExecutionUnitReadyD & VectorStartD) | MicroOpNotLastD) & ~VectorStallD;
-
-  assign MicroVectorD = IncrD | VectorStartD;
+  // a micro-op dispatches, advances the sequence, and enters the order queue only when an eligible EU takes it
+  assign MicroVectorD = VectorStartD & AnyExecutionUnitReadyD;
+  assign IncrD        = MicroVectorD & ~VectorStallD;
+  assign EUBusyStallD = VectorStartD & ~AnyExecutionUnitReadyD;
 
 endmodule

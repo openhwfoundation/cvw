@@ -35,23 +35,35 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   input  logic        VectorD,                 // This instruction is a vector
   input  logic        VHazardD,                // an older vector instruction has not written back yet
   input  logic [4:0]  Vs1D, Vs2D, VdD,
+  input  logic        Vs1EnD, Vs2EnD,          // vs1/vs2 field is a vector register, not scalar or imm
   input  logic [3:0]  MicroOpsD,
   // EU requirements
   input  logic [2:0]  VEUTypeD,                // type of EU an instruction needs (INT, FP, LSU)
   input  logic [4:0]  VOpClassD,               // execution block requirement for EU
   input  logic [6:0]  VLSModeD,                // addressing modes for load/store
+  // direct bank access for vrgather / vcompress
+  input  logic        DirectReadD,             // vector instr requiring direct bank access (e.g. vrgather/vcompress)
+  input  logic        BanksDrainedD,           // no older vrf read request left in banks
+  output logic        DirectAccessD,           // a direct micro-op owns the banks
+  output logic        DirectStallD,            // direct access stall (wait for bank drain or direct micro-op end)
   // hand shaking controls
   output logic [P.VPU_EU-1:0] ControllerValidD,
   input  logic [P.VPU_EU-1:0] ExecutionUnitReadyD,
   output logic MicroOpNotLastD,
   output logic [2:0] MicroOpIndexD,            // current micro-op register group index
   output logic VHazardStallD,
+  output logic EUBusyStallD,               // no eligible EU is ready for the micro-op
   // output micro vector instruction
   output logic MicroVectorD,
   output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD
 );
 
   logic        IncrMicroOpD;            // Next micro vector instruction when lmul > 1
+  logic        DispatchStallD;          // Decode stall or waiting on a direct access
+  logic        DirectDispatchD;         // a direct micro-op is dispatched
+  logic        DirectEUReadyD;          // EU running the direct micro-op is ready again
+  logic        DirectAccessNextD;
+  logic [P.VPU_EU-1:0] DirectEUD;       // EU running the direct micro-op
 
   //input  logic        SelectedControllerValidD,
 
@@ -85,12 +97,24 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   priorityonehot #(P.VPU_EU) SelectedEUPriority(AvailableD, SelectedD);
   assign AnyExecutionUnitReadyD = |AvailableD;
 
-  lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD, .VectorFlushD,
-                                   .VectorD, .Vs1D, .Vs2D, .VdD, .MicroOpsD,
-                                   .AnyExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                              .MicroVectorD, .MicroOpNotLastD, .MicroOpIndexD, .VHazardD, .VHazardStallD);
+  // A direct micro-op waits for the older requests to leave the banks, then the banks are occupied by it
+  // and every younger micro-op waits until the EU is ready again.  EU raises ready only after the last direct read.
+  // *** flush should end direct access
+  assign DirectStallD   = VectorD & (DirectAccessD | (DirectReadD & ~BanksDrainedD));
+  assign DispatchStallD = VectorStallD | DirectStallD;
 
-  assign ControllerValidD = SelectedD & {P.VPU_EU{MicroVectorD & ~VectorStallD}}; // demux to selected EU; hold while Decode is stalled
+  assign DirectDispatchD = DirectReadD & |ControllerValidD;
+  flopenr #(P.VPU_EU) DirectEUReg(clk, reset, DirectDispatchD, SelectedD, DirectEUD);
+  assign DirectEUReadyD    = |(DirectEUD & ExecutionUnitReadyD);
+  assign DirectAccessNextD = DirectDispatchD | (DirectAccessD & ~DirectEUReadyD);
+  flopr #(1) DirectAccessReg(clk, reset, DirectAccessNextD, DirectAccessD);
+
+  lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD(DispatchStallD), .VectorFlushD,
+                                   .VectorD, .Vs1D, .Vs2D, .VdD, .Vs1EnD, .Vs2EnD, .MicroOpsD,
+                                   .AnyExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
+                              .MicroVectorD, .MicroOpNotLastD, .MicroOpIndexD, .VHazardD, .VHazardStallD, .EUBusyStallD);
+
+  assign ControllerValidD = SelectedD & {P.VPU_EU{MicroVectorD & ~DispatchStallD}}; // demux to selected EU; hold while Decode is stalled
   //assign MicroVectorD = |ControllerValidD;
 
 endmodule

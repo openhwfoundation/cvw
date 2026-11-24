@@ -72,6 +72,9 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   output logic                        EnqueueD,                   // micro-op enters order queue
   output logic [P.VPU_QUEUEDEPTH-1:0] OrderD,                     // order tag of micro-op
   output logic [2:0]                  MicroOpIndexD,              // current micro-op register group index
+  // direct bank access for vrgather / vcompress
+  input  logic                        BanksDrainedD,              // no older vrf read request left in banks
+  output logic                        DirectAccessD,              // a direct micro-op (e.g. vrgather/vcompress) asks for banks
   // vd elements the micro-op writes
   output logic [2:0]                  VdEEWD,                     // log2(EEW) of vd, 000 = 1b (mask)
   output logic                        VMaskedD,                   // v0 masks the vd write
@@ -89,11 +92,15 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [3:0]  MicroOpsD;                // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
   logic        MicroOpNotLastD;
   logic        VHazardStallD;             // wait for all older vector instructions to write back
+  logic        EUBusyStallD;              // no eligible EU is ready for the micro-op
 
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
   logic [6:0]  VLSModeD;                  // addressing modes for load/store
   logic        VReductionD;               // instr is a reduction op
+  logic        Vs1EnD, Vs2EnD;            // vs1/vs2 field is a vector register, not scalar or imm
+  logic        DirectReadD;               // vector instr requiring direct bank access (e.g. vrgather/vcompress)
+  logic        DirectStallD;              // direct access stall (wait for bank drain or direct micro-op end)
   logic [2:0]  Vs2EEWD, Vs1EEWD;          // log2(EEW) of Vs2/Vs1, 000 = 1b (mask)
 
   // Micro-ops from LMUL in vtype; fractional LMUL fits in one register
@@ -109,7 +116,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   vdecoder #(P) vdecoder(.clk, .reset, .VectorStallD, .VectorFlushD,
                          .InstrD, .STATUS_VS, .VTYPED, .Vs1D, .Vs2D, .VdD, .VMD,
                          .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD,
-                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD,
+                         .VEUTypeD, .VOpClassD, .VLSModeD, .VReductionD, .Vs1EnD, .Vs2EnD, .DirectReadD,
                          .VdEEWD, .Vs2EEWD, .Vs1EEWD, .VMaskedD, .VWriteElementsD,
                          .VALUSrcAD, .VALUSrcBD, .VALUResultSrcD, .VALUSelectD, .VSubD, .VRSubD, .VLaneSelectD,
                          .VShiftSelectD, .VMulSelectD, .VMulSignD, .IllegalVPUInstrD,
@@ -122,10 +129,11 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   assign DispatchVectorD = VectorD & ~VectorFlushD & ~IllegalVPUInstrD;
 
   vdispatcher #(P) vdispatcher(.clk, .reset, .VectorStallD, .VectorFlushD,
-                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .VectorD(DispatchVectorD), .Vs1D, .Vs2D, .VdD, .Vs1EnD, .Vs2EnD, .VEUTypeD, .VOpClassD, .VLSModeD,
+                               .DirectReadD, .BanksDrainedD, .DirectAccessD, .DirectStallD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .MicroOpsD,
-                               .MicroOpNotLastD, .MicroOpIndexD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD);
+                               .MicroOpNotLastD, .MicroOpIndexD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD, .EUBusyStallD);
 
   // The controller must track the program order of vector instruction because they may finish out-of-order.
   // A queue records the issue order.  The queue is peaked to check for the next instruction to remove from the
@@ -141,7 +149,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic                         InstrOrderQueueFullD;
   logic                         InstrOrderQueueEmptyD;
 
-  assign EnqueueD = MicroVectorD & ~VectorStallD;
+  assign EnqueueD = MicroVectorD & ~VectorStallD & ~DirectStallD;
 
   queue #(P.VPU_QUEUEDEPTH, P.VPU_QUEUEDEPTH) InstrOrderQueue(.clk, .reset, .enqueue(EnqueueD), .dequeue(CommitW),
                                                   .wdata(OrderD), .rdata(HeadOrderW), .full(InstrOrderQueueFullD), .empty(InstrOrderQueueEmptyD));
@@ -153,7 +161,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   assign CommitW = HeadCompleteW & ~InstrOrderQueueEmptyD & ~StallW;
 
-  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
+  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD | DirectStallD | EUBusyStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 
 
 endmodule

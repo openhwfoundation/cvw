@@ -149,8 +149,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
-                       .ControllerValidD, .ExecutionUnitReadyD, .ExtraBeatE(VLaneSelectE[2] & Funct6E[0]), .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
-  assign CaptureD = ControllerValidD & ExecutionUnitReadyD; // *** duplicated in vieufsm
+                       .ControllerValidD, .ExecutionUnitReadyD, .CaptureD, .ExtraBeatE(VLaneSelectE[2] & Funct6E[0]), .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
 
   flopenrc #(P.XLEN) R1EReg  (clk, reset, VectorFlushE, ~VectorStallE & CaptureD, R1D,   R1E);
   flopenrc #($clog2(P.VLEN)+1) VEReg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, VLD, VLE);
