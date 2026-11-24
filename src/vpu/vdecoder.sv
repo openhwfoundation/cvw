@@ -554,7 +554,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign IllegalVPUInstrD = IllegalVEncodingD | IllegalVOperandD;
   assign VALUOpD = (OPIVVD | OPIVXD | OPIVID);
   assign VSubD  = (Funct6D == 6'b000010) & VALUOpD;
-  assign VRSubD = (Funct6D == 6'b000011) & VALUOpD; 
+  assign VRSubD = (Funct6D == 6'b000011) & VALUOpD;
   // VALU decoder
   always_comb begin
     VALUSelectD = 3'b000;
