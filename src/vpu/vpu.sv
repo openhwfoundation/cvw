@@ -91,6 +91,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   logic       VALUResultSrcD;
   logic [2:0] VALUSelectD;
   logic       VSubD;
+  logic       VRSubD;
   logic [2:0] VLaneSelectD;                   // vlane result select
   logic [1:0] VShiftSelectD;                  // vlane shift: 00 sll, 10 srl, 11 sra
   logic [1:0] VMulSelectD;                    // vmul result: 00 low, 01 high (vmulh*), 10 widening (vwmul*)
@@ -160,7 +161,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   vcontroller #(P) vcontroller(.clk, .reset, .VectorStallD, .VectorFlushD, .StallW,
                                .InstrD, .VectorD, .STATUS_VS, .VTYPED, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
                                .VMD, .Funct6D, .Funct3D, .VWriteIntD, .VWriteFPD, .VRegWriteD, .VALUSrcAD, .VALUSrcBD,
-                               .VALUResultSrcD, .VALUSelectD, .VSubD, .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD,
+                               .VALUResultSrcD, .VALUSelectD, .VSubD, .VRSubD, .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD,
                                .IllegalVPUInstrD, .VMemRWD, .VsetD, .VsetvlD, .VsetivliD, .VTYPEImmD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .ExecutionUnitOrderD, .EnqueueD, .OrderD, .MicroOpIndexD, .VdEEWD, .VMaskedD, .VWriteElementsD,
@@ -205,7 +206,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .ExecutionUnitResultValidW(ExecutionUnitResultValidW[i]),
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
-                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VSEWD(VTYPED[5:3]), .VALUSelectD, .VSubD,
+                   .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VSEWD(VTYPED[5:3]), .VALUSelectD, .VSubD, .VRSubD,
                    .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD, .VLD(VLD[$clog2(P.VLEN):0]),
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]), .VIEUByteMaskW(VIEUByteMaskW[i]),

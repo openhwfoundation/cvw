@@ -25,6 +25,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic [2:0]        VSEWE,           // vtype.vsew: 000 e8, 001 e16, 010 e32, 011 e64
   input  logic [2:0]        VALUSelectE,
   input  logic              VSubE,
+  input  logic              VRSubE,
   input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
   input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
@@ -35,7 +36,7 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
 
   logic [P.ELEN-1:0] SumE, ShiftE;
 
-  valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VALUResult(SumE));
+  valu #(P) valu(.A(SrcA), .B(SrcB), .VALUSelect(VALUSelectE), .VSub(VSubE), .VRSub(VRSubE), .VALUResult(SumE));
 
   // vmul, vmulh, vmulhu, vmulhsu. Currently widening multiplies return only the lower half of the elements
   // The product is ready in Memory stage and is selected in vieu after the M register

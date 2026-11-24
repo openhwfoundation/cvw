@@ -33,14 +33,16 @@ module valu import cvw::*; #(parameter cvw_t P)
    input logic [P.ELEN-1:0] A, B,
    input logic [2:0] VALUSelect,
    input logic VSub,
+   input logic VRSub,
    output logic [P.ELEN-1:0] VALUResult
    );
 
   logic [P.ELEN-1:0] AddResult, AndResult, OrResult;
-  logic [P.ELEN-1:0] CondInvA;
+  logic [P.ELEN-1:0] CondInvA, CondInvB;
 
   assign CondInvA = VSub ? ~A : A;
-  assign AddResult = B + CondInvA + {{(P.ELEN-1){1'b0}}, VSub};
+  assign CondInvB = VRSub ? ~B : B;
+  assign AddResult = CondInvB + CondInvA + {{(P.ELEN-1){1'b0}}, VSub | VRSub};
   assign AndResult = A & B;
   assign OrResult = A | B;
 
