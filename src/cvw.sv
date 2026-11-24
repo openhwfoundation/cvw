@@ -271,6 +271,8 @@ typedef struct packed {
   logic         VF_SUPPORTED;
   logic         ZVFHMIN_SUPPORTED;
   logic         ZVFH_SUPPORTED;
+  logic         ZVBB_SUPPORTED;
+  logic         ZVKB_SUPPORTED;
   logic         I_SUPPORTED;
   logic         M_SUPPORTED;
   logic         Q_SUPPORTED;

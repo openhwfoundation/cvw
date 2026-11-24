@@ -24,6 +24,8 @@ localparam cvw_t P = '{
   VF_SUPPORTED :         VF_SUPPORTED,
   ZVFHMIN_SUPPORTED :    ZVFHMIN_SUPPORTED,
   ZVFH_SUPPORTED :       ZVFH_SUPPORTED,
+  ZVBB_SUPPORTED :       ZVBB_SUPPORTED,
+  ZVKB_SUPPORTED :       ZVKB_SUPPORTED,
   VLEN :                 VLEN,
   ELEN :                 ELEN,
   VPU_EU :           VPU_EU,

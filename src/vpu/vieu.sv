@@ -62,6 +62,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [1:0]                   VMulSelectD,                    // vmul result: 00 vmul, 01 vmulh, 10 vwmul
   input logic [1:0]                   VMulSignD,                      // vmul signedness: {vs1 signed, vs2 signed}
   input logic [$clog2(P.VLEN):0]      VLD,
+  input logic [1:0]                   VXRM_REGW,                      // vxrm: fixed-point rounding mode
    // datapath from VRF banks, bank i holds beat i of reg read i cycles after dispatch
   // *** banks are shared by int and float EUs and vieu should take one bank per beat while VPU_BLEN = VPU_INT_BLEN
   input logic [P.VPU_BLEN-1:0]        VRD1D [P.VPU_BANKS-1:0],
@@ -141,10 +142,16 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
 
-  // simm5 from the vs1 field, sign-extended to ELEN
+  // simm5 from the vs1 field, sign-extended to ELEN; shifts (vsll, vsrl, vsra, vssrl, vssra) take a uimm5
   // *** make SEW-dependent when lanes support SEW < ELEN
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
-  assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
+  logic VUImmE;
+  assign VUImmE = (VLaneSelectE == 3'b011);
+  assign VImmE  = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19] & ~VUImmE}}, InstrE[19:15]}};
+
+  // vssrl and vssra (funct6 10101x) round by vxrm
+  logic VShiftRoundE;
+  assign VShiftRoundE = VShiftSelectE[1] & Funct6E[1];
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
                        .ControllerValidD, .ExecutionUnitReadyD, .ExtraBeatE(VLaneSelectE[2] & Funct6E[0]), .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
@@ -182,7 +189,8 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   assign VSrcCE = VRD3E; // *** to the lanes for vmacc
 
   vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .StallM, .FlushM(VectorFlushM), .SrcA(VSrcAE), .SrcB(VSrcBE), .VSEWE, .VALUSelectE, .VSubE,
-                                         .VLaneSelectE(VLaneSelectE[1:0]), .VShiftSelectE, .VMulSelectE, .VMulSignE, .LaneResultE(VALUResultE), .ProductM(VProductM));
+                                         .VLaneSelectE(VLaneSelectE[1:0]), .VShiftSelectE, .VShiftRoundE, .VXRM_REGW, .VMulSelectE, .VMulSignE,
+                                         .LaneResultE(VALUResultE), .ProductM(VProductM));
   vslide #(P) vslide(.clk, .reset, .NextBeat(BeatValidE & ~VectorStallE), .VSrcB(VSrcBE), .SrcA(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
                                           .SEW(VSEWE[1:0]), .Vl(VLE), .Beat(BeatE), .VSlideResult(VSlideResultE), .VSlideBeat(VSlideBeatE), .VSlideByteMask(VSlideByteMaskE));
   mux2 #(P.VPU_INT_BLEN) veuresultumux(VALUResultE, VSlideResultE, VLaneSelectE[2], VEUResultE);

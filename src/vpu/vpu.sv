@@ -65,6 +65,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
   input logic [1:0]                 STATUS_VS,                                  // vector (VS) field in status register
   input logic [P.XLEN-1:0]          VTYPE_REGW,                                 // vtype
   input logic [P.XLEN-1:0]          VL_REGW,                                    // vl
+  input logic [1:0]                 VXRM_REGW,                                  // vxrm: fixed-point rounding mode
   // CSR updates from vset
   output logic                      WriteVLVTYPEM,                              // vset writes vl and vtype
   output logic [P.XLEN-1:0]         NewVLM,
@@ -206,7 +207,7 @@ module vpu import cvw::*;  #(parameter cvw_t P) (
                    .InstrD, .PCD, .ExecutionUnitOrderD(ExecutionUnitOrderD[i]), .ExecutionUnitOrderW(ExecutionUnitOrderW[i]),
                    .ControllerValidD(ControllerValidD[i]), .ExecutionUnitReadyD(ExecutionUnitReadyD[i]), .VMD, .Funct3D, .Funct6D,
                    .VdFinalD, .RegWriteD(VWriteIntD), .VRegWriteD, .VALUSrcAD, .VALUResultSrcD, .VSEWD(VTYPED[5:3]), .VALUSelectD, .VSubD,
-                   .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD, .VLD(VLD[$clog2(P.VLEN):0]),
+                   .VLaneSelectD, .VShiftSelectD, .VMulSelectD, .VMulSignD, .VLD(VLD[$clog2(P.VLEN):0]), .VXRM_REGW,
                    .VRD1D, .VRD2D, .VRD3D, .v0D, .R1D, .VIEUResultToScalarW(VIEUResultToScalarW[i]),
                    .VIEUResultW(VIEUResultW[i]), .VIEURegWriteW(VIEURegWriteW[i]), .VIEUVRegWriteW(VIEUVRegWriteW[i]), .VIEUByteMaskW(VIEUByteMaskW[i]),
                    .VIEUBeatValidW(VIEUBeatValidW[i]), .VIEUBeatW(VIEUBeatW[i]), .VIEUVdFinalW(VIEUVdFinalW[i]));

@@ -27,6 +27,8 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   input  logic              VSubE,
   input  logic [1:0]        VLaneSelectE,    // 00 = valu, 01 = vmul, 10 = move, 11 = shift
   input  logic [1:0]        VShiftSelectE,   // 00 = sll, 10 = srl, 11 = sra
+  input  logic              VShiftRoundE,    // vssrl, vssra: round by vxrm
+  input  logic [1:0]        VXRM_REGW,       // vxrm: fixed-point rounding mode
   input  logic [1:0]        VMulSelectE,     // 00 = vmul, 01 = vmulh, 10 = vwmul
   input  logic [1:0]        VMulSignE,       // {SrcA signed, SrcB signed}
   output logic [P.ELEN-1:0] LaneResultE,      // lane result in Execute stage
@@ -41,7 +43,10 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   // The product is ready in Memory stage and is selected in vieu after the M register
   vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .SrcA, .SrcB, .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
 
-  vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
+  // vsll, vsrl, vsra, vssrl, vssra: shift each element of vs2 (SrcB) by the matching element of SrcA (vs1, rs1, or uimm5)
+  // *** rotates (vror, vrol), clips (vnclip*), and element width 2*SEW (vnsrl, vnsra, vnclip*, vwsll) wait for decoding
+  vshifter #(P) vshift(.A(SrcB), .B(SrcA), .EW(VSEWE[1:0]), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]),
+                       .Rotate(1'b0), .Round(VShiftRoundE), .Clip(1'b0), .Vxrm(VXRM_REGW), .Y(ShiftE), .SatB());
 
   always_comb
     case (VLaneSelectE)
