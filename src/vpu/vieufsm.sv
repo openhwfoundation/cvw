@@ -38,29 +38,25 @@ module vieufsm import cvw::*;  #(parameter     cvw_t P,
    input logic                   ControllerValidD,
    input logic                   ExtraBeatE,  // run one extra beat past the last for slidedown
    output logic                  ExecutionUnitReadyD,
+   output logic                  CaptureD,                   // EU takes the micro-op in Decode
    output logic [BEATBITLEN-1:0] BeatE,
    output logic                  ExecutionUnitResultValidE,
    output logic                  BeatValidE
    );
 
 
-  typedef enum logic {STATE_RDY, STATE_BEAT} statetype;
-  statetype CurrState, NextState;
   logic BeatResetD, BeatIncrD;
 
   logic                  BeatNotValidE;
   logic                  DoneE, ReadyE;
-  logic                  CaptureInstrD;
 
   // every beat of the register is computed; the sVRF keeps only the bytes of active elements
   // *** skip beats past vl
 
-
-
-  flopenr #(1) validreg(clk, CaptureInstrD, BeatResetD, '1, BeatNotValidE); // SR flop with set priority
+  flopenr #(1) validreg(clk, CaptureD, BeatResetD, '1, BeatNotValidE); // SR flop with set priority
   assign BeatValidE = ~BeatNotValidE;
-  flopenr #(1) readyreg(clk, CaptureInstrD, BeatResetD, '1, ReadyE); // SR flop with reset priority
-  assign CaptureInstrD = ControllerValidD & ExecutionUnitReadyD;
+  flopenr #(1) readyreg(clk, CaptureD, BeatResetD, '1, ReadyE); // SR flop with reset priority
+  assign CaptureD = ControllerValidD & ExecutionUnitReadyD;
 
   assign BeatResetD = (ExecutionUnitReadyD & ~LocalStallE) | reset;
 
