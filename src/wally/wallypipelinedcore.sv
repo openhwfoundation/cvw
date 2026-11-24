@@ -389,7 +389,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
                  .PCD, .InstrD, .VectorD, .ForwardedSrcAE, .ForwardedSrcBE, .R1D, .R2D, .VWriteIntE, .VIntResM,
                  .VMemRWE, .VMemRWM, .VSizeM, .VWriteDataM, .VEUAdrE, .VEUAdrM, .VReadDataM,
                  .IllegalVPUInstrD, .VIEUFPResultFinalW,
-                 .STATUS_VS, .VTYPE_REGW, .VL_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
+                 .STATUS_VS, .VTYPE_REGW, .VL_REGW, .VXRM_REGW, .WriteVLVTYPEM, .NewVLM, .NewVTYPEM, .NewVILLM, .ClearVSTARTM);
 
   end else begin
     assign {VPUFrontEndBusyD, VPUBackEndBusyE, IllegalVPUInstrD, VWriteIntE, VIntResM,
