@@ -27,9 +27,9 @@ module fdivsqrtstage4 import cvw::*; #(parameter cvw_t P) (
   output logic [P.DIVb+3:0] WSNext, WCNext      // Q4.DIVb
 );
 
-  logic [P.DIVb+3:0]        Dsel;               // Q4.DIVb
+  logic [P.DIVb+3:0]        F2, F1, FN1, FN2;   // Q4.DIVb square root addends for digits 2, 1, -1, -2
+  logic [P.DIVb+3:0]        A2, A1, AN1, AN2;   // Q4.DIVb addends for digits 2, 1, -1, -2 in the current mode
   logic [3:0]               udigit;             // {+2, +1, -1, -2} or 0000 for 0
-  logic [P.DIVb+3:0]        F;                  // Q4.DIVb
   logic [P.DIVb+3:0]        AddIn;              // Q4.DIVb
   logic [4:0]               Smsbs;              // U1.4
   logic [2:0]               Dmsbs;              // U0.3   drop leading 1 from D
@@ -48,22 +48,16 @@ module fdivsqrtstage4 import cvw::*; #(parameter cvw_t P) (
   fdivsqrtuslc4cmp uslc4(.Dmsbs, .Smsbs, .WSmsbs, .WCmsbs, .SqrtE, .j0, .j1, .udigit);
 
   // F generation logic
-  fdivsqrtfgen4 #(P) fgen4(.udigit, .C({2'b11, CNext}), .U({3'b000, U}), .UM({3'b000, UM}), .F);
+  fdivsqrtfgen4 #(P) fgen4(.C({2'b11, CNext}), .U({3'b000, U}), .UM({3'b000, UM}), .F2, .F1, .FN1, .FN2);
 
-  // Divisor multiple logic
-  always_comb
-    case (udigit)
-      4'b1000: Dsel = DBar2;
-      4'b0100: Dsel = DBar;
-      4'b0000: Dsel = '0;
-      4'b0010: Dsel = D;
-      4'b0001: Dsel = D2;
-      default: Dsel = 'x;
-    endcase
-
-  // Residual Update
-  //  {WS, WC}Next = (WS + WC - qD or F) << 2
-  assign AddIn = SqrtE ? F : Dsel;
+  // Choose the addend for each nonzero digit before the digit is known (SqrtE is constant during an operation),
+  // so the late digit drives a single AND-OR: -2D, -D, D, 2D for division or F for square root
+  assign A2  = SqrtE ? F2  : DBar2;
+  assign A1  = SqrtE ? F1  : DBar;
+  assign AN1 = SqrtE ? FN1 : D;
+  assign AN2 = SqrtE ? FN2 : D2;
+  assign AddIn = ({(P.DIVb+4){udigit[3]}} & A2)  | ({(P.DIVb+4){udigit[2]}} & A1) |
+                 ({(P.DIVb+4){udigit[1]}} & AN1) | ({(P.DIVb+4){udigit[0]}} & AN2);
   assign CarryIn = ~SqrtE & (udigit[3] | udigit[2]); // +1 for 2's complement of -D and -2D
   csa #(P.DIVb+4) csa(WS, WC, AddIn, CarryIn, WSA, WCA);
   assign WSNext = WSA << 2;

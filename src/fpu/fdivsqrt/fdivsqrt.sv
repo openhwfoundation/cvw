@@ -60,6 +60,7 @@ module fdivsqrt import cvw::*; #(parameter cvw_t P) (
   logic                        ALTBM, AsM, BsM, W64M;        // Special handling for postprocessor
   logic [P.XLEN-1:0]           AM;                           // Original Numerator for postprocessor
   logic                        ISpecialCaseE;                // Integer div/remainder special cases
+  logic                        IterEnE;                      // Advance the iteration registers
 
   fdivsqrtpreproc #(P) fdivsqrtpreproc(                          // Preprocessor
     .clk, .IFDivStartE, .Xm(XmE), .Ym(YmE), .Xe(XeE), .Ye(YeE),
@@ -71,16 +72,16 @@ module fdivsqrt import cvw::*; #(parameter cvw_t P) (
   fdivsqrtfsm #(P) fdivsqrtfsm(                                  // FSM
     .clk, .reset, .XInfE, .YInfE, .XZeroE, .YZeroE, .XNaNE, .YNaNE,
     .FDivStartE, .XsE, .SqrtE, .WZeroE, .FlushE, .StallM,
-    .FDivBusyE, .IFDivStartE, .FDivDoneE, .SpecialCaseM, .CyclesE,
+    .FDivBusyE, .IFDivStartE, .FDivDoneE, .IterEnE, .SpecialCaseM, .CyclesE,
     // Int-specific
     .IDivStartE, .ISpecialCaseE, .IntDivE);
 
   fdivsqrtiter #(P) fdivsqrtiter(                                // CSA Iterator
-    .clk, .IFDivStartE, .FDivBusyE, .SqrtE, .X, .D,
+    .clk, .IFDivStartE, .IterEnE, .SqrtE, .X, .D,
     .FirstU, .FirstUM, .FirstC, .FirstWS(WS), .FirstWC(WC));
 
   fdivsqrtpostproc #(P) fdivsqrtpostproc(                        // Postprocessor
-    .clk, .reset, .StallM, .WS, .WC, .D, .FirstU, .FirstUM, .FirstC,
+    .clk, .IFDivStartE, .WS, .WC, .D, .FirstU, .FirstUM, .FirstC,
     .SqrtE, .SqrtM, .SpecialCaseM,
     .UmM, .WZeroE, .DivStickyM,
     // Int-specific; Funct3M[1] = 1 for REM/REMU, 0 for DIV/DIVU
