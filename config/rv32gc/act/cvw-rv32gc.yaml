@@ -55,6 +55,7 @@ implemented_extensions:
   - { name: Zknd, version: "= 1.0.0" }
   - { name: Zkne, version: "= 1.0.0" }
   - { name: Zkt, version: "= 1.0.0" }
+  - { name: Zkr, version: "= 1.0.0"}
   - { name: U, version: "= 1.0.0" }
   - { name: S, version: "= 1.12.0" }
   - { name: Smstateen, version: "= 1.0.0" }
@@ -75,6 +76,9 @@ implemented_extensions:
 
 params:
   NON_STANDARD_EXTENSION_IMPLEMENTED: false
+  # Zkr params
+  SSEED_READ_ONLY_ZERO: false
+  USEED_READ_ONLY_ZERO: false
   # A params
   MISALIGNED_AMO: false
   LRSC_RESERVATION_STRATEGY: "reserve exactly enough to cover the access" # XLEN size reservation
