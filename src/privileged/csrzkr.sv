@@ -1,11 +1,10 @@
 ///////////////////////////////////////////
-// csru.sv
+// csrzkr.sv
 //
-// Written: siswang@hmc.edu 29 October 2026
+// Written: Sisi Wang siswang@hmc.edu 29 October 2026
 // Modified:
 //
-// Purpose:Machine-Mode Control and Status Registers
-//          See RISC-V Privileged Mode Specification 20190608
+// Purpose: Zkr Entropy Extension
 //
 // Documentation: RISC-V System on Chip Design
 //

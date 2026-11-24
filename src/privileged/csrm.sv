@@ -36,7 +36,7 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   /* verilator lint_on UNDRIVEN */
   output logic                     WriteMSTATUSM, WriteMSTATUSHM,
   output logic                     IllegalCSRMAccessM, IllegalCSRMWriteReadonlyM,
-  output logic [63:0]              MENVCFG_REGW,
+  output logic [63:0]              MENVCFG_REGW,  MSECCFG_REGW,
   output logic [63:0]              MSTATEEN0_REGW,
   output logic [3:1]               MSTATEENSE_REGW  // bit 63 (SE1-SE3) of mstateen1-3
 );
@@ -45,7 +45,6 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]               MISA_REGW, MHARTID_REGW;
   logic [P.XLEN-1:0]               MSCRATCH_REGW, MTVAL_REGW, MCAUSE_REGW;
   logic [P.XLEN-1:0]               MENVCFGH_REGW;
-  logic [63:0]                     MSECCFG_REGW;
   logic [P.XLEN-1:0]               TVECWriteValM;
   logic                            WriteMTVECM, WriteMEDELEGM, WriteMIDELEGM;
   logic                            WriteMSCRATCHM, WriteMEPCM, WriteMCAUSEM, WriteMTVALM;
@@ -253,8 +252,8 @@ module csrm import cvw::*; #(parameter cvw_t P) (
        2'b0,  // LegalizedPMM & {2{P.SMMPM_SUPPORTED & (P.XLEN==64)}}, // 33:32 PMM (Smmpm); read-only 0 on RV32
       21'b0,                                                       // 31:11 WPRI
        1'b0,  // MSECCFG_PreWriteValM[10] & P.ZICFILP_SUPPORTED,   //    10 MLPE (Zicfilp)
-       1'b0,  // MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)
-       1'b0,  // MSECCFG_PreWriteValM[8]  & P.ZKR_SUPPORTED & P.U_SUPPORTED, // 8 USEED (Zkr)
+       MSECCFG_PreWriteValM[9]  & P.ZKR_SUPPORTED & P.S_SUPPORTED, // 9 SSEED (Zkr)
+       MSECCFG_PreWriteValM[8]  & P.ZKR_SUPPORTED & P.U_SUPPORTED, // 8 USEED (Zkr)
        5'b0,                                                       //   7:3 WPRI
        1'b0,  // MSECCFG_PreWriteValM[2]  & P.SMEPMP_SUPPORTED,    //     2 RLB  (Smepmp)
        1'b0,  // MSECCFG_PreWriteValM[1]  & P.SMEPMP_SUPPORTED,    //     1 MMWP (Smepmp)

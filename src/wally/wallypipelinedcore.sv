@@ -20,6 +20,10 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   input  logic                  clk, reset,
   // Privileged
   input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
+  input  logic                  ESValid,
+  input  logic [15:0]           ESBits,
+  input  logic                  ESBist, ESDead,
+  output logic                  ESReady,
   input  logic [63:0]           MTIME_CLINT,
   // Bus Interface
   input  logic [P.AHBW-1:0]     HRDATA,
@@ -306,14 +310,16 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
-      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ReservationValidW, .WaitM, .BigEndianM);
+      .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+      .ESValid, .ESBits, .ESBist, .ESDead, .ESReady,
+      .ReservationValidW, .WaitM, .BigEndianM);
   end else begin
     assign {CSRReadValW, PrivilegeModeW,
             SATP_REGW, STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_MPP, STATUS_FS, FRM_REGW,
             // PMPCFG_ARRAY_REGW, PMPADDR_ARRAY_REGW,
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
-            sfencevmaM, sfencevmaAllM, sfencevmaAdrM, BigEndianM, WaitM} = '0;
+            sfencevmaM, sfencevmaAllM, sfencevmaAdrM, ESReady, BigEndianM, WaitM} = '0;
   end
 
   // multiply/divide unit
