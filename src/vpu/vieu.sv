@@ -168,7 +168,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(35+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(36+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~VectorStallE & CaptureD,
      {ExecutionUnitOrderD, VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD,
       VSEWD, VALUSelectD, VSubD, VRSubD, VLaneSelectD, VShiftSelectD, VMulSelectD, VMulSignD},
