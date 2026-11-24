@@ -42,7 +42,7 @@ module valu import cvw::*; #(parameter cvw_t P)
 
   assign CondInvA = VSub ? ~A : A;
   assign CondInvB = VRSub ? ~B : B;
-  assign AddResult = CondInvB + CondInvA + {{(P.ELEN-1){1'b0}}, VSub | VRSub};
+  assign AddResult = CondInvB + CondInvA + {{(P.ELEN-1){1'b0}}, VSub | VRSub}; // VSub and VRSub are mutually exclusive, two's complement subtraction is valid
   assign AndResult = A & B;
   assign OrResult = A | B;
 
