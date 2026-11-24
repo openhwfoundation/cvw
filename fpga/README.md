@@ -7,7 +7,7 @@ Wally supports the following FPGA boards.
 | Digilent Nexys A7-100T | `nexysa7` | 128 MB DDR2 | `wally-nexysa7.dtb` | onboard microSD | onboard USB-UART |
 | QMTech Kintex-7 | `qmtechk7` | 256 MB DDR3 | `wally-qmtechk7.dtb` | Digilent microSD PMOD on J13 | USB-UART adapter on JP5 (pin 7 TX, pin 8 RX) |
 | Xilinx VCU108 | `vcu108` | 2 GB DDR4 | `wally-vcu108.dtb` | Digilent microSD PMOD | onboard USB-UART |
-| Xilinx VCU118 (not recommended) | `vcu118` | 256 MB DDR4 | `wally-vcu118.dtb` | custom PMOD board (see below) | USB-UART adapter on the PMOD |
+| Xilinx VCU118 (not recommended) | `vcu118` | 256 MB DDR4 (2 GB untested, see below) | `wally-vcu118.dtb` | custom PMOD board (see below) | USB-UART adapter on the PMOD |
 
 Each board's pins are in `constraints/constraints-<board>.xdc`, and its configuration is the `fpga<board>` derivative configuration in `config/derivlist.txt`.
 
@@ -70,6 +70,8 @@ For the VCU108 and VCU118 boards insert the PMOD daughter board into the only PM
 Power on the boards. For the Digilent boards just plug in the USB connector. For the VCU boards make sure the power supply is connected and the two usb cables are connected. Flip on the switch.
 The VCU118's on board UART converter does not work. Use a SparkFun FTDI USB to UART adapter and plug into the main PMOD on the right side of the board.  Also the level shifters on the
 VCU118 do not work correctly with the Digilent sd PMOD board.  We have a custom board which works instead.
+
+The VCU118 is configured with 256 MB for Linux, but it should be able to use 2 GB like the VCU108: its DDR4 controller (`generator/ddr4-vcu118.tcl`) and the memory path in `src/fpgaTop.sv` already have 31 address bits. To try it, set `EXT_MEM_RANGE` to `64'h7FFFFFFF` in the `fpgavcu118` configuration in `config/derivlist.txt` (as `fpgavcu108` does), set the memory node in `linux/devicetree/wally-vcu118.dts` to `reg = <0x00 0x80000000 0x00 0x80000000>;`, and rebuild the bitstream and the flash card image. This hasn't been tested on a board.
 
 ```bash
 cd $WALLY/fpga/generator
