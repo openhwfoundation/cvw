@@ -50,6 +50,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   output logic [4:0]  VOpClassD,                // execution block requirement for EU, VOPCLASS_* below
   output logic [6:0]  VLSModeD,                 // addressing modes for load/store
   output logic        VReductionD,              // instr is a reduction op
+  output logic        DirectReadD,              // vector instr requiring direct bank access (e.g. vrgather/vcompress)
   output logic [2:0]  VdEEWD, Vs2EEWD, Vs1EEWD, // log2(EEW) of Vd/Vs2/Vs1: 000 1b (mask), 011 8b ... 110 64b
   output logic        VMaskedD,                 // v0 masks the vd write (vm=0 and v0 is not an operand)
   output logic [1:0]  VWriteElementsD,          // vd elements written: 00 below vl, 01 element 0, 10 mask result, 11 whole register
@@ -604,6 +605,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
   assign Vs1EnD = (OPIVVD | OPMVVD | OPFVVD) & ~VUnaryD;
   assign VScalarMoveD = (OPMVXD | OPFVFD) & (Funct6D == 6'b010000) | VUnaryWriteIntD | VUnaryWriteFPD;
   assign VWholeRegD   = OPIVID & (Funct6D == 6'b100111) | VLSModeD[6];
+  assign DirectReadD  = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS);
   assign VdNoOverlapD = (VOpClassD == VOPCLASS_GATHER) | (VOpClassD == VOPCLASS_COMPRESS) |
                         (VOpClassD == VOPCLASS_MASK) | (VOpClassD == VOPCLASS_SLIDE) & ~Funct6D[0];   // slideups
 

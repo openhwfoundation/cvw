@@ -30,11 +30,17 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Each bank holds one BLEN beat of all 32 registers.
+//
 // A read request enters bank 0 and moves one bank per cycle, so bank i handles the request issued i cycles ago
 // and a register streams out one beat per cycle.
 // One micro-op issues per cycle, so two requests should not collide in the same bank.
 // Commit writes the whole register to all banks.
-// *** direct bank access for vrgather / vcompress, sVRF read check for chaining
+//
+// vrgather and vcompress read the banks directly. While DirectAccessD is set, every bank reads vs1 and vs2 from the
+// registers that the EU names instead of the stream, and the EU picks the bank. vd still streams so the micro-op's
+// sVRF entry fills with old vd. Dispatch waits for the chain to drain before a direct access and holds younger
+// micro-ops until it ends.
+// *** sVRF read check for chaining, both stream and direct reads
 
 module vregfile import cvw::*; #(parameter cvw_t P) (
   input  logic                            clk, reset,
@@ -43,6 +49,10 @@ module vregfile import cvw::*; #(parameter cvw_t P) (
   input  logic [4:0]                      Vs1D, Vs2D, VdD,               // registers to read
   input  logic                            OldVdD,                        // vd read fills the micro-op's sVRF entry
   input  logic [P.VPU_QUEUEDEPTH-1:0]     OrderD,                        // order tag of the micro-op
+  // direct read for vrgather / vcompress
+  input  logic                            DirectAccessD,                 // every bank reads the direct registers
+  input  logic [4:0]                      DirectVs1D, DirectVs2D,
+  output logic                            BanksDrainedD,                 // no older vrf read request left in banks
   // one beat per bank, bank i from the request issued i cycles ago
   output logic [P.VPU_BLEN-1:0]           VRD1 [P.VPU_BANKS-1:0],
   output logic [P.VPU_BLEN-1:0]           VRD2 [P.VPU_BANKS-1:0],
@@ -66,16 +76,21 @@ module vregfile import cvw::*; #(parameter cvw_t P) (
 
   assign Request[0] = {Vs1D, Vs2D, VdD, OldVdD, OrderD};
 
+  // every dispatched micro-op fills old vd so OldVdValid can also act as request valid
+  assign BanksDrainedD = ~|(OldVdValid >> 1);
+
   for (bank = 0; bank < P.VPU_BANKS; bank++) begin : banks
     logic [P.VPU_BLEN-1:0]      Regs [31:0];
-    logic [4:0]           Vs1, Vs2, Vd;
+    logic [4:0]           StreamVs1, StreamVs2, Vs1, Vs2, Vd;
     logic [P.VPU_BLEN-1:0]      DataBankW;
     logic [BYTES-1:0]     ByteMaskBankW;
 
     // request moves to the next bank one cycle later
     if (bank > 0) flopenr #(REQBITS) requestreg(clk, reset, ~VectorStallE, Request[bank-1], Request[bank]);
 
-    assign {Vs1, Vs2, Vd, OldVdValid[bank], OldVdOrder[bank]} = Request[bank];
+    assign {StreamVs1, StreamVs2, Vd, OldVdValid[bank], OldVdOrder[bank]} = Request[bank];
+    mux2 #(5) vs1mux(StreamVs1, DirectVs1D, DirectAccessD, Vs1);
+    mux2 #(5) vs2mux(StreamVs2, DirectVs2D, DirectAccessD, Vs2);
 
     assign VRD1[bank] = Regs[Vs1];
     assign VRD2[bank] = Regs[Vs2];

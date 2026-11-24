@@ -20,6 +20,9 @@ module vregfile_tb;
   logic [4:0]           Vs1D = '0, Vs2D = '0, VdD = '0;
   logic                 OldVdD = 0;
   logic [ORDERBITS-1:0] OrderD = '0;
+  logic                 DirectAccessD = 0;
+  logic [4:0]           DirectVs1D = '0, DirectVs2D = '0;
+  logic                 BanksDrainedD;
   logic [BLEN-1:0]      VRD1 [BANKS-1:0], VRD2 [BANKS-1:0], VRD3 [BANKS-1:0];
   logic [BANKS-1:0]     OldVdValid;
   logic [ORDERBITS-1:0] OldVdOrder [BANKS-1:0];
@@ -48,7 +51,8 @@ module vregfile_tb;
   // drive one request and one write after the rising edge; the write lands on the falling edge
   // the chain moves at the rising edge unless the cycle before stalled
   task automatic cycle(input request_t req, input logic write, input logic [4:0] vd, input logic [VLEN-1:0] data,
-                       input logic [VLEN/8-1:0] bytemask, input logic stall = 1'b0);
+                       input logic [VLEN/8-1:0] bytemask, input logic stall = 1'b0,
+                       input logic direct = 1'b0, input logic [4:0] dvs1 = '0, input logic [4:0] dvs2 = '0);
     @(posedge clk); #1;
     if (!CurrentStall) begin
       Chain.push_front(Current);
@@ -57,6 +61,7 @@ module vregfile_tb;
     Current = req; CurrentStall = stall;
     {Vs1D, Vs2D, VdD, OldVdD, OrderD} = {req.vs1, req.vs2, req.vd, req.oldvd, req.order};
     VectorStallE = stall;
+    DirectAccessD = direct; DirectVs1D = dvs1; DirectVs2D = dvs2;
     VRegWriteW = write; VdW = vd; DataW = data; ByteMaskW = bytemask;
     @(negedge clk); #1;
     if (write) for (int b = 0; b < VLEN/8; b++) if (bytemask[b]) Model[vd][b*8 +: 8] = data[b*8 +: 8];
@@ -64,14 +69,21 @@ module vregfile_tb;
   endtask
 
   // bank 0 serves the request in Decode; bank i the request that has moved i times
+  // a direct access replaces vs1 and vs2 in every bank; vd keeps streaming
   task automatic check;
+    logic drained;
+    drained = 1;
     for (int bank = 0; bank < BANKS; bank++) begin
       request_t req;
       logic     oldvd;
+      logic [4:0] vs1, vs2;
       req   = (bank == 0) ? Current : (bank - 1 < Chain.size()) ? Chain[bank-1] : '{default: '0};
       oldvd = req.oldvd;
+      if (bank > 0 && oldvd) drained = 0;
+      vs1   = DirectAccessD ? DirectVs1D : req.vs1;
+      vs2   = DirectAccessD ? DirectVs2D : req.vs2;
       checks++;
-      if (VRD1[bank] !== Model[req.vs1][bank*BLEN +: BLEN] || VRD2[bank] !== Model[req.vs2][bank*BLEN +: BLEN] ||
+      if (VRD1[bank] !== Model[vs1][bank*BLEN +: BLEN] || VRD2[bank] !== Model[vs2][bank*BLEN +: BLEN] ||
           VRD3[bank] !== Model[req.vd][bank*BLEN +: BLEN] || OldVdValid[bank] !== oldvd ||
           (oldvd && OldVdOrder[bank] !== req.order)) begin
         errors++;
@@ -80,6 +92,7 @@ module vregfile_tb;
       end
     end
     if (V0 !== Model[0]) begin errors++; $display("ERROR %0t: v0 copy", $time); end
+    if (BanksDrainedD !== drained) begin errors++; $display("ERROR %0t: BanksDrainedD %0b, expected %0b", $time, BanksDrainedD, drained); end
   endtask
 
   function automatic request_t randrequest();
@@ -122,6 +135,21 @@ module vregfile_tb;
     if (VRD2[1] !== Model[6][BLEN +: BLEN]) begin errors++; $display("ERROR: bank 1 lost v6 during a stall"); end
     cycle('{default: '0}, 1'b0, '0, '0, '0);
 
+    // drain: a direct micro-op right behind a request waits BANKS-1 cycles in Decode for it to leave the banks
+    // then a direct access reads v7 and v8 from every bank while the vd of the direct micro-op itself still streams
+    cycle('{vs1: 5'd1, vs2: 5'd2, vd: 5'd3, oldvd: 1'b1, order: '0}, 1'b0, '0, '0, '0);
+    begin
+      int waited;
+      waited = 0;
+      cycle('{default: '0}, 1'b0, '0, '0, '0);     // a direct micro-op behind the request reaches Decode
+      while (!BanksDrainedD) begin waited++; cycle('{default: '0}, 1'b0, '0, '0, '0); end
+      if (waited != BANKS - 1) begin errors++; $display("ERROR: waited %0d cycles, expected %0d", waited, BANKS - 1); end
+      else $display("Drain: a direct micro-op behind a request waits %0d cycles", waited);
+    end
+    cycle('{vs1: 5'd0, vs2: 5'd0, vd: 5'd9, oldvd: 1'b1, order: '0}, 1'b0, '0, '0, '0, 1'b0, 1'b1, 5'd7, 5'd8);
+    for (int c = 0; c < BANKS + 2; c++) cycle('{default: '0}, 1'b0, '0, '0, '0, 1'b0, 1'b1, 5'(c), 5'(c + 8));
+    cycle('{default: '0}, 1'b0, '0, '0, '0);
+
     // random stream: a request most cycles, idle and stalled cycles between, commits to registers being streamed
     // a stalled Decode issues no request
     for (int c = 0; c < CYCLES; c++) begin
@@ -129,7 +157,8 @@ module vregfile_tb;
       logic     stall;
       stall = ($urandom % 5 == 0);
       req   = ($urandom % 4 != 0 && !stall) ? randrequest() : '{default: '0};
-      cycle(req, 1'($urandom % 2), 5'($urandom), randvlen(), ($urandom % 4 == 0) ? (VLEN/8)'(randvlen()) : '1, stall);
+      cycle(req, 1'($urandom % 2), 5'($urandom), randvlen(), ($urandom % 4 == 0) ? (VLEN/8)'(randvlen()) : '1, stall,
+            1'($urandom % 6 == 0), 5'($urandom), 5'($urandom));
     end
 
     // reset clears the chain: no old vd beat after reset
