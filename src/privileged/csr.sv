@@ -284,7 +284,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   assign CSRAdrM_In = InstrM[31:20];
   if (P.H_SUPPORTED) begin: csradr_h
-    csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM, .TrapM, .ExceptionM,
+    csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM, .TrapM, .ExceptionM(TrapM & ExceptionM & ~InterruptM),
       .VirtModeW, .PrivilegeModeW, .MCOUNTEREN_REGW, .HCOUNTEREN_REGW, .HENVCFG_REGW,
       .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM, .TrapLoadStoreM, .STATUS_MPRV, .MSTATUS_MPV, .STATUS_MPP);
   end else begin: csradr_noh
@@ -371,7 +371,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .MENVCFG_STCE(MENVCFG_REGW[63]), .MENVCFG_PBMTE(MENVCFG_REGW[62]), .MENVCFG_ADUE(MENVCFG_REGW[61]),
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
-      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM,
+      .sretM(sretM & ~StallW & ~TrapM), .InstrM, .InstrOrigM,
       .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
