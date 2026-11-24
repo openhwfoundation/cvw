@@ -21,27 +21,30 @@ module zknde32 import cvw::*; #(parameter cvw_t P) (
   output logic [31:0] ZKNDEResult
 );
 
+  logic           Decrypt;
   logic [4:0]     shamt;
-  logic [7:0]     SboxIn;
-  logic [31:0]    ZKNEResult, ZKNDResult, rotin, rotout;
+  logic [7:0]     SboxIn, SboxOut;
+  logic [31:0]    so, Mixed, InvMixed, rotin, rotout;
 
   // ZKNSelect[2] = final round (aes32dsi/aes32esi), ZKNSelect[0] = encrypt
+  assign Decrypt = P.ZKND_SUPPORTED & (~P.ZKNE_SUPPORTED | ~ZKNSelect[0]);
 
   // Initial shamt and Sbox input selection steps shared between encrypt and decrypt
   assign shamt = {bs, 3'b0};      // shamt = bs * 8 (convert bytes to bits)
   assign SboxIn = B[shamt +: 8];  // select byte bs of rs2
 
-  // Handle logic specific to encrypt or decrypt
-  if (P.ZKND_SUPPORTED) aes32d aes32d(.SboxIn, .finalround(ZKNSelect[2]), .result(ZKNDResult));
-  if (P.ZKNE_SUPPORTED) aes32e aes32e(.SboxIn, .finalround(ZKNSelect[2]), .result(ZKNEResult));
+  // One S-box shared by encrypt and decrypt
+  aessboxfwdinv8 sb(.a(SboxIn), .inv(Decrypt), .y(SboxOut));
+  assign so = {24'h0, SboxOut};
 
-  // Mux result if both decrypt and encrypt are supported; otherwise, choose the only result
-  if (P.ZKND_SUPPORTED & P.ZKNE_SUPPORTED)
-    mux2 #(32) zknmux(ZKNDResult, ZKNEResult, ZKNSelect[0], rotin);
-  else if (P.ZKND_SUPPORTED)
-    assign rotin = ZKNDResult;
-  else
-    assign rotin = ZKNEResult;
+  // MixColumns or InvMixColumns of the column holding only the substituted byte; skip on the final round
+  if (P.ZKNE_SUPPORTED) begin : zkne
+    aesmixcolumns32 mix(so, Mixed);
+  end else assign Mixed = '0;
+  if (P.ZKND_SUPPORTED) begin : zknd
+    aesinvmixcolumns8 invmix(SboxOut, InvMixed);
+  end else assign InvMixed = '0;
+  assign rotin = ZKNSelect[2] ? so : (Decrypt ? InvMixed : Mixed);
 
   // final rotate and XOR steps shared between encrypt and decrypt
   mux4 #(32) mrotmux(rotin, {rotin[23:0], rotin[31:24]},

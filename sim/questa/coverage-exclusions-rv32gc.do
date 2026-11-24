@@ -94,9 +94,9 @@ coverage exclude -scope $FPU/fctrl -linerange [TagLine ${SRC}/fpu/fctrl.sv fmvp-
 # BaseW64D and BW64D are set only by RV64 word (W) instructions, which the decoders gate with XLEN == 64.
 ExcludeRows /core/ieu/c e {BaseW64D_1 BW64D_1}
 
-# aes32e passes {24'h0, SboxOut} to aesmixcolumns32, so bytes a0 = a1 = a2 = 0 and the inputs of gm0 (a0 ^ a1) and
+# zknde32 passes {24'h0, SboxOut} to aesmixcolumns32, so bytes a0 = a1 = a2 = 0 and the inputs of gm0 (a0 ^ a1) and
 # gm1 (a1 ^ a2) are always 0: their a[7] (reduce) branch is never taken.
-set AES32E /core/ieu/dp/alu/bitmanipalu/balu/zknde/genblk1/ZKN32/genblk2/aes32e/mb
+set AES32E /core/ieu/dp/alu/bitmanipalu/balu/zknde/genblk1/ZKN32/zkne/mix
 foreach gm {gm0 gm1} {
   coverage exclude -scope $AES32E/$gm -linerange [TagLine ${SRC}/ieu/aes/galoismultforward8.sv gf-reduce] -item b 1
 }
