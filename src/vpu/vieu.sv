@@ -57,6 +57,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   input logic [2:0]                   VSEWD,                          // vtype.vsew: 000 e8, 001 e16, 010 e32, 011 e64
   input logic [2:0]                   VALUSelectD,
   input logic                         VSubD,
+  input logic                         VRSubD,
   input logic [2:0]                   VLaneSelectD,                   // vlane result: 00 valu, 01 vmul, 10 move, 11 shift
   input logic [1:0]                   VShiftSelectD,                  // vlane shift: 00 sll, 10 srl, 11 sra
   input logic [1:0]                   VMulSelectD,                    // vmul result: 00 vmul, 01 vmulh, 10 vwmul
@@ -96,6 +97,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   logic [2:0] VSEWE;
   logic [2:0] VALUSelectE;
   logic       VSubE;
+  logic       VRSubE;
   logic [2:0] VLaneSelectE;
   logic [1:0] VShiftSelectE;
   logic [1:0] VMulSelectE;
@@ -166,12 +168,12 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   // unlike the integer controller and datapath, the controller must be pipelined inside the vieu, because the
   // controll is routed to different EUs.
 
-  flopenrc #(35+P.VPU_QUEUEDEPTH) contrlregE
+  flopenrc #(36+P.VPU_QUEUEDEPTH) contrlregE
     (clk, reset, VectorFlushE, ~VectorStallE & CaptureD,
      {ExecutionUnitOrderD, VdFinalD, Funct6D, Funct3D, RegWriteD, VRegWriteD, VALUSrcAD, VALUResultSrcD,
-      VSEWD, VALUSelectD, VSubD, VLaneSelectD, VShiftSelectD, VMulSelectD, VMulSignD},
+      VSEWD, VALUSelectD, VSubD, VRSubD, VLaneSelectD, VShiftSelectD, VMulSelectD, VMulSignD},
      {ExecutionUnitOrderE, VdFinalE, Funct6E, Funct3E, RegWriteE, VRegWriteE, VALUSrcAE, VALUResultSrcE,
-      VSEWE, VALUSelectE, VSubE, VLaneSelectE, VShiftSelectE, VMulSelectE, VMulSignE});
+      VSEWE, VALUSelectE, VSubE, VRSubE, VLaneSelectE, VShiftSelectE, VMulSelectE, VMulSignE});
 
   flopenrc #(P.XLEN) pcereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, PCD, PCE);
   flopenrc #(32) instrereg(clk, reset, VectorFlushE, ~VectorStallE & CaptureD, InstrD, InstrE);
@@ -181,7 +183,7 @@ module vieu import cvw::*;  #(parameter cvw_t P)
   assign VSrcBE = VRD2E;
   assign VSrcCE = VRD3E; // *** to the lanes for vmacc
 
-  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .StallM, .FlushM(VectorFlushM), .SrcA(VSrcAE), .SrcB(VSrcBE), .VSEWE, .VALUSelectE, .VSubE,
+  vlane #(P) vlane[P.VPU_INT_LANES-1:0] (.clk, .reset, .StallM, .FlushM(VectorFlushM), .SrcA(VSrcAE), .SrcB(VSrcBE), .VSEWE, .VALUSelectE, .VSubE, .VRSubE,
                                          .VLaneSelectE(VLaneSelectE[1:0]), .VShiftSelectE, .VMulSelectE, .VMulSignE, .LaneResultE(VALUResultE), .ProductM(VProductM));
   vslide #(P) vslide(.clk, .reset, .NextBeat(BeatValidE & ~VectorStallE), .VSrcB(VSrcBE), .SrcA(R1E), .Imm(InstrE[19:15]), .Funct3(Funct3E), .Down(Funct6E[0]),
                                           .SEW(VSEWE[1:0]), .Vl(VLE), .Beat(BeatE), .VSlideResult(VSlideResultE), .VSlideBeat(VSlideBeatE), .VSlideByteMask(VSlideByteMaskE));

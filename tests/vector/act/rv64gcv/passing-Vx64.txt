@@ -15,6 +15,8 @@ vmv.x.s
 vor.vi
 vor.vv
 vor.vx
+vrsub.vi
+vrsub.vx
 vslide1down.vx
 vslide1up.vx
 vslidedown.vi
