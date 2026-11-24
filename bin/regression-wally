@@ -173,7 +173,7 @@ derivconfigtests = [
         *[[f"div_{d}_rv32gc", "rv32gc", _fdiv("rv32i")] for d in
           ["2_1", "2_1i", "2_2", "2_2i", "2_4", "2_4i", "4_1", "4_1i", "4_2", "4_2i", "4_4", "4_4i"]],
         *[[f"div_{d}_rv64gc", "rv64gc", _fdiv("rv64i")] for d in
-          ["2_1", "2_1i", "2_2", "2_2i", "2_4", "2_4i", "4_1", "4_1i", "4_2", "4_2i", "4_4", "4_4i"]],
+          ["2_1", "2_1i", "2_2", "2_2i", "2_4", "2_4i", "4_1", "4_1i", "4_2", "4_2i", "4_3i", "4_4", "4_4i"]],
 
         # fpu permutations.  Without D or Zfh, run only the Zfa and Zfh tests that need neither.
         ["f_rv32gc", "rv32gc", ["rv32i/F", "rv32i/Zfa/Zfa-*"]],
