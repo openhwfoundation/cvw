@@ -51,6 +51,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   output logic MicroOpNotLastD,
   output logic [2:0] MicroOpIndexD,            // current micro-op register group index
   output logic VHazardStallD,
+  output logic EUBusyStallD,               // no eligible EU is ready for the micro-op
   // output micro vector instruction
   output logic MicroVectorD,
   output logic [4:0] Vs1FinalD, Vs2FinalD, VdFinalD
@@ -110,7 +111,7 @@ module vdispatcher import cvw::*;  #(parameter cvw_t P) (
   lmulsequencer lmulsequencer(.clk, .reset, .VectorStallD(DispatchStallD), .VectorFlushD,
                                    .VectorD, .Vs1D, .Vs2D, .VdD, .MicroOpsD,
                                    .AnyExecutionUnitReadyD, .Vs1FinalD, .Vs2FinalD, .VdFinalD,
-                              .MicroVectorD, .MicroOpNotLastD, .MicroOpIndexD, .VHazardD, .VHazardStallD);
+                              .MicroVectorD, .MicroOpNotLastD, .MicroOpIndexD, .VHazardD, .VHazardStallD, .EUBusyStallD);
 
   assign ControllerValidD = SelectedD & {P.VPU_EU{MicroVectorD & ~DispatchStallD}}; // demux to selected EU; hold while Decode is stalled
   //assign MicroVectorD = |ControllerValidD;

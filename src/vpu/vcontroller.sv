@@ -91,6 +91,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
   logic [3:0]  MicroOpsD;                // micro-ops in the instruction: registers in the LMUL group, 1 for fractional LMUL
   logic        MicroOpNotLastD;
   logic        VHazardStallD;             // wait for all older vector instructions to write back
+  logic        EUBusyStallD;              // no eligible EU is ready for the micro-op
 
   logic [2:0]  VEUTypeD;                  // type of EU an instruction needs (INT, FP, LSU)
   logic [4:0]  VOpClassD;                 // execution block requirement for EU
@@ -130,7 +131,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
                                .DirectReadD, .BanksDrainedD, .DirectAccessD, .DirectStallD,
                                .ControllerValidD, .ExecutionUnitReadyD,
                                .MicroVectorD, .Vs1FinalD, .Vs2FinalD, .VdFinalD, .MicroOpsD,
-                               .MicroOpNotLastD, .MicroOpIndexD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD);
+                               .MicroOpNotLastD, .MicroOpIndexD, .VHazardD(~InstrOrderQueueEmptyD), .VHazardStallD, .EUBusyStallD);
 
   // The controller must track the program order of vector instruction because they may finish out-of-order.
   // A queue records the issue order.  The queue is peaked to check for the next instruction to remove from the
@@ -158,7 +159,7 @@ module vcontroller import cvw::*;  #(parameter cvw_t P) (
 
   assign CommitW = HeadCompleteW & ~InstrOrderQueueEmptyD & ~StallW;
 
-  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD | DirectStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
+  assign VPUFrontEndBusyD = InstrOrderQueueFullD | MicroOpNotLastD | (VWriteIntD & ~VsetD & ~InstrOrderQueueEmptyD) | VHazardStallD | DirectStallD | EUBusyStallD; // *** add other terms here, ie if the dispatcher cannot an issue instruction and it stalls decoder stage
 
 
 endmodule

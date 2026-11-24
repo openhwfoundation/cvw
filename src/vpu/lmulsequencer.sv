@@ -44,7 +44,8 @@ module lmulsequencer
    output logic MicroVectorD,
    output logic MicroOpNotLastD,
    output logic [2:0] MicroOpIndexD, // current micro-op register group index
-   output logic VHazardStallD        // hold the first micro-op in Decode until the hazard clears
+   output logic VHazardStallD,       // hold the first micro-op in Decode until the hazard clears
+   output logic EUBusyStallD         // hold the micro-op in Decode until an eligible EU is ready
 );
 
 
@@ -101,8 +102,9 @@ module lmulsequencer
   assign lmulCntrLoad = (CurrState == STATE_INCR & lmulCntrDone & IncrD) | (MicroOpsD == 4'd1); // a single micro-op never leaves the first register
   //assign MicroOpNotLastD = AnyExecutionUnitReadyD & (CurrState == STATE_INCR);
   assign MicroOpNotLastD = (CurrState == STATE_INCR & ~lmulCntrDone) | (CurrState == STATE_BEGIN & MicroOpsD > 4'd1 & VectorStartD);
-  assign IncrD = ((AnyExecutionUnitReadyD & VectorStartD) | MicroOpNotLastD) & ~VectorStallD;
-
-  assign MicroVectorD = IncrD | VectorStartD;
+  // a micro-op dispatches, advances the sequence, and enters the order queue only when an eligible EU takes it
+  assign MicroVectorD = VectorStartD & AnyExecutionUnitReadyD;
+  assign IncrD        = MicroVectorD & ~VectorStallD;
+  assign EUBusyStallD = VectorStartD & ~AnyExecutionUnitReadyD;
 
 endmodule
