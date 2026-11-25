@@ -17,68 +17,25 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module mul #(parameter XLEN) (
-  input  logic                clk, reset,
-  input  logic                StallM, FlushM,
-  input  logic [XLEN-1:0]     ForwardedSrcAE, ForwardedSrcBE, // source A and B from after Forwarding mux
-  input  logic [2:0]          Funct3E,                        // type of multiply
+  input  logic [XLEN-1:0]     SrcAM, SrcBM,                   // sources A and B, registered into the Memory stage by the IEU
+  input  logic [2:0]          Funct3M,                        // type of multiply
   output logic [XLEN*2-1:0]   ProdM                           // double-width product
 );
 
-  // Number systems
-  // Let A' = sum(i=0, XLEN-2, A[i]*2^i)
-  // Unsigned: A = A' + A[XLEN-1]*2^(XLEN-1)
-  // Signed:   A = A' - A[XLEN-1]*2^(XLEN-1)
+  // Extend each source to XLEN+1 bits, sign-extending the signed ones (both for mulh, A for mulhsu) and
+  // zero-extending the unsigned ones (both for mulhu, B for mulhsu).  Then one signed (XLEN+1)x(XLEN+1)
+  // multiply gives every flavor.  mul uses only the low half of the product, where the extension does not matter.
+  // The whole multiply is in the Memory stage, so it needs no pipeline registers of its own: the IEU already
+  // registers both sources into the Memory stage (SrcAM for the privileged unit and FPU, WriteDataM for the LSU).
 
-  // Multiplication: A*B
-  // Let P' = A' * B'
-  //     PA = (B' * A[XLEN-1])
-  //     PB = (A' * B[XLEN-1])
-  //     PP = A[XLEN-1] * B[XLEN-1]
-  // Signed * Signed     = P' + (-PB - PA)*2^(XLEN-1) + PP*2^(2XLEN-2)
-  // Signed * Unsigned   = P' + ( PB - PA)*2^(XLEN-1) - PP*2^(2XLEN-2)
-  // Unsigned * Unsigned = P' + ( PA + PB)*2^(XLEN-1) + PP*2^(2XLEN-2)
+  logic               SignedAM, SignedBM;                   // source is signed
+  logic [XLEN:0]      AM, BM;                               // extended sources
+  logic [XLEN*2+1:0]  PM;                                   // full product
 
-  logic [XLEN-1:0]    Aprime, Bprime;                       // lower bits of source A and B
-  logic               MULH, MULHSU;                         // type of multiply
-  logic [XLEN-2:0]    PA, PB;                               // product of msb and lsbs
-  logic               PP;                                   // product of msbs
-  logic [XLEN*2-1:0]  PP1E, PP2E, PP3E, PP4E;               // partial products
-  logic [XLEN*2-1:0]  PP1M, PP2M, PP3M, PP4M;               // registered partial products
-
-  //////////////////////////////
-  // Execute Stage: Compute partial products
-  //////////////////////////////
-
-  assign Aprime = {1'b0, ForwardedSrcAE[XLEN-2:0]};
-  assign Bprime = {1'b0, ForwardedSrcBE[XLEN-2:0]};
-  assign PP1E = Aprime * Bprime;
-  assign PA = {(XLEN-1){ForwardedSrcAE[XLEN-1]}} & ForwardedSrcBE[XLEN-2:0];
-  assign PB = {(XLEN-1){ForwardedSrcBE[XLEN-1]}} & ForwardedSrcAE[XLEN-2:0];
-  assign PP = ForwardedSrcAE[XLEN-1] & ForwardedSrcBE[XLEN-1];
-
-  // flavor of multiplication
-  assign MULH   = (Funct3E == 3'b001);
-  assign MULHSU = (Funct3E == 3'b010);
-
-  // Select partial products, handling signed multiplication
-  assign PP2E = {2'b00, (MULH | MULHSU) ? ~PA : PA, {(XLEN-1){1'b0}}};
-  assign PP3E = {2'b00, (MULH) ? ~PB : PB, {(XLEN-1){1'b0}}};
-  // PP4E holds the +/-PP term plus constants (bits 2*XLEN-1 and XLEN or XLEN-1) that complete the
-  // two's complement negation of the inverted PA/PB terms, modulo 2^(2*XLEN)
-  always_comb
-    if (MULH)        PP4E = {1'b1, PP, {(XLEN-3){1'b0}}, 1'b1, {(XLEN){1'b0}}};
-    else if (MULHSU) PP4E = {1'b1, ~PP, {(XLEN-2){1'b0}}, 1'b1, {(XLEN-1){1'b0}}};
-    else             PP4E = {1'b0, PP, {(XLEN*2-2){1'b0}}};
-
-  //////////////////////////////
-  // Memory Stage: Sum partial products
-  //////////////////////////////
-
-  flopenrc #(XLEN*2) PP1Reg(clk, reset, FlushM, ~StallM, PP1E, PP1M);
-  flopenrc #(XLEN*2) PP2Reg(clk, reset, FlushM, ~StallM, PP2E, PP2M);
-  flopenrc #(XLEN*2) PP3Reg(clk, reset, FlushM, ~StallM, PP3E, PP3M);
-  flopenrc #(XLEN*2) PP4Reg(clk, reset, FlushM, ~StallM, PP4E, PP4M);
-
-  // add up partial products; this multi-input add implies CSAs and a final CPA
-  assign ProdM = PP1M + PP2M + PP3M + PP4M; //ForwardedSrcAE * ForwardedSrcBE;
+  assign SignedAM = ~Funct3M[1] | ~Funct3M[0];              // mul, mulh, mulhsu
+  assign SignedBM = ~Funct3M[1];                            // mul, mulh
+  assign AM = {SignedAM & SrcAM[XLEN-1], SrcAM};
+  assign BM = {SignedBM & SrcBM[XLEN-1], SrcBM};
+  assign PM = $signed(AM) * $signed(BM);
+  assign ProdM = PM[XLEN*2-1:0];
 endmodule

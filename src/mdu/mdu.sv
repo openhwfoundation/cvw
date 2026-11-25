@@ -21,6 +21,7 @@ module mdu import cvw::*; #(parameter cvw_t P) (
   input  logic              StallM, StallW,
   input  logic              FlushE, FlushM, FlushW,
   input  logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // inputs A and B from IEU forwarding mux output
+  input  logic [P.XLEN-1:0] SrcAM, WriteDataM,              // inputs A and B registered into the Memory stage by the IEU
   input  logic [2:0]        Funct3E, Funct3M,               // type of MDU operation
   input  logic              IntDivE, W64E,                  // Integer division/remainder, and W-type instructions
   input  logic              MDUActiveE,                     // Mul/Div instruction being executed
@@ -35,7 +36,8 @@ module mdu import cvw::*; #(parameter cvw_t P) (
   logic                     W64M;                           // W-type instruction
 
   // Multiplier
-  mul #(P.XLEN) mul(.clk, .reset, .StallM, .FlushM, .ForwardedSrcAE, .ForwardedSrcBE, .Funct3E, .ProdM);
+  // For a multiply, SrcAM = ForwardedSrcAE (ALUSrcA = 0) and WriteDataM = ForwardedSrcBE, registered
+  mul #(P.XLEN) mul(.SrcAM, .SrcBM(WriteDataM), .Funct3M, .ProdM);
 
   // Divider
   // Start a divide when a new division instruction is received and the divider isn't already busy or finishing
