@@ -52,6 +52,7 @@ PARAM_TO_EXTENSION = {
     "SMSTATEEN_SUPPORTED": "Smstateen", "SSSTATEEN_SUPPORTED": "Ssstateen",
     "SV32_SUPPORTED": "Sv32", "SV39_SUPPORTED": "Sv39", "SV48_SUPPORTED": "Sv48", "SV57_SUPPORTED": "Sv57",
     "SVPBMT_SUPPORTED": "Svpbmt", "SVNAPOT_SUPPORTED": "Svnapot", "SVINVAL_SUPPORTED": "Svinval", "SVADU_SUPPORTED": "Svadu",
+    "SSNPM_SUPPORTED": "Ssnpm", "SMNPM_SUPPORTED": "Smnpm", "SMMPM_SUPPORTED": "Smmpm",
 }
 
 # Extensions that are always present, implied by others, or describe behavior rather than a cvw

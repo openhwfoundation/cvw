@@ -72,6 +72,8 @@ deriv_coverage_tests = {
     "fdq_rv64gc": ["misalignedQuadSpill", "uncachedQuad"],
     # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
     "extio_rv64gc": ["extIOWindow"],
+    # misaligned accesses across the top of the Sv48 range with PMLEN 16 pointer masking
+    "pm16": ["pmmisaligned16"],
     # uncached AMO racing an I$ fill with wait states on the RAM
     **{f"ram_{r}_rv64gc": ["amoifill"] for r in ["1_0", "1_1", "2_0", "2_1"]},
 }
@@ -185,6 +187,11 @@ derivconfigtests = [
         ["fdh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/Zfa"]],
         ["fdq_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/I", "rv64i/Zfa/Zfa-*", "rv64i/Zfa/ZfaD-*"]],
         ["fdqh_rv64gc", "rv64gc", ["rv64i/F", "rv64i/D", "rv64i/Zfh", "rv64i/I", "rv64i/Zfa"]], # "wally64q" when Q is supported again
+
+        # pm16 variant
+        ["pm16", "rv64gc", ["priv/Smmpm", "priv/Smnpm/Smnpm_SSm*", "priv/Ssnpm/Ssnpm_Sm*",
+        "priv/Smnpm/Smnpm_S_bare*", "priv/Smnpm/Smnpm_S_sv39*", "priv/Smnpm/Smnpm_S_sv48*",
+        "priv/Ssnpm/Ssnpm_bare*", "priv/Ssnpm/Ssnpm_sv39*", "priv/Ssnpm/Ssnpm_sv48*"]],
     ]
 
 bpredtests = [
@@ -332,6 +339,15 @@ lockstepwaivers = [
     # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
+
+    # Stock ImperasDV keeps pointer masking when mstatus.MXR=1, which is wrong; cvw matches Sail.  An ImperasDV
+    # engineering build fixes it; remove these waivers when cvw moves to an ImperasDV release with the fix.
+    "Smnpm_SSm-00.elf", "Ssnpm_Sm-00.elf",
+    "Smnpm_S_bare_pmm10_edgecases-00.elf", "Smnpm_S_sv39_pmm10_edgecases-00.elf",
+    "Smnpm_S_sv48_pmm10_edgecases-00.elf", "Smnpm_S_sv57_pmm10_edgecases-00.elf",
+    "Ssnpm_bare_pmm10_edgecases-00.elf", "Ssnpm_sv39_pmm10_edgecases-00.elf",
+    "Ssnpm_sv48_pmm10_edgecases-00.elf", "Ssnpm_sv57_pmm10_edgecases-00.elf",
+
     # Zama16b: a misaligned AMO within a 16-byte granule completes.  ImperasDV's Zam=T models that, but also makes
     # medeleg[4] and [6] (address-misaligned) read-only zero, which Wally keeps writable because it still raises
     # misaligned exceptions in uncached regions; without Zam the reference takes an access fault instead.
