@@ -183,8 +183,9 @@ trap_handler: #####
         # 0x28: SCR
         lbu t1, 7(t0)
         sw t1, 0x28(s0)
-        # signal to main code that uart was serviced
+        # signal to main code that uart was serviced, and count UART interrupts
         ori a0, a0, 0b00010000
+        addi a2, a2, 1
         # signal to plic that uart was serviced
         mv t0, t4
         li t1, 0xA
@@ -230,6 +231,7 @@ main_code: #####
     la s0, wally_signature # signature output base adr
     la sp, stack           # stack pointer
     li a0, 0               # interrupt complete flag
+    li a2, 0               # number of UART interrupts serviced
     # ========== Configure Privileged Unit ==========
     # load address of trap handler
     la t0, trap_handler
@@ -783,16 +785,15 @@ Intr03BEEF17:
     sb t1, 4(t0)
 Intr03BEEF18:
 Intr03BEEF19:
-    # THR: TX 'e'
+    # THR: TX 'e', which raises two UART interrupts (THR empty and received data available).  Wait for
+    # both by counting them: on a slow core the second is already pending when the first handler returns
+    # and is taken before this loop sees a0, so waiting on a0 twice would miss it.
+    li a2, 0
     li t1, 'e'
     sb t1, 0(t0)
     # wait to finish
-    li t1, 0b00010000
-    1: bne t1,a0,1b
-    li a0, 0
-    # wait to finish again
-    li t1, 0b00010000
-    1: bne t1,a0,1b
+    li t1, 2
+    1: bne t1,a2,1b
     li a0, 0
     # ========== Receiver Line Status Intr (ELSI) & Overrun Error (OE) ==========
     # IER: Enable Receiver Line Status Intr (ELSI)
