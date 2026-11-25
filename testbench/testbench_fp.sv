@@ -740,7 +740,7 @@ module testbench_fp;
     .OpCtrl(OpCtrlVal[2:0]), .Sm, .InvA, .SCnt, .As, .Ps,
     .ASticky);
 
-  postprocess #(P) postprocess(.Xs(Xs), .Ys(Ys), .PostProcSel(UnitVal[1:0]),
+  postprocess #(P) postprocess(.Xs(Xs), .Ys(Ys), .PostProcSel(UnitVal[1:0]), .Bf16Dst(1'b0), // TestFloat has no BF16 vectors
     .OpCtrl(OpCtrlVal[2:0]), .DivUm(Quot), .DivUe(DivCalcExp),
     .Xm(Xm), .Ym(Ym), .Zm(Zm), .CvtCe(CvtCalcExpE), .DivSticky(DivSticky), .FmaSs(Ss),
     .XNaN(XNaN), .YNaN(YNaN), .ZNaN(ZNaN), .CvtResSubnormUf(CvtResSubnormUfE),
@@ -1333,7 +1333,7 @@ module readvectors import cvw::*; #(parameter cvw_t P) (
   assign ZEn = (Unit == `FMAUNIT);
   assign FPUActive = 1'b1;
 
-  unpack #(P) unpack(.X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .Z(Z[P.FLEN-1:0]), .Fmt(ModFmt), .FPUActive, .Xs, .Ys, .Zs, .Xe, .Ye, .Ze,
+  unpack #(P) unpack(.X(X[P.FLEN-1:0]), .Y(Y[P.FLEN-1:0]), .Z(Z[P.FLEN-1:0]), .Fmt(ModFmt), .Bf16Src(1'b0), .FPUActive, .Xs, .Ys, .Zs, .Xe, .Ye, .Ze,
                      .Xm, .Ym, .Zm, .XNaN, .YNaN, .ZNaN, .XSNaN, .YSNaN, .ZSNaN,
                      .XSubnorm, .XZero, .YZero, .ZZero, .XInf, .YInf, .ZInf,
                      .XEn, .YEn, .ZEn, .XExpMax, .XPostBox, .Bias(BiasE), .Nf(NfE));
