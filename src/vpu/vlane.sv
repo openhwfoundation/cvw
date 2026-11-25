@@ -42,7 +42,8 @@ module vlane import cvw::*;  #(parameter cvw_t P) (
   // The product is ready in Memory stage and is selected in vieu after the M register
   vmul #(P) vmul(.clk, .reset, .StallM, .FlushM, .SrcA, .SrcB, .SEW(VSEWE), .MulSelect(VMulSelectE), .MulSign(VMulSignE), .Product(ProductM));
 
-  vshifter #(P) vshift(.Amt(SrcA[$clog2(P.ELEN)-1:0]), .B(SrcB), .Y(ShiftE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]));
+  // vsll, vsrl, vsra: shift each element of vs2 (SrcB) by the matching element of SrcA (vs1, rs1 or uimm5)
+  vshifter #(P) vshift(.A(SrcB), .B(SrcA), .SEW(VSEWE), .Right(VShiftSelectE[1]), .SubArith(VShiftSelectE[0]), .Y(ShiftE));
 
   always_comb
     case (VLaneSelectE)

@@ -143,10 +143,12 @@ module vieu import cvw::*;  #(parameter cvw_t P)
 
 
 
-  // simm5 from the vs1 field, sign-extended to ELEN
+  // simm5 from the vs1 field, sign-extended to ELEN; shifts (vsll, vsrl, vsra, vssrl, vssra) take a uimm5
   // *** make SEW-dependent when lanes support SEW < ELEN
   // *** vslideup/vslidedown/vrgather.vi need zero-extended uimm5
-  assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19]}}, InstrE[19:15]}};
+  logic VUImmE;
+  assign VUImmE = (VLaneSelectE == 3'b011);
+  assign VImmE = {P.VPU_INT_LANES{{(P.ELEN-5){InstrE[19] & ~VUImmE}}, InstrE[19:15]}};
 
   vieufsm #(P, BEATBITLEN) vieufsm(.clk, .reset, .VectorFlushE, .LocalStallE(VectorStallE),
                        .ControllerValidD, .ExecutionUnitReadyD, .CaptureD, .ExtraBeatE(VLaneSelectE[2] & Funct6E[0]), .BeatE, .ExecutionUnitResultValidE, .BeatValidE);
