@@ -37,7 +37,7 @@ module valu import cvw::*; #(parameter cvw_t P)
    output logic [P.ELEN-1:0] VALUResult
    );
 
-  logic [P.ELEN-1:0] AddResult, AndResult, OrResult;
+  logic [P.ELEN-1:0] AddResult, AndResult, OrResult, XorResult;
   logic [P.ELEN-1:0] CondInvA, CondInvB;
 
   assign CondInvA = VSub ? ~A : A;
@@ -45,11 +45,13 @@ module valu import cvw::*; #(parameter cvw_t P)
   assign AddResult = CondInvB + CondInvA + {{(P.ELEN-1){1'b0}}, VSub | VRSub}; // VSub and VRSub are mutually exclusive, two's complement subtraction is valid
   assign AndResult = A & B;
   assign OrResult = A | B;
+  assign XorResult = A ^ B;
 
   always_comb
     case (VALUSelect)
       3'b000: VALUResult = AddResult;
       3'b011: VALUResult = OrResult;
+      3'b100: VALUResult = XorResult;
       3'b101: VALUResult = AndResult;
       default: VALUResult = AddResult;
     endcase

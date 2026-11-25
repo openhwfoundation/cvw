@@ -564,6 +564,7 @@ module vdecoder import cvw::*;  #(parameter cvw_t P) (
       case (Funct6D)
         6'b001001: VALUSelectD = 3'b101; // vand
         6'b001010: VALUSelectD = 3'b011; // vor
+        6'b001011: VALUSelectD = 3'b100; // vxor
         default:   VALUSelectD = 3'b000;
       endcase
   end
