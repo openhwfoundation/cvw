@@ -31,3 +31,6 @@ vsrl.vv
 vsrl.vx
 vsub.vv
 vsub.vx
+vxor.vi
+vxor.vv
+vxor.vx
