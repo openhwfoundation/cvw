@@ -45,7 +45,7 @@ if check_tool_version $BOOST_VERSION; then
         PYTHON_OPTION=""
     fi
     cd "boost_${BOOST_VERSION_UNDERSCORE}"
-    ./bootstrap.sh --prefix="$RISCV" 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
+    ./bootstrap.sh --prefix="$RISCV" --with-python=python3 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     ./b2 --without-mpi -j"${NUM_THREADS}" cxxflags="-std=c++20" "$PYTHON_OPTION" install 2>&1 | logger; [ "${PIPESTATUS[0]}" == 0 ]
     cd "$RISCV"
     if [ "$clean" = true ]; then
