@@ -94,10 +94,8 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   always_comb begin
     HasVSCSR = 1'b0;
     case (CSRAdrM_In)
-      SSTATUS, SIE, STVEC, SSCRATCH, SEPC, SCAUSE, STVAL, SIP:
+      SSTATUS, SIE, STVEC, SSCRATCH, SEPC, SCAUSE, STVAL, SIP, SATP:
         HasVSCSR = 1'b1;
-      SATP:
-        HasVSCSR = P.VIRTMEM_SUPPORTED;
       STIMECMP:
         HasVSCSR = P.SSTC_SUPPORTED;
       STIMECMPH:
@@ -111,10 +109,8 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   always_comb begin
     HSQualifiedSCSRAccessM = 1'b0;
     case (CSRAdrM_In)
-      SSTATUS, SIE, STVEC, SCOUNTEREN, SENVCFG, SSCRATCH, SEPC, SCAUSE, STVAL, SIP:
+      SSTATUS, SIE, STVEC, SCOUNTEREN, SENVCFG, SSCRATCH, SEPC, SCAUSE, STVAL, SIP, SATP:
         HSQualifiedSCSRAccessM = 1'b1;
-      SATP:
-        HSQualifiedSCSRAccessM = P.VIRTMEM_SUPPORTED;
       STIMECMP:
         HSQualifiedSCSRAccessM = (P.SSTC_SUPPORTED) & (MCOUNTEREN_REGW[1] & MENVCFG_STCE);
       STIMECMPH:
