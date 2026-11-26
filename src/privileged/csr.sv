@@ -142,6 +142,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [63:0]             HENVCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
+  logic                    LegalAtpModeM;             // CSR write value has a supported satp/vsatp/hgatp MODE
   logic                    TrapGVAM;
   logic                    TrapWritesVAToTvalM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
@@ -300,6 +301,18 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
   end
 
+  // MODE written to satp/vsatp (Sv39/48/57) or hgatp (Sv39x4/48x4/57x4: the same encodings) is supported.
+  // satp and vsatp ignore a write of an unsupported MODE; hgatp makes MODE Bare.  RV32 has only Bare and Sv32,
+  // and Sv32 is supported whenever satp or the H CSRs exist.
+  if (P.XLEN == 64) begin: atpmode64
+    assign LegalAtpModeM = (CSRWriteValM[63:60] == 4'h0) |
+                           (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
+                           (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
+                           (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57);
+  end else begin: atpmode32
+    assign LegalAtpModeM = 1'b1;
+  end
+
   ///////////////////////////////////////////
   // CSRs
   ///////////////////////////////////////////
@@ -335,7 +348,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
       .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
-      .STATUS_TVM,
+      .STATUS_TVM, .LegalAtpModeM,
       .CSRWriteValM, .PrivilegeModeW,
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
       .SCOUNTEREN_REGW,
@@ -355,7 +368,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   if (P.H_SUPPORTED) begin:csrh
     csrh #(P) csrh(.clk, .reset,
-      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM,
+      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM, .LegalAtpModeM,
       .PrivilegeModeW, .VirtModeW, .FRegWriteM, .WriteFRMM, .SetOrWriteFFLAGSM,
       .TrapGVAM, .MTIME_CLINT, .HGEIPIn,
       .STATUS_TVM, .MCOUNTEREN_TM(MCOUNTEREN_REGW[1]),

@@ -25,6 +25,8 @@ module riscvassertions import cvw::*; #(parameter cvw_t P);
     assert (P.ZICSR_SUPPORTED == 1 | (P.S_SUPPORTED == 0 & P.U_SUPPORTED == 0)) else $fatal(1, "S and U modes not supported if ZICSR not supported");
     assert (P.U_SUPPORTED | (P.S_SUPPORTED == 0)) else $error ("S mode only supported if U also is supported");
     assert (P.H_SUPPORTED == 0 | P.S_SUPPORTED) else $fatal(1, "H requires S mode support");
+    assert (P.H_SUPPORTED == 0 | (P.I_SUPPORTED & P.U_SUPPORTED & ((P.XLEN == 32) ? P.SV32_SUPPORTED : P.SV39_SUPPORTED)))
+      else $fatal(1, "H requires I, U and Sv32 (RV32) or Sv39 (RV64)");
 
     assert (P.SSTC_SUPPORTED == 0 | (P.S_SUPPORTED)) else $fatal(1, "SSTC requires S_SUPPORTED");
     assert ((P.M_SUPPORTED == 0) | (P.ZMMUL_SUPPORTED == 1)) else $fatal(1, "M requires ZMMUL");
