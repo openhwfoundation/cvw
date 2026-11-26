@@ -50,9 +50,7 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
                         MENVCFG_REGW[7:4] & (UseHENVCFG ? HENVCFG_REGW[7:4] : 4'b1111) &
                                             (UseSENVCFG ? SENVCFG_REGW[7:4] : 4'b1111);
 
-  // A cbo.* that menvcfg allows but henvcfg or senvcfg blocks at V=1 is a virtual-instruction fault.
-  // The IEU already flags it illegal from ENVCFG_CBE, and privdec converts that to a virtual-instruction
-  // fault when VirtualCMOInstrM is set, so only the menvcfg half of the condition is needed here.
+  // A cbo.* that menvcfg allows but henvcfg/senvcfg blocks at V=1: the IEU flags it illegal, privdec makes it virtual.
   if (P.H_SUPPORTED) begin: envcfg_h
     logic CBOMenvcfgEnM;
     always_comb
