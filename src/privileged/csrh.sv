@@ -55,7 +55,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0]       InstrM,           // Instruction for mtinst/htinst decode
   input  logic [P.XLEN-1:0] NextEPCM,         // EPC value for trap/return
   input  logic [5:0]        NextCauseM,       // Exception/interrupt cause
-  input  logic [P.XLEN-1:0] NextTvalM,       // Value for {v,s,}tval on trap
+  input  logic [P.XLEN-1:0] NextTvalM,        // Value for vstval on trap or CSR write
   input  logic [P.XLEN-1:0] NextHtvalM,       // Value for htval on trap
   input  logic [31:0]       InstrOrigM,       // Original compressed or uncompressed instruction for mtinst/htinst
   input  logic [15:0]       HIE_REGW,         // hie alias view of the H bits stored in mie
@@ -178,7 +178,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] NextMtval2M;
 
   // Next Value Muxes
-  logic [P.XLEN-1:0] NextVSCAUSEM;
   logic [11:0]       NextHVIPM;
   logic [15:0]       HIP_PENDING;
   logic [63:0]       TimeVirt;
@@ -469,11 +468,10 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) VSTVECreg(clk, reset, WriteVSTVECM, VSTVECWriteValM, VSTVEC_REGW);
   flopenr #(P.XLEN) VSSCRATCHreg(clk, reset, WriteVSSCRATCHM, CSRWriteValM, VSSCRATCH_REGW);
   flopenr #(P.XLEN) VSEPCreg(clk, reset, WriteVSEPCM, NextEPCM, VSEPC_REGW);
-  // VSCAUSE is WLRL; allow CSR writes to set full VSXLEN value, but let traps override.
-  assign NextVSCAUSEM = TrapToVSM ? {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}
-                                : CSRWriteValM;
-  flopenr #(P.XLEN) VSCAUSEreg(clk, reset, WriteVSCAUSEM, NextVSCAUSEM, VSCAUSE_REGW);
-  flopenr #(P.XLEN) VSTVALreg(clk, reset, WriteVSTVALM, TrapToVSM ? NextTvalM : CSRWriteValM, VSTVAL_REGW);
+  // vscause/vstval take the same trap-or-CSR-write values as scause/stval (a trap and a CSR write never coincide).
+  // vscause is WLRL and holds the same set of values as scause (H spec norm:vscause_wlrl).
+  flopenr #(P.XLEN) VSCAUSEreg(clk, reset, WriteVSCAUSEM, {NextCauseM[5], {(P.XLEN-6){1'b0}}, NextCauseM[4:0]}, VSCAUSE_REGW);
+  flopenr #(P.XLEN) VSTVALreg(clk, reset, WriteVSTVALM, NextTvalM, VSTVAL_REGW);
   flopenr #(P.XLEN) VSATPreg(clk, reset, WriteVSATPM, CSRWriteValM, VSATP_REGW);
 
   if (P.SSTC_SUPPORTED) begin : vstc
