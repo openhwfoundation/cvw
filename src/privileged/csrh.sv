@@ -467,8 +467,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   end else assign VSTIMECMP_REGW = '0;
 
   // Address Translation
-  // hgatp: an unsupported MODE is legalized to Bare (WARL), not ignored as for satp/vsatp.  Sv39x4/48x4/57x4
-  // use the satp MODE encodings.  The two bits above VMID and PPN[1:0] are read-only zero.
+  // hgatp: an unsupported MODE becomes Bare (WARL); the two bits above VMID and PPN[1:0] are read-only zero.
   logic [P.XLEN-1:0] LegalizedHgatpWriteValM;
   if (P.XLEN == 64) begin : hgatp64
     assign LegalizedHgatpWriteValM = {CSRWriteValM[63:60] & {4{LegalAtpModeM}}, 2'b00, CSRWriteValM[57:2], 2'b00};

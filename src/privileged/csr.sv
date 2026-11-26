@@ -302,9 +302,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
   end
 
-  // MODE written to satp/vsatp (Sv39/48/57) or hgatp (Sv39x4/48x4/57x4: the same encodings) is supported.
-  // satp and vsatp ignore a write of an unsupported MODE; hgatp makes MODE Bare.  RV32 has only Bare and Sv32,
-  // and Sv32 is supported whenever satp or the H CSRs exist.
+  // Supported satp/vsatp/hgatp MODE (hgatp's x4 modes share the encodings; RV32 Bare and Sv32 are always supported).
+  // An unsupported MODE write leaves satp/vsatp unchanged and makes hgatp Bare.
   if (P.XLEN == 64) begin: atpmode64
     assign LegalAtpModeM = (CSRWriteValM[63:60] == 4'h0) |
                            (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
