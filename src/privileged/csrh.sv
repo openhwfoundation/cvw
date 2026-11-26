@@ -221,33 +221,33 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign NextMtval2M = TrapToM   ? '0 : CSRWriteValM;
 
   // Write enables for each CSR (from CSR instruction)
-  assign WriteMIPM        = CSRMWriteM & (CSRAdrM == MIP);
-  assign WriteMTINSTM     = CSRMWriteM & (CSRAdrM == MTINST);
-  assign WriteMTVAL2M     = CSRMWriteM & (CSRAdrM == MTVAL2);
-  assign WriteHSTATUSM    = CSRSWriteM & (CSRAdrM == HSTATUS);
-  assign WriteVSSTATUSM   = CSRSWriteM & (CSRAdrM == VSSTATUS);
-  assign WriteHEDELEGM    = CSRSWriteM & (CSRAdrM == HEDELEG);
-  assign WriteHIDELEGM    = CSRSWriteM & (CSRAdrM == HIDELEG);
-  assign WriteHIEM        = CSRSWriteM & (CSRAdrM == HIE);
-  assign WriteVSIEM       = CSRSWriteM & (CSRAdrM == VSIE);
-  assign WriteHTIMEDELTAM = CSRSWriteM & (CSRAdrM == HTIMEDELTA);
+  assign WriteMIPM         = CSRMWriteM & (CSRAdrM == MIP);
+  assign WriteMTINSTM      = CSRMWriteM & (CSRAdrM == MTINST);
+  assign WriteMTVAL2M      = CSRMWriteM & (CSRAdrM == MTVAL2);
+  assign WriteHSTATUSM     = CSRSWriteM & (CSRAdrM == HSTATUS);
+  assign WriteVSSTATUSM    = CSRSWriteM & (CSRAdrM == VSSTATUS);
+  assign WriteHEDELEGM     = CSRSWriteM & (CSRAdrM == HEDELEG);
+  assign WriteHIDELEGM     = CSRSWriteM & (CSRAdrM == HIDELEG);
+  assign WriteHIEM         = CSRSWriteM & (CSRAdrM == HIE);
+  assign WriteVSIEM        = CSRSWriteM & (CSRAdrM == VSIE);
+  assign WriteHTIMEDELTAM  = CSRSWriteM & (CSRAdrM == HTIMEDELTA);
   assign WriteHTIMEDELTAHM = (P.XLEN == 32) & (CSRSWriteM & (CSRAdrM == HTIMEDELTAH));
-  assign WriteHCOUNTERENM = CSRSWriteM & (CSRAdrM == HCOUNTEREN);
-  assign WriteHGEIEM      = CSRSWriteM & (CSRAdrM == HGEIE);
-  assign WriteHENVCFGM    = CSRSWriteM & (CSRAdrM == HENVCFG);
-  assign WriteHENVCFGHM   = (P.XLEN == 32) & (CSRSWriteM & (CSRAdrM == HENVCFGH));
-  assign WriteHTVALM      = CSRSWriteM & (CSRAdrM == HTVAL);
-  assign WriteVSTVALM     = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSTVAL));
-  assign WriteVSIPM       = CSRSWriteM & (CSRAdrM == VSIP) & HIDELEG_REGW[2];
-  assign WriteHVIPM       = CSRSWriteM & (CSRAdrM == HVIP);
-  assign WriteHIPM        = CSRSWriteM & (CSRAdrM == HIP);
-  assign WriteHTINSTM     = CSRSWriteM & (CSRAdrM == HTINST);
-  assign WriteHGATPM      = CSRSWriteM & (CSRAdrM == HGATP) &
-                            ((PrivilegeModeW == P.M_MODE) | ~STATUS_TVM);
-  assign WriteVSTVECM     = CSRSWriteM & (CSRAdrM == VSTVEC);
-  assign WriteVSSCRATCHM  = CSRSWriteM & (CSRAdrM == VSSCRATCH);
-  assign WriteVSEPCM      = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSEPC));
-  assign WriteVSCAUSEM    = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSCAUSE));
+  assign WriteHCOUNTERENM  = CSRSWriteM & (CSRAdrM == HCOUNTEREN);
+  assign WriteHGEIEM       = CSRSWriteM & (CSRAdrM == HGEIE);
+  assign WriteHENVCFGM     = CSRSWriteM & (CSRAdrM == HENVCFG);
+  assign WriteHENVCFGHM    = (P.XLEN == 32) & (CSRSWriteM & (CSRAdrM == HENVCFGH));
+  assign WriteHTVALM       = CSRSWriteM & (CSRAdrM == HTVAL);
+  assign WriteVSTVALM      = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSTVAL));
+  assign WriteVSIPM        = CSRSWriteM & (CSRAdrM == VSIP) & HIDELEG_REGW[2];
+  assign WriteHVIPM        = CSRSWriteM & (CSRAdrM == HVIP);
+  assign WriteHIPM         = CSRSWriteM & (CSRAdrM == HIP);
+  assign WriteHTINSTM      = CSRSWriteM & (CSRAdrM == HTINST);
+  assign WriteHGATPM       = CSRSWriteM & (CSRAdrM == HGATP) &
+                             ((PrivilegeModeW == P.M_MODE) | ~STATUS_TVM);
+  assign WriteVSTVECM      = CSRSWriteM & (CSRAdrM == VSTVEC);
+  assign WriteVSSCRATCHM   = CSRSWriteM & (CSRAdrM == VSSCRATCH);
+  assign WriteVSEPCM       = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSEPC));
+  assign WriteVSCAUSEM     = TrapToVSM | (CSRSWriteM & (CSRAdrM == VSCAUSE));
 
   // For unsupported MODE writes, choose satp-like behavior (ignore write).
   // This is spec-compliant for V=0 and required for satp writes when V=1.
