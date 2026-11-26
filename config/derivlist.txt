@@ -287,6 +287,12 @@ IDIV_ON_FPU         1
 deriv div_4_4i_rv64gc div_4_4_rv64gc
 IDIV_ON_FPU         1
 
+# 3 copies: 6 bits per cycle, not a power of 2
+deriv div_4_3i_rv64gc   rv64gc
+RADIX               32'd4
+DIVCOPIES           32'd3
+IDIV_ON_FPU         1
+
 # RAM latency and Burst mode for bus stress testing
 
 deriv ram_0_0_rv64gc rv64gc
