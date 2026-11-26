@@ -258,10 +258,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     logic WriteAccessM;
     logic DataUpdateDAM;                                  // DTLB hit needs to update dirty or access bits
 
-    // norm:hlsv_trans requires two-stage translation for HLV/HLVX/HSV. This
-    // first path only supports VSATP/HGATP Bare/Bare; the controller decodes non-Bare
-    // cases as illegal, so only a Bare/Bare HLV/HSV accesses memory and the LSU never
-    // silently applies HS-stage translation here.
+    // norm:hlsv_trans: until two-stage translation lands, the controller rejects all but Bare/Bare HLV/HSV.
     if (P.H_SUPPORTED) begin: hlsv_disabletranslation
       assign DisableTranslation = SelHPTW | FlushDCacheM | HLVHSVInstrM;
     end else begin: nohlsv_disabletranslation
