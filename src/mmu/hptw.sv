@@ -68,7 +68,8 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              LSULoadAccessFaultM, LSUStoreAmoAccessFaultM,
   input  logic              LSULoadPageFaultM, LSUStoreAmoPageFaultM,
   output logic              LoadAccessFaultM, StoreAmoAccessFaultM, HPTWInstrAccessFaultF,
-  output logic              LoadPageFaultM, StoreAmoPageFaultM, HPTWInstrPageFaultF
+  output logic              LoadPageFaultM, StoreAmoPageFaultM, HPTWInstrPageFaultF,
+  output logic              HPTWDataAccessFaultM  // the load/store access fault is on a page-table access
 );
 
   typedef enum logic [3:0] {L0_ADR, L0_RD,
@@ -144,6 +145,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   assign LoadPageFaultM        = TakeHPTWFault ? HPTWLoadPageFaultDelay : LSULoadPageFaultM;
   assign StoreAmoPageFaultM    = TakeHPTWFault ? HPTWStoreAmoPageFaultDelay : LSUStoreAmoPageFaultM;
   assign HPTWInstrPageFaultF   = TakeHPTWFault ? HPTWInstrPageFaultDelay : 1'b0;
+  assign HPTWDataAccessFaultM  = TakeHPTWFault & (HPTWLoadAccessFaultDelay | HPTWStoreAmoAccessFaultDelay);
 
   // Extract bits from CSRs and inputs
   assign SvMode = SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS];

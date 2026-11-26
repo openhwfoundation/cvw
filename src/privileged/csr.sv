@@ -25,6 +25,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0]        PCM,                       // program counter, next PC going to trap/return logic
   input  logic [P.XLEN-1:0]        PCSpillM,                  // program counter, next PC going to trap/return logic aligned after an instruction spill
   input  logic [P.XLEN-1:0]        SrcAM, IEUAdrxTvalM,       // SrcA and memory address from IEU
+  input  logic [4:0]               TinstAddrOffsetM,          // faulting address minus the access address, for mtinst/htinst
+  input  logic                     HPTWDataAccessFaultM,      // load/store access fault is on a page-table access
   input  logic                     CSRReadM, CSRWriteM,       // read or write CSR
   input  logic                     TrapM,                     // trap is occurring
   input  logic                     TrapToM, TrapToHSM, TrapToVSM,// resolved trap target
@@ -362,7 +364,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .MENVCFG_STCE(MENVCFG_REGW[63]), .MENVCFG_PBMTE(MENVCFG_REGW[62]), .MENVCFG_ADUE(MENVCFG_REGW[61]),
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
-      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM,
+      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM, .TinstAddrOffsetM, .HPTWAccessFaultM(HPTWDataAccessFaultM),
       .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,

@@ -57,6 +57,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] NextTvalM,       // Value for {v,s,}tval on trap
   input  logic [P.XLEN-1:0] NextHtvalM,       // Value for htval on trap
   input  logic [31:0]       InstrOrigM,       // Original compressed or uncompressed instruction for mtinst/htinst
+  input  logic [4:0]        TinstAddrOffsetM, // Faulting address minus the access's address (nonzero only for the second part of a misaligned access)
+  input  logic              HPTWAccessFaultM, // The access fault is on a page-table access, not the instruction's own access
   input  logic [15:0]       HIE_REGW,         // hie alias view of the H bits stored in mie
 
   output logic [P.XLEN-1:0] CSRHReadValM,
@@ -173,8 +175,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic WriteVSTIMECMPM, WriteVSTIMECMPHM;
   logic AllowVSTimecmpAccessM;
   logic SretFromHSM, SretFromVSM;
-  logic [P.XLEN-1:0] NextMtinstM;
-  logic [P.XLEN-1:0] NextHtinstM;
+  logic [31:0]       NextMtinstM, MTINST_INT;
+  logic [31:0]       NextHtinstM, HTINST_INT;
   logic [P.XLEN-1:0] NextMtval2M;
 
   // Next Value Muxes
@@ -239,10 +241,33 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign SretFromHSM = sretM & (PrivilegeModeW == P.S_MODE) & ~VirtModeW;
   assign SretFromVSM = sretM & (PrivilegeModeW == P.S_MODE) &  VirtModeW;
 
-  // mtinst/htinst/mtval2 are derived from the trapped instruction (InstrM); not yet implemented.
-  // We write 0 on traps for now, which is spec compliant (indicating transformation not supported).
-  assign NextMtinstM = TrapToM   ? '0 : CSRWriteValM;
-  assign NextHtinstM = TrapToHSM ? '0 : CSRWriteValM;
+  // mtinst/htinst: on a load, store, AMO, HLV/HLVX, HSV or CBO fault, the transformed instruction: rs1 replaced by the
+  // address offset (0 for a CBO), the immediate of a load or store zeroed, and bit 1 cleared for a compressed
+  // instruction.  Zero for every other trap, including access faults on page-table accesses, which are implicit.
+  // mtinst/htinst only need to hold the 32-bit values a trap writes.
+  logic [31:0] TransformedInstrM, TinstM;
+  logic        TinstLoadM, TinstStoreM, TinstCBOM, TinstOtherM, TinstCauseM;
+  assign TinstLoadM  = (InstrM[6:3] == 4'b0000);                         // LOAD, LOAD-FP
+  assign TinstStoreM = (InstrM[6:3] == 4'b0100);                         // STORE, STORE-FP
+  assign TinstCBOM   = (InstrM[6:0] == 7'b0001111 & InstrM[14:12] == 3'b010); // CBO.CLEAN/FLUSH/INVAL/ZERO
+  assign TinstOtherM = (InstrM[6:2] == 5'b01011) |                     // LR, SC, AMO
+                       (InstrM[6:2] == 5'b11100 & InstrM[14:12] == 3'b100 & InstrM[31:28] == 4'b0110); // HLV, HLVX, HSV
+  always_comb
+    case (NextCauseM)
+      6'd4, 6'd5, 6'd6, 6'd7, 6'd13, 6'd15, 6'd21, 6'd23: TinstCauseM = 1'b1; // load/store/AMO faults, not interrupts
+      default:                                             TinstCauseM = 1'b0;
+    endcase
+  always_comb begin
+    TransformedInstrM = InstrM;
+    TransformedInstrM[19:15] = TinstCBOM ? 5'b0 : TinstAddrOffsetM;
+    if (TinstLoadM)  TransformedInstrM[31:20] = '0;
+    if (TinstStoreM) {TransformedInstrM[31:25], TransformedInstrM[11:7]} = '0;
+    TransformedInstrM[1] = (InstrOrigM[1:0] == 2'b11);
+  end
+  assign TinstM = (TinstCauseM & (TinstLoadM | TinstStoreM | TinstCBOM | TinstOtherM) & ~HPTWAccessFaultM) ? TransformedInstrM : '0;
+
+  assign NextMtinstM = TrapToM   ? TinstM : CSRWriteValM[31:0];
+  assign NextHtinstM = TrapToHSM ? TinstM : CSRWriteValM[31:0];
   assign NextMtval2M = TrapToM   ? '0 : CSRWriteValM;
 
   // Write enables for each CSR (from CSR instruction)
@@ -301,8 +326,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
 
 
   // MTINST
-  // On traps to M, mtinst is written with trap information; writing zero is always compliant.
-  flopenr #(P.XLEN) MTINSTreg(clk, reset, (WriteMTINSTM | TrapToM), NextMtinstM, MTINST_REGW);
+  flopenr #(32) MTINSTreg(clk, reset, (WriteMTINSTM | TrapToM), NextMtinstM, MTINST_INT);
+  assign MTINST_REGW = {{(P.XLEN-32){1'b0}}, MTINST_INT};
 
   // MTVAL2
   // On traps to M, mtval2 is written with trap information; writing zero is always compliant.
@@ -490,8 +515,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), NextHTVALM, HTVAL_REGW);
 
   // HTINST: Written by CSR instructions and by hardware on traps
-  // If TrapToHSM, write 0 (placeholder). Else write CSR val.
-  flopenr #(P.XLEN) HTINSTreg(clk, reset, (WriteHTINSTM | TrapToHSM), NextHtinstM, HTINST_REGW);
+  flopenr #(32) HTINSTreg(clk, reset, (WriteHTINSTM | TrapToHSM), NextHtinstM, HTINST_INT);
+  assign HTINST_REGW = {{(P.XLEN-32){1'b0}}, HTINST_INT};
 
   // VS CSRs: Guest-visible S-mode state
   // Match stvec/mtvec legalization: vectored mode requires the tighter BASE alignment.

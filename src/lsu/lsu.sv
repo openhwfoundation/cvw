@@ -48,6 +48,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic                     sfencevmaAllM,                        // sfence.vma with rs2=x0: flush all TLB entries including global
   output logic                     DCacheStallM,                         // D$ busy with multicycle operation
   output logic [P.XLEN-1:0]        IEUAdrxTvalM,                         // IEUAdrM, but could be spilled onto the next cacheline or virtual page.
+  output logic [4:0]               TinstAddrOffsetM,                     // IEUAdrxTvalM - IEUAdrM: address offset for mtinst/htinst
+  output logic                     HPTWDataAccessFaultM,                 // Load/store access fault is on a page-table access
   // fpu
   input  logic [P.FLEN-1:0]        FWriteDataM,                          // Write data from FPU
   input  logic                     FpLoadStoreM,                         // Selects FPU as store for write data
@@ -211,7 +213,8 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .IHAdrM, .CMOpM, .LSUCMOpM, .FpLoadStoreM, .LSUFpLoadStoreM, .HPTWStall, .SelHPTW,
       .HPTWFlushW, .LSULoadAccessFaultM, .LSUStoreAmoAccessFaultM,
       .LoadAccessFaultM, .StoreAmoAccessFaultM, .HPTWInstrAccessFaultF,
-      .LoadPageFaultM, .StoreAmoPageFaultM, .LSULoadPageFaultM, .LSUStoreAmoPageFaultM, .HPTWInstrPageFaultF);
+      .LoadPageFaultM, .StoreAmoPageFaultM, .LSULoadPageFaultM, .LSUStoreAmoPageFaultM, .HPTWInstrPageFaultF,
+      .HPTWDataAccessFaultM);
 
     // Memory-access state for walker arbitration (issues #1538, #1766).
     // An M-stage access the D$/bus has started (fetch, writeback, or bus data phase) or has performed and is
@@ -241,8 +244,10 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign {HPTWStall, SelHPTW, PTE, PageType, DTLBWriteM, ITLBWriteF, HPTWFlushW} = '0;
     assign {MemAccessInFlightM, MemAccessDoneM} = '0;
     assign ReadDataHoldM = '0;
-    assign {HPTWInstrAccessFaultF, HPTWInstrPageFaultF} = '0;
+    assign {HPTWInstrAccessFaultF, HPTWInstrPageFaultF, HPTWDataAccessFaultM} = '0;
   end
+
+  assign TinstAddrOffsetM = IEUAdrxTvalM[4:0] - IEUAdrM[4:0];
 
   // CommittedM indicates the cache, bus, or HPTW are busy with a multiple cycle operation.
   // CommittedM is 1 after the first cycle and until the last cycle.  Partially completed memory

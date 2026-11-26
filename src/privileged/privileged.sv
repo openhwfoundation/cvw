@@ -37,6 +37,8 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0]       InstrM,                                         // Instruction
   input  logic [31:0]       InstrOrigM,                                     // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
   input  logic [P.XLEN-1:0] IEUAdrxTvalM,                                   // address from IEU
+  input  logic [4:0]        TinstAddrOffsetM,                               // faulting address minus the access address, for mtinst/htinst
+  input  logic              HPTWDataAccessFaultM,                           // load/store access fault is on a page-table access
   input  logic [P.XLEN-1:0] PCM,                                            // program counter
   input  logic [P.XLEN-1:0] PCSpillM,                                       // program counter
   // control signals
@@ -159,7 +161,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
 
   // Control and Status Registers
   csr #(P) csr(.clk, .reset, .FlushM, .FlushW, .StallE, .StallM, .StallW,
-    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM,
+    .InstrM, .InstrOrigM, .PCM, .PCSpillM, .SrcAM, .IEUAdrxTvalM, .TinstAddrOffsetM, .HPTWDataAccessFaultM,
     .CSRReadM, .CSRWriteM, .TrapM, .TrapToM, .TrapToHSM, .TrapToVSM, .mretM, .sretM, .InterruptM,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
     .MTIME_CLINT, .HGEIPIn, .InstrValidM, .FRegWriteM, .LoadStallD, .StoreStallD,
