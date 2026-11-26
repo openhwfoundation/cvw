@@ -364,7 +364,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .MENVCFG_STCE(MENVCFG_REGW[63]), .MENVCFG_PBMTE(MENVCFG_REGW[62]), .MENVCFG_ADUE(MENVCFG_REGW[61]),
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
-      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM, .TinstAddrOffsetM, .HPTWAccessFaultM(HPTWDataAccessFaultM),
+      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM,
+      .TinstAddrOffsetM, .HPTWAccessFaultM(HPTWDataAccessFaultM),
       .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
