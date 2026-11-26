@@ -145,7 +145,7 @@ module rvvitbwrapper import cvw::*; #(parameter cvw_t P,
     assign CSRArray[51] = {{(P.XLEN-16){1'b0}}, dut.core.priv.priv.csr.csrh.csrh.HIP_PENDING}; // 12'h644
     assign CSRArray[52] = dut.core.priv.priv.csr.csrh.csrh.HVIP_REGW; // 12'h645
     assign CSRArray[53] = dut.core.priv.priv.csr.csrh.csrh.HTINST_REGW; // 12'h64A
-    assign CSRArray[54] = dut.core.priv.priv.csr.csrh.csrh.HGATPReadVal; // 12'h680
+    assign CSRArray[54] = dut.core.priv.priv.csr.csrh.csrh.HGATP_REGW; // 12'h680
     assign CSRArray[55] = dut.core.priv.priv.csr.csrh.csrh.HGEIP_REGW; // 12'hE12
     assign CSRArray[56] = dut.core.priv.priv.csr.csrh.csrh.VSTVEC_REGW; // 12'h205
     assign CSRArray[57] = dut.core.priv.priv.csr.csrh.csrh.VSSCRATCH_REGW; // 12'h240

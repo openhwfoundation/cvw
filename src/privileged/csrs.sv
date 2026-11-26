@@ -23,6 +23,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] NextEPCM, NextXtvalM, SSTATUS_REGW,
   input  logic [5:0]        NextCauseM,
   input  logic              STATUS_TVM,
+  input  logic              LegalAtpModeM,    // satp MODE in CSRWriteValM is supported
   input  logic [P.XLEN-1:0] CSRWriteValM,
   input  logic [1:0]        PrivilegeModeW,
   output logic [P.XLEN-1:0] CSRSReadValM, STVEC_REGW,
@@ -77,15 +78,7 @@ module csrs import cvw::*; #(parameter cvw_t P) (
   assign WriteSEPCM       = STrapM | (CSRSWriteM & (CSRAdrM == SEPC));
   assign WriteSCAUSEM     = STrapM | (CSRSWriteM & (CSRAdrM == SCAUSE));
   assign WriteSTVALM      = STrapM | (CSRSWriteM & (CSRAdrM == STVAL));
-  if (P.XLEN == 64) begin
-    logic LegalSatpModeM;
-    assign LegalSatpModeM = CSRWriteValM[63:60] == 0 |
-                           (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
-                           (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
-                           (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57); // Only change Satp if the mode is supported
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalSatpModeM;
-  end else  // RV32
-    assign WriteSATPM     = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM);
+  assign WriteSATPM       = CSRSWriteM & (CSRAdrM == SATP) & (PrivilegeModeW == P.M_MODE | ~STATUS_TVM) & LegalAtpModeM; // Only change satp if the mode is supported
   assign WriteSCOUNTERENM = CSRSWriteM & (CSRAdrM == SCOUNTEREN);
   assign WriteSENVCFGM    = CSRSWriteM & (CSRAdrM == SENVCFG);
   assign WriteSTIMECMPM   = CSRSWriteM & (CSRAdrM == STIMECMP) & STCE;
