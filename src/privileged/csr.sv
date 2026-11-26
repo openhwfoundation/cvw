@@ -147,6 +147,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [31:0]             HCOUNTEREN_REGW;
   logic [15:0]             HIP_MIP_REGW;
   logic [15:0]             HIE_REGW;
+  logic                    LegalAtpModeM;             // CSR write value has a supported satp/vsatp/hgatp MODE
   logic [63:0]             TimeVirt, TimeM;   // mtime + htimedelta from csrh; time CSR value for the current V
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
@@ -263,12 +264,25 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign NextXtvalM = TrapM ? NextFaultXtvalM : CSRWriteValM;
   assign UngatedCSRMWriteM = CSRWriteM & (PrivilegeModeW == P.M_MODE);
   assign CSRMWriteM = UngatedCSRMWriteM & InstrValidNotFlushedM;
-  assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & InstrValidNotFlushedM;
+  // S-mode writes; at V=1 the hypervisor-level (H and VS) CSRs can't be written, only the VS CSRs substituted for S CSRs
+  assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & ~(VirtModeW & CSRAdrM_In[9:8] == 2'b10) & InstrValidNotFlushedM;
   assign CSRUWriteM = CSRWriteM & InstrValidNotFlushedM;
   // Record the trap only when it is taken, like mstatus and the privilege mode
   // TrapToM/TrapToHSM already include TrapM
   assign MTrapM = TrapToM & ~StallW;
   assign STrapM = TrapToHSM & ~StallW & P.S_SUPPORTED;
+
+  // MODE written to satp/vsatp (Sv39/48/57) or hgatp (Sv39x4/48x4/57x4: the same encodings) is supported.
+  // satp and vsatp ignore a write of an unsupported MODE; hgatp makes MODE Bare.  RV32 has only Bare and Sv32,
+  // and Sv32 is supported whenever satp or the H CSRs exist.
+  if (P.XLEN == 64) begin: atpmode64
+    assign LegalAtpModeM = (CSRWriteValM[63:60] == 4'h0) |
+                           (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
+                           (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
+                           (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57);
+  end else begin: atpmode32
+    assign LegalAtpModeM = 1'b1;
+  end
 
   ///////////////////////////////////////////
   // CSRs
@@ -305,7 +319,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
       .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
-      .STATUS_TVM,
+      .STATUS_TVM, .LegalAtpModeM,
       .CSRWriteValM, .PrivilegeModeW,
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
       .SCOUNTEREN_REGW,
@@ -325,7 +339,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   if (P.H_SUPPORTED) begin:csrh
     csrh #(P) csrh(.clk, .reset,
-      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM,
+      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM, .LegalAtpModeM,
       .PrivilegeModeW, .VirtModeW, .FRegWriteM, .WriteFRMM, .SetOrWriteFFLAGSM,
       .TrapGVAM, .MTIME_CLINT, .HGEIPIn,
       .STATUS_TVM, .MCOUNTEREN_TM(MCOUNTEREN_REGW[1]),
@@ -446,9 +460,11 @@ module csr import cvw::*; #(parameter cvw_t P) (
   flopenrc #(P.XLEN) CSRValWReg(clk, reset, FlushW, ~StallW, CSRReadValM, CSRReadValW);
 
   // merge illegal accesses: illegal if none of the CSR addresses is legal or privilege is insufficient
-  // CSRAdrM[9:8] is the lowest privilege mode allowed to access the CSR (00: U, 01: S, 11: M)
-  assign InsufficientCSRPrivilegeM = (CSRAdrM[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
-                                     (CSRAdrM[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
+  // CSR[9:8] is the lowest privilege mode allowed to access the CSR (00: U, 01: S, 10: HS, 11: M).  It is checked on the
+  // address before V=1 substitutes VS CSRs for S CSRs, so VS-mode reaches vsstatus as sstatus but not at its own address.
+  assign InsufficientCSRPrivilegeM = (CSRAdrM_In[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
+                                     (CSRAdrM_In[9:8] == 2'b10 & (PrivilegeModeW == P.U_MODE | VirtModeW)) |
+                                     (CSRAdrM_In[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
   assign IllegalCSRAccessM = ((IllegalCSRCAccessM & IllegalCSRMAccessM &
     IllegalCSRSAccessM & IllegalCSRUAccessM & IllegalCSRHAccessM |
     InsufficientCSRPrivilegeM) & CSRReadM) | IllegalCSRMWriteReadonlyM;
