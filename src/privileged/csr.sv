@@ -122,7 +122,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic                    UngatedCSRMWriteM;
   logic                    WriteFRMM, SetOrWriteFFLAGSM;
   logic [P.XLEN-1:0]       UnalignedNextEPCM, NextEPCM, NextXtvalM;
-  logic [P.XLEN-1:0]       NextHtvalM; // Value for htval on trap
+  logic [P.XLEN-1:0]       NextFaultHtvalM; // Value for htval on trap
   logic [5:0]              NextCauseM;
   logic [11:0]             CSRAdrM_In, CSRAdrM;
   logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM;
@@ -363,7 +363,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
       .sretM(sretM & ~StallW), .InstrM, .InstrOrigM,
-      .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
+      .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextFaultHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
       .HSTATUS_SPVP, .HSTATUS_HU,
@@ -410,7 +410,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   end
 
   // Until two-stage translation is integrated, htval trap writes stay zero.
-  assign NextHtvalM = '0;
+  assign NextFaultHtvalM = '0;
 
   if (P.H_SUPPORTED & P.VIRTMEM_SUPPORTED) begin: hlsv_bare
     if (P.XLEN == 64) begin: hlsv_bare64
