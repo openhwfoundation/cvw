@@ -62,6 +62,10 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   logic                       MTimerInt, MSwInt; // timer and software interrupts from CLINT
   logic [63:0]                MTIME_CLINT;       // from CLINT to CSRs
   logic                       MExtInt, SExtInt;  // from PLIC
+  logic                       ESValid;           // Entropy Source (ES) has a word
+  logic [15:0]                ESBits;            // the word from ES
+  logic                       ESBist, ESDead;    // ES self-testing / broken
+  logic                       ESReady;           // seed slot can accept a word from the ES
 
   // synchronize reset to SOC clock domain
   synchronizer resetsync(.clk, .d(reset_ext), .q(reset));
@@ -70,8 +74,10 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P) (
   wallypipelinedcore #(P) core(.clk, .reset,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt, .MTIME_CLINT,
     .HRDATA, .HREADY, .HRESP, .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB,
-    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall
+    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall,
+    .ESValid, .ESBist, .ESBits, .ESDead, .ESReady
   );
+  assign {ESValid, ESBist, ESBits, ESDead} = '0;  // no stub ES yet, set to 0 to pass lint
 
   // instantiate uncore if a bus interface exists
   if (P.BUS_SUPPORTED) begin : uncoregen

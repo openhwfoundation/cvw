@@ -92,6 +92,7 @@ typedef struct packed {
   logic         ZFBFMIN_SUPPORTED;
   logic         SSTC_SUPPORTED;
   logic         MSECCFG_SUPPORTED;
+  logic         ZKR_SUPPORTED;
   logic         SMSTATEEN_SUPPORTED;
   logic         SSSTATEEN_SUPPORTED;
   logic         SMP1P13_SUPPORTED;

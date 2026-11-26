@@ -75,6 +75,10 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   input  logic [63:0]       MTIME_CLINT,                                    // timer value from CLINT
   input  logic [4:0]        SetFflagsM,                                     // set FCSR flags from FPU
   input  logic              SelHPTW,                                        // HPTW in use.  Causes system to use S-mode endianness for accesses
+  // inputs from entropy source
+  input  logic              ESValid,                                        // source has a word
+  input  logic [15:0]       ESBits,                                         // the word
+  input  logic              ESBist, ESDead,                                 // source self-testing / broken
   // CSR outputs
   output logic [P.XLEN-1:0] CSRReadValW,                                    // Value read from CSR
   output logic [1:0]        PrivilegeModeW,                                 // current privilege mode
@@ -87,6 +91,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic [3:0]        ENVCFG_CBE,                                     // Cache block operation enables
   output logic              ENVCFG_PBMTE,                                   // Page-based memory type enable
   output logic              ENVCFG_ADUE,                                    // HPTW A/D Update enable
+  output logic              ESReady,                                        // seed slot can accept a word from the entropy source
   // PC logic output from privileged unit to IFU
   output logic [P.XLEN-1:0] EPCM,                                           // Exception Program counter to IFU PC logic
   output logic [P.XLEN-1:0] TrapVectorM,                                    // Trap vector, to IFU PC logic
@@ -145,13 +150,15 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .sfencevmaM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
     .NextPrivilegeModeM, .PrivilegeModeW, .CauseM, .SelHPTW,
+    .ESValid, .ESBits, .ESBist, .ESDead,
     .STATUS_MPP, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS,
     .MEDELEG_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
-    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM);
+    .CSRReadValW, .IllegalCSRAccessM, .BigEndianM,
+    .ESReady);
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,

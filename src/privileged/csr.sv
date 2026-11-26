@@ -58,6 +58,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InvalidateICacheM,
   input  logic                     DivBusyE,                  // integer divide busy
   input  logic                     FDivBusyE,                 // floating point divide busy
+  // input from entropy source
+  input  logic                     ESValid,                   // source has a word
+  input  logic [15:0]              ESBits,                    // the word
+  input  logic                     ESBist, ESDead,            // source self-testing / broken
   // outputs from CSRs
   output logic [1:0]               STATUS_MPP,
   output logic                     STATUS_SPP, STATUS_TSR, STATUS_TVM,
@@ -79,13 +83,15 @@ module csr import cvw::*; #(parameter cvw_t P) (
   //
   output logic [P.XLEN-1:0]        CSRReadValW,               // value read from CSR
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
-  output logic                     BigEndianM                 // memory access is big-endian based on privilege mode and STATUS register endian fields
+  output logic                     BigEndianM,                // memory access is big-endian based on privilege mode and STATUS register endian fields
+  // Entropy source
+  output logic                     ESReady                    //seed slot can accept a word from the entropy source
 );
 
   localparam MIP = 12'h344;
   localparam SIP = 12'h144;
 
-  logic [P.XLEN-1:0]       CSRMReadValM, CSRSReadValM, CSRUReadValM, CSRCReadValM;
+  logic [P.XLEN-1:0]       CSRMReadValM, CSRSReadValM, CSRUReadValM, CSRCReadValM, CSRZReadValM;
   logic [P.XLEN-1:0]       CSRReadValM;
   logic [P.XLEN-1:0]       CSRSrcM;
   logic [P.XLEN-1:0]       CSRRWM, CSRRSM, CSRRCM;
@@ -101,7 +107,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       UnalignedNextEPCM, NextEPCM, NextXtvalM;
   logic [5:0]              NextCauseM;
   logic [11:0]             CSRAdrM;
-  logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM;
+  logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM, IllegalCSRZAccessM;
   logic                    InsufficientCSRPrivilegeM;
   logic [63:0]             MSTATEEN0_REGW;
   logic [3:1]              MSTATEENSE_REGW;
@@ -116,7 +122,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       TVecAlignedM;
   logic                    InstrValidNotFlushedM;
   logic                    STimerInt;
-  logic [63:0]             MENVCFG_REGW;
+  logic [63:0]             MENVCFG_REGW, MSECCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic                    ENVCFG_STCE; // supervisor timer counter enable
   logic                    ENVCFG_FIOM; // fence implies io (presently not used)
@@ -229,7 +235,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .MEDELEG_REGW, .MIDELEG_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .MIP_REGW, .MIE_REGW, .WriteMSTATUSM, .WriteMSTATUSHM,
     .IllegalCSRMAccessM, .IllegalCSRMWriteReadonlyM,
-    .MENVCFG_REGW, .MSTATEEN0_REGW, .MSTATEENSE_REGW);
+    .MENVCFG_REGW, .MSECCFG_REGW, .MSTATEEN0_REGW, .MSTATEENSE_REGW);
 
   // Smstateen: mstateen0 controls access from less-privileged modes to the state named by each bit,
   // but never restricts machine mode itself.  Without Smstateen the state is accessible as its own
@@ -261,6 +267,20 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign IllegalCSRSAccessM = 1'b1;
     assign STimerInt = '0;
     assign SENVCFG_REGW = '0;
+  end
+
+  // Zkr Entropy Source CSR (Seed) if Zkr is supported
+  if (P.ZKR_SUPPORTED) begin : csrzkr
+    csrzkr #(P) csrzkr(.clk, .reset,
+                        .CSRAdrM, .PrivilegeModeW,
+                        .CSRWriteM, .CSRUWriteM,
+                        .SSEED(MSECCFG_REGW[9]), .USEED(MSECCFG_REGW[8]),
+                        .ESValid, .ESBits, .ESBist, .ESDead, .ESReady,
+                        .CSRZReadValM, .IllegalCSRZAccessM);
+  end else begin
+    assign CSRZReadValM = '0;
+    assign IllegalCSRZAccessM = 1'b1;
+    assign ESReady = 1'b0;
   end
 
   // Floating Point CSRs in User Mode only needed if Floating Point is supported
@@ -300,7 +320,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
                                                                         (MENVCFG_REGW[0] & SENVCFG_REGW[0]);
 
   // merge CSR Reads
-  assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM;
+  assign CSRReadValM = CSRUReadValM | CSRSReadValM | CSRMReadValM | CSRCReadValM | CSRZReadValM;
   flopenrc #(P.XLEN) CSRValWReg(clk, reset, FlushW, ~StallW, CSRReadValM, CSRReadValW);
 
   // merge illegal accesses: illegal if none of the CSR addresses is legal or privilege is insufficient
@@ -308,6 +328,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign InsufficientCSRPrivilegeM = (CSRAdrM[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
                                      (CSRAdrM[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
   assign IllegalCSRAccessM = ((IllegalCSRCAccessM & IllegalCSRMAccessM &
-    IllegalCSRSAccessM & IllegalCSRUAccessM |
+    IllegalCSRSAccessM & IllegalCSRUAccessM & IllegalCSRZAccessM |
     InsufficientCSRPrivilegeM) & CSRReadM) | IllegalCSRMWriteReadonlyM;
 endmodule
