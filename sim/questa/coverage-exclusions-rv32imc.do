@@ -153,8 +153,6 @@ coverage exclude -scope /core/priv/priv/csr/csri -linerange [TagLine ${SRC}/priv
 ExcludeRows /core/priv/priv/csr/csrm e [list CSRMWriteM_1 "(CSRAdrM == 770)_1"]
 ExcludeRows /core/priv/priv/csr/csrm e [list CSRMWriteM_1 "(CSRAdrM == 771)_1"]
 
-# Every trap goes to M mode (there is no S mode to delegate to), so NextPrivilegeModeM is always M.
-ExcludeRows /core/priv/priv/csr/csrsr c [list "(NextPrivilegeModeM == 3)_0"]
 coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/privileged/csrsr.sv csrsr-trap-to-s] -item b 1
 
 # The supervisor interrupt enables mie[9,5,1] are read-only zero (MIE_WRITE_MASK = 0x888), so no supervisor

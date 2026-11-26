@@ -122,7 +122,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     STATUS_SPP, STATUS_TSR, STATUS_TW, STATUS_TVM;  // Status bits needed within privileged unit
   logic                     STATUS_MIE, STATUS_SIE;                         // status bits: interrupt enables
   logic [15:0]              MIP_REGW, MIE_REGW;                             // interrupt pending and enable bits
-  logic [1:0]               NextPrivilegeModeM;                             // next privilege mode based on trap or return
   logic                     InterruptM;                                     // interrupt occurring
   logic                     ExceptionM;                                     // Memory stage instruction caused a fault
   logic                     HPTWInstrAccessFaultM;                          // Hardware page table access fault while fetching instruction PTE
@@ -143,7 +142,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   // track the current privilege level
   privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM,
     .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToM, .TrapToVSM,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW);
+    .PrivilegeModeW, .VirtModeW);
 
   // decode privileged instructions
   logic VirtualInstrFaultM;
@@ -162,7 +161,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW, .HLVHSVInstrM, .CauseM, .SelHPTW,
+    .PrivilegeModeW, .VirtModeW, .HLVHSVInstrM, .CauseM, .SelHPTW,
     .STATUS_MPP, .MSTATUS_MPV, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS,
     .HSTATUS_SPV, .HSTATUS_SPVP, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM, .VSSTATUS_SPP, .VSSTATUS_SIE,

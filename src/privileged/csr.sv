@@ -39,7 +39,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InstrValidM,               // current instruction is valid
   input  logic                     FRegWriteM,                // writes to floating point registers change STATUS.FS
   input  logic [4:0]               SetFflagsM,                // Set floating point flag bits in FCSR
-  input  logic [1:0]               NextPrivilegeModeM,        // STATUS bits updated based on next privilege mode
   input  logic [1:0]               PrivilegeModeW,            // current privilege mode
   input  logic                     VirtModeW,                 // current V Bit
   input  logic                     HLVHSVInstrM,              // HLV/HLVX/HSV in M stage (only a legal one accesses memory)
@@ -189,34 +188,18 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign TrapWritesVAToTvalM = 1'b0;
   end
 
-  if (P.H_SUPPORTED) begin: trapcause_h
-    // H spec translates delegated VS interrupt causes 10/6/2 into 9/5/1 for VS trap state and vectoring.
-    always_comb
-      if (TrapToVSM & InterruptM)
-        case (CauseM)
-          5'd10: TrapCauseCodeM = 5'd9;
-          5'd6:  TrapCauseCodeM = 5'd5;
-          5'd2:  TrapCauseCodeM = 5'd1;
-          default:
-            TrapCauseCodeM = CauseM;
-        endcase
-      else
-        TrapCauseCodeM = CauseM;
-  end else begin: trapcause_noh
-    assign TrapCauseCodeM = CauseM;
-  end
+  // H spec translates delegated VS interrupt causes 10/6/2 into 9/5/1 for VS trap state and vectoring.
+  // hideleg can delegate only those three interrupts, so the translation is CauseM - 1 = {CauseM[4:2], 2'b01}.
+  assign TrapCauseCodeM = (TrapToVSM & InterruptM) ? {CauseM[4:2], 2'b01} : CauseM;
 
   ///////////////////////////////////////////
   // Trap Vectoring & Returns; vectored traps must be aligned to 64-byte address boundaries
   ///////////////////////////////////////////
 
   // Select trap vector from STVEC/MTVEC (and VSTVEC when H is supported) and word-align
-  if (P.H_SUPPORTED) begin: tvec_h
-    mux2 #(P.XLEN) stvecselmux(STVEC_REGW, VSTVEC_REGW, TrapToVSM, STVecSelM);
-  end else begin: tvec_noh
-    assign STVecSelM = STVEC_REGW;
-  end
-  assign SelMtvecM = P.H_SUPPORTED ? TrapToM : (NextPrivilegeModeM == P.M_MODE);
+  // TrapVectorM is used only when TrapM, so TrapToM/TrapToVSM pick the vector
+  mux2 #(P.XLEN) stvecselmux(STVEC_REGW, VSTVEC_REGW, TrapToVSM, STVecSelM);
+  assign SelMtvecM = TrapToM;
   mux2 #(P.XLEN) tvecmux(STVecSelM, MTVEC_REGW, SelMtvecM, TVecM);
   assign TVecAlignedM = {TVecM[P.XLEN-1:2], 2'b00};
 
@@ -235,14 +218,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // A return sets the PC to MEPC or SEPC/VSEPC.
   // Per the H spec 22.6.4, HS-mode SRET (V=0) always returns using SEPC even when
   // hstatus.SPV requests entry into VS/VU; only VS-mode SRET (V=1) uses VSEPC.
-  if (P.H_SUPPORTED) begin: epc_h
-    logic UseVSEPCM;
-    assign UseVSEPCM = VirtModeW;
-    mux2 #(P.XLEN) sepcselmux(SEPC_REGW, VSEPC_REGW, UseVSEPCM, SEPCSel);
-    mux2 #(P.XLEN) epcmux(SEPCSel, MEPC_REGW, mretM, EPCM);
-  end else begin: epc_noh
-    mux2 #(P.XLEN) epcmux(SEPC_REGW, MEPC_REGW, mretM, EPCM);
-  end
+  mux2 #(P.XLEN) sepcselmux(SEPC_REGW, VSEPC_REGW, P.H_SUPPORTED & VirtModeW, SEPCSel);
+  mux2 #(P.XLEN) epcmux(SEPCSel, MEPC_REGW, mretM, EPCM);
 
   ///////////////////////////////////////////
   // CSRWriteValM
@@ -293,13 +270,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & InstrValidNotFlushedM;
   assign CSRUWriteM = CSRWriteM & InstrValidNotFlushedM;
   // Record the trap only when it is taken, like mstatus and the privilege mode
-  if (P.H_SUPPORTED) begin: trap_sel_h
-    assign MTrapM = TrapM & ~StallW & TrapToM;
-    assign STrapM = TrapM & ~StallW & TrapToHSM & P.S_SUPPORTED;
-  end else begin: trap_sel_noh
-    assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
-    assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
-  end
+  // TrapToM/TrapToHSM already include TrapM
+  assign MTrapM = TrapToM & ~StallW;
+  assign STrapM = TrapToHSM & ~StallW & P.S_SUPPORTED;
 
   ///////////////////////////////////////////
   // CSRs
@@ -404,11 +377,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   end
 
   // SATP Mux
-  if (P.H_SUPPORTED) begin: satp_mux
-      mux2 #(P.XLEN) satpmux(SATP_REGW_INT, VSATP_REGW, VirtModeW, SATP_REGW);
-  end else begin: satp_nomux
-      assign SATP_REGW = SATP_REGW_INT;
-  end
+  mux2 #(P.XLEN) satpmux(SATP_REGW_INT, VSATP_REGW, P.H_SUPPORTED & VirtModeW, SATP_REGW);
 
   // Until two-stage translation is integrated, htval trap writes stay zero.
   assign NextHtvalM = '0;
