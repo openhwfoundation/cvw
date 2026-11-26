@@ -374,8 +374,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
     end
 
   // Exception and Interrupt Delegation Registers
-  // Mask off read-only zero bits (see ISA 15.2.2).  Every delegable cause is below 32, so only
-  // hedeleg[31:0] is stored; RV32 hedelegh reads as zero.
+  // Mask off read-only zero bits (see ISA 15.2.2); every delegable cause is below 32, so hedeleg[63:32] is zero.
   logic [31:0] HEDELEGLoM;
   flopenr #(32) HEDELEGreg(clk, reset, WriteHEDELEGM, CSRWriteValM[31:0] & HEDELEG_MASK[31:0], HEDELEGLoM);
   assign HEDELEG_REGW = {32'b0, HEDELEGLoM};
