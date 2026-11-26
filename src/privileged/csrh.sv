@@ -247,15 +247,15 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   // mtinst/htinst only need to hold the 32-bit values a trap writes.
   logic [31:0] TransformedInstrM, TinstM;
   logic        TinstLoadM, TinstStoreM, TinstCBOM, TinstOtherM, TinstCauseM;
-  assign TinstLoadM  = (InstrM[6:3] == 4'b0000);                         // LOAD, LOAD-FP
-  assign TinstStoreM = (InstrM[6:3] == 4'b0100);                         // STORE, STORE-FP
+  assign TinstLoadM  = (InstrM[6:3] == 4'b0000);                              // LOAD, LOAD-FP
+  assign TinstStoreM = (InstrM[6:3] == 4'b0100);                              // STORE, STORE-FP
   assign TinstCBOM   = (InstrM[6:0] == 7'b0001111 & InstrM[14:12] == 3'b010); // CBO.CLEAN/FLUSH/INVAL/ZERO
-  assign TinstOtherM = (InstrM[6:2] == 5'b01011) |                     // LR, SC, AMO
+  assign TinstOtherM = (InstrM[6:2] == 5'b01011) |                            // LR, SC, AMO
                        (InstrM[6:2] == 5'b11100 & InstrM[14:12] == 3'b100 & InstrM[31:28] == 4'b0110); // HLV, HLVX, HSV
   always_comb
     case (NextCauseM)
       6'd4, 6'd5, 6'd6, 6'd7, 6'd13, 6'd15, 6'd21, 6'd23: TinstCauseM = 1'b1; // load/store/AMO faults, not interrupts
-      default:                                             TinstCauseM = 1'b0;
+      default:                                            TinstCauseM = 1'b0;
     endcase
   always_comb begin
     TransformedInstrM = InstrM;

@@ -242,7 +242,8 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .sfencevmaM, .sfencevmaAllM,  // connects to privilege
     .DCacheStallM,                // connects to privilege
     .IEUAdrxTvalM,                // connects to privilege
-    .TinstAddrOffsetM, .HPTWDataAccessFaultM, // connect to privilege
+    .TinstAddrOffsetM,            // connects to privilege
+    .HPTWDataAccessFaultM,        // connects to privilege
     .LoadPageFaultM,              // connects to privilege
     .StoreAmoPageFaultM,          // connects to privilege
     .LoadMisalignedFaultM,        // connects to privilege
