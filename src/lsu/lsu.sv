@@ -28,7 +28,6 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   input  logic [6:0]               Funct7M,                              // Atomic memory operation function
   input  logic [1:0]               AtomicM,                              // Atomic memory operation
   input  logic                     HLVHSVInstrM,                         // Valid HLV/HLVX/HSV encoding in Memory stage
-  input  logic                     HLVHSVLegalM,                         // HLV/HLVX/HSV may issue its LSU access
   input  logic                     FlushDCacheM,                         // Flush D cache to next level of memory
   input  logic [3:0]               CMOpM,                                // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   input  logic                     LSUPrefetchM,                         // Prefetch; presently unused
@@ -95,7 +94,6 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN+1:0]     IHAdrM;                                 // Either IEU or HPTW memory address
 
   logic [1:0]            PreLSURWM;                              // IEU or HPTW Read/Write signal
-  logic [1:0]            GatedMemRWM;                            // MemRWM suppressed for HLV/HSV traps
   logic [1:0]            LSURWM;                                 // IEU or HPTW Read/Write signal gated by LR/SC
   logic [2:0]            LSUFunct3M;                             // IEU or HPTW memory operation size
   logic [2:0]            LSUSizeM;                               // Memory operation size as an AHB HSIZE
@@ -157,21 +155,13 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   // Zero-extend address to 34 bits for XLEN=32
   /////////////////////////////////////////////////////////////////////////////////////////////
 
-  // HLV/HLVX/HSV decode enters the LSU as a normal memory op, but V-mode,
-  // U-mode-with-HU=0, and non-Bare cases trap in privdec and must not access memory.
-  if (P.H_SUPPORTED) begin: hlsv_gating
-    assign GatedMemRWM = (HLVHSVInstrM & ~HLVHSVLegalM) ? 2'b00 : MemRWM;
-  end else begin: nohlsv_gating
-    assign GatedMemRWM = MemRWM;
-  end
-
   flopenrc #(P.XLEN) AddressMReg(clk, reset, FlushM, ~StallM, IEUAdrE, IEUAdrM);
   assign DataFaultM = LoadPageFaultM | StoreAmoPageFaultM | LoadAccessFaultM | StoreAmoAccessFaultM;
   if (MISALIGN_SUPPORT) begin : zicclsm_align
     logic [P.XLEN-1:0] IEUAdrSpillE;
     logic [P.XLEN-1:0] IEUAdrSpillM;
     align #(P) align(.clk, .reset, .StallM, .FlushM, .IEUAdrE, .IEUAdrM, .Funct3M, .FpLoadStoreM,
-                     .MemRWM(GatedMemRWM),
+                     .MemRWM,
                      .DCacheReadDataWordM, .CacheBusHPTWStall, .SelHPTW,
                      .DataFaultM,
                      .ByteMaskM, .ByteMaskExtendedM, .LSUWriteDataM, .ByteMaskSpillM, .LSUWriteDataSpillM,
@@ -201,7 +191,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if (P.VIRTMEM_SUPPORTED) begin : hptw
-    hptw #(P) hptw(.clk, .reset, .MemRWM(GatedMemRWM), .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
+    hptw #(P) hptw(.clk, .reset, .MemRWM, .AtomicM, .ITLBMissOrUpdateAF, .ITLBWriteF,
       .DTLBMissOrUpdateDAM, .DTLBWriteM,
       .FlushW, .CommittedF, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
@@ -226,7 +216,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       else if (MemAccessPerformedM) MemAccessDoneM <= 1'b1;
     flopenr #(P.LLEN) ReadDataHoldReg(clk, reset, MemAccessPerformedM & ~MemAccessDoneM, ReadDataM, ReadDataHoldM);
   end else begin // No HPTW, so signals are not multiplexed
-    assign PreLSURWM = GatedMemRWM;
+    assign PreLSURWM = MemRWM;
     assign IHAdrM = IEUAdrExtM;
     assign LSUFunct3M = Funct3M;
     assign LSUFunct7M = Funct7M;
@@ -269,16 +259,17 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     logic DataUpdateDAM;                                  // DTLB hit needs to update dirty or access bits
 
     // norm:hlsv_trans requires two-stage translation for HLV/HLVX/HSV. This
-    // first path only supports VSATP/HGATP Bare/Bare; privdec traps non-Bare
-    // cases so the LSU never silently applies HS-stage translation here.
+    // first path only supports VSATP/HGATP Bare/Bare; the controller decodes non-Bare
+    // cases as illegal, so only a Bare/Bare HLV/HSV accesses memory and the LSU never
+    // silently applies HS-stage translation here.
     if (P.H_SUPPORTED) begin: hlsv_disabletranslation
-      assign DisableTranslation = SelHPTW | FlushDCacheM | HLVHSVLegalM;
+      assign DisableTranslation = SelHPTW | FlushDCacheM | HLVHSVInstrM;
     end else begin: nohlsv_disabletranslation
       assign DisableTranslation = SelHPTW | FlushDCacheM;
     end
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
-    dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVLegalM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVInstrM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),
@@ -322,7 +313,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     logic [1:0]           DTIMMemRWM;
 
     // The DTIM uses untranslated addresses, so it is not compatible with virtual memory.
-    mux2 #(P.PA_BITS) DTIMAdrMux(IEUAdrExtE[P.PA_BITS-1:0], IEUAdrExtM[P.PA_BITS-1:0], GatedMemRWM[0], DTIMAdr);
+    mux2 #(P.PA_BITS) DTIMAdrMux(IEUAdrExtE[P.PA_BITS-1:0], IEUAdrExtM[P.PA_BITS-1:0], MemRWM[0], DTIMAdr);
     assign DTIMMemRWM = SelDTIM ? LSURWM : 0;
     dtim #(P) dtim(.clk, .reset, .ce(~GatedStallW),
               .MemRWM(DTIMMemRWM),

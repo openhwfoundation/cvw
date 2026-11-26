@@ -41,7 +41,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic [4:0]               SetFflagsM,                // Set floating point flag bits in FCSR
   input  logic [1:0]               PrivilegeModeW,            // current privilege mode
   input  logic                     VirtModeW,                 // current V Bit
-  input  logic                     HLVHSVLegalM,              // Legal HLV/HLVX/HSV memory access in M stage
+  input  logic                     HLVHSVInstrM,              // HLV/HLVX/HSV in M stage (only a legal one accesses memory)
   input  logic [4:0]               CauseM,                    // Trap cause
   input  logic                     SelHPTW,                   // hardware page table walker active, so base endianness on supervisor mode
   // inputs for performance counters
@@ -69,7 +69,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic                     HSTATUS_SPV,
   output logic                     HSTATUS_SPVP,
   output logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM,
-  output logic                     HSTATUS_HU,
   output logic                     VSSTATUS_SPP, VSSTATUS_SIE,
   output logic [63:0]              MEDELEG_REGW,
   output logic [63:0]              HEDELEG_REGW,
@@ -93,7 +92,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
   output logic                     VirtualCSRAccessM,         // CSR access that raises a virtual-instruction exception
   output logic                     VirtualCMOInstrM,          // CBO instruction that raises a virtual-instruction exception
-  output logic                     HLVHSVBareM,               // VS-stage and G-stage translation are both Bare for HLV/HSV
+  output logic                     HLVHSVEnW,                 // HLV/HLVX/HSV are legal in the current mode
   output logic                     BigEndianM                 // memory access is big-endian based on privilege mode and STATUS register endian fields
 );
 
@@ -148,6 +147,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [15:0]             HIP_MIP_REGW;
   logic [15:0]             HIE_REGW;
   logic                    LegalAtpModeM;             // CSR write value has a supported satp/vsatp/hgatp MODE
+  logic                    HSTATUS_HU;                // hstatus.HU: HLV/HLVX/HSV legal in U-mode
+  logic                    HLVHSVLegalM;              // HLV/HLVX/HSV in M stage that accesses memory
   logic [63:0]             TimeVirt, TimeM;   // mtime + htimedelta from csrh; time CSR value for the current V
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
@@ -393,15 +394,22 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // Until two-stage translation is integrated, htval trap writes stay zero.
   assign NextHtvalM = '0;
 
-  if (P.H_SUPPORTED & P.VIRTMEM_SUPPORTED) begin: hlsv_bare
+  // HLV/HLVX/HSV are legal in M, HS, and U with hstatus.HU=1 (norm:hlsv_mode); at V=1 they are virtual
+  // instructions (privdec).  Until two-stage translation is integrated, VS-stage and G-stage must be Bare.
+  // The controller decodes them as illegal when HLVHSVEnW=0.  Their legality changes only on a trap, xRET
+  // or CSR write, each of which flushes the instructions behind it, so it is decided in Decode.
+  if (P.H_SUPPORTED) begin: hlsv_en
+    logic HLVHSVBareW;
     if (P.XLEN == 64) begin: hlsv_bare64
-      assign HLVHSVBareM = (VSATP_REGW[63:60] == 4'h0) & (HGATP_REGW[63:60] == 4'h0);
+      assign HLVHSVBareW = (VSATP_REGW[63:60] == 4'h0) & (HGATP_REGW[63:60] == 4'h0);
     end else begin: hlsv_bare32
-      assign HLVHSVBareM = ~VSATP_REGW[31] & ~HGATP_REGW[31];
+      assign HLVHSVBareW = ~VSATP_REGW[31] & ~HGATP_REGW[31];
     end
-  end else begin: hlsv_novirtmem
-    assign HLVHSVBareM = 1'b1;
+    assign HLVHSVEnW = ~VirtModeW & HLVHSVBareW & ((PrivilegeModeW != P.U_MODE) | HSTATUS_HU);
+  end else begin: hlsv_noen
+    assign HLVHSVEnW = 1'b0;
   end
+  assign HLVHSVLegalM = HLVHSVInstrM & HLVHSVEnW;
 
   // Effective status bits for VS-mode
   if (P.H_SUPPORTED) begin: status_vs

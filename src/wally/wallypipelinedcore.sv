@@ -78,7 +78,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [3:0]                    CMOpM;                           // 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
   logic                          IFUPrefetchE, LSUPrefetchM;      // instruction / data prefetch hints
   logic                          HLVHSVInstrM;                    // Valid HLV/HLVX/HSV encoding in Memory stage
-  logic                          HLVHSVLegalM;                    // HLV/HLVX/HSV may issue its LSU access
+  logic                          HLVHSVEnW;                       // HLV/HLVX/HSV are legal in the current mode
   logic                          HSTATUS_SPVP;                    // HLV/HLVX/HSV effective privilege
 
   // floating point unit signals
@@ -192,7 +192,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
     // Decode Stage interface
-    .InstrD, .STATUS_FS, .ENVCFG_CBE, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
+    .InstrD, .STATUS_FS, .ENVCFG_CBE, .HLVHSVEnW, .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     // Execute Stage interface
     .PCE, .PCLinkE, .FWriteIntE, .FCvtIntE, .IEUAdrE, .IntDivE, .W64E,
     .Funct3E, .ForwardedSrcAE, .ForwardedSrcBE, .MDUActiveE, .CMOpM, .IFUPrefetchE, .LSUPrefetchM,
@@ -217,7 +217,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   lsu #(P) lsu(
     .clk, .reset, .StallM, .FlushM, .StallW, .FlushW, .CommittedF,
     // CPU interface
-    .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM, .HLVHSVInstrM, .HLVHSVLegalM,
+    .MemRWE, .MemRWM, .Funct3M, .Funct7M(InstrM[31:25]), .AtomicM, .HLVHSVInstrM,
     .CommittedM, .DCacheMiss, .DCacheAccess, .SquashSCW,
     .FpLoadStoreM, .FWriteDataM, .IEUAdrE, .IEUAdrM, .WriteDataM,
     .ReadDataW, .FlushDCacheM, .CMOpM, .LSUPrefetchM,
@@ -301,7 +301,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
-      .HSTATUS_SPVP, .HLVHSVLegalM,
+      .HSTATUS_SPVP, .HLVHSVEnW,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
       .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .WaitM, .BigEndianM);
   end else begin
@@ -310,7 +310,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
             // PMPCFG_ARRAY_REGW, PMPADDR_ARRAY_REGW,
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,
-            sfencevmaM, sfencevmaAllM, HSTATUS_SPVP, HLVHSVLegalM, BigEndianM, WaitM} = '0;
+            sfencevmaM, sfencevmaAllM, HSTATUS_SPVP, HLVHSVEnW, BigEndianM, WaitM} = '0;
   end
 
   // multiply/divide unit
