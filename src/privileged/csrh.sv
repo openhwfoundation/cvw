@@ -202,10 +202,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign HSTATUSVGEINWriteValM = (P.XLEN == 32) ? {1'b0, CSRWriteValM[16:12]} : CSRWriteValM[17:12];
   assign LegalizedHSTATUSVGEINWriteValM = (HSTATUSVGEINWriteValM <= GEILEN_LIMIT) ? HSTATUSVGEINWriteValM : 6'b0;
 
-  // CSR access legality
-  // csr.sv checks the CSR[9:8] privilege on the address before VS substitution: H and VS CSRs (CSR[9:8]=10)
-  // are accessible only from M and HS, and CSRSWriteM excludes them at V=1, so VS reaches the VS CSRs only
-  // through the S CSR addresses.
+  // CSR access legality: csr.sv checks CSR[9:8] before VS substitution, so VS reaches VS CSRs only via S CSR addresses.
   logic ReadOnlyCSRM;
   logic LegalAccessM;
 
