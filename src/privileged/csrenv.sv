@@ -39,8 +39,8 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
 );
 
   logic UseHENVCFG, UseSENVCFG;
-  assign UseHENVCFG = P.H_SUPPORTED & VirtModeW;                       // henvcfg constrains VS and VU
-  assign UseSENVCFG = P.S_SUPPORTED & (PrivilegeModeW == P.U_MODE);     // senvcfg constrains U and VU
+  assign UseHENVCFG = P.H_SUPPORTED & VirtModeW;                    // henvcfg constrains VS and VU
+  assign UseSENVCFG = P.S_SUPPORTED & (PrivilegeModeW == P.U_MODE); // senvcfg constrains U and VU
 
   // Effective envcfg controls broadcast to IEU/MMU.  henvcfg's STCE/PBMTE/ADUE already read as zero
   // when menvcfg clears them (csrh), so they need no second AND with menvcfg here.
@@ -55,10 +55,10 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
     logic CBOMenvcfgEnM;
     always_comb
       case (InstrM[31:20])
-        12'd0:       CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & (MENVCFG_REGW[5:4] != 2'b00); // cbo.inval: CBIE
-        12'd1, 12'd2: CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & MENVCFG_REGW[6];             // cbo.clean/flush: CBCFE
-        12'd4:       CBOMenvcfgEnM = P.ZICBOZ_SUPPORTED & MENVCFG_REGW[7];             // cbo.zero: CBZE
-        default:     CBOMenvcfgEnM = 1'b0;
+        12'd0:        CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & (MENVCFG_REGW[5:4] != 2'b00); // cbo.inval: CBIE
+        12'd1, 12'd2: CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & MENVCFG_REGW[6];                // cbo.clean/flush: CBCFE
+        12'd4:        CBOMenvcfgEnM = P.ZICBOZ_SUPPORTED & MENVCFG_REGW[7];                // cbo.zero: CBZE
+        default:      CBOMenvcfgEnM = 1'b0;
       endcase
     assign VirtualCMOInstrM = VirtModeW & (InstrM[6:0] == 7'b0001111) & (InstrM[14:7] == 8'b010_00000) & CBOMenvcfgEnM;
   end else begin: envcfg_noh
