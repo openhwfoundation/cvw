@@ -382,10 +382,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // Until two-stage translation is integrated, htval trap writes stay zero.
   assign NextHtvalM = '0;
 
-  // HLV/HLVX/HSV are legal in M, HS, and U with hstatus.HU=1 (norm:hlsv_mode); at V=1 they are virtual
-  // instructions (privdec).  Until two-stage translation is integrated, VS-stage and G-stage must be Bare.
-  // The controller decodes them as illegal when HLVHSVEnW=0.  Their legality changes only on a trap, xRET
-  // or CSR write, each of which flushes the instructions behind it, so it is decided in Decode.
+  // HLV/HLVX/HSV are legal at V=0 in M, HS, and U with hstatus.HU=1 (norm:hlsv_mode) and, for now, Bare vsatp/hgatp.
+  // Legality changes only on flushing events (trap, xRET, CSR write), so it is decided in Decode.
   if (P.H_SUPPORTED) begin: hlsv_en
     logic HLVHSVBareW;
     if (P.XLEN == 64) begin: hlsv_bare64
