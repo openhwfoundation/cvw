@@ -56,8 +56,8 @@ module csrenv import cvw::*;  #(parameter cvw_t P) (
     always_comb
       case (InstrM[31:20])
         12'd0:        CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & (MENVCFG_REGW[5:4] != 2'b00); // cbo.inval: CBIE
-        12'd1, 12'd2: CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & MENVCFG_REGW[6];                // cbo.clean/flush: CBCFE
-        12'd4:        CBOMenvcfgEnM = P.ZICBOZ_SUPPORTED & MENVCFG_REGW[7];                // cbo.zero: CBZE
+        12'd1, 12'd2: CBOMenvcfgEnM = P.ZICBOM_SUPPORTED & MENVCFG_REGW[6];              // cbo.clean/flush: CBCFE
+        12'd4:        CBOMenvcfgEnM = P.ZICBOZ_SUPPORTED & MENVCFG_REGW[7];              // cbo.zero: CBZE
         default:      CBOMenvcfgEnM = 1'b0;
       endcase
     assign VirtualCMOInstrM = VirtModeW & (InstrM[6:0] == 7'b0001111) & (InstrM[14:7] == 8'b010_00000) & CBOMenvcfgEnM;
