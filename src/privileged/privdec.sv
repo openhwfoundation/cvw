@@ -47,6 +47,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   logic                TWTimeoutM;                          // mstatus.TW/hstatus.VTW time limit reached: illegal or virtual instruction
   logic                WaitedNextM;                         // WaitedM for the next cycle
   logic                ebreakM, ecallM;                     // ebreak / ecall instructions
+  logic                sretInstrM;                          // sret encoding, before checking privilege mode
   logic                sinvalvmaM;                          // sinval.vma
   logic                presfencevmaM;                       // sfence.vma before checking privilege mode
   logic                sfencewinvalM, sfenceinvalirM;       // sfence.w.inval, sfence.inval.ir
@@ -95,8 +96,8 @@ module privdec import cvw::*; #(parameter cvw_t P) (
     assign TVMM = STATUS_TVM;
   end
 
-  assign sretM =      PrivilegedM & (InstrM[31:20] == 12'b000100000010) & rs1zeroM & P.S_SUPPORTED &
-                      (PrivilegeModeW == P.M_MODE | PrivilegeModeW == P.S_MODE & ~TSRM);
+  assign sretInstrM = PrivilegedM & (InstrM[31:20] == 12'b000100000010) & rs1zeroM;
+  assign sretM =      sretInstrM & P.S_SUPPORTED & (PrivilegeModeW == P.M_MODE | PrivilegeModeW == P.S_MODE & ~TSRM);
   assign mretM =      PrivilegedM & (InstrM[31:20] == 12'b001100000010) & rs1zeroM & (PrivilegeModeW == P.M_MODE);
   assign RetM =       sretM | mretM;
   assign ecallM =     PrivilegedM & (InstrM[31:20] == 12'b000000000000) & rs1zeroM;
@@ -161,32 +162,25 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
 
   // Virtual Instruction Exception Detection
+  // At V=1, an instruction that HS-mode could execute (with mstatus.TSR/TVM/TW=0) but the current mode can't
+  // is a virtual-instruction exception (norm:H_cause_virtual_instruction).
   if (P.H_SUPPORTED) begin: virtinstr
-    logic is_sret, WFIShouldTrapVirtM;
-    logic VSTSRFault, VTVMFault, HVFenceFault, HLVHSVFault, CMOFault;
-    logic VUWfiFault, VSWfiFault, VUSupFault;
+    logic VirtualPrivM, VirtualWfiM, CMOFault;
     logic SatpCSRM;
-
-    assign is_sret = (InstrM[31:20] == 12'b000100000010) & rs1zeroM;
-
-    assign VSTSRFault = PrivilegedM & is_sret & VirtModeW & HSTATUS_VTSR;
-    assign HVFenceFault = PrivilegedM & VirtModeW & (hvvmaM | hgvmaM);
-    assign HLVHSVFault = HLVHSVInstrM & VirtModeW; // norm:hlsv_virtinst: V=1 -> virtual instruction
-    // A wfi that reaches the time limit at V=1 with mstatus.TW=0 is a virtual instruction exception
-    assign WFIShouldTrapVirtM = TWTimeoutM & ~STATUS_TW;
-    assign VUWfiFault = WFIShouldTrapVirtM & VirtModeW & (PrivilegeModeW == P.U_MODE);
-    assign VSWfiFault = WFIShouldTrapVirtM & VirtModeW & (PrivilegeModeW == P.S_MODE) & HSTATUS_VTW;
-    assign VUSupFault = PrivilegedM & VirtModeW & (PrivilegeModeW == P.U_MODE) &
-                        (is_sret | vmaM | fenceinvalM);
-
+    // sret, sfence.vma, sinval.vma, sfence.w.inval/inval.ir, hfence.*, hinval.* that aren't legal at V=1:
+    // any of them in VU-mode, sret with hstatus.VTSR=1 or sfence/sinval.vma with hstatus.VTVM=1 in VS-mode,
+    // and hfence/hinval in either
+    assign VirtualPrivM = PrivilegedM & (sretInstrM | P.VIRTMEM_SUPPORTED & (vmaM | fenceinvalM | hvvmaM | hgvmaM)) &
+                          ~(sretM | sfencevmaM);
+    // wfi time limit at V=1 from hstatus.VTW (VS) or from S-mode being implemented (VU) rather than mstatus.TW
+    assign VirtualWfiM  = TWTimeoutM & ~STATUS_TW;
+    // In VS-mode, satp is virtualized when hstatus.VTVM=1.
     assign SatpCSRM = (PrivilegeModeW == P.S_MODE) & (InstrM[31:20] == 12'h180) & (|InstrM[13:12]);
-    // In VS-mode, satp and SFENCE/SINVAL are virtualized when hstatus.VTVM=1.
-    assign VTVMFault = VirtModeW & HSTATUS_VTVM & (SatpCSRM | (PrivilegedM & vmaM));
-    // CBO/envcfg cases are classified in csr.sv, which owns the envcfg state.
+    // CBO/envcfg cases are classified in csrenv, which owns the envcfg state.
     assign CMOFault = IllegalIEUFPUInstrM & VirtualCMOInstrM;
-
-    assign VirtualInstrFaultM = VSTSRFault | HVFenceFault | VTVMFault | VirtualCSRAccessM | CMOFault |
-                                HLVHSVFault | VUWfiFault | VSWfiFault | VUSupFault;
+    // norm:hlsv_virtinst: HLV/HLVX/HSV at V=1.  The controller decodes the other illegal HLV/HSV cases (HLVHSVEnW).
+    assign VirtualInstrFaultM = VirtModeW & (VirtualPrivM | VirtualWfiM | HLVHSVInstrM | HSTATUS_VTVM & SatpCSRM) |
+                                VirtualCSRAccessM | CMOFault;
   end else begin: novirtinstr
     assign VirtualInstrFaultM = 1'b0;
   end
