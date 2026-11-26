@@ -142,7 +142,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [63:0]             HENVCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
-  logic                    LegalAtpModeM;             // CSR write value has a supported satp/vsatp/hgatp MODE
+  logic                    LegalAtpModeM;                         // CSR write value has a supported satp/vsatp/hgatp MODE
   logic                    TrapGVAM;
   logic                    TrapWritesVAToTvalM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
