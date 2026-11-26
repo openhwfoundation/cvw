@@ -162,14 +162,11 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
 
   // Virtual Instruction Exception Detection
-  // At V=1, an instruction that HS-mode could execute (with mstatus.TSR/TVM/TW=0) but the current mode can't
-  // is a virtual-instruction exception (norm:H_cause_virtual_instruction).
+  // V=1: what HS can execute (mstatus.TSR/TVM/TW=0) but this mode can't is virtual (norm:H_cause_virtual_instruction).
   if (P.H_SUPPORTED) begin: virtinstr
     logic VirtualPrivM, VirtualWfiM, CMOFault;
     logic SatpCSRM;
-    // sret, sfence.vma, sinval.vma, sfence.w.inval/inval.ir, hfence.*, hinval.* that aren't legal at V=1:
-    // any of them in VU-mode, sret with hstatus.VTSR=1 or sfence/sinval.vma with hstatus.VTVM=1 in VS-mode,
-    // and hfence/hinval in either
+    // sret and VM fences illegal at V=1: all in VU; sret if VTSR, sfence/sinval.vma if VTVM, and hfence/hinval in VS.
     assign VirtualPrivM = PrivilegedM & (sretInstrM | P.VIRTMEM_SUPPORTED & (vmaM | fenceinvalM | hvvmaM | hgvmaM)) &
                           ~(sretM | sfencevmaM);
     // wfi time limit at V=1 from hstatus.VTW (VS) or from S-mode being implemented (VU) rather than mstatus.TW
