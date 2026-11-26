@@ -56,7 +56,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] NextEPCM,         // EPC value for trap/return
   input  logic [5:0]        NextCauseM,       // Exception/interrupt cause
   input  logic [P.XLEN-1:0] NextTvalM,        // Value for vstval on trap or CSR write
-  input  logic [P.XLEN-1:0] NextHtvalM,       // Value for htval on trap
+  input  logic [P.XLEN-1:0] NextFaultHtvalM,  // Value for htval on trap
   input  logic [31:0]       InstrOrigM,       // Original compressed or uncompressed instruction for mtinst/htinst
   input  logic [15:0]       HIE_REGW,         // hie alias view of the H bits stored in mie
 
@@ -178,6 +178,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] NextMtval2M;
 
   // Next Value Muxes
+  logic [P.XLEN-1:0] NextHTVALM;
   logic [11:0]       NextHVIPM;
   logic [15:0]       HIP_PENDING;
   logic [63:0]       TimeVirt;
@@ -454,9 +455,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) HGEIEreg(clk, reset, WriteHGEIEM, NextHGEIEM, HGEIE_REGW);
 
   // HTVAL: Written by CSR instructions and by hardware on traps
-  logic [P.XLEN-1:0] NextHTVALRegM;
-  assign NextHTVALRegM = TrapToHSM ? NextHtvalM : CSRWriteValM;
-  flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), NextHTVALRegM, HTVAL_REGW);
+  assign NextHTVALM = TrapToHSM ? NextFaultHtvalM : CSRWriteValM;
+  flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), NextHTVALM, HTVAL_REGW);
 
   // HTINST: Written by CSR instructions and by hardware on traps
   // If TrapToHSM, write 0 (placeholder). Else write CSR val.
