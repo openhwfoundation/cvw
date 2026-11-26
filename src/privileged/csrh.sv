@@ -153,7 +153,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic WriteMTVAL2M;
   logic WriteMIPM;
   logic WriteHSTATUSM, WriteVSSTATUSM;
-  logic WriteHEDELEGM, WriteHEDELEGHM;
+  logic WriteHEDELEGM;
   logic WriteHIDELEGM;
   logic WriteHTIMEDELTAM, WriteHTIMEDELTAHM;
   logic WriteHCOUNTERENM;
@@ -180,8 +180,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   // Next Value Muxes
   logic [P.XLEN-1:0] NextHTVALM;
   logic [P.XLEN-1:0] NextVSCAUSEM;
-  logic [63:0]       NextHEDELEGM;
-  logic [15:0]       NextHIDELEGM;
   logic [11:0]       NextHVIPM;
   logic [15:0]       HIP_PENDING;
   logic [63:0]       TimeVirt;
@@ -252,7 +250,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign WriteHSTATUSM    = ValidHWriteM & (CSRAdrM == HSTATUS);
   assign WriteVSSTATUSM   = ValidVSWriteM & (CSRAdrM == VSSTATUS);
   assign WriteHEDELEGM    = ValidHWriteM & (CSRAdrM == HEDELEG);
-  assign WriteHEDELEGHM   = (P.XLEN == 32) & (ValidHWriteM & (CSRAdrM == HEDELEGH));
   assign WriteHIDELEGM    = ValidHWriteM & (CSRAdrM == HIDELEG);
   assign WriteHIEM        = ValidHWriteM & (CSRAdrM == HIE);
   assign WriteVSIEM       = ValidVSWriteM & (CSRAdrM == VSIE);
@@ -412,23 +409,12 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
     end
 
   // Exception and Interrupt Delegation Registers
-  // Mask off read-only zero bits (see ISA 15.2.2)
-  if (P.XLEN == 64) begin : hedeleg_update_64
-    always_comb begin
-      NextHEDELEGM = HEDELEG_REGW;
-      if (WriteHEDELEGM) NextHEDELEGM = CSRWriteValM & HEDELEG_MASK;
-    end
-  end else begin : hedeleg_update_32
-    always_comb begin
-      NextHEDELEGM = HEDELEG_REGW;
-      if (WriteHEDELEGM)  NextHEDELEGM[31:0]  = CSRWriteValM[31:0] & HEDELEG_MASK[31:0];
-      if (WriteHEDELEGHM) NextHEDELEGM[63:32] = CSRWriteValM[31:0] & HEDELEG_MASK[63:32];
-    end
-  end
-  flopenr #(64) HEDELEGreg(clk, reset, (WriteHEDELEGM | WriteHEDELEGHM), NextHEDELEGM, HEDELEG_REGW);
-
-  assign NextHIDELEGM = WriteHIDELEGM ? (CSRWriteValM[15:0] & HIDELEG_MASK) : HIDELEG_REGW;
-  flopenr #(16) HIDELEGreg(clk, reset, WriteHIDELEGM, NextHIDELEGM, HIDELEG_REGW);
+  // Mask off read-only zero bits (see ISA 15.2.2).  Every delegable cause is below 32, so only
+  // hedeleg[31:0] is stored; RV32 hedelegh reads as zero.
+  logic [31:0] HEDELEGLoM;
+  flopenr #(32) HEDELEGreg(clk, reset, WriteHEDELEGM, CSRWriteValM[31:0] & HEDELEG_MASK[31:0], HEDELEGLoM);
+  assign HEDELEG_REGW = {32'b0, HEDELEGLoM};
+  flopenr #(16) HIDELEGreg(clk, reset, WriteHIDELEGM, CSRWriteValM[15:0] & HIDELEG_MASK, HIDELEG_REGW);
 
   // Interrupt Pending
   // VSIP/VSIE are aliases of HIP/HIE when delegated; otherwise read-only zero.
