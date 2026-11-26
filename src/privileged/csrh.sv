@@ -114,7 +114,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   localparam HEDELEGH    = 12'h612;
   localparam HIDELEG    = 12'h603;
   localparam HIE        = 12'h604;
-  localparam MIE        = 12'h304;
   localparam MIP        = 12'h344;
   localparam VSIE       = 12'h204;
   localparam HTIMEDELTA = 12'h605;
@@ -178,7 +177,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] NextMtval2M;
 
   // Next Value Muxes
-  logic [P.XLEN-1:0] NextHTVALM;
   logic [P.XLEN-1:0] NextVSCAUSEM;
   logic [63:0]       NextHEDELEGM;
   logic [15:0]       NextHIDELEGM;
@@ -486,8 +484,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) HGEIEreg(clk, reset, WriteHGEIEM, NextHGEIEM, HGEIE_REGW);
 
   // HTVAL: Written by CSR instructions and by hardware on traps
-  assign NextHTVALM = TrapToHSM ? NextHtvalM : CSRWriteValM;
-  flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), NextHTVALM, HTVAL_REGW);
+  flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), TrapToHSM ? NextHtvalM : CSRWriteValM, HTVAL_REGW);
 
   // HTINST: Written by CSR instructions and by hardware on traps
   // If TrapToHSM, write 0 (placeholder). Else write CSR val.
