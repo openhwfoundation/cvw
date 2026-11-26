@@ -290,7 +290,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign NextXtvalM = TrapM ? NextFaultXtvalM : CSRWriteValM;
   assign UngatedCSRMWriteM = CSRWriteM & (PrivilegeModeW == P.M_MODE);
   assign CSRMWriteM = UngatedCSRMWriteM & InstrValidNotFlushedM;
-  assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & InstrValidNotFlushedM;
+  // S-mode writes; at V=1 the hypervisor-level (H and VS) CSRs can't be written, only the VS CSRs substituted for S CSRs
+  assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & ~(VirtModeW & CSRAdrM_In[9:8] == 2'b10) & InstrValidNotFlushedM;
   assign CSRUWriteM = CSRWriteM & InstrValidNotFlushedM;
   // Record the trap only when it is taken, like mstatus and the privilege mode
   if (P.H_SUPPORTED) begin: trap_sel_h
@@ -492,9 +493,11 @@ module csr import cvw::*; #(parameter cvw_t P) (
   flopenrc #(P.XLEN) CSRValWReg(clk, reset, FlushW, ~StallW, CSRReadValM, CSRReadValW);
 
   // merge illegal accesses: illegal if none of the CSR addresses is legal or privilege is insufficient
-  // CSRAdrM[9:8] is the lowest privilege mode allowed to access the CSR (00: U, 01: S, 11: M)
-  assign InsufficientCSRPrivilegeM = (CSRAdrM[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
-                                     (CSRAdrM[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
+  // CSR[9:8] is the lowest privilege mode allowed to access the CSR (00: U, 01: S, 10: HS, 11: M).  It is checked on the
+  // address before V=1 substitutes VS CSRs for S CSRs, so VS-mode reaches vsstatus as sstatus but not at its own address.
+  assign InsufficientCSRPrivilegeM = (CSRAdrM_In[9:8] == 2'b11 & PrivilegeModeW != P.M_MODE) |
+                                     (CSRAdrM_In[9:8] == 2'b10 & (PrivilegeModeW == P.U_MODE | VirtModeW)) |
+                                     (CSRAdrM_In[9:8] == 2'b01 & PrivilegeModeW == P.U_MODE);
   assign IllegalCSRAccessM = ((IllegalCSRCAccessM & IllegalCSRMAccessM &
     IllegalCSRSAccessM & IllegalCSRUAccessM & IllegalCSRHAccessM |
     InsufficientCSRPrivilegeM) & CSRReadM) | IllegalCSRMWriteReadonlyM;
