@@ -72,10 +72,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   output logic [63:0]       HEDELEG_REGW,
   output logic [15:0]       HIDELEG_REGW,
   output logic [31:0]       HCOUNTEREN_REGW,
-  output logic [11:0]       HVIP_REGW,
   output logic [15:0]       HIP_MIP_REGW,    // mip alias view of HIP bits [15:0]
   output logic              WriteHIEM, WriteVSIEM,
-  output logic [P.XLEN-1:0] HGEIE_REGW,
   output logic [63:0]       TimeVirt,         // mtime + htimedelta: time seen at V=1 and by vstimecmp
   output logic [63:0]       HENVCFG_REGW,
   output logic [P.XLEN-1:0] VSTVEC_REGW,
@@ -104,6 +102,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] VSSCRATCH_REGW;
   logic [P.XLEN-1:0] VSCAUSE_REGW;
   logic [63:0] VSTIMECMP_REGW;
+  logic [P.XLEN-1:0] HGEIE_REGW;
+  logic [11:0]       HVIP_REGW;
 
   // Hypervisor CSR Addresses
   localparam MTINST     = 12'h34A;
