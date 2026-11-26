@@ -25,7 +25,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
   input  logic                     STATUS_MPRV,        // Status CSR: modify machine privilege
   input  logic [1:0]               STATUS_MPP,         // Status CSR: previous machine privilege level
   input  logic                     HSTATUS_SPVP,       // HLV/HLVX/HSV effective privilege: 0=VU, 1=VS
-  input  logic                     HLVHSVLegalM,       // HLV/HLVX/HSV memory access in Bare/Bare path
+  input  logic                     HLVHSVInstrM,       // HLV/HLVX/HSV memory access (Bare/Bare only for now)
   input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
   input  logic [1:0]               PrivilegeModeW,     // Current privilege level of the processor
@@ -79,7 +79,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
   end else if (P.H_SUPPORTED) begin: effpriv_dmmu_h
     // norm:hlsv_priv/norm:mstatus_mprv_hlsv: HLV/HLVX/HSV use hstatus.SPVP
     // (VU when 0, VS when 1) and override mstatus.MPRV.
-    assign EffectivePrivilegeModeW = HLVHSVLegalM ? {1'b0, HSTATUS_SPVP} :
+    assign EffectivePrivilegeModeW = HLVHSVInstrM ? {1'b0, HSTATUS_SPVP} :
                                      (STATUS_MPRV ? STATUS_MPP : PrivilegeModeW);
   end else begin: effpriv_dmmu_noh
     assign EffectivePrivilegeModeW = STATUS_MPRV ? STATUS_MPP : PrivilegeModeW;
