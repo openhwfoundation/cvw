@@ -177,7 +177,6 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic [P.XLEN-1:0] NextMtval2M;
 
   // Next Value Muxes
-  logic [P.XLEN-1:0] NextHTVALRegM;
   logic [P.XLEN-1:0] NextVSCAUSEM;
   logic [63:0]       NextHEDELEGM;
   logic [15:0]       NextHIDELEGM;
@@ -485,6 +484,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   flopenr #(P.XLEN) HGEIEreg(clk, reset, WriteHGEIEM, NextHGEIEM, HGEIE_REGW);
 
   // HTVAL: Written by CSR instructions and by hardware on traps
+  logic [P.XLEN-1:0] NextHTVALRegM;
   assign NextHTVALRegM = TrapToHSM ? NextHtvalM : CSRWriteValM;
   flopenr #(P.XLEN) HTVALreg(clk, reset, (WriteHTVALM | TrapToHSM), NextHTVALRegM, HTVAL_REGW);
 
