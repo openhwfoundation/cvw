@@ -611,7 +611,7 @@ module testbench;
   `include "mempipeprobe.svh"
 `endif
   watchdog #(P.XLEN, 1000000) watchdog(.clk, .reset, .TEST);  // check if PCW is stuck
-  ramxdetector #(P.XLEN, P.LLEN) ramxdetector(clk, dut.core.lsu.MemRWM[1], dut.core.lsu.LSULoadAccessFaultM, dut.core.lsu.ReadDataM,
+  ramxdetector #(P.XLEN, P.LLEN) ramxdetector(clk, dut.core.lsu.MemRWM[1], dut.core.TrapM, dut.core.lsu.ReadDataM,
                                       dut.core.ifu.PCM, InstrM, dut.core.lsu.IEUAdrM, dut.core.lsu.StallW, InstrMName);
   riscvassertions       #(P) riscvassertions();     // check assertions for a legal architectural configuration
   riscvassertions_wally #(P) riscvassertions_wally();  // check assertions for a legal microarchitectural configuration

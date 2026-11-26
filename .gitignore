@@ -25,6 +25,7 @@ __pycache__/
 # Tests
 tests/fp/vectors/*.tv
 tests/fp/vectors/sed*
+tests/fp/coverfloat/
 tests/custom/*/*/
 tests/custom/*/*/*.memfile
 testbench/trek_files/*/uvm_output
@@ -183,6 +184,4 @@ examples/exercises/riscvsoc_solutions
 external
 config/deriv
 sim/slack-notifier/slack-webhook-url.txt
-docs/docker/buildroot-config-src
-docs/docker/testvector-generation
 sim/*/testlists/

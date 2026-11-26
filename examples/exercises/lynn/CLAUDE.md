@@ -1,59 +1,42 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this directory.
 
 ## Project Overview
 
-This is a **competitive RISC-V processor design exercise** within the CORE-V Wally (CVW) repository. Students implement custom RISC-V processors in SystemVerilog, validate them against the RISC-V architecture test suite, benchmark with CoreMark, synthesize with Synopsys Design Compiler, and compete for the lowest composite score.
+This is a **competitive RISC-V processor design exercise** within the CORE-V Wally (CVW) repository. Students implement their own RISC-V processor in SystemVerilog, validate it against the RISC-V architecture tests, benchmark it with CoreMark, synthesize it with Synopsys Design Compiler, and compete for the highest score.
 
-**Scoring formula:** `Score = 1 / ((MTIME × Critical_Path_Length)^3 * Area)` — lower is better. This heavily penalizes slow designs (cubed execution time) while rewarding small area.
+**Scoring formula** (`bin/score.py`): `Score = 10^30 / ((MTIME × Critical_Path_ns)^3 × Area_um2)`, where MTIME is the CoreMark run time in cycles. **Higher is better.** Cubing the execution time rewards fast designs heavily; area is penalized linearly.
 
 ## Environment Setup
 
 ```bash
-# Required every session — sets $WALLY, $RISCV, activates Python venv
+# Required every session: sets $WALLY and $RISCV and adds the tools to $PATH
 source ~/cvw/setup.sh
 ```
 
 ## Common Commands
 
 ```bash
-# Lint RTL with Verilator (fast syntax/logic check, no simulation)
-make lint
+make lint            # Lint the processor RTL and testbench with Verilator
+make build           # Compile the RTL and testbench for Questa
+make bringup_test    # Run the small bringup assembly tests (tests/bringup)
+make C_test          # Run the C test (tests/C/HelloWorld.c)
+make test            # Generate and run the RISC-V architecture tests (ACT4) for PROCESSOR_CONFIG
+make coremark        # Run CoreMark
+make synth           # Synthesize with Design Compiler through $WALLY/synthDC
+make score           # Compute the score (needs synth and coremark results); writes score.log
+make bug             # Bug lab: run the bug_scripts against the sample processor
 
-# Compile RTL + testbench for QuestaSim
-make build
+make run ELFS="path/to/test.elf"           # Run specific ELF files
+make run ELFS="path/to/test.elf" GUI=1     # ... in the Questa GUI
+make run ELFS="path/to/test.elf" SAIL=1    # ... on the Sail reference model instead of the processor
 
-# Run basic instruction sanity tests
-make bringup_test
-
-# Run full RISC-V architecture compliance suite (~200 tests)
-make test
-
-# Run CoreMark benchmark
-make coremark
-
-# Synthesize with Design Compiler (default: sky130)
-make synth
-
-# Compute final score (requires both synth and coremark results)
-make score
-
-# Run a specific ELF file through simulation
-make run ELFS="path/to/test.elf"
-
-# Run simulation with Questa GUI for debugging
-make run ELFS="path/to/test.elf" GUI=1
-
-# Run against SAIL reference model instead of processor
-make run ELFS="path/to/test.elf" SAIL=1
-
-# Clean targets
-make clean          # Remove build artifacts
-make clean-act4     # Remove arch test artifacts
-make clean-coremark # Remove coremark artifacts
-make clean-synth    # Remove synthesis artifacts
-make clean-all      # Remove everything
+make clean           # Remove build artifacts and score.log
+make clean-act4      # Remove architecture test artifacts
+make clean-coremark  # Remove CoreMark artifacts
+make clean-synth     # Remove synthesis artifacts
+make clean-all       # All of the above
 ```
 
 ## Key Makefile Configuration Variables
@@ -63,19 +46,19 @@ All are overridable on the command line (e.g., `make build XLEN=64`):
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `XLEN` | `32` | Data width (32 or 64) |
-| `PROCESSOR_DIR` | `RISC-V-Pipelined-Processor/src` | Directory containing all processor RTL |
-| `INC_DIR` | `RISC-V-Pipelined-Processor/incdir/` | Include directory for parameters |
-| `PROCESSOR_TOP` | `testingCore` | Top-level module name of the processor |
-| `PROCESSOR_CONFIG` | `sadhvi/sample_processor/config` | Config dir (linker script, SAIL config, test config) |
-| `ARCH` | `rv32i_zicsr` | ISA string for compiling test/benchmark programs |
-| `SYNTH_TECH` | `sky130` | Synthesis technology library (`sky130` or `tsmc28`) |
-| `SYNTH_TOP` | `synth_top` | Top module for synthesis |
+| `PROCESSOR_DIR` | `sample_processor/src` | Directory containing all processor RTL (every `.sv`/`.svh` is compiled) |
+| `INC_DIR` | `sample_processor/incdir/` | Include directory (parameters) |
+| `PROCESSOR_TOP` | `riscvsingle` | Top-level module name of the processor |
+| `PROCESSOR_CONFIG` | `sample_processor/config` | Linker script, Sail configuration, and ACT test configuration |
+| `ARCH` | `rv$(XLEN)i_zicsr` | ISA string for compiling tests and CoreMark |
+| `SYNTH_TECH` | `sky130` | Synthesis technology (`sky130`, `tsmc28`, or `tsmc28psyn`) |
+| `SYNTH_TOP` | `$(PROCESSOR_TOP)` | Module to synthesize; set it to a submodule to find that module's critical path |
 
 ## Architecture
 
 ### Processor Interface Contract
 
-Every student processor must expose this exact port interface (see `tb/testbench.sv` and `synth/synth_top.sv`):
+The testbench (`tb/testbench.sv`) instantiates `PROCESSOR_TOP` with this port list (from `sample_processor/src/riscvsingle.sv`):
 
 ```systemverilog
 module <PROCESSOR_TOP> (
@@ -84,8 +67,8 @@ module <PROCESSOR_TOP> (
     output logic [XLEN-1:0]   PC,           // instruction fetch address
     input  logic [31:0]       Instr,        // fetched instruction
     output logic [XLEN-1:0]   IEUAdr,       // data memory address
-    input  logic [XLEN-1:0]   ReadData,     // data memory read
-    output logic [XLEN-1:0]   WriteData,    // data memory write
+    input  logic [XLEN-1:0]   ReadData,     // data memory read data
+    output logic [XLEN-1:0]   WriteData,    // data memory write data
     output logic              MemEn,        // data memory enable
     output logic              WriteEn,      // data memory write enable
     output logic [XLEN/8-1:0] WriteByteEn   // byte lane enables
@@ -94,30 +77,29 @@ module <PROCESSOR_TOP> (
 
 ### Testbench (`tb/`)
 
-- **`testbench.sv`** — Instantiates separate instruction and data RAMs (`ram1p1rwb`), the DUT, and handles HTIF semihosting (test pass/fail signaling, character output). Memory is loaded from `.memfile` generated by `elf2hex`.
-- **`ram1p1rwb.sv`** — Parameterized single-port RAM with byte-enable writes. Loads memfiles via `$value$plusargs`.
-- Memory base address: `0x8000_0000`. MTIME counter at `0x0200_bff8`.
-- HTIF/TOHOST protocol: writing `0x1` signals test pass; non-zero even value signals failure code; `0x01010000_000000xx` prints character.
-
-### Synthesis Wrapper (`synth/synth_top.sv`)
-
-Wraps the processor with clean I/O ports (no memory instantiation) for Design Compiler. The `PROCESSORTOP` macro selects the student's top module.
+- **`testbench.sv`**: instantiates separate instruction and data memories (`ram1p1rwb`) and the processor, and implements the HTIF `tohost` protocol (test pass/fail and console output). Memories are loaded from the `.memfile` that `elf2hex` makes from each ELF.
+- **`ram1p1rwb.sv`**: parameterized single-port RAM with byte-enable writes.
+- **`waves.do`**: the waveform setup Questa loads (`WAVES_DO`) when it exists.
+- Both memories start at `0x8000_0000`. The MTIME counter is at `0x0200_bff8`.
+- `tohost`: writing `1` signals a pass, any other odd value `(code << 1) | 1` a failure, and `0x01010000_000000xx` prints the character `xx`.
 
 ### Test Flows
 
-1. **Bringup** (`tests/bringup/`) — Minimal assembly tests for individual instructions (add, sub, and, or)
-2. **Act4** (`tests/act4/`) — RISC-V Architecture Tests populated from `$WALLY/addins/riscv-arch-test`. Tests RV32I + Zicntr + Zihpm + Zicsr + Zmmul extensions.
-3. **C tests** (`tests/C/`) — C programs compiled with RISC-V toolchain (e.g., HelloWorld)
-4. **CoreMark** (`coremark/`) — Industry benchmark; results feed into the scoring formula
+1. **Bringup** (`tests/bringup/`): minimal assembly tests for individual instructions (add, sub, and, or, slt, beq).
+2. **C test** (`tests/C/`): `HelloWorld.c`, compiled with the RISC-V toolchain.
+3. **Architecture tests** (`tests/act4/`): RISC-V Architecture Tests generated from `$WALLY/addins/riscv-arch-test` for the extensions in `PROCESSOR_CONFIG/lynn-rv32I.yaml` (I, Sm, Zicntr, Zicsr, Zihpm). `bin/scan_test_logs.py` summarizes the results.
+4. **CoreMark** (`coremark/`): the benchmark whose run time feeds the score.
+
+### Synthesis (`synth/`)
+
+`synth/Makefile` runs `$WALLY/synthDC` with `LYNN=1`, synthesizing `SYNTH_TOP` from `PROCESSOR_DIR`. Each run goes in its own directory under `synth/work/`.
 
 ### Scoring (`bin/score.py`)
 
-Reads synthesis QoR report (`synth/work/synth_top-*/reports/qor.rep`) and CoreMark simulation log (`coremark/work/coremark.bare.riscv.elf.sim.log`). Output goes to `score.log`.
+Reads `reports/qor.rep` and `reports/timing.rep` from the newest run in `synth/work/` and the CoreMark log `coremark/work/coremark.bare.riscv.elf.sim.log`, and writes `score.log`.
 
-### Available Processor Implementations
+### Processor Implementations
 
-- **`RISC-V-Pipelined-Processor/`** — 5-stage pipelined RV32I with hazard unit (currently selected as `PROCESSOR_DIR`)
-- **`sample_processor/`** — Simple single-cycle processor template
-- **`sadhvi/sample_processor/`** — Another student's enhanced implementation (CSR, multiply/divide)
+- **`sample_processor/`**: a single-cycle RV32I processor (`riscvsingle`) to start from.
 
-Switch processors by changing `PROCESSOR_DIR`, `INC_DIR`, and `PROCESSOR_TOP` in the Makefile or on the command line.
+To use your own processor, set `PROCESSOR_DIR`, `INC_DIR`, `PROCESSOR_TOP`, and (if its configuration differs) `PROCESSOR_CONFIG` in the Makefile or on the command line.
