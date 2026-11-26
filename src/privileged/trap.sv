@@ -48,7 +48,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
   logic                        IntToMM, IntToHSM;                               // target of the interrupt taken
   // TODO: Add cause priority for LCOFI when that interrupt source is implemented.
   logic                        DelegateM, DelegateToVSM;                        // trap delegated to HS (or S) / from HS to VS
-  logic [5:0]                  CauseIdxM;                                      // cause index for 64-bit delegation CSRs
+  logic [5:0]                  CauseIdxM;                                       // cause index for 64-bit delegation CSRs
 
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
