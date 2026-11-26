@@ -21,13 +21,12 @@ module privmode import cvw::*; #(parameter cvw_t P) (
   input  logic             StallW,
   input  logic             TrapM,               // Trap
   input  logic             mretM, sretM,        // return instruction
-  input  logic             DelegateM,           // trap delegated to supervisor mode
   input  logic [1:0]       STATUS_MPP,          // machine trap previous privilege mode
   input  logic             STATUS_SPP,          // supervisor trap previous privilege mode
   input  logic             VSSTATUS_SPP,        // virtual supervisor trap previous privilege mode
   input  logic             MSTATUS_MPV,         // from mstatus
   input  logic             HSTATUS_SPV,         // from hstatus
-  input  logic             TrapToVSM,           // resolved trap target
+  input  logic             TrapToM, TrapToVSM,  // resolved trap target
   output logic [1:0]       NextPrivilegeModeM,  // next privilege mode, used when updating STATUS CSR on a trap
   output logic [1:0]       PrivilegeModeW,      // current privilege mode
   output logic             VirtModeW            // current V
@@ -37,7 +36,7 @@ module privmode import cvw::*; #(parameter cvw_t P) (
     // PrivilegeMode FSM
     always_comb begin
       if (TrapM) begin // Change privilege based on DELEG registers (see 3.1.8)
-        if (P.S_SUPPORTED & DelegateM) NextPrivilegeModeM = P.S_MODE;
+        if (P.S_SUPPORTED & ~TrapToM)  NextPrivilegeModeM = P.S_MODE;
         else                           NextPrivilegeModeM = P.M_MODE;
       end else if (mretM)              NextPrivilegeModeM = STATUS_MPP;
       else if (sretM) begin

@@ -123,7 +123,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     STATUS_MIE, STATUS_SIE;                         // status bits: interrupt enables
   logic [15:0]              MIP_REGW, MIE_REGW;                             // interrupt pending and enable bits
   logic [1:0]               NextPrivilegeModeM;                             // next privilege mode based on trap or return
-  logic                     DelegateM;                                      // trap should be delegated
   logic                     InterruptM;                                     // interrupt occurring
   logic                     ExceptionM;                                     // Memory stage instruction caused a fault
   logic                     HPTWInstrAccessFaultM;                          // Hardware page table access fault while fetching instruction PTE
@@ -145,8 +144,8 @@ module privileged import cvw::*; #(parameter cvw_t P) (
                         ((PrivilegeModeW != P.U_MODE) | HSTATUS_HU);
 
   // track the current privilege level
-  privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM, .DelegateM,
-    .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToVSM,
+  privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM,
+    .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToM, .TrapToVSM,
     .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW);
 
   // decode privileged instructions
@@ -190,6 +189,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .PrivilegeModeW, .VirtModeW,
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .STATUS_MIE, .STATUS_SIE, .VSSTATUS_SIE,
     .InstrValidM, .CommittedM, .CommittedF,
-    .TrapM, .WaitedM, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
+    .TrapM, .WaitedM, .InterruptM, .ExceptionM, .IntPendingM, .CauseM,
     .TrapToM, .TrapToHSM, .TrapToVSM);
 endmodule
