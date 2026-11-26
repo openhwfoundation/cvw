@@ -109,8 +109,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic [15:0]              MIDELEG_REGW;                                   // interrupt delegation CSR
   logic [63:0]              HEDELEG_REGW;                                   // HS->VS exception delegation CSR
   logic [15:0]              HIDELEG_REGW;                                   // HS->VS interrupt delegation CSR
-  logic [15:0]              HIE_REGW;                                        // Hypervisor interrupt enables aliasing mie
-  logic [P.XLEN-1:0]        HGEIE_REGW;                                      // Guest external interrupt enables
   logic                     sretM, mretM;                                   // supervisor / machine return instruction
   logic                     IllegalCSRAccessM;                              // Illegal access to CSR
   logic                     VirtualCSRAccessM;                              // CSR access that raises virtual-instruction
@@ -122,7 +120,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     STATUS_SPP, STATUS_TSR, STATUS_TW, STATUS_TVM;  // Status bits needed within privileged unit
   logic                     STATUS_MIE, STATUS_SIE;                         // status bits: interrupt enables
   logic [15:0]              MIP_REGW, MIE_REGW;                             // interrupt pending and enable bits
-  logic [1:0]               NextPrivilegeModeM;                             // next privilege mode based on trap or return
   logic                     DelegateM;                                      // trap should be delegated
   logic                     InterruptM;                                     // interrupt occurring
   logic                     ExceptionM;                                     // Memory stage instruction caused a fault
@@ -147,7 +144,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   // track the current privilege level
   privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM, .DelegateM,
     .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToVSM,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW);
+    .PrivilegeModeW, .VirtModeW);
 
   // decode privileged instructions
   logic VirtualInstrFaultM;
@@ -166,11 +163,11 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW, .HLVHSVLegalM, .CauseM, .SelHPTW,
+    .PrivilegeModeW, .VirtModeW, .HLVHSVLegalM, .CauseM, .SelHPTW,
     .STATUS_MPP, .MSTATUS_MPV, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS,
     .HSTATUS_SPV, .HSTATUS_SPVP, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM, .HSTATUS_HU, .VSSTATUS_SPP, .VSSTATUS_SIE,
-    .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .HIE_REGW, .HGEIE_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
+    .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,

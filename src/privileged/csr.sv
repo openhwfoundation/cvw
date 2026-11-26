@@ -39,7 +39,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic                     InstrValidM,               // current instruction is valid
   input  logic                     FRegWriteM,                // writes to floating point registers change STATUS.FS
   input  logic [4:0]               SetFflagsM,                // Set floating point flag bits in FCSR
-  input  logic [1:0]               NextPrivilegeModeM,        // STATUS bits updated based on next privilege mode
   input  logic [1:0]               PrivilegeModeW,            // current privilege mode
   input  logic                     VirtModeW,                 // current V Bit
   input  logic                     HLVHSVLegalM,              // Legal HLV/HLVX/HSV memory access in M stage
@@ -75,8 +74,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic [63:0]              MEDELEG_REGW,
   output logic [63:0]              HEDELEG_REGW,
   output logic [15:0]              HIDELEG_REGW,
-  output logic [15:0]              HIE_REGW,
-  output logic [P.XLEN-1:0]        HGEIE_REGW,
   output logic [P.XLEN-1:0]        SATP_REGW,
   output logic [15:0]              MIP_REGW, MIE_REGW, MIDELEG_REGW,
   output logic                     STATUS_MIE, STATUS_SIE,
@@ -148,9 +145,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [1:0]              VSSTATUS_FS;
   logic                    HSTATUS_VSBE;
   logic [31:0]             HCOUNTEREN_REGW;
-  logic [11:0]             HVIP_REGW;
   logic [15:0]             HIP_MIP_REGW;
-  logic [63:0]             HTIMEDELTA_REGW;
+  logic [15:0]             HIE_REGW;
+  logic [63:0]             TimeVirt, TimeM;   // mtime + htimedelta from csrh; time CSR value for the current V
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
   logic                    WriteHIEM, WriteVSIEM;
@@ -188,34 +185,18 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign TrapWritesVAToTvalM = 1'b0;
   end
 
-  if (P.H_SUPPORTED) begin: trapcause_h
-    // H spec translates delegated VS interrupt causes 10/6/2 into 9/5/1 for VS trap state and vectoring.
-    always_comb
-      if (TrapToVSM & InterruptM)
-        case (CauseM)
-          5'd10: TrapCauseCodeM = 5'd9;
-          5'd6:  TrapCauseCodeM = 5'd5;
-          5'd2:  TrapCauseCodeM = 5'd1;
-          default:
-            TrapCauseCodeM = CauseM;
-        endcase
-      else
-        TrapCauseCodeM = CauseM;
-  end else begin: trapcause_noh
-    assign TrapCauseCodeM = CauseM;
-  end
+  // H spec translates delegated VS interrupt causes 10/6/2 into 9/5/1 for VS trap state and vectoring.
+  // hideleg can delegate only those three interrupts, so the translation is CauseM - 1 = {CauseM[4:2], 2'b01}.
+  assign TrapCauseCodeM = (TrapToVSM & InterruptM) ? {CauseM[4:2], 2'b01} : CauseM;
 
   ///////////////////////////////////////////
   // Trap Vectoring & Returns; vectored traps must be aligned to 64-byte address boundaries
   ///////////////////////////////////////////
 
   // Select trap vector from STVEC/MTVEC (and VSTVEC when H is supported) and word-align
-  if (P.H_SUPPORTED) begin: tvec_h
-    mux2 #(P.XLEN) stvecselmux(STVEC_REGW, VSTVEC_REGW, TrapToVSM, STVecSelM);
-  end else begin: tvec_noh
-    assign STVecSelM = STVEC_REGW;
-  end
-  assign SelMtvecM = P.H_SUPPORTED ? TrapToM : (NextPrivilegeModeM == P.M_MODE);
+  // TrapVectorM is used only when TrapM, so TrapToM/TrapToVSM pick the vector
+  mux2 #(P.XLEN) stvecselmux(STVEC_REGW, VSTVEC_REGW, TrapToVSM, STVecSelM);
+  assign SelMtvecM = TrapToM;
   mux2 #(P.XLEN) tvecmux(STVecSelM, MTVEC_REGW, SelMtvecM, TVecM);
   assign TVecAlignedM = {TVecM[P.XLEN-1:2], 2'b00};
 
@@ -234,14 +215,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // A return sets the PC to MEPC or SEPC/VSEPC.
   // Per the H spec 22.6.4, HS-mode SRET (V=0) always returns using SEPC even when
   // hstatus.SPV requests entry into VS/VU; only VS-mode SRET (V=1) uses VSEPC.
-  if (P.H_SUPPORTED) begin: epc_h
-    logic UseVSEPCM;
-    assign UseVSEPCM = VirtModeW;
-    mux2 #(P.XLEN) sepcselmux(SEPC_REGW, VSEPC_REGW, UseVSEPCM, SEPCSel);
-    mux2 #(P.XLEN) epcmux(SEPCSel, MEPC_REGW, mretM, EPCM);
-  end else begin: epc_noh
-    mux2 #(P.XLEN) epcmux(SEPC_REGW, MEPC_REGW, mretM, EPCM);
-  end
+  mux2 #(P.XLEN) sepcselmux(SEPC_REGW, VSEPC_REGW, P.H_SUPPORTED & VirtModeW, SEPCSel);
+  mux2 #(P.XLEN) epcmux(SEPCSel, MEPC_REGW, mretM, EPCM);
 
   ///////////////////////////////////////////
   // CSRWriteValM
@@ -252,9 +227,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
     CSRSrcM = InstrM[14] ? {{(P.XLEN-5){1'b0}}, InstrM[19:15]} : SrcAM;
 
     // CSR set and clear for MIP/SIP should only touch internal state, not interrupt inputs
-    // mip.VSSIP aliases to hvip.VSSIP (stored in csrh), MIP_REGW_writeable[2] is always zero, OR with the hvip.VSSIP bit
-    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable} |
-        {{(P.XLEN-12){1'b0}}, (HVIP_REGW & 12'h4)};
+    // mip.VSSIP is the writable hvip.VSSIP bit stored in csrh (HIP_MIP_REGW[2]); MIP_REGW_writeable[2] is always zero
+    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable | {13'b0, HIP_MIP_REGW[2], 2'b0}};
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
@@ -292,13 +266,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
   assign CSRSWriteM = CSRWriteM & (|PrivilegeModeW) & InstrValidNotFlushedM;
   assign CSRUWriteM = CSRWriteM & InstrValidNotFlushedM;
   // Record the trap only when it is taken, like mstatus and the privilege mode
-  if (P.H_SUPPORTED) begin: trap_sel_h
-    assign MTrapM = TrapM & ~StallW & TrapToM;
-    assign STrapM = TrapM & ~StallW & TrapToHSM & P.S_SUPPORTED;
-  end else begin: trap_sel_noh
-    assign MTrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.M_MODE);
-    assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
-  end
+  // TrapToM/TrapToHSM already include TrapM
+  assign MTrapM = TrapToM & ~StallW;
+  assign STrapM = TrapToHSM & ~StallW & P.S_SUPPORTED;
 
   ///////////////////////////////////////////
   // CSRs
@@ -368,7 +338,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
       .HSTATUS_SPVP, .HSTATUS_HU,
       .HSTATUS_VSBE, .VSSTATUS_SPP, .VSSTATUS_SIE, .VSSTATUS_SUM, .VSSTATUS_MXR, .VSSTATUS_UBE, .VSSTATUS_FS,
-      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HGEIE_REGW, .HCOUNTEREN_REGW, .HVIP_REGW, .HIP_MIP_REGW, .HTIMEDELTA_REGW, .HENVCFG_REGW,
+      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HCOUNTEREN_REGW, .HIP_MIP_REGW, .TimeVirt, .HENVCFG_REGW,
       .VSTVEC_REGW, .VSEPC_REGW, .VSATP_REGW, .HGATP_REGW);
   end else begin: no_csrh
     assign CSRHReadValM = '0;
@@ -390,11 +360,9 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign HIDELEG_REGW = '0;
     assign WriteHIEM = 1'b0;
     assign WriteVSIEM = 1'b0;
-    assign HGEIE_REGW = '0;
     assign HCOUNTEREN_REGW = '0;
-    assign HVIP_REGW = '0;
     assign HIP_MIP_REGW = '0;
-    assign HTIMEDELTA_REGW = '0;
+    assign TimeVirt = '0;
     assign HENVCFG_REGW = '0;
     assign VSTVEC_REGW = '0;
     assign VSEPC_REGW = '0;
@@ -402,12 +370,11 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign HGATP_REGW = '0;
   end
 
+  // time CSR: VS/VU read mtime + htimedelta (one adder, shared with the vstimecmp compare in csrh)
+  assign TimeM = (P.H_SUPPORTED & VirtModeW) ? TimeVirt : MTIME_CLINT;
+
   // SATP Mux
-  if (P.H_SUPPORTED) begin: satp_mux
-      mux2 #(P.XLEN) satpmux(SATP_REGW_INT, VSATP_REGW, VirtModeW, SATP_REGW);
-  end else begin: satp_nomux
-      assign SATP_REGW = SATP_REGW_INT;
-  end
+  mux2 #(P.XLEN) satpmux(SATP_REGW_INT, VSATP_REGW, P.H_SUPPORTED & VirtModeW, SATP_REGW);
 
   // Until two-stage translation is integrated, htval trap writes stay zero.
   assign NextHtvalM = '0;
@@ -469,7 +436,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .InterruptM, .TrapM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .CSRAdrM, .PrivilegeModeW, .VirtModeW, .CSRWriteValM,
     .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW, .HCOUNTEREN_REGW,
-    .MTIME_CLINT, .HTIMEDELTA_REGW, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
+    .TimeM, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
 
   csrenv #(P) csrenv(.InstrM, .PrivilegeModeW, .VirtModeW, .MENVCFG_REGW, .HENVCFG_REGW,
     .SENVCFG_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .VirtualCMOInstrM);
