@@ -73,9 +73,7 @@ module csri import cvw::*; #(parameter cvw_t P) (
     else if (WriteMIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & MIP_WRITE_MASK);
     else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK); // exclusion-tag: csri-write-sip
 
-  // mie owns all implemented enable state.  sie, hie and vsie are masked views of it: each write
-  // changes only the bits its mask allows.  Bits outside MIE_WRITE_MASK are never set, so a full mie
-  // write is the same read-modify-write with the widest mask.
+  // mie holds all enable state; mie, sie, hie and vsie writes change only the bits their masks allow.
   assign HIE_WRITE_MASK  = P.H_SUPPORTED ? (16'h0444 | ((P.GEILEN > 0) ? 16'h1000 : 16'h0000)) : 16'h0000;
   assign VSIE_WRITE_MASK = HIDELEG_REGW; // vsie.{SEIE,STIE,SSIE} alias mie.{VSEIE,VSTIE,VSSIE} (bits 10/6/2) when delegated
   // The write enables decode distinct addresses, so at most one is set
