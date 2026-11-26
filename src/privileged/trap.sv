@@ -36,7 +36,6 @@ module trap import cvw::*; #(parameter cvw_t P) (
   output logic                 InterruptM,                                      // Interrupt is occurring
   output logic                 ExceptionM,                                      // exception is occurring
   output logic                 IntPendingM,                                     // Interrupt is pending, might occur if enabled
-  output logic                 DelegateM,                                       // Delegate trap to supervisor handler
   output logic [4:0]           CauseM,                                          // trap cause
   output logic                 TrapToM, TrapToHSM, TrapToVSM
 );
@@ -44,12 +43,12 @@ module trap import cvw::*; #(parameter cvw_t P) (
   logic                        MIntGlobalEnM, HSIntGlobalEnM, VSIntGlobalEnM;   // Global interrupt enables
   logic                        Committed;                                       // LSU or IFU has committed to a bus operation that can't be interrupted
   logic                        BothInstrAccessFaultM, BothInstrPageFaultM;      // instruction or HPTW ITLB fill caused an Instruction Access Fault
-  logic [15:0]                 PendingIntsM, ValidIntsM, EnabledIntsM;          // interrupts are pending, valid, or enabled
+  logic [15:0]                 PendingIntsM, ValidIntsM;                        // interrupts are pending, or pending, enabled, and chosen target
   logic [15:0]                 MEnabledIntsM, HSEnabledIntsM, VSEnabledIntsM;   // interrupt sets by target mode
+  logic                        IntToMM, IntToHSM;                               // target of the interrupt taken
   // TODO: Add cause priority for LCOFI when that interrupt source is implemented.
-  logic                        DelegateToVSM;                                  // trap delegated from HS to VS
+  logic                        DelegateM, DelegateToVSM;                        // trap delegated to HS (or S) / from HS to VS
   logic [5:0]                  CauseIdxM;                                      // cause index for 64-bit delegation CSRs
-  logic                        HidelegHitM, HedelegHitM;
 
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
@@ -64,59 +63,43 @@ module trap import cvw::*; #(parameter cvw_t P) (
   assign IntPendingM   = |PendingIntsM;
   assign Committed     = CommittedM | CommittedF; // exclusion-tag: trap-committed
   if (P.H_SUPPORTED) begin: enabledints_h
-    // HS traps use sstatus.SIE only in HS; VS traps use vsstatus.SIE only in VS.
+    // HS interrupts are always enabled at V=1 and in U; VS interrupts only at V=1 (V=1 implies VS or VU).
     assign HSIntGlobalEnM = (PrivilegeModeW == P.U_MODE) |
                             ((PrivilegeModeW == P.S_MODE) & (VirtModeW | STATUS_SIE));
-    assign VSIntGlobalEnM = VirtModeW &
-                            ((PrivilegeModeW == P.U_MODE) |
-                             ((PrivilegeModeW == P.S_MODE) & VSSTATUS_SIE));
-    assign MEnabledIntsM  = MIntGlobalEnM  ? PendingIntsM & ~MIDELEG_REGW                 : '0;
+    assign VSIntGlobalEnM = VirtModeW & ((PrivilegeModeW == P.U_MODE) | VSSTATUS_SIE);
     assign HSEnabledIntsM = HSIntGlobalEnM ? PendingIntsM &  MIDELEG_REGW & ~HIDELEG_REGW : '0;
     assign VSEnabledIntsM = VSIntGlobalEnM ? PendingIntsM &  MIDELEG_REGW &  HIDELEG_REGW : '0;
-    assign EnabledIntsM   = MEnabledIntsM | HSEnabledIntsM | VSEnabledIntsM;
   end else begin: enabledints_noh
     assign HSIntGlobalEnM = (PrivilegeModeW == P.U_MODE) | ((PrivilegeModeW == P.S_MODE) & STATUS_SIE);
     assign VSIntGlobalEnM = 1'b0;
-    assign MEnabledIntsM  = MIntGlobalEnM  ? PendingIntsM & ~MIDELEG_REGW : '0;
     assign HSEnabledIntsM = HSIntGlobalEnM ? PendingIntsM &  MIDELEG_REGW : '0;
     assign VSEnabledIntsM = '0;
-    assign EnabledIntsM   = MEnabledIntsM | HSEnabledIntsM;
   end
+  assign MEnabledIntsM  = MIntGlobalEnM  ? PendingIntsM & ~MIDELEG_REGW : '0;
+
+  // Interrupts to a more privileged mode are taken first (machine.adoc norm:intr_M_mode_pri note),
+  // so the interrupt taken targets the most privileged mode with an enabled interrupt.
+  assign IntToMM  = |MEnabledIntsM;
+  assign IntToHSM = ~IntToMM & |HSEnabledIntsM;
   // Suppress interrupts if the memory system has partially processed a request, or if a wfi
   // in M has waited: it then retires and the interrupt is taken on the next instruction (mepc = pc + 4).
   // Gating ValidIntsM rather than InterruptM keeps CauseM consistent when the wait ends in an exception.
-  assign ValidIntsM    = (Committed | WaitedM) ? '0 : EnabledIntsM;
+  assign ValidIntsM    = (Committed | WaitedM) ? '0 :
+                         IntToMM ? MEnabledIntsM : IntToHSM ? HSEnabledIntsM : VSEnabledIntsM;
   assign InterruptM    = (|ValidIntsM) & InstrValidM;
-  if (P.H_SUPPORTED) begin: deleg_h
-    /* verilator lint_off WIDTHTRUNC */
-    assign DelegateM = P.S_SUPPORTED & (InterruptM ? ((CauseM < 16) ? MIDELEG_REGW[CauseM] : 1'b0)
-                                                    : MEDELEG_REGW[CauseIdxM]) &
-                        ((PrivilegeModeW == P.U_MODE) | (PrivilegeModeW == P.S_MODE));
-    /* verilator lint_on WIDTHTRUNC */
-  end else begin: deleg_noh
-    assign DelegateM = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseIdxM]) &
-                       ((PrivilegeModeW == P.U_MODE) | (PrivilegeModeW == P.S_MODE));
-  end
-  // Trap target one-hots.
-  // With H: select M/HS/VS trap entry. Without H: TrapToVSM is tied low, a delegated trap is an
-  // S-mode trap (TrapToHSM), and TrapToM marks the traps that are not delegated.
+
+  // Trap target one-hots.  An interrupt's target is known from the set it came from; an
+  // exception is delegated by medeleg (and from HS to VS by hedeleg) when taken below M.
+  assign DelegateM     = InterruptM ? ~IntToMM :
+                         P.S_SUPPORTED & MEDELEG_REGW[CauseIdxM] & ((PrivilegeModeW == P.U_MODE) | (PrivilegeModeW == P.S_MODE));
   if (P.H_SUPPORTED) begin: trapto_vs_h
-    /* verilator lint_off WIDTHTRUNC */
-    assign HidelegHitM   = (CauseM < 16) ? HIDELEG_REGW[CauseM] : 1'b0;
-    /* verilator lint_on WIDTHTRUNC */
-    assign HedelegHitM   = HEDELEG_REGW[CauseIdxM];
-    assign DelegateToVSM = VirtModeW & DelegateM & (InterruptM ? HidelegHitM : HedelegHitM);
-    assign TrapToVSM     = TrapM & DelegateToVSM;
-    assign TrapToHSM     = TrapM & DelegateM & ~TrapToVSM;
-    assign TrapToM       = TrapM & ~TrapToHSM & ~TrapToVSM;
+    assign DelegateToVSM = InterruptM ? ~IntToMM & ~IntToHSM : VirtModeW & DelegateM & HEDELEG_REGW[CauseIdxM];
   end else begin: trapto_vs_noh
-    assign HidelegHitM   = 1'b0;
-    assign HedelegHitM   = 1'b0;
     assign DelegateToVSM = 1'b0;
-    assign TrapToVSM     = 1'b0;
-    assign TrapToHSM     = TrapM & DelegateM;
-    assign TrapToM       = TrapM & ~DelegateM;
   end
+  assign TrapToVSM     = TrapM & DelegateToVSM;
+  assign TrapToHSM     = TrapM & DelegateM & ~DelegateToVSM;
+  assign TrapToM       = TrapM & ~DelegateM;
 
   ///////////////////////////////////////////
   // Trigger Traps
@@ -157,24 +140,17 @@ module trap import cvw::*; #(parameter cvw_t P) (
 
   always_comb
     if      (reset)                                               CauseM = 5'd0; // hard reset 3.3
+    // Within each target mode: MEI, MSI, MTI, SEI, SSI, STI, SGEI, VSEI, VSSI, VSTI (norm:intr_M_mode_pri, norm:hsint_priority)
     else if (ValidIntsM[11])                                      CauseM = 5'd11; // Machine External Int
     else if (ValidIntsM[3])                                       CauseM = 5'd3;  // Machine Sw Int
     else if (ValidIntsM[7])                                       CauseM = 5'd7;  // Machine Timer Int
-    // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
-    else if (~MIDELEG_REGW[9] & ValidIntsM[9])                    CauseM = 5'd9;  // not delegated Supervisor External Int // exclusion-tag: trap-sint-start
-    else if (~MIDELEG_REGW[1] & ValidIntsM[1])                    CauseM = 5'd1;  // not delegated Supervisor Sw Int
-    else if (~MIDELEG_REGW[5] & ValidIntsM[5])                    CauseM = 5'd5;  // not delegated Supervisor Timer Int
-    else if (ValidIntsM[9])                                       CauseM = 5'd9;  // delegated Supervisor External Int
-    else if (ValidIntsM[1])                                       CauseM = 5'd1;  // delegated Supervisor Sw Int
-    else if (ValidIntsM[5])                                       CauseM = 5'd5;  // delegated Supervisor Timer Int // exclusion-tag: trap-sint-end
-    else if (P.H_SUPPORTED & ValidIntsM[12])                      CauseM = 5'd12; // Supervisor Guest External Int must be taken in HS
-    // if any of the VS mode interrupts are delegated to VS mode they would have lower priority
-    else if (P.H_SUPPORTED & ValidIntsM[10] & ~HIDELEG_REGW[10])  CauseM = 5'd10; // undelegated Virtual Supervisor External Int
-    else if (P.H_SUPPORTED & ValidIntsM[2] & ~HIDELEG_REGW[2])    CauseM = 5'd2;  // undelegated Virtual Supervisor Software Int
-    else if (P.H_SUPPORTED & ValidIntsM[6] & ~HIDELEG_REGW[6])    CauseM = 5'd6;  // undelegated Virtual Supervisor Timer Int
-    else if (P.H_SUPPORTED & ValidIntsM[10])                      CauseM = 5'd10; // delegated Virtual Supervisor External Int
-    else if (P.H_SUPPORTED & ValidIntsM[2])                       CauseM = 5'd2;  // delegated Virtual Supervisor Software Int
-    else if (P.H_SUPPORTED & ValidIntsM[6])                       CauseM = 5'd6;  // delegated Virtual Supervisor Timer Int
+    else if (ValidIntsM[9])                                       CauseM = 5'd9;  // Supervisor External Int // exclusion-tag: trap-sint-start
+    else if (ValidIntsM[1])                                       CauseM = 5'd1;  // Supervisor Sw Int
+    else if (ValidIntsM[5])                                       CauseM = 5'd5;  // Supervisor Timer Int // exclusion-tag: trap-sint-end
+    else if (P.H_SUPPORTED & ValidIntsM[12])                      CauseM = 5'd12; // Supervisor Guest External Int
+    else if (P.H_SUPPORTED & ValidIntsM[10])                      CauseM = 5'd10; // Virtual Supervisor External Int
+    else if (P.H_SUPPORTED & ValidIntsM[2])                       CauseM = 5'd2;  // Virtual Supervisor Software Int
+    else if (P.H_SUPPORTED & ValidIntsM[6])                       CauseM = 5'd6;  // Virtual Supervisor Timer Int
     else if (BothInstrPageFaultM)                                 CauseM = 5'd12; // Instruction page fault // exclusion-tag: trap-instr-page-fault
     else if (BothInstrAccessFaultM)                               CauseM = 5'd1;  // Instruction access fault
     else if (P.H_SUPPORTED & VirtualInstrFaultM)                  CauseM = 5'd22; // Virtual Instruction Fault

@@ -159,9 +159,6 @@ coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/pri
 
 # The supervisor interrupt enables mie[9,5,1] are read-only zero (MIE_WRITE_MASK = 0x888), so no supervisor
 # interrupt is ever valid; the privilege mode is never S and mstatus.SIE is tied to 0.
-ExcludeRows /core/priv/priv/trap c [list {MIDELEG_REGW\[9\]_0} {MIDELEG_REGW\[9\]_1} {ValidIntsM\[9\]_1}]
-ExcludeRows /core/priv/priv/trap c [list {MIDELEG_REGW\[1\]_0} {MIDELEG_REGW\[1\]_1} {ValidIntsM\[1\]_1}]
-ExcludeRows /core/priv/priv/trap c [list {MIDELEG_REGW\[5\]_0} {MIDELEG_REGW\[5\]_1} {ValidIntsM\[5\]_1}]
 ExcludeRows /core/priv/priv/trap e [list "(PrivilegeModeW == 1)_0" "(PrivilegeModeW == 1)_1" STATUS_SIE_0 STATUS_SIE_1]
 coverage exclude -scope /core/priv/priv/trap -linerange [TagLine ${SRC}/privileged/trap.sv trap-sint-start]-[TagLine ${SRC}/privileged/trap.sv trap-sint-end] -code bs
 
