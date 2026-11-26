@@ -28,10 +28,13 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   input  logic              Slot1FuseD,                           // The pair is fused into one indexed load (issue.sv)
   input  logic              Slot1FuseBrD,                         // The pair is fused into one ALU op + branch (issue.sv)
   input  logic              Slot1FuseBrAddD,                      // ... and slot 0 is an add (else a logic op)
+  input  logic              Slot1FuseAdrD,                        // The pair is fused into one add + load/store at the sum (issue.sv)
+  input  logic              Slot1FuseStD,                         // The pair is fused into one ALU op + store of its result (issue.sv)
   output logic              FuseM,                            // ... which is now in Memory
   input  logic              Slot1ReplayM,                         // ... and faulted: slot 0 commits as the add alone
   input  logic              PredTakenE,                       // Fetch went to slot 0's branch target (predicted taken)
-  output logic              LateBrM,                          // Slot 0 is a branch whose direction is checked in Memory
+  output logic              LateBrM,                          // The bundle's branch has its direction checked in Memory
+  output logic              LateBr1M,                         // ... and it is slot 1's
   output logic              LateBrTakenM,                     // ... its real direction
   output logic              LateBrWrongM,                     // ... and fetch went the other way: redirect from Memory
   output logic              Slot1MemM,                            // The bundle's memory operation is slot 1's
@@ -166,7 +169,13 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // in Execute.  Its direction is checked by the late ALU in Memory instead of stalling it in Decode.
   logic [1:0] Slot0LateWAD, Slot0LateWBD;                             // Slot 0 operand produced too late (as Slot1LateWAD, for slot 0)
   logic       LateBrD, LateBrE;                               // Slot 0 is a late branch
+  logic       LateBr1D, LateBr1E;                             // Slot 1 is a late branch
+  logic       LateBr1KeptE;                                   // ... and slot 0 did not kill it
+  logic       Slot1GoLateD;                                   // Slot 1 uses the late ALU: an ALU operation or a late branch
+  logic       Slot0StDataLateD, Slot1StDataLateD;             // Slot 0 / slot 1 is a store whose data is produced too late
+  logic [1:0] StDataLateD, StDataLateE, StDataLateM;          // ... where Memory takes it from (Slot1LateWAD's codes)
   logic       AssumedTakenM;                                  // The direction it was given in Execute
+  logic [2:0] LateBrFunct3M;                                  // ... and its comparison
   logic [2:0] LateFlagsM;                                     // {eq, lt, ltu} from the late ALU
   logic       StructuralStall0GD;                             // Slot 0's own stalls, less those a late branch avoids
   logic       Slot1LateStallD;                                    // A late slot 1's result is not ready to forward yet
@@ -201,6 +210,8 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   logic [2:0] Slot0ResultSrcRawW;                                    // Slot 0's writeback select from the controller
   logic       Slot1FuseBrAE, Slot1FuseBrBE;                           // Fused ALU + branch: slot 1's rs1 / rs2 is slot 0's result
   logic       Slot1FuseBrAddE;                                    // Fused ALU + branch whose slot 0 is an add (else a logic op)
+  logic       FuseAdrD, Slot1FuseAdrE;                            // Fused add + load/store: the LSU takes slot 0's sum as the address
+  logic       FuseStD, Slot1FuseStE;                              // Fused ALU op + store: the LSU takes slot 0's result as the store data
 
   logic [2:0] Slot0ForwardAE, Slot0ForwardBE;                           // Select signals for forwarding multiplexers
   logic       Slot0RegWriteW;                                      // Register will be written in Writeback stage
@@ -245,7 +256,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
       // The load-use hazard cannot be computed here: it depends on the Execute-stage control of the
       // real pipeline (MemReadE, CSRReadE, MDUE), which only c has.  c computes it for both slots.
       .StructuralStallD(), .Slot0LoadStallD(), .StoreStallD(),
-      .Slot1Rs1D(5'b0), .Slot1Rs2D(5'b0), .Slot1StructuralStallD(), .SlowResultE(), .LateBrE(1'b0), .PredTakenE(1'b0), .FuseLoadD(1'b0),
+      .Slot1Rs1D(5'b0), .Slot1Rs2D(5'b0), .Slot1StructuralStallD(), .SlowResultE(), .LateBrE(LateBr1E), .PredTakenE, .FuseLoadD(1'b0),
       .Slot0Rs1D(Slot1Rs1D), .Slot0Rs2D(Slot1Rs2D), .Slot0Rs2E(Slot1Rs2E), .Slot0MemRWD(Slot1MemRWD),
       // An unpaired slot 1 is flushed on its way into Execute rather than being allowed down the
       // pipeline and suppressed at each consumer.  Its control signals, Slot1RegWriteM/W and Slot1RdM/W then
@@ -381,8 +392,10 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   logic Slot1LateADQ, Slot1LateBDQ;
   assign Slot1LateADQ = Slot1LateAD & (Slot1Rs1D == Slot0InstrD[11:7]);
   assign Slot1LateBDQ = Slot1LateBD & (Slot1Rs2D == Slot0InstrD[11:7]);
-  // A fused slot 1's rs1 is slot 0's rd too, but it is a bubble, so it is never late.
-  flopenrc #(2) Slot1LateEReg(clk, reset, FlushE | ~Slot1IssueD | FuseD, ~StallE, {Slot1LateADQ, Slot1LateBDQ}, {Slot1LateARawE, Slot1LateBRawE});
+  // A fused slot 1's rs1 is slot 0's rd too, but it is a bubble, so it is never late.  Nor is the access
+  // of a fused add + load/store, whose address is slot 0's sum in Execute, nor the data of a fused ALU op +
+  // store, which is slot 0's Execute result (below).
+  flopenrc #(2) Slot1LateEReg(clk, reset, FlushE | ~Slot1IssueD | FuseD | FuseAdrD | FuseStD, ~StallE, {Slot1LateADQ, Slot1LateBDQ}, {Slot1LateARawE, Slot1LateBRawE});
 
   // Fused ALU + branch (issue.sv): which of the branch's operands is slot 0's result, so slot 1's comparator
   // takes it from slot 0's ALU (datapath.sv).  It never also goes late: a branch's ALU operands are the PC
@@ -395,6 +408,22 @@ module ieu import cvw::*; #(parameter cvw_t P) (
                              {Slot1FuseBrAE, Slot1FuseBrBE, Slot1FuseBrAddE});
   end else begin : nofusebr
     assign {Slot1FuseBrAE, Slot1FuseBrBE, Slot1FuseBrAddE} = '0;
+  end
+
+  // Fused add + memory access (issue.sv): slot 1's load or store takes its address from slot 0's ALU sum,
+  // which datapath.sv's lsuadrmux sends to the LSU in place of slot 1's own.  Slot 0 must not go late, or its
+  // Execute sum would not be the address: Slot1LateADQ is set for the pair (slot 1's rs1 is slot 0's rd), so
+  // Slot0LateD refuses, and slot 0 stalls in Decode for a slow operand as it would alone.
+  //   sh2add s7, a7, t3 ; lw s8, 0(s7)    the LSU reads at slot 0's sum, a7*4 + t3
+  // Fused ALU op + store (issue.sv) likewise: the store's data is slot 0's Execute result (writedatamux),
+  // and Slot1LateBDQ (slot 1's rs2 is slot 0's rd) keeps slot 0 from going late.
+  //   or a2, a2, a6 ; sh a2, 0(a0)        the LSU stores slot 0's a2 | a6
+  assign FuseAdrD = Slot1IssueD & Slot1FuseAdrD;
+  assign FuseStD  = Slot1IssueD & Slot1FuseStD;
+  if (P.FUSION_SUPPORTED) begin : fuseadr
+    flopenrc #(2) FuseAdrEReg(clk, reset, FlushE, ~StallE, {FuseAdrD, FuseStD}, {Slot1FuseAdrE, Slot1FuseStE});
+  end else begin : nofuseadr
+    assign {Slot1FuseAdrE, Slot1FuseStE} = '0;
   end
 
   // The late ALU also takes an operand that the bundle now in Execute produces too late to forward --
@@ -441,6 +470,27 @@ module ieu import cvw::*; #(parameter cvw_t P) (
                     ~(Slot1IssueD & (|Slot1MemRWD | Slot1LateADQ | Slot1LateBDQ | |Slot1LateWAD | |Slot1LateWBD));
   flopenrc #(1) LateBrEReg(clk, reset, FlushE, ~StallE, LateBrD, LateBrE);
 
+  // Late slot 1 branch: the same for a branch in slot 1, whose operand the bundle ahead produces too late.
+  // Slot 0 is then older than the branch, so its memory operation, if any, is valid whichever way the
+  // branch goes.  The branch must not also read slot 0's result in the same bundle (a fused or refused pair).
+  assign LateBr1D = P.LATE_ALU_SUPPORTED & (P.ZICSR_SUPPORTED | P.ZIFENCEI_SUPPORTED) & P.ZCA_SUPPORTED &
+                    Slot1IssueD & Slot1BranchD & (|Slot1LateWAD | |Slot1LateWBD) &
+                    ~(Slot1LateADQ & |Slot1Rs1D) & ~(Slot1LateBDQ & |Slot1Rs2D);   // x0 is never a real dependency
+  flopenrc #(1) LateBr1EReg(clk, reset, FlushE, ~StallE, LateBr1D, LateBr1E);
+  assign Slot1GoLateD = Slot1LateOKD | LateBr1D;
+
+  // Late store data.  A store needs its data only in Memory, so when the data (rs2), but not the address
+  // (rs1), is a slow result of the bundle ahead, the store need not stall: in Memory that producer is in
+  // Writeback, and datapath.sv takes the data from Slot0ResultW or Slot1ResultW.  Integer stores only (an
+  // FP store's data comes from the FPU; an AMO or SC is opcode 0101111).  At most one store per bundle.
+  // As for the late ALU, the codes are cleared when CaptureE lets the producer retire first: then
+  // ordinary forwarding in Execute already has the value.
+  assign Slot0StDataLateD = P.LATE_ALU_SUPPORTED & (Slot0InstrD[6:0] == 7'b0100011) & |Slot0LateWBD & ~|Slot0LateWAD;
+  assign Slot1StDataLateD = P.LATE_ALU_SUPPORTED & Slot1IssueD & (Slot1InstrD[6:0] == 7'b0100011) & |Slot1LateWBD & ~|Slot1LateWAD;
+  assign StDataLateD = Slot0StDataLateD ? Slot0LateWBD : Slot1StDataLateD ? Slot1LateWBD : 2'b00;
+  flopenrc #(2) StDataLateEReg(clk, reset, FlushE | CaptureE, ~StallE | CaptureE, StDataLateD, StDataLateE);
+  flopenrc #(2) StDataLateMReg(clk, reset, FlushM, ~StallM, StDataLateE, StDataLateM);
+
   // Late slot 0.  Example:
   //   bundle A:  lw   a5, 0(a0)
   //   bundle B:  addi a4, a5, 3     <- slot 0 needs a5, which the previous bundle is still loading
@@ -469,7 +519,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
 
   // The late ALU's Writeback operand selects: slot 0's for a late branch or late slot 0, else slot 1's.
   flopenrc #(4) Slot1LateWEReg(clk, reset, FlushE | (~Slot1IssueD & ~LateBrD & ~Slot0LateD) | CaptureE, ~StallE | CaptureE,
-                           (LateBrD | Slot0LateD) ? {Slot0LateWAD, Slot0LateWBD} : ({Slot1LateWAD, Slot1LateWBD} & {4{Slot1LateOKD}}),
+                           (LateBrD | Slot0LateD) ? {Slot0LateWAD, Slot0LateWBD} : ({Slot1LateWAD, Slot1LateWBD} & {4{Slot1GoLateD}}),
                            {LateWA1RawE, LateWB1RawE});
 
   // Each operand's source for the late ALU: 00 as captured in Execute, 01 slot 0's result in Memory,
@@ -490,11 +540,11 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // fields, so e.g. addi a4, a1, 15 has 15 where rs2 would be and looks like it reads x15 (a5).
   // With LATE_ALU_SUPPORTED = 0 both selects are 00: nothing is late, and the late ALU is unused.
   assign Slot1LateSelAE = ~P.LATE_ALU_SUPPORTED ? 2'b00 :
-                      LateBrE   ? LateWA1RawE :
+                      (LateBrE | LateBr1E) ? LateWA1RawE :
                       Slot0LateRawE ? ((Slot0ALUSrcAE | Slot0ALUResultSrcE) ? 2'b00 : LateWA1RawE) :
                       (Slot1ALUSrcAE | Slot1ALUResultSrcE) ? 2'b00 : Slot1LateARawE ? 2'b01 : LateWA1RawE;
   assign Slot1LateSelBE = ~P.LATE_ALU_SUPPORTED ? 2'b00 :
-                      LateBrE   ? LateWB1RawE :
+                      (LateBrE | LateBr1E) ? LateWB1RawE :
                       Slot0LateRawE ? ((Slot0ALUSrcBE | Slot0ALUResultSrcE) ? 2'b00 : LateWB1RawE) :
                       (Slot1ALUSrcBE | Slot1ALUResultSrcE) ? 2'b00 : Slot1LateBRawE ? 2'b01 : LateWB1RawE;
 
@@ -503,12 +553,16 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // Execute already captured the value.  Then nothing is late and slot 0's Execute result is used.
   // Slot 1 cannot be late in a bundle whose slot 0 was sent to the late ALU.
   assign Slot0LateE     = Slot0LateRawE & (|Slot1LateSelAE | |Slot1LateSelBE);              // slot 0 is late
-  assign Slot1LateE     = ~LateBrE & ~Slot0LateRawE & (|Slot1LateSelAE | |Slot1LateSelBE);  // slot 1 is late
+  assign Slot1LateE     = ~LateBrE & ~LateBr1E & ~Slot0LateRawE & (|Slot1LateSelAE | |Slot1LateSelBE);  // slot 1 is late
 
   // In Memory: the branch's real direction from the late ALU's flags, by funct3 as the comparator does.
-  flopenrc #(2) LateBrMReg(clk, reset, FlushM, ~StallM, {LateBrE, Slot0PCSrcE}, {LateBrM, AssumedTakenM});
+  // The assumed direction is the late branch's own: the other slot may hold a branch resolved in Execute.
+  // A late slot 1 branch killed by a taken slot 0 branch (Kill1E) is on the wrong path and checks nothing.
+  assign LateBr1KeptE = LateBr1E & ~Slot0PCSrcE;
+  flopenrc #(3) LateBrMReg(clk, reset, FlushM, ~StallM, {LateBrE | LateBr1KeptE, LateBr1KeptE, LateBr1E ? Slot1PCSrcE : Slot0PCSrcE}, {LateBrM, LateBr1M, AssumedTakenM});
+  assign LateBrFunct3M = LateBr1M ? Slot1Funct3M : Funct3M;
   always_comb
-    case (Funct3M)
+    case (LateBrFunct3M)
       3'b000:  LateBrTakenM =  LateFlagsM[2];   // beq
       3'b001:  LateBrTakenM = ~LateFlagsM[2];   // bne
       3'b100:  LateBrTakenM =  LateFlagsM[1];   // blt
@@ -551,8 +605,8 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   //   bundle A:  addi t0, t0, 1   | lw a5, 0(a0)
   //   bundle B:  add  a4, a4, a5  | ...            <- slot 0 goes late and takes a5 from Slot1ResultW
   assign Slot1LoadStallD = Slot1MemRWE[1] & (Slot1RdE != 5'b0) &
-                       (~(LateBrD | Slot0LateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
-                        (Slot1IssueD & ~Slot1LateOKD & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
+                       (~(LateBrD | Slot0LateD | Slot0StDataLateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
+                        (Slot1IssueD & ~(Slot1GoLateD | Slot1StDataLateD) & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
 
   // Multiply/divide-use, for the same reason: the result is not complete until the end of Memory, so
   // it first appears in Slot1ResultW, and Slot1IEUResultM holds slot 1's meaningless ALU output.  This is the
@@ -560,16 +614,16 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // cycle.  A divide's iterations happen while DivBusyE holds the whole pipeline, so from the
   // consumer's point of view a divide is no later than a multiply once it leaves Execute.
   assign Slot1MDUStallD = Slot1MDUActiveE & (Slot1RdE != 5'b0) &
-                      (~(LateBrD | Slot0LateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
-                       (Slot1IssueD & ~Slot1LateOKD & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
+                      (~(LateBrD | Slot0LateD | Slot0StDataLateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
+                       (Slot1IssueD & ~(Slot1GoLateD | Slot1StDataLateD) & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
 
   // Late-ALU-use, for the same reason again: a late slot 1 computes its result in Memory, so it first
   // appears in Slot1ResultW, and Slot1IEUResultM holds what slot 1's Execute ALU made of a stale operand.
   // Forwarding the late ALU's output to Execute instead would chain it into the next bundle's ALU,
   // which is the critical path the late ALU exists to avoid.
   assign Slot1LateStallD = Slot1LateE & (Slot1RdE != 5'b0) &
-                       (~(LateBrD | Slot0LateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
-                        (Slot1IssueD & ~Slot1LateOKD & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
+                       (~(LateBrD | Slot0LateD | Slot0StDataLateD) & ((Slot0Rs1D == Slot1RdE) | (Slot0Rs2D == Slot1RdE)) |
+                        (Slot1IssueD & ~(Slot1GoLateD | Slot1StDataLateD) & ((Slot1Rs1D == Slot1RdE) | (Slot1Rs2D == Slot1RdE))));
 
   // Late-slot-0-use: the same as Slot1LateStallD, with the previous bundle's slot 0 as the late producer.
   //   bundle A:  add a4, a4, a5   | ...   <- slot 0 is late (Slot0LateE): a4 is computed in Memory
@@ -579,8 +633,8 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // cannot -- a load or store address, a jalr, a multiply -- waits here one cycle, then forwards it from
   // Writeback.
   assign Slot0LateStallD = Slot0LateE & (Slot0RdE != 5'b0) &
-                       (~(LateBrD | Slot0LateD) & ((Slot0Rs1D == Slot0RdE) | (Slot0Rs2D == Slot0RdE)) |
-                        (Slot1IssueD & ~Slot1LateOKD & ((Slot1Rs1D == Slot0RdE) | (Slot1Rs2D == Slot0RdE))));
+                       (~(LateBrD | Slot0LateD | Slot0StDataLateD) & ((Slot0Rs1D == Slot0RdE) | (Slot0Rs2D == Slot0RdE)) |
+                        (Slot1IssueD & ~(Slot1GoLateD | Slot1StDataLateD) & ((Slot1Rs1D == Slot0RdE) | (Slot1Rs2D == Slot0RdE))));
 
   // Store-then-load: a structural conflict over the data memory's single SRAM port, not a data
   // dependency, so it ignores registers entirely.  A read is issued in Execute and a write happens in
@@ -598,10 +652,11 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   // bundle already in Execute, which has issued whatever it issued.  A slot 1 the late ALU can execute
   // takes the slow result from Slot0ResultW instead.
   // Slot0StructuralStallD is slot 0's own stall from the controller (load-use and the like).  A slot 0 that
-  // goes late -- a late branch or a late slot 0 -- does not need it, since avoiding it is the point; it
-  // keeps only the store-then-load stall, which concerns the memory port, not its operands.
-  assign StructuralStall0GD = (LateBrD | Slot0LateD) ? StoreStallD : Slot0StructuralStallD;
-  assign StructuralStallD = StructuralStall0GD | (Slot1IssueD & ~Slot1LateOKD & Slot1StructuralStallD) | Slot1LoadStallD | Slot1MDUStallD | Slot1LateStallD | Slot0LateStallD | BundleStoreStallD;
+  // goes late -- a late branch, a late slot 0, or a store whose data comes late -- does not need it, since
+  // avoiding it is the point; it keeps only the store-then-load stall, which concerns the memory port, not
+  // its operands.
+  assign StructuralStall0GD = (LateBrD | Slot0LateD | Slot0StDataLateD) ? StoreStallD : Slot0StructuralStallD;
+  assign StructuralStallD = StructuralStall0GD | (Slot1IssueD & ~(Slot1GoLateD | Slot1StDataLateD) & Slot1StructuralStallD) | Slot1LoadStallD | Slot1MDUStallD | Slot1LateStallD | Slot0LateStallD | BundleStoreStallD;
 
   datapath #(P) dp(
     .clk, .reset, .Slot0ImmSrcD, .Slot0InstrD, .Slot0Rs1D, .Slot0Rs2D, .Slot0Rs2E, .StallE, .FlushE, .Slot0ForwardAE, .Slot0ForwardBE, .W64E, .UW64E, .Slot0SubArithE,
@@ -610,12 +665,12 @@ module ieu import cvw::*; #(parameter cvw_t P) (
     .W64_1E, .UW64_1E, .Slot1SubArithE, .Slot1BSelectE, .Slot1ZBBSelectE, .Slot1BALUControlE, .Slot1BMUActiveE, .Slot1CZeroE, // slot 1
     .Slot1BranchSignedE, .Slot1FlagsE, .Slot1IEUAdrE, .Slot1JumpE, .Slot1PCLinkE, .Slot1FuseBrAE, .Slot1FuseBrBE, .Slot1FuseBrAddE, // slot 1 branch / jal
     .Slot1RegWriteW, .Slot1RdW,                                                                             // slot 1 write port
-    .Slot1MemE, .Slot1ResultSrcW,                                                                           // slot 1 memory steering
+    .Slot1MemE, .Slot1FuseAdrE, .Slot1FuseStE, .Slot1ResultSrcW,                                                                         // slot 1 memory steering
     .Slot1MduE, .MDUSrcAE, .MDUSrcBE,                                                                   // slot 1 multiply steering
-    .Slot1LateSelAE, .Slot1LateSelBE, .LateBrE, .Slot0LateRawE, .LateFlagsM,                                                // late ALU
+    .Slot1LateSelAE, .Slot1LateSelBE, .LateBrE(LateBrE | LateBr1E), .LateBr1E, .Slot0LateRawE, .LateFlagsM,                                                // late ALU
     .Funct3E, .Funct7E, .Slot0ALUSrcAE, .Slot0ALUSrcBE, .Slot0ALUResultSrcE, .Slot0ALUSelectE, .Slot0JumpE, .Slot0BranchSignedE,
     .PCE, .Slot0PCLinkE, .Slot0FlagsE, .Slot0IEUAdrE, .LSUAdrE, .Slot0ForwardedSrcAE, .Slot0ForwardedSrcBE, .Slot0BSelectE, .Slot0ZBBSelectE, .Slot0BALUControlE, .Slot0BMUActiveE, .Slot0CZeroE,
-    .StallM, .FlushM, .FWriteIntM, .FIntResM, .Slot0SrcAM, .WriteDataM, .FCvtIntW,
+    .StallM, .FlushM, .FWriteIntM, .FIntResM, .Slot0SrcAM, .WriteDataM, .StDataLateM, .FCvtIntW,
     .StallW, .FlushW, .Slot0RegWriteW, .IntDivW, .SquashSCW, .ResultSrcW, .ReadDataW, .FCvtIntResW,
     .CSRReadValW, .MDUResultW, .FIntDivResultW, .Slot0RdW);
 endmodule

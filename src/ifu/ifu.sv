@@ -62,11 +62,14 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   output logic                     Fuse1D,                                   // The pair is fused into one indexed load (issue.sv)
   output logic                     FuseBr1D,                                 // The pair is fused into one ALU op + branch (issue.sv)
   output logic                     FuseBrAdd1D,                              // ... and slot 0 is an add (else a logic op)
+  output logic                     FuseAdr1D,                                // The pair is fused into one add + load/store at the sum (issue.sv)
+  output logic                     FuseSt1D,                                 // The pair is fused into one ALU op + store of its result (issue.sv)
   output logic                     Issue1M, Issue1W,                         // ... and in Memory / Writeback, where it commits
   input  logic                     Replay1M,                                 // Slot 1's memory operation faulted; refetch it alone
   output logic                     PredTakenE,                               // Fetch went to slot 0's predicted target
   input  logic                     LateBrM, LateBrTakenM,                    // Slot 0's branch was checked in Memory, and its direction
   input  logic                     LateBrWrongM,                             // ... which is not the way fetch went
+  input  logic                     LateBr1M,                                 // ... and the branch is slot 1's
   output logic                     IllegalComp1M,                            // Slot 1 is an illegal compressed instruction; replay it
   output logic [31:0]              InstrM,                                   // The decoded instruction in Memory stage
   output logic [31:0]              InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction XTVAL
@@ -136,7 +139,9 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic [FETCHWIDTH-1:0]       FetchDataF;                               // Fetch window from the IROM, I$, or bus: [31:0] instr at PCSpillF, [63:32] next 32 bits
   logic [31:0]                 InstrRawF;                                // First fetched instruction (slot 0) from the IROM, I$, or bus
   logic                        CompressedF, CompressedE, CompressedM;    // The fetched instruction is compressed
-  logic                        Compressed1F, Compressed1E;               // Slot 1 is a 16-bit instruction
+  logic                        Compressed1F, Compressed1E, Compressed1M; // Slot 1 is a 16-bit instruction
+  logic [P.XLEN-1:0]           IEUAdrBE, IEUAdrBM;                       // The bundle's branch/jump target, in Execute and Memory
+  logic [3:0]                  RedirectSeqIncM;                          // Bytes from PCM to the Memory-stage fall-through
   logic                        IllegalCompInstr1D;                       // Slot 1's decompressor rejected its encoding
   logic [P.XLEN-1:0]           PCBundleEndF;                             // Address just past both slots of the bundle
   logic [31:0]                 PostSpillInstrRawF;                       // Fetch instruction after merge two halves of spill
@@ -158,6 +163,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        Fuse1F;                                   // ... and whether the pair fuses into one indexed load
   logic                        FuseBr1F;                                 // ... or into one ALU op + branch
   logic                        FuseBrAdd1F;                              // ... whose slot 0 is an add
+  logic                        FuseAdr1F;                                // ... or into one add + load/store at the sum
+  logic                        FuseSt1F;                                 // ... or into one ALU op + store of its result
   logic                        Kill1E;                                   // Slot 1 issued but must not commit
   logic                        Commit1E;                                 // Slot 1 issued and will commit
   logic                        BPPCSrcF;                                 // Branch predictor says this fetch is a taken branch or jump
@@ -426,9 +433,21 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // Decode because the PC advance below depends on it: a bundle of two advances the PC by both
   // lengths at once.  When Issue1F is low the core behaves exactly as single-issue Wally.
   if (P.SUPERSCALAR_SUPPORTED) begin : dualissue
-    issue #(P) issue(.Slot0InstrF(InstrRawF), .Slot1InstrF(Instr1RawF), .Instr1ValidF, .BPPCSrcF, .Slot1IssueF(Issue1F), .Slot1LateAF(LateA1F), .Slot1LateBF(LateB1F), .LateOK1F, .Slot1FuseF(Fuse1F), .Slot1FuseBrF(FuseBr1F), .Slot1FuseBrAddF(FuseBrAdd1F));
+    // The slow producer in the bundle now in Decode, if any: an integer load or an M-extension op,
+    // whose result is not ready for the next bundle.  If the bundle holds one of each, slot 0's is
+    // reported.  issue.sv uses it only to decline pairs, so a stale, flushed or missed value costs
+    // nothing but performance.
+    logic       Slow0D, Slow1D;
+    logic [4:0] LoadRdD;
+    assign Slow0D = (InstrD[6:0]  == 7'b0000011) | (InstrD[6:0]  == 7'b0110011) & (InstrD[31:25]  == 7'b0000001);
+    assign Slow1D = (Instr1D[6:0] == 7'b0000011) | (Instr1D[6:0] == 7'b0110011) & (Instr1D[31:25] == 7'b0000001);
+    always_comb
+      if (Slow0D)                LoadRdD = InstrD[11:7];
+      else if (Issue1D & Slow1D) LoadRdD = Instr1D[11:7];
+      else                       LoadRdD = 5'b0;
+    issue #(P) issue(.Slot0InstrF(InstrRawF), .Slot1InstrF(Instr1RawF), .Instr1ValidF, .BPPCSrcF, .LoadRdD, .Slot1IssueF(Issue1F), .Slot1LateAF(LateA1F), .Slot1LateBF(LateB1F), .LateOK1F, .Slot1FuseF(Fuse1F), .Slot1FuseBrF(FuseBr1F), .Slot1FuseBrAddF(FuseBrAdd1F), .Slot1FuseAdrF(FuseAdr1F), .Slot1FuseStF(FuseSt1F));
   end else begin : singleissue
-    assign {Issue1F, LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F} = '0;
+    assign {Issue1F, LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F, FuseAdr1F, FuseSt1F} = '0;
   end
 
   assign IFUCacheBusStallF = ICacheStallF | BusStall;
@@ -447,11 +466,11 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     flopenrc #(P.XLEN) Instr1PCDReg(clk, reset, FlushD, ~StallD, PCPlus2or4F, Instr1PCD);
     flopenrc #(1)      Instr1ValidDReg(clk, reset, FlushD, ~StallD, Instr1ValidF, Instr1ValidD);
     flopenrc #(1)      Issue1DReg(clk, reset, FlushD, ~StallD, Issue1F, Issue1D);
-    flopenrc #(6)      Late1DReg(clk, reset, FlushD, ~StallD, {LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F}, {LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D});
+    flopenrc #(8)      Late1DReg(clk, reset, FlushD, ~StallD, {LateA1F, LateB1F, LateOK1F, Fuse1F, FuseBr1F, FuseBrAdd1F, FuseAdr1F, FuseSt1F}, {LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D, FuseAdr1D, FuseSt1D});
   end else begin : noslot1fd
     assign Instr1RawD = '0;
     assign Instr1PCD  = '0;
-    assign {Instr1ValidD, Issue1D, LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D} = '0;
+    assign {Instr1ValidD, Issue1D, LateA1D, LateB1D, LateOK1D, Fuse1D, FuseBr1D, FuseBrAdd1D, FuseAdr1D, FuseSt1D} = '0;
   end
   // Which way fetch went after slot 0: a late branch (ieu.sv) keeps that direction until Memory checks it.
   if (P.LATE_ALU_SUPPORTED) begin : predtaken
@@ -476,8 +495,25 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     // Single issue, no late ALU: only CSR writes and fences redirect from Memory, as in single-issue Wally.
     mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(NextValidPCE), .s(CSRWriteFenceM), .y(PC2NextF));
   end else if (P.ZICSR_SUPPORTED | P.ZIFENCEI_SUPPORTED) begin
-    mux2 #(P.XLEN) pcredirectmux(NextValidPCE, PCM + (CompressedM ? 'd2 : 'd4), Replay1M | LateBrWrongM, RedirectSeqPCM);
-    mux2 #(P.XLEN) latebrtargetmux(RedirectSeqPCM, IEUAdrM, LateBrWrongM & LateBrTakenM, RedirectPCM);
+    // A late slot 1 branch that falls through continues after slot 1: PCM + slot 0's length + slot 1's.
+    // A late slot 0 branch continues after slot 0, as before.
+    always_comb
+      case ({LateBr1M, CompressedM, Compressed1M})
+        3'b100:  RedirectSeqIncM = 4'd8;           // slot 1 branch: 4 + 4
+        3'b101,
+        3'b110:  RedirectSeqIncM = 4'd6;           //                4 + 2 or 2 + 4
+        3'b111:  RedirectSeqIncM = 4'd4;           //                2 + 2
+        3'b010,
+        3'b011:  RedirectSeqIncM = 4'd2;           // slot 0 branch: 2
+        default: RedirectSeqIncM = 4'd4;           //                4
+      endcase
+    mux2 #(P.XLEN) pcredirectmux(NextValidPCE, PCM + {{(P.XLEN-4){1'b0}}, RedirectSeqIncM}, Replay1M | LateBrWrongM, RedirectSeqPCM);
+    // A taken late branch goes to its own target: slot 0's is in IEUAdrM, slot 1's in IEUAdrBM.
+    // (A slot 1 branch's target cannot use IEUAdrM, which holds slot 0's address if slot 0 is a load or store;
+    // a slot 0 branch's cannot use IEUAdrBM, which holds slot 1's target when both slots are branches.)
+    logic [P.XLEN-1:0] LateBrAdrM;
+    mux2 #(P.XLEN) latebradrmux(IEUAdrM, IEUAdrBM, LateBr1M, LateBrAdrM);
+    mux2 #(P.XLEN) latebrtargetmux(RedirectSeqPCM, LateBrAdrM, LateBrWrongM & LateBrTakenM, RedirectPCM);
     mux2 #(P.XLEN) pcmux2(.d0(PC1NextF), .d1(RedirectPCM), .s(CSRWriteFenceM | Replay1M | LateBrWrongM), .y(PC2NextF));
   end else assign PC2NextF = PC1NextF;   // ieu.sv makes no late branches without this path
 
@@ -517,8 +553,9 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // Branch and Jump Predictor
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // The bundle's control transfer.  issue.sv admits at most one branch or jal per bundle, in either
-  // slot, so the predictor sees one per bundle whichever slot holds it.  It keeps slot 0's PCs: a
+  // The bundle's control transfer.  issue.sv admits at most one jal per bundle, and two conditional
+  // branches only as one fetch block with one exit (slot 0's taken branch wins), so the predictor sees
+  // one control transfer per bundle whichever slot holds it.  It keeps slot 0's PCs: a
   // slot 1 branch or jal is predicted and trained at the bundle's address, which is where fetch looks
   // it up, so the BTB and the direction predictor need no slot field.  Kill1E stays on slot 0's
   // PCSrcE -- a taken slot 1 branch or jal does not kill itself.
@@ -534,7 +571,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   //   sw  a0,0(a1); jal ra,f         IEUAdrM = a1 + 0, IEUAdrBM = f
   logic              BranchBD, BranchBE, JumpBD, JumpBE, PCSrcBE;
   logic [31:0]       InstrBD;
-  logic [P.XLEN-1:0] IEUAdrBE, IEUAdrBM;
   assign BranchBD = BranchD | Branch1D & Issue1D;
   assign BranchBE = BranchE | Branch1E;
   assign JumpBD   = JumpD | Jump1D & Issue1D;
@@ -542,7 +578,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   assign PCSrcBE  = PCSrcE | PCSrc1E;
   if (P.SUPERSCALAR_SUPPORTED) begin : bundlebr
     mux2 #(32)     instrbdmux(InstrD, Instr1D, Jump1D & Issue1D, InstrBD);
-    mux2 #(P.XLEN) ieuadrbemux(IEUAdrE, IEUAdr1E, Branch1E | Jump1E, IEUAdrBE);
+    // A taken slot 0 branch wins: slot 1 is then the killed fall-through (two branches may pair).
+    mux2 #(P.XLEN) ieuadrbemux(IEUAdrE, IEUAdr1E, (Branch1E | Jump1E) & ~PCSrcE, IEUAdrBE);
     flopenrc #(P.XLEN) IEUAdrBMReg(clk, reset, FlushM, ~StallM, IEUAdrBE, IEUAdrBM);
   end else begin : slot0br
     assign InstrBD  = InstrD;
@@ -656,8 +693,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // abandoned here and refetched to run alone.  It cannot use FlushW, which would also discard slot 0.
   flopenrc #(1)     Issue1MReg(clk, reset, FlushM, ~StallM, Commit1E, Issue1M);
   // A late branch found taken in Memory abandons the slot 1 beside it, the fall-through, as Kill1E
-  // does for a branch resolved in Execute.
-  flopenrc #(1)     Issue1WReg(clk, reset, FlushW, ~StallW, Issue1M & ~Replay1M & ~LateBrWrongM, Issue1W);
+  // does for a branch resolved in Execute.  A late slot 1 branch is slot 1 itself, so it commits.
+  flopenrc #(1)     Issue1WReg(clk, reset, FlushW, ~StallW, Issue1M & ~Replay1M & ~(LateBrWrongM & ~LateBr1M), Issue1W);
 
   // InstrM is only needed with CSRs or atomic operations
   if (P.ZICSR_SUPPORTED | P.ZAAMO_SUPPORTED | P.ZALRSC_SUPPORTED) begin
@@ -704,6 +741,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     flopenrc #(16) InstrRawEReg(clk, reset, FlushE, ~StallE, InstrRawD[15:0], InstrRawE);
     flopenrc #(16) InstrRawMReg(clk, reset, FlushM, ~StallM, InstrRawE, InstrRawM);
     flopenrc #(1)  CompressedMReg(clk, reset, FlushM, ~StallM, CompressedE, CompressedM);
+    flopenrc #(1)  Compressed1MReg(clk, reset, FlushM, ~StallM, Compressed1E, Compressed1M);
     mux2     #(32) InstrOrigMux(InstrM, {16'b0, InstrRawM}, CompressedM, InstrOrigM);
   end else
     assign InstrOrigM = InstrM;

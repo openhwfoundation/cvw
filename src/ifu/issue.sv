@@ -50,12 +50,15 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   input  logic [31:0] Slot1InstrF,        // Slot 1 raw instruction, already aligned to bit 0
   input  logic        Instr1ValidF,   // Slot 1 holds a complete instruction from the I$
   input  logic        BPPCSrcF,       // Branch predictor says this fetch is a taken branch or jump
+  input  logic [4:0]  LoadRdD,        // Register a load or M-extension op in the bundle now in Decode writes, else x0
   output logic        Slot1IssueF,        // Both slots may issue together this cycle
   output logic        Slot1LateAF, Slot1LateBF, // Slot 1's rs1 / rs2 is slot 0's rd: its operand comes from the late ALU's bypass
   output logic        LateOK1F,         // Slot 1 is an operation the late ALU implements
   output logic        Slot1FuseF,           // The pair is fused into one indexed load, executed by slot 0
   output logic        Slot1FuseBrF,         // The pair is fused into one ALU op + compare-and-branch
-  output logic        Slot1FuseBrAddF       // ... and slot 0 is an add (else a logic op); see datapath.sv
+  output logic        Slot1FuseBrAddF,      // ... and slot 0 is an add (else a logic op); see datapath.sv
+  output logic        Slot1FuseAdrF,        // The pair is fused into one add + load/store at the sum
+  output logic        Slot1FuseStF          // The pair is fused into one ALU op + store of its result
 );
 
   // Opcodes
@@ -79,6 +82,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   logic [6:0] Slot0OpF, Slot1OpF, Slot1Funct7F;
   logic [2:0] Slot1Funct3F;
   logic [4:0] Slot0RdF;                          // What slot 0 writes -- its sources do not matter, it runs first
+  logic [4:0] Slot0DestF;                        // ... masked to x0 for a branch or store, whose rd field is immediate bits
   logic [4:0] Slot1RdF, Slot1Rs1F, Slot1Rs2F;          // Slot 1's register fields, whatever its length
   logic       Slot0RecognizedF, Slot1RecognizedF;    // instrfields decoded this slot's fields
   logic [1:0] Slot0MemRWF, Slot1MemRWF;              // ... and whether it uses the load/store unit
@@ -100,6 +104,13 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   logic       Slot1FuseLoadF;                 // Slot 1 is a load with offset 0
   logic       Slot0FuseBrAddF;                // Slot 0 is add, addi, c.addi, c.li, c.mv or c.add (li, mv are addi)
   logic       Slot0FuseBrLogicF;              // Slot 0 is and, or, xor, andi, ori, xori, c.andi, c.and, c.or or c.xor
+  logic [4:0] Slot0Rs1F, Slot0Rs2F;           // Slot 0's sources, used only to foresee its load-use
+  logic       Slot0UsesRs2F, Slot1UsesRs2F;   // ... rs2 is a register, not immediate bits
+  logic       Slot0LateOKF;                   // Slot 0 is an operation the late ALU implements
+  logic       Slot0LoadUseF, Slot1LoadUseF;   // Slot 0 / slot 1 reads the load in the bundle now in Decode
+  logic       Slot0GoesLateF;                 // Slot 0 will go late to avoid that load-use stall
+  logic       LateFirstOKF;                   // Pairing does not keep slot 0 from going late
+  logic       Slot1FuseMemF;                  // Slot 1 is a load or store with offset 0
 
   assign Slot0OpF      = Slot0InstrF[6:0];
   assign Slot1OpF      = Slot1InstrF[6:0];
@@ -109,10 +120,10 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // The register fields come from instrfields rather than from fixed bit positions, because a
   // compressed instruction keeps them elsewhere.  Each slot reports Recognized low for any encoding
   // whose fields are not decoded, and the dependency check below refuses to pair in that case.
-  // Slot 0's sources are not connected: only what it writes can create a hazard with slot 1.  A
-  // write-after-read cannot arise, because slot 0 read its operands in Decode and slot 1 does not
-  // write until Writeback, and the two move together through the pipeline.
-  instrfields #(P) fields0(.Instr(Slot0InstrF), .Rd(Slot0RdF), .Rs1(), .Rs2(), .MemRW(Slot0MemRWF), .IsBranch(Slot0IsBranchF), .IsJal(Slot0IsJalF), .Recognized(Slot0RecognizedF));
+  // Only what slot 0 writes can create a hazard with slot 1.  A write-after-read cannot arise, because
+  // slot 0 read its operands in Decode and slot 1 does not write until Writeback, and the two move
+  // together through the pipeline.  Slot 0's sources are used only to foresee its load-use (below).
+  instrfields #(P) fields0(.Instr(Slot0InstrF), .Rd(Slot0RdF), .Rs1(Slot0Rs1F), .Rs2(Slot0Rs2F), .MemRW(Slot0MemRWF), .IsBranch(Slot0IsBranchF), .IsJal(Slot0IsJalF), .Recognized(Slot0RecognizedF));
   instrfields #(P) fields1(.Instr(Slot1InstrF), .Rd(Slot1RdF), .Rs1(Slot1Rs1F), .Rs2(Slot1Rs2F), .MemRW(Slot1MemRWF), .IsBranch(Slot1IsBranchF), .IsJal(Slot1IsJalF), .Recognized(Slot1RecognizedF));
 
   // A slot is admitted only if its register fields are known.  For a 32-bit instruction that is
@@ -213,7 +224,12 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   //   addi a0,a0,1 ; j loop       pairs
   //   sw   a0,0(a1); jal ra,f     pairs
   //   beqz a0,out  ; j loop       does not: two control transfers
-  assign Branch1OKF = P.ZCA_SUPPORTED & ~Slot0IsBranchF & ~(Slot0IsMduF & Slot0InstrF[14]) & ~Slot0ReadsFPF;
+  // Two conditional branches may share a bundle.  The predictor then treats the bundle as one fetch
+  // block with one exit: its BTB entry and direction describe whichever branch last left the block,
+  // and Execute checks the bundle's resolved next PC (slot 0's target first, then slot 1's, then the
+  // fall-through) against the predicted one, so a wrong guess costs a misprediction, not correctness.
+  // A jal beside a slot 0 branch still does not pair, so a call is never killed after its RAS push.
+  assign Branch1OKF = P.ZCA_SUPPORTED & ~(Slot0IsBranchF & Slot1IsJalF) & ~(Slot0IsMduF & Slot0InstrF[14]) & ~Slot0ReadsFPF;
 
   always_comb
     // A compressed slot 1 cannot go through the opcode whitelist below -- Slot1InstrF[6:0] is not an
@@ -268,10 +284,12 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // Slot 1 may read slot 0's result only through the late ALU in the Memory stage.  Forwarding it
   // within Execute would chain one ALU into the other and roughly double the critical path; one
   // stage later slot 0's result is already in its Slot0IEUResultM register, and the late ALU takes it
-  // from there.  Slot0RdF is treated as a destination whenever it is nonzero, which is conservative for
-  // stores and branches (where those bits are part of the immediate) but never unsafe.
-  assign SrcDepF = (Slot0RdF != 5'b0) & ((Slot1Rs1F == Slot0RdF) | (Slot1Rs2F == Slot0RdF));
-  assign SameRdF = (Slot0RdF != 5'b0) & (Slot1RdF == Slot0RdF);
+  // from there.  A branch or a store writes no register: its rd field is immediate bits, so Slot0DestF
+  // masks it to x0 rather than create false dependencies (which matter once two branches may pair).
+  // lr, sc and the AMOs do write rd; their MemRW is 2'b11, so they are not masked.
+  assign Slot0DestF = (Slot0IsBranchF | (Slot0MemRWF == 2'b01)) ? 5'b0 : Slot0RdF;
+  assign SrcDepF = (Slot0DestF != 5'b0) & ((Slot1Rs1F == Slot0DestF) | (Slot1Rs2F == Slot0DestF));
+  assign SameRdF = (Slot0DestF != 5'b0) & (Slot1RdF == Slot0DestF);
 
   // A dependent pair needs slot 0's result at the start of Memory, so slot 0 must be an integer ALU
   // operation -- not a load, a multiply or divide, a CSR read or an FPU-to-integer move, whose results
@@ -299,12 +317,11 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // 0 within a stage.  Every stall is keyed on each slot's own destination, so a younger slot 1 that
   // overwrites a slow slot 0 result (a load, say) can only cost an unneeded stall, never a stale value.
   //
-  // A late pair that also shares its destination is still refused, for performance rather than
-  // correctness.  Such pairs are almost always the first two links of a chain (addi a5,a5,1; slli
-  // a5,a5,2; ...) whose next instruction reads the late result at once and stalls for it.  Issuing the
-  // first link alone leaves the late ALU free for the second link, which gets the same work done one
-  // instruction further on.  Admitting them cost rv64gc CoreMark 0.3%.
-  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & LateOK1F & ~SameRdF) | Slot1FuseF | Slot1FuseBrF;
+  // A late pair that also shares its destination is admitted too.  Such pairs are usually the first two
+  // links of a chain (addi a5,a5,1; slli a5,a5,2; ...).  Refusing them keeps the late ALU free for the
+  // next link; admitting them saved 1746 rv32gc CoreMark ticks on its own, and 0.37% of rv64gc ticks
+  // alongside the other pairing, fusion and late-ALU changes.
+  assign DependencyOKF = ~SrcDepF | (Slot0EarlyF & LateOK1F) | Slot1FuseF | Slot1FuseBrF | Slot1FuseAdrF | Slot1FuseStF;
 
   // Macro-op fusion: ALU op + dependent branch.  A branch that compares slot 0's result is fused with it
   // into one compare-and-branch op: slot 0 writes its result as usual, and the branch compares that result
@@ -350,6 +367,7 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   // the load's offset must be 0, so its address is exactly the add's sum (alu.sv's Sum, which includes
   // shNadd's pre-shift).  These do not fuse:
   //   mv  s0, a4   ; lw a4, 0(s0)     different destinations: s0 is still live after the load
+  //                                   (the add + memory access fusion below takes it)
   //   add a0,a1,a2 ; lw a0, 8(a0)     the address would be a1 + a2 + 8, two additions
   // Slot 0: add, sh1add/sh2add/sh3add (Zba), and c.add and c.mv, which decompress to add.  addw and the
   // .uw forms are left out: their RV64 results are not the raw sum.  Slot 1: a load that may pair at all
@@ -374,13 +392,51 @@ module issue import cvw::*;  #(parameter cvw_t P) (
 
   assign Slot1FuseF = P.FUSION_SUPPORTED & Slot0FuseAddF & Slot1FuseLoadF & (Slot0RdF != 5'b0) & (Slot1Rs1F == Slot0RdF) & (Slot1RdF == Slot0RdF);
 
+  // Macro-op fusion: add + memory access at the sum.  A load or store whose address is exactly the result
+  // of the add in slot 0 is fused with it: slot 0's adder makes the sum once, slot 0 writes it to its rd as
+  // usual, and the LSU takes the same sum as the access's address (datapath.sv's lsuadrmux) while slot 1
+  // supplies the access itself -- its width, its store data, and its writeback of the loaded value.
+  //   sh2add s7, a7, t3 ; lw s8, 0(s7)    s7 = a7*4 + t3,  s8 = mem[a7*4 + t3]
+  //   mv     s0, a4     ; lw a4, 0(s0)    s0 = a4,         a4 = mem[a4]
+  //   add    a5, a5, s1 ; lh t2, 0(a5)    a5 = a5 + s1,    t2 = mem[a5 + s1]
+  // Unlike the indexed load above, both results are kept, so the destinations may differ.  The access's
+  // offset must be 0, so the address is the sum itself, and a store's data must not be slot 0's result.
+  // Slot 0 is an add, addi or shNadd (and c.addi, c.li, c.mv, c.add): its ALU sum (Slot0IEUAdrE) is its
+  // result.  When the indexed load above applies, it takes the pair instead.  A slot 1 access that faults
+  // replays as usual: slot 0 commits its sum, and the access is refetched alone and reads it from the
+  // register file.
+  always_comb
+    if (~&Slot1InstrF[1:0])
+      case ({Slot1InstrF[1:0], Slot1InstrF[15:13]})
+        5'b00_010, 5'b00_110: Slot1FuseMemF = (Slot1InstrF[12:10] == 3'b0) & (Slot1InstrF[6:5] == 2'b0);                  // c.lw, c.sw
+        5'b00_011, 5'b00_111: Slot1FuseMemF = (P.XLEN == 64) & (Slot1InstrF[12:10] == 3'b0) & (Slot1InstrF[6:5] == 2'b0); // c.ld, c.sd
+        default:              Slot1FuseMemF = 1'b0;
+      endcase
+    else Slot1FuseMemF = (Slot1OpF == LOAD)  & (Slot1InstrF[31:20] == 12'b0) |
+                         (Slot1OpF == STORE) & (Slot1InstrF[31:25] == 7'b0) & (Slot1InstrF[11:7] == 5'b0);
+
+  assign Slot1FuseAdrF = P.FUSION_SUPPORTED & (Slot0FuseBrAddF | Slot0FuseAddF) & Slot1FuseMemF & ~Slot1FuseF &
+                         (Slot0RdF != 5'b0) & (Slot1Rs1F == Slot0RdF) & (Slot1Rs2F != Slot0RdF);
+
+  // Macro-op fusion: ALU op + store of its result.  A store whose data is slot 0's result is fused with
+  // it: slot 0's ALU makes the value, which is both written to slot 0's rd and sent to the LSU as the store
+  // data (datapath.sv's writedatamux), while slot 1 makes the address with its own adder.
+  //   or   a2, a2, a6 ; sh a2, 0(a0)     mem[a0] = a2 | a6
+  //   andi a5, a3, 255; sw a5, 24(sp)    mem[sp + 24] = a3 & 255
+  // Slot 0 is any operation whose result is final in Execute (Slot0EarlyF), which excludes branches and
+  // stores, so its rd field is a real destination.  The address must not also be slot 0's result: slot 1's
+  // adder reads its base from the register file (an address from slot 0 is the add + memory access fusion
+  // above, with other data).
+  assign Slot1FuseStF = P.FUSION_SUPPORTED & Slot0EarlyF & (Slot1MemRWF == 2'b01) &
+                        (Slot0RdF != 5'b0) & (Slot1Rs2F == Slot0RdF) & (Slot1Rs1F != Slot0RdF);
+
   // Which of slot 1's operands are slot 0's result.  These are the same fields the pairing decision
   // used, so a dependency that permitted the pair is always marked; ieu.sv clears a bit whose operand
   // is an immediate or the PC rather than a register.
   // With LATE_ALU_SUPPORTED = 0 nothing is late, so a dependent slot 1 pairs only when fused.
   assign LateOK1F = P.LATE_ALU_SUPPORTED & Slot1LateOKF;
-  assign Slot1LateAF = (Slot0RdF != 5'b0) & (Slot1Rs1F == Slot0RdF);
-  assign Slot1LateBF = (Slot0RdF != 5'b0) & (Slot1Rs2F == Slot0RdF);
+  assign Slot1LateAF = (Slot0DestF != 5'b0) & (Slot1Rs1F == Slot0DestF);
+  assign Slot1LateBF = (Slot0DestF != 5'b0) & (Slot1Rs2F == Slot0DestF);
 
   // The core has one load/store unit, so a bundle may contain at most one memory operation -- but it
   // may sit in either slot, and ieu.sv steers the LSU's inputs to whichever one holds it.  Slot 0's
@@ -397,8 +453,41 @@ module issue import cvw::*;  #(parameter cvw_t P) (
   assign Slot1IsMduF = (&Slot1InstrF[1:0]) & ((Slot1OpF == OP) | (Slot1OpF == OP_32)) & MExtF;
   assign OneMduOpF   = ~(Slot0IsMduF & Slot1IsMduF);
 
+  // Let a slot 0 that will go late issue alone.  When the bundle now in Decode holds a load that slot 0
+  // reads, slot 0 can avoid the load-use stall by going late (ieu.sv: a late branch or a late slot 0) --
+  // but only if slot 1 does not also need the one late ALU, by reading slot 0 or the load, and, for a
+  // late branch, does not hold the memory operation.  Otherwise the whole bundle stalls a cycle.  Issuing
+  // slot 0 alone instead saves that cycle; slot 1 is fetched again as the next slot 0, by which time the
+  // load is in Writeback.  This only ever declines a pair, so a wrong guess costs performance, never
+  // correctness.
+  //   lbu a5,0(a0)                      bundle in Decode
+  //   bne a5,a4,L   ; lbu a3,1(a0)      slot 0 would go late but for slot 1's load: issue it alone
+  //   add a4,a4,a5  ; slli a6,a4,2      slot 1 reads slot 0: issue it alone
+  // Likewise when slot 1 reads that load and cannot go late itself: pairing would stall the whole
+  // bundle for it, so an independent slot 0 issues alone.
+  //   addi a3,a3,1  ; mul a6,a5,a4      slot 1 needs the load and is not a late op: issue slot 0 alone
+  // rs2 is matched only where it is a register; a compressed slot is assumed to read rs2 (conservative).
+  always_comb begin
+    if (~&Slot0InstrF[1:0]) Slot0UsesRs2F = 1'b1;
+    else case (Slot0OpF)
+      OP, OP_32, BRANCH, STORE: Slot0UsesRs2F = 1'b1;
+      default:                  Slot0UsesRs2F = 1'b0;
+    endcase
+    if (~&Slot1InstrF[1:0]) Slot1UsesRs2F = 1'b1;
+    else case (Slot1OpF)
+      OP, OP_32, BRANCH, STORE: Slot1UsesRs2F = 1'b1;
+      default:                  Slot1UsesRs2F = 1'b0;
+    endcase
+  end
+  lateok #(P) lateok0(.Instr(Slot0InstrF), .MemRW(Slot0MemRWF), .IsBranch(Slot0IsBranchF | Slot0IsJalF), .Recognized(Slot0RecognizedF), .LateOK(Slot0LateOKF));
+  assign Slot0LoadUseF  = (LoadRdD != 5'b0) & ((Slot0Rs1F == LoadRdD) | Slot0UsesRs2F & (Slot0Rs2F == LoadRdD));
+  assign Slot1LoadUseF  = (LoadRdD != 5'b0) & ((Slot1Rs1F == LoadRdD) | Slot1UsesRs2F & (Slot1Rs2F == LoadRdD));
+  assign Slot0GoesLateF = P.LATE_ALU_SUPPORTED & Slot0LoadUseF & (Slot0IsBranchF | Slot0LateOKF);
+  assign LateFirstOKF   = ~(Slot0GoesLateF & (SrcDepF | Slot1LoadUseF | Slot0IsBranchF & Slot1IsMemF)) &
+                          ~(Slot1LoadUseF & ~LateOK1F);
+
   // With SUPERSCALAR_SUPPORTED = 0 slot 1 never issues, and every slot 1 path below is constant.
   assign Slot1IssueF = P.SUPERSCALAR_SUPPORTED & Instr1ValidF & BothRecognizedF & Slot0CanPairF & Slot1CanPairF &
-                   DependencyOKF & OneMemOpF & OneMduOpF;
+                   DependencyOKF & OneMemOpF & OneMduOpF & LateFirstOKF;
 
 endmodule

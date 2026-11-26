@@ -1079,7 +1079,7 @@ module testbench;
     integer Committed = 0;
     always_ff @(posedge clk)
       if (~reset & dut.core.ieu.c.InstrValidM & ~dut.core.StallW & ~dut.core.FlushW)
-        Committed <= Committed + 1 + ((dut.core.ifu.Issue1M & ~dut.core.Slot1ReplayM & ~dut.core.LateBrWrongM) ? 1 : 0);
+        Committed <= Committed + 1 + ((dut.core.ifu.Issue1M & ~dut.core.Slot1ReplayM & ~(dut.core.LateBrWrongM & ~dut.core.LateBr1M)) ? 1 : 0);
 
     final begin
       $display("overhead: %0d cycles | stall slot0=%0d slot1=%0d other=%0d | mispredict=%0d | slot1 kills=%0d | slot1 mem=%0d replays=%0d | slot1 mul=%0d div=%0d | hazards: loaduse1=%0d muluse1=%0d bundlestore=%0d | replay ld=%0d st=%0d | branch+slot1mem=%0d | replay store leaks=%0d (must be 0) | killed slot1 divs=%0d (must be 0)",

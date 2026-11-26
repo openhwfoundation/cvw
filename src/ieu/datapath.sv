@@ -48,11 +48,14 @@ module datapath import cvw::*; #(parameter cvw_t P) (
   input  logic              Slot1RegWriteW,              // Slot 1: commits a register write this cycle
   input  logic [4:0]        Slot1RdW,                    // Slot 1: destination register in Writeback
   input  logic              Slot1MemE,                   // Slot 1: holds the bundle's memory operation
+  input  logic              Slot1FuseAdrE,               // ... whose address is slot 0's sum (fused add + load/store)
+  input  logic              Slot1FuseStE,                // ... whose store data is slot 0's result (fused ALU op + store)
   input  logic [2:0]        Slot1ResultSrcW,             // Slot 1: selects source of its writeback value
   input  logic              Slot1MduE,                   // Slot 1: holds the bundle's multiply
   output logic [P.XLEN-1:0] MDUSrcAE, MDUSrcBE,      // Operands to the MDU, from whichever slot holds its operation
   input  logic [1:0]        Slot1LateSelAE, Slot1LateSelBE,  // Slot 1: late ALU operand source (00 own, 01 slot 0, 10 Slot0ResultW, 11 Slot1ResultW)
-  input  logic              LateBrE,                 // The late ALU compares slot 0's branch operands instead
+  input  logic              LateBrE,                 // The late ALU compares a branch's operands instead
+  input  logic              LateBr1E,                // ... slot 1's branch rather than slot 0's
   input  logic              Slot0LateRawE,               // ... or computes slot 0's ALU operation instead (ieu.sv)
   output logic [2:0]        LateFlagsM,              // ... giving {eq, lt, ltu}
   // Execute stage signals
@@ -84,6 +87,7 @@ module datapath import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] FIntResM,                // FPU integer result
   output logic [P.XLEN-1:0] Slot0SrcAM,                   // ALU's Source A in Memory stage to privilege unit for CSR writes
   output logic [P.XLEN-1:0] WriteDataM,              // Write data in Memory stage
+  input  logic [1:0]        StDataLateM,             // Store data produced too late: 10 take Slot0ResultW, 11 Slot1ResultW
   // Writeback stage signals
   input  logic              StallW, FlushW,          // Stall, flush Writeback stage
   input  logic              Slot0RegWriteW, IntDivW,      // Write register file, integer divide instruction
@@ -135,6 +139,7 @@ module datapath import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0] Slot0ALUResultE, Slot0AltResultE, Slot0IEUResultE; // ALU result, Alternative result (Slot0ImmExtE or PC+4), result of execution stage
   logic [P.XLEN-1:0] IEUAdrRawE;                     // ALU sum before clearing bit 0 of a jump target
   logic [P.XLEN-1:0] WriteDataE;                     // Store data of whichever slot holds the memory operation
+  logic [P.XLEN-1:0] WriteDataRawM;                  // ... as forwarded in Execute
   // Memory stage signals
   logic [P.XLEN-1:0] Slot0IEUResultM;                     // Result from execution stage
   logic [P.XLEN-1:0] IFResultM;                      // Result from either IEU or single-cycle FPU op writing an integer register
@@ -290,7 +295,8 @@ module datapath import cvw::*; #(parameter cvw_t P) (
     // true across slots: a taken branch in slot 0 needs its target at the IFU in the very cycle slot 1
     // needs its address at the LSU.  Keeping the nets apart lets both happen, and leaves the IFU's
     // redirect path exactly as it was.
-    mux2  #(P.XLEN)  lsuadrmux(Slot0IEUAdrE, Slot1IEUAdrE, Slot1MemE, LSUAdrE);
+    // A fused add + load/store (issue.sv) takes slot 0's sum: the add's result is the access's address.
+    mux2  #(P.XLEN)  lsuadrmux(Slot0IEUAdrE, Slot1IEUAdrE, Slot1MemE & ~Slot1FuseAdrE, LSUAdrE);
     // The multiplier's operands, from whichever slot holds the bundle's one MDU operation.  These are
     // the forwarded register values, as slot 0's Slot0ForwardedSrcAE/BE always were.  They are separate
     // outputs rather than a mux on Slot0ForwardedSrcAE/BE because the FPU reads those too, for slot 0.
@@ -298,7 +304,8 @@ module datapath import cvw::*; #(parameter cvw_t P) (
     mux2  #(P.XLEN)  mdusrcbmux(Slot0ForwardedSrcBE, Slot1ForwardedSrcBE, Slot1MduE, MDUSrcBE);
     // A store's data is rs2 after forwarding, so it comes from whichever slot's forwarding muxes hold
     // the memory operation.  The slot choice is made before the register, so Memory sees one value.
-    mux2  #(P.XLEN)  writedatamux(Slot0ForwardedSrcBE, Slot1ForwardedSrcBE, Slot1MemE, WriteDataE);
+    // A fused ALU op + store (issue.sv) stores slot 0's result.
+    mux3  #(P.XLEN)  writedatamux(Slot0ForwardedSrcBE, Slot1ForwardedSrcBE, Slot0IEUResultE, {Slot1FuseStE, Slot1MemE}, WriteDataE);
   end else begin : noslot1
     // Single issue: slot 1 never issues, so its results are constant and slot 0 owns the LSU and MDU.
     assign Slot1FlagsE     = '0;
@@ -358,8 +365,9 @@ module datapath import cvw::*; #(parameter cvw_t P) (
 
   if (P.LATE_ALU_SUPPORTED) begin : lateALU
     if (P.SUPERSCALAR_SUPPORTED) begin : lateinslot1
-      mux3  #(P.XLEN)  lateinamux(Slot1SrcAE, Slot0ForwardedSrcAE, Slot0SrcAE, {Slot0LateRawE, LateBrE}, Slot1LateInAE);
-      mux3  #(P.XLEN)  lateinbmux(Slot1SrcBE, Slot0ForwardedSrcBE, Slot0SrcBE, {Slot0LateRawE, LateBrE}, Slot1LateInBE);
+      // 00 slot 1's ALU inputs, 01 slot 0's branch operands, 10 slot 0's ALU inputs, 11 slot 1's branch operands
+      mux4  #(P.XLEN)  lateinamux(Slot1SrcAE, Slot0ForwardedSrcAE, Slot0SrcAE, Slot1ForwardedSrcAE, {Slot0LateRawE | LateBr1E, LateBrE}, Slot1LateInAE);
+      mux4  #(P.XLEN)  lateinbmux(Slot1SrcBE, Slot0ForwardedSrcBE, Slot0SrcBE, Slot1ForwardedSrcBE, {Slot0LateRawE | LateBr1E, LateBrE}, Slot1LateInBE);
     end else begin : lateinslot0                          // only slot 0 can be late
       mux2  #(P.XLEN)  lateinamux(Slot0ForwardedSrcAE, Slot0SrcAE, Slot0LateRawE, Slot1LateInAE);
       mux2  #(P.XLEN)  lateinbmux(Slot0ForwardedSrcBE, Slot0SrcBE, Slot0LateRawE, Slot1LateInBE);
@@ -423,7 +431,15 @@ module datapath import cvw::*; #(parameter cvw_t P) (
   // Memory stage pipeline register
   flopenrc #(P.XLEN) SrcAMReg(clk, reset, FlushM, ~StallM, Slot0SrcAE, Slot0SrcAM);
   flopenrc #(P.XLEN) IEUResultMReg(clk, reset, FlushM, ~StallM, Slot0IEUResultE, Slot0IEUResultM);
-  flopenrc #(P.XLEN) WriteDataMReg(clk, reset, FlushM, ~StallM, WriteDataE, WriteDataM);
+  flopenrc #(P.XLEN) WriteDataMReg(clk, reset, FlushM, ~StallM, WriteDataE, WriteDataRawM);
+  // Late store data: a store whose data (not address) the bundle ahead produced too late to forward
+  // in Execute -- a load, a multiply or a late ALU result -- goes on anyway, and picks the data up here
+  // in Memory, where its producer is now in Writeback (ieu.sv).
+  //   bundle A:  add a5, a5, s10     <- late: a5 is computed in Memory
+  //   bundle B:  sw  a5, 0(t4)       <- would stall a cycle; instead takes a5 from Slot0ResultW in Memory
+  // StDataLateM uses the late ALU's codes: 00 none, 10 Slot0ResultW, 11 Slot1ResultW.  Code 01 (slot 0's
+  // result in Memory, for a same-bundle consumer) never occurs for store data, so its input repeats 00's.
+  mux4 #(P.XLEN) stdatalatemux(WriteDataRawM, WriteDataRawM, Slot0ResultW, Slot1ResultW, StDataLateM, WriteDataM);
 
   // Writeback stage pipeline register and logic
   // Slot 0's Writeback register normally stores IFResultM, slot 0's Execute result.  For a late slot 0

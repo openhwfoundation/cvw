@@ -350,9 +350,9 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
   // Superscalar slot 1.  Slot1InstrRawD is the undecompressed slot 1 instruction and Instr1PCD its
   // address; both are already registered into Decode by the IFU.  Slot1IssueW comes from the core rather
   // than being re-derived here, so the record is emitted exactly when the hardware committed slot 1.
-  assign Slot1InstrRawD = testbench.dut.core.ifu.Slot1InstrRawD;
+  assign Slot1InstrRawD = testbench.dut.core.ifu.Instr1RawD;
   assign Instr1PCD  = testbench.dut.core.ifu.Instr1PCD;
-  assign Slot1IssueW    = testbench.dut.core.ifu.Slot1IssueW;
+  assign Slot1IssueW    = testbench.dut.core.ifu.Issue1W;
 
   // pipeline to writeback stage
   flopenrc #(32)    InstrRawEReg (clk, reset, FlushE, ~StallE, InstrRawD, InstrRawE);
