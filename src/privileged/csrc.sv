@@ -183,9 +183,8 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   assign CounterAllowedM = (PrivilegeModeW == P.M_MODE) |
                            CounterEnM & (!P.S_SUPPORTED | PrivilegeModeW == P.S_MODE | SCounterEnM) &
                            (~(P.H_SUPPORTED & VirtModeW) | HCounterEnM);
-  // At V=1, a user counter read that mcounteren allows but hcounteren or scounteren blocks is a
-  // virtual-instruction fault.  mcounteren bits are writable only for implemented counters, so
-  // CounterEnM already implies the counter exists.
+  // At V=1, a counter read that mcounteren allows but hcounteren or scounteren blocks is a virtual-instruction fault.
+  // CounterEnM implies the counter exists, since mcounteren bits are writable only for implemented counters.
   assign UserCounterCSRM = (CSRAdrM[11:5] == 7'b1100000) | ((P.XLEN == 32) & (CSRAdrM[11:5] == 7'b1100100)); // 0xC00-0xC1F, 0xC80-0xC9F
   assign VirtualCSRCAccessM = P.H_SUPPORTED & VirtModeW & UserCounterCSRM & ~CSRWriteM & CounterEnM & ~CounterAllowedM;
 
