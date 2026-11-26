@@ -120,7 +120,7 @@ coverage exclude -scope $LBUS -linerange [TagLine ${SRC}/ebu/busfsm.sv busfsm-at
 # Only an AMO reads and writes in one access (ReadAccessM & WriteAccessM) or needs an atomic-capable region.
 ExcludeRows $DMMU/pmachecker e {AtomicAccessM_1 AtomicAllowed_0 AtomicAllowed_1}
 ExcludeRows $DMMU/pmachecker e {WriteAccessM_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-load-fault]
-ExcludeRows $DMMU e {WriteAccessM_1}
+ExcludeRows $DMMU e {WriteAccessM_1 +ReadAccessM_*}
 
 # sc is the only instruction with ResultSrc = 100 (SCE, and the SC input of the Writeback result mux), and
 # ImmSrc = 101 (zero offset) is used only by atomics and CMOs (also absent: NOCMO).
