@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 11/1/26
 //
 // Purpose: Exercise synchronous exceptions that TrapM defers while the IFU has a committed I$ line
-//          fill (trap.sv: TrapM = (ExceptionM & ~CommittedF) | InterruptM, issue #845).  A load, store,
+//          fill (cvw_trap.sv: TrapM = (ExceptionM & ~CommittedF) | InterruptM, issue #845).  A load, store,
 //          AMO, LR/SC, FP load/store, or CBO in S mode faults on an address whose DTLB entry is cold, so
 //          the fault arises only after a page table walk (D$-resident PTEs), possibly while the next
 //          I$ line is being filled.  Walk faults (invalid PTE, non-leaf with A set, PTE read from an

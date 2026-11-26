@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 19 September 2026
 //
 // Purpose: Test coverage for cbo.zero on a dirty line.  When the line cbo.zero selects is dirty,
-//          whether it is the hit way or the victim of a miss, cachefsm.sv writes it back first and
+//          whether it is the hit way or the victim of a miss, cvw_cachefsm.sv writes it back first and
 //          then zeros it when the bus acknowledges (STATE_WRITEBACK with CMOpM[3]).  Nothing else
 //          in the suite zeroes a dirty line, so the writeback-then-zero path was unreached.  Four
 //          stores dirty every way of one set, then cbo.zero hits one of those lines and misses on a

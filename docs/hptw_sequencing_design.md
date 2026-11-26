@@ -30,7 +30,7 @@ R5. The order DTLB walk -> ITLB walk -> memory access exists only implicitly thr
 
 ## 2. Design
 
-### 2.1 hptw.sv: explicit request tracking and ordering (Rose's triplicated pending state)
+### 2.1 cvw_hptw.sv: explicit request tracking and ordering (Rose's triplicated pending state)
 - `DTLBReq = DTLBMissOrUpdateDAM`; `ITLBReq = ITLBMissOrUpdateAF & ~MemAccessInFlightM` (from LSU).
 - `AcceptReq = IDLE & (DTLBReq | ITLBReq)`; `StartWalk = AcceptReq`.
 - Registers `DTLBWalkPending`, `ITLBWalkPending` capture both requests at StartWalk; cleared as each walk completes (final LEAF or FAULT); a DTLB-walk FAULT also clears ITLBWalkPending (the access traps, nothing more to do); both reset on FlushW.
@@ -41,21 +41,21 @@ R5. The order DTLB walk -> ITLB walk -> memory access exists only implicitly thr
 - `HPTWFlushW = (AcceptReq & ~MemAccessDoneM) | (WalkerState != IDLE & HPTWFaultM)` — the pre-emption flush happens only when a request is accepted, which by construction is only when the access has not started (fixes R4 together with 2.2).
 - The memory access is performed last: after the last walk the walker is IDLE, HPTWStall=0, SelHPTW=0, and the LSU access runs; the IFU holds the pipeline only for unresolved ITLB requests (2.3), never for one that faulted.
 
-### 2.2 lsu.sv: memory-access state (Rose's MemAccess register)
+### 2.2 cvw_lsu.sv: memory-access state (Rose's MemAccess register)
 - `MemAccessInFlightM = (DCacheCommittedM | BusCommittedM) & ~MemAccessDoneM`: the M-stage access has been started by the D$/bus (fetch/writeback/data phase, or performed and holding in ADDRESS_SETUP/MEM3). The walker defers ITLB requests while it is set.
 - `MemAccessPerformedM = (DCacheCommittedM | BusCommittedM) & ~DCacheBusStallM & ~SpillStallM & ~SelHPTW`: the access has completed and is holding its result (D$ ADDRESS_SETUP or bus MEM3, both halves of a misaligned spill done).
 - `MemAccessDoneM`: set when performed while the pipeline is stalled (StallW=1), cleared when the pipeline advances (~StallW) or FlushW. `ReadDataHoldM` captures ReadDataM at that point. While MemAccessDoneM: the M->W register takes ReadDataHoldM, and CacheRWM/BusRW/BusCMOZero/CacheCMOpM are gated so the access is not re-issued. CommittedM includes MemAccessDoneM (interrupts stay blocked until the performed access retires).
 - With this, a walk may start after a performed access without disturbing it (the walker reuses the D$/bus, the held result is delivered at retirement), and a walk never starts while an access is in flight. Idempotent accesses (cached load/store hits) that have not been performed are pre-empted and replayed exactly as before.
 - Only instantiated when VIRTMEM_SUPPORTED (no walker, no pre-emption hazard).
 
-### 2.3 ifu.sv: sticky walk fault and fetch-side stall ownership (fixes R2)
+### 2.3 cvw_ifu.sv: sticky walk fault and fetch-side stall ownership (fixes R2)
 - `ITLBWalkFaultHeldF[1:0]` set by the walker's HPTWInstrAccessFaultF/HPTWInstrPageFaultF pulses, cleared when the fetch advances (~StallF). Outputs `HPTWInstrAccessFaultHeldF/HPTWInstrPageFaultHeldF` (pulse | held) replace the raw pulses into the privileged pipeline registers, so the fault is a level that survives any D-stage stall.
 - `ITLBMissOrUpdateAF` (to the LSU) is masked by the held fault: no walk is re-requested for a fetch whose walk faulted; the fetch proceeds to D carrying the fault (or is flushed if wrong-path). The spill unit keeps the unmasked miss (it must not spill a faulting fetch).
 - `IFUFaultF` includes the held fault (no I$/bus fetch of a faulting address, also for A-bit-update walks where ITLBMissF=0).
 - `IFUStallF` includes the masked ITLB request: the fetch side owns the "fetch not ready" stall, including while the walker defers the request behind an in-flight access. The hazard unit already masks IFUStallF with FlushDCause, so a redirect (BPWrongE/trap/xret/fence) still moves PCF away from a wrong-path miss before it is ever walked when the walker has not accepted it yet.
 
 ### 2.4 Unchanged
-- cache.sv/cachefsm.sv/cacheway.sv: no changes. The TagSetStale/StoreHitFirstStall patches of PR #1768 are unnecessary once the walker never releases the pipeline with the datapath muxed and always re-reads the access's set before returning to IDLE.
+- cvw_cache.sv/cvw_cachefsm.sv/cvw_cacheway.sv: no changes. The TagSetStale/StoreHitFirstStall patches of PR #1768 are unnecessary once the walker never releases the pipeline with the datapath muxed and always re-reads the access's set before returning to IDLE.
 - sfence.vma global-entry handling: not touched (separate correctness topic, was part of #1768; re-evaluate separately).
 
 ## 3. Invariants after the change

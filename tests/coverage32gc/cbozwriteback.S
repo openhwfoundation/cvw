@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 27 October 2026 (RV32 port of tests/coverage64gc/cbozwriteback.S)
 //
 // Purpose: rv32gc coverage for cbo.zero on a dirty line.  When the line cbo.zero selects is dirty,
-//          whether it is the hit way or the victim of a miss, cachefsm.sv writes it back first and then
+//          whether it is the hit way or the victim of a miss, cvw_cachefsm.sv writes it back first and then
 //          zeros it when the bus acknowledges (STATE_WRITEBACK with CMOpM[3]: SetValid, SetDirty,
 //          LRUWriteEn).  Four stores dirty every way of one set, then cbo.zero hits one of those lines
 //          and misses on a fifth line that maps to the same set, so its victim is dirty too

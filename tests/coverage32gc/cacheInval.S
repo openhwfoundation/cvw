@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 27 October 2026 (RV32 port of tests/coverage64gc/cacheInval.S)
 //
 // Purpose: Coverage test for the I$ invalidate path on rv32gc: the FEC row InvalidateFlushStage_1 of
-//          (InvalidateCache & ~InvalidateFlushStage) in cachefsm.sv, cacheLRU.sv and cacheway.sv.
+//          (InvalidateCache & ~InvalidateFlushStage) in cvw_cachefsm.sv, cvw_cacheLRU.sv and cvw_cacheway.sv.
 //          InvalidateCache is InvalidateICacheM (fence.i in the Memory stage) and InvalidateFlushStage
 //          is FlushW (TrapM).  A plain fence.i never asserts FlushW, so a machine timer interrupt is
 //          armed to fire during a long burst of back-to-back fence.i instructions; the interrupt is

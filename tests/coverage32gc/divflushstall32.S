@@ -3,7 +3,7 @@
 //
 // Written David_Harris@hmc.edu 10/6/26
 //
-// Purpose: RV32 version of divflushstall for configurations that divide in the integer divider (div.sv,
+// Purpose: RV32 version of divflushstall for configurations that divide in the integer divider (cvw_div.sv,
 //          IDIV_ON_FPU = 0).  A divide that the BTB mispredicts as a jump must keep its result when an
 //          external stall holds it in Execute as it finishes.  Standalone (WALLY-init-lib.h is RV64 only);
 //          the outcome is recorded in selfcheck_record in the WALLY-selfcheck.h format and

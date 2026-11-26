@@ -55,7 +55,7 @@ main:
 
     # Back to machine mode for the case where PMP is not enforced at all.  With every pmpcfg
     # cleared there is no matching region and none of them are locked, so EnforcePMP is low.  That
-    # is the only way to evaluate the cache management PMP checks in pmpchecker.sv with EnforcePMP
+    # is the only way to evaluate the cache management PMP checks in cvw_pmpchecker.sv with EnforcePMP
     # low, which the supervisor mode accesses above cannot do.
     li a0, 3
     ecall

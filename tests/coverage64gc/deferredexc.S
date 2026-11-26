@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 10/5/26
 //
 // Purpose: Demonstrate that a synchronous store page fault deferred by TrapM's ~CommittedF term
-//          (trap.sv, issue #412) does not squash the faulting store's own LSU access.  An S-mode
+//          (cvw_trap.sv, issue #412) does not squash the faulting store's own LSU access.  An S-mode
 //          store to a read-only page, whose DTLB entry and D$ line are cold, is issued while an
 //          I$ line fill holds CommittedF=1.  After the (D$-resident) page-table walk the store
 //          page-faults, but the deferred trap leaves the access unflushed, so the store's D$ miss

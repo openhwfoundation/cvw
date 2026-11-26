@@ -3,9 +3,9 @@
 //
 // Written: David_Harris@hmc.edu 13 June 2026
 //
-// Purpose: Test coverage for the WFI watchdog-timeout logic in privdec.sv.
+// Purpose: Test coverage for the WFI watchdog-timeout logic in cvw_privdec.sv.
 //
-//   privdec.sv computes:
+//   cvw_privdec.sv computes:
 //     WFITimeoutM = ((STATUS_TW & PrivilegeModeW != M_MODE) |
 //                    (S_SUPPORTED & PrivilegeModeW == U_MODE)) & WFICount[WFI_TIMEOUT_BIT];
 //

@@ -66,7 +66,7 @@ def synthsintocsv():
         )
 
         for oneSynth in allSynths:
-            module, width, risc, tech, freq = specReg.findall(oneSynth)[1:6]
+            module, width, risc, tech, freq = specReg.findall(oneSynth.replace("/runs/cvw_", "/runs/"))[1:6]
             tech = tech[:-2]
             metrics = []
             for phrase in [["Path Slack", "qor"], ["Design Area", "qor"], ["100", "power"]]:
@@ -94,7 +94,7 @@ def synthsintocsv():
 
 def cleanup():
     """removes runs that didn't work"""
-    bashCommand = 'grep -r "Error" runs/ppa*/reports/*qor*'
+    bashCommand = 'grep -r "Error" runs/{ppa,cvw_ppa}*/reports/*qor*'
     try:
         output = subprocess.check_output(["bash", "-c", bashCommand])
         allSynths = output.decode("utf-8").split("\n")[:-1]

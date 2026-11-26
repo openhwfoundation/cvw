@@ -5,7 +5,7 @@
 //
 // Purpose: Coverage test for the shared cache invalidate path.
 //          Targets the FEC condition (InvalidateCache & ~InvalidateFlushStage)
-//          in src/cache/cacheLRU.sv (~140), cachefsm.sv (~128), cacheway.sv (~155).
+//          in src/cache/cvw_cacheLRU.sv (~140), cvw_cachefsm.sv (~128), cvw_cacheway.sv (~155).
 //
 //          For the instruction cache, InvalidateCache is driven by InvalidateICacheM
 //          (asserted by fence.i while it is in the Memory stage) and InvalidateFlushStage

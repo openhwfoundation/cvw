@@ -7,7 +7,7 @@
 //          event (mhpmcounter22) must count each interrupt once, when it is taken.  An interrupt that
 //          becomes pending during an ExternalStall is held in the Memory stage (TrapM with StallW) for
 //          several cycles; counting every cycle of TrapM would overcount.  Covers the StallW_1 row of
-//          the interrupts-taken event in csrc.sv.
+//          the interrupts-taken event in cvw_csrc.sv.
 //
 //          Checks: 16 timer interrupts, each raised during a 31-cycle injected ExternalStall, count
 //          exactly 16 in mhpmcounter22 (failure index 2) and are each seen once by the handler

@@ -141,7 +141,7 @@ reset_design
 # Power Dissipation Analysis
 ######### OPTIONAL !!!!!!!!!!!!!!!!
 if { $saifpower == 1 } {
-    read_saif -input power.saif -instance_name testbench/dut/core -auto_map_names -verbose
+    read_saif -input power.saif -instance_name cvw_testbench/dut/core -auto_map_names -verbose
 }
 
 # Set reset false path
@@ -149,7 +149,7 @@ if {$drive != "INV"} {
     set_false_path -from [get_ports reset]
 }
 # for PPA multiplexer synthesis
-if {(($::env(DESIGN) == "ppa_mux2d_1") || ($::env(DESIGN) == "ppa_mux4d_1") || ($::env(DESIGN) == "ppa_mux8d_1"))} {
+if {(($::env(DESIGN) == "cvw_ppa_mux2d_1") || ($::env(DESIGN) == "cvw_ppa_mux4d_1") || ($::env(DESIGN) == "cvw_ppa_mux8d_1"))} {
     set_false_path -from {s}
 }
 

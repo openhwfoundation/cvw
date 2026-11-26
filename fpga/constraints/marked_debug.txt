@@ -1,40 +1,40 @@
-wally/wallypipelinedcore.sv: logic             PCM
-wally/wallypipelinedcore.sv: logic    TrapM
-wally/wallypipelinedcore.sv: logic                InstrValidM
-wally/wallypipelinedcore.sv: logic                 InstrM
-lsu/lsu.sv: logic        IEUAdrM
-lsu/lsu.sv: logic       MemRWM
-mmu/hptw.sv: logic     SATP_REGW
-uncore/uartPC16550D.sv : logic MCR
-uncore/uartPC16550D.sv : logic FCR
-uncore/uartPC16550D.sv : logic MSR
-uncore/uartPC16550D.sv : logic DTRb
-uncore/uartPC16550D.sv : logic INTR
-uncore/uartPC16550D.sv : logic RXRDYb
-uncore/uartPC16550D.sv : logic TXRDYb
-uncore/uartPC16550D.sv : logic RXerrIP
-uncore/uartPC16550D.sv : logic IER
-uncore/uartPC16550D.sv : logic LSR
-uncore/uartPC16550D.sv : logic SCR
-uncore/uartPC16550D.sv : statetype txstate
-uncore/uartPC16550D.sv : logic RBR
-uncore/uartPC16550D.sv : logic rxparityerr
-uncore/uartPC16550D.sv : logic LCR
-uncore/uartPC16550D.sv : logic intrID
-uncore/uartPC16550D.sv : logic rxdataavailintr
-uncore/uartPC16550D.sv : logic fifoenabled
-uncore/uartPC16550D.sv : logic rxfifoentries
-uncore/uartPC16550D.sv : logic txsrfull
-uncore/uartPC16550D.sv : logic txhrfull
-uncore/uartPC16550D.sv : logic txfifofull
-uncore/uartPC16550D.sv : logic txfifotail
-uncore/uartPC16550D.sv : logic txfifohead
-uncore/uartPC16550D.sv : logic rxfifotriggered
-uncore/uartPC16550D.sv : logic rxdataready
-privileged/privdec.sv : logic wfiM
-privileged/privdec.sv : logic WaitedM
-privileged/privdec.sv : logic TWTimeoutM
-uncore/plic_apb.sv : logic requests
-uncore/plic_apb.sv : logic intInProgress
-uncore/plic_apb.sv : logic intPending
-uncore/plic_apb.sv : logic intClaim
+wally/cvw_wallypipelinedcore.sv: logic             PCM
+wally/cvw_wallypipelinedcore.sv: logic    TrapM
+wally/cvw_wallypipelinedcore.sv: logic                InstrValidM
+wally/cvw_wallypipelinedcore.sv: logic                 InstrM
+lsu/cvw_lsu.sv: logic        IEUAdrM
+lsu/cvw_lsu.sv: logic       MemRWM
+mmu/cvw_hptw.sv: logic     SATP_REGW
+uncore/cvw_uartPC16550D.sv : logic MCR
+uncore/cvw_uartPC16550D.sv : logic FCR
+uncore/cvw_uartPC16550D.sv : logic MSR
+uncore/cvw_uartPC16550D.sv : logic DTRb
+uncore/cvw_uartPC16550D.sv : logic INTR
+uncore/cvw_uartPC16550D.sv : logic RXRDYb
+uncore/cvw_uartPC16550D.sv : logic TXRDYb
+uncore/cvw_uartPC16550D.sv : logic RXerrIP
+uncore/cvw_uartPC16550D.sv : logic IER
+uncore/cvw_uartPC16550D.sv : logic LSR
+uncore/cvw_uartPC16550D.sv : logic SCR
+uncore/cvw_uartPC16550D.sv : statetype txstate
+uncore/cvw_uartPC16550D.sv : logic RBR
+uncore/cvw_uartPC16550D.sv : logic rxparityerr
+uncore/cvw_uartPC16550D.sv : logic LCR
+uncore/cvw_uartPC16550D.sv : logic intrID
+uncore/cvw_uartPC16550D.sv : logic rxdataavailintr
+uncore/cvw_uartPC16550D.sv : logic fifoenabled
+uncore/cvw_uartPC16550D.sv : logic rxfifoentries
+uncore/cvw_uartPC16550D.sv : logic txsrfull
+uncore/cvw_uartPC16550D.sv : logic txhrfull
+uncore/cvw_uartPC16550D.sv : logic txfifofull
+uncore/cvw_uartPC16550D.sv : logic txfifotail
+uncore/cvw_uartPC16550D.sv : logic txfifohead
+uncore/cvw_uartPC16550D.sv : logic rxfifotriggered
+uncore/cvw_uartPC16550D.sv : logic rxdataready
+privileged/cvw_privdec.sv : logic wfiM
+privileged/cvw_privdec.sv : logic WaitedM
+privileged/cvw_privdec.sv : logic TWTimeoutM
+uncore/cvw_plic_apb.sv : logic requests
+uncore/cvw_plic_apb.sv : logic intInProgress
+uncore/cvw_plic_apb.sv : logic intPending
+uncore/cvw_plic_apb.sv : logic intClaim

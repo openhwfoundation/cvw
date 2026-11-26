@@ -28,13 +28,13 @@ Please contribute by making a pull request to modify this document on GitHub.  S
 | 367 | 8.4.1 | "Uses the CSRs (xtvect)" | Replace "xtvect" with "xtvec". | Sotaro Fujimoto, Japan | 6/19/26 |
 | 388 | Fig. 9.6 | The top-left controller label is shown as "Controller1". | Replace with "Controller 1". | Sotaro Fujimoto, Japan | 7/14/26 |
 | 394 | sidebar | "Fig. 20.3 shows a full-featured GPIO peripheral with an APB interface." | Replace "Fig. 20.3" with "Fig. 20.4". | Sotaro Fujimoto, Japan | 7/19/26 |
-| 455 | Table 10.2, `ClearDirty` row | The flush condition is listed as `(Flush & ~LineDirty)`. | Change it to `(Flush & LineDirty)`, consistent with Section 10.4.5.4 and `cachefsm.sv`. | 王晗宇, China | 9/2/26 |
+| 455 | Table 10.2, `ClearDirty` row | The flush condition is listed as `(Flush & ~LineDirty)`. | Change it to `(Flush & LineDirty)`, consistent with Section 10.4.5.4 and `cvw_cachefsm.sv`. | 王晗宇, China | 9/2/26 |
 | 784.e8 | 20.2, first paragraph | "when the timer exceeds the compare value" | Change to "when the timer is greater than or equal to the compare value". | Sotaro Fujimoto, Japan | 9/9/26 |
 | 784.e8 | 20.2.1, first two paragraphs | The register at `0x0200BFF8` and the memory-mapped system timer are called `time`. | Change both occurrences of `time` to `mtime`. | Sotaro Fujimoto, Japan | 9/9/26 |
 | 784.e8 | 20.2.1, final paragraph | "Recall from Section 8.2.3 that a hart can read (but not write) the read-only time memory-mapped register from the CLINT." | Replace with "Recall from Section 8.2.3 that a hart can read (but not write) the time CSR, which reflects the memory-mapped mtime register in the CLINT." | Sotaro Fujimoto, Japan | 9/9/26 |
 | 784.e9 | Example 20.2, register addresses | `0x20000000`, `0x20004000`, and `0x2000BFF8` do not match the stated CLINT base address `0x02000000`. | Change to `0x02000000`, `0x02004000`, and `0x0200BFF8`, respectively. | Sotaro Fujimoto, Japan | 9/9/26 |
 | 784.e9 | Example 20.2, solution text | "delay() causes the timer interrupt to rise after the specified number of ticks." | Change to "delay() waits until the specified number of timer ticks has elapsed." The code polls `mtime` without writing `mtimecmp`. | Sotaro Fujimoto, Japan | 9/9/26 |
-| 784.e10 | Fig. 20.7 | The timer interrupt output is labeled `MTimeInt`. | Change to `MTimerInt`, consistent with Fig. 20.6 and `clint_apb.sv`. | Sotaro Fujimoto, Japan | 9/9/26 |
+| 784.e10 | Fig. 20.7 | The timer interrupt output is labeled `MTimeInt`. | Change to `MTimerInt`, consistent with Fig. 20.6 and `cvw_clint_apb.sv`. | Sotaro Fujimoto, Japan | 9/9/26 |
 | 784.e10 | 20.2.3, second paragraph | "circuity" | Change to "circuitry". | Sotaro Fujimoto, Japan | 9/9/26 |
 | 815 | Table I.1, jalr row | "PC = [Address]," | Change it to "PC = Address," | 迟浩岐, China | 10/22/26 |
 | 885   | 23.2.2.4-5 | The ramspeed benchmark is no longer supported and has been removed from the Buildroot Linux image. | n/a | David Harris, Claremont, CA | 1/4/26 |

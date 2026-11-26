@@ -38,9 +38,9 @@ vlib work
 # Wally's FMA, unpacker, and postprocessor, with the rv32gc configuration
 vlog +incdir+$WALLY/config/rv32gc +incdir+$WALLY/config/shared \
      $WALLY/src/cvw.sv $WALLY/src/fpu/fma/*.sv tb_fma_wally.sv
-vlog $WALLY/src/generic/lzc.sv $WALLY/src/generic/mux.sv
+vlog $WALLY/src/generic/cvw_lzc.sv $WALLY/src/generic/cvw_mux.sv
 vlog $WALLY/src/fpu/postproc/*.sv
-vlog $WALLY/src/fpu/unpack.sv $WALLY/src/fpu/unpackinput.sv $WALLY/src/fpu/fmtparams.sv
+vlog $WALLY/src/fpu/cvw_unpack.sv $WALLY/src/fpu/cvw_unpackinput.sv $WALLY/src/fpu/cvw_fmtparams.sv
 
 vsim -voptargs=+acc -gVEC_FILE=$VEC_FILE work.stimulus
 

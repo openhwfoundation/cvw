@@ -119,7 +119,7 @@ if {$ccov} {
     # Exclusions are not applied here.  sim/Makefile (QuestaCodeCoverage) applies
     # coverage-exclusions-<config>.do once, to the merged database, where row-level
     # (-fecexprrow/-feccondrow) exclusions and -comment work.
-    coverage save -instance /testbench/dut/core ${UCDB}
+    coverage save -instance /cvw_testbench/dut/core ${UCDB}
 }
 
 # Terminate simulation unless we need to keep the GUI running

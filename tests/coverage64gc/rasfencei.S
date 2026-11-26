@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 26 October 2026
 //
 // Purpose: Coverage test for the return address stack repair of flushed returns.
-//          Targets the StallE_1 row of FlushedReturnDE in src/ifu/bpred/RASPredictor.sv:
+//          Targets the StallE_1 row of FlushedReturnDE in src/ifu/bpred/cvw_RASPredictor.sv:
 //          a return in the Execute stage while E is stalled and M is flushed.
 //
 //          A fence.i in the Memory stage writes back the dirty lines of the data cache, so

@@ -5,13 +5,13 @@
 //
 // Purpose: rv32gc coverage for CMOs that hit in the data cache but take an access fault, in every way.
 //          The hit asks the way to change its valid bit, and in the same cycle the access's own fault
-//          squashes it (lsu.sv SelfFaultM, part of LSUFlushW = the cache's FlushStage), which must cancel
+//          squashes it (cvw_lsu.sv SelfFaultM, part of LSUFlushW = the cache's FlushStage), which must cancel
 //          the change: cbo.inval (ClearValidWay & FlushStage) and cbo.zero (CMOZeroNoEviction ->
 //          SetValidWay & FlushStage).  Four lines that share a set are loaded and stored first, so the
 //          faulting CMOs hit in each of the four ways and each line holds dirty data memory does not:
 //          reading the lines back after the faults shows the clears and the zeroing were cancelled.
 //          Finally a cbo.zero from machine mode to the same no-access PMP region succeeds, because an
-//          unlocked PMP entry does not restrict M mode (pmpchecker.sv PMPCBOZAccessFault with
+//          unlocked PMP entry does not restrict M mode (cvw_pmpchecker.sv PMPCBOZAccessFault with
 //          EnforcePMP = 0, CMOpM[3] = 1 and MatchingW = 0).
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.

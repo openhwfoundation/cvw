@@ -1,0 +1,28 @@
+///////////////////////////////////////////
+// cvw_zknh32.sv
+//
+// Written:  Kelvin Tran kelvin.tran@okstate.edu, James Stine james.stine@okstate.edu 13 February 2024
+// Modified:
+//
+// Purpose: RV32 Zknh SHA unit.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_zknh32 (
+  input  logic [31:0] A, B,
+  input  logic [3:0]  ZKNHSelect,
+  output logic [31:0] ZKNHResult
+);
+
+  logic [31:0]        sha256res, sha512res;
+
+  cvw_sha256 sha256(A, ZKNHSelect[1:0], sha256res);                          // 256-bit SHA support: sha256{sig0/sig1/sum0/sum1}
+  cvw_sha512_32 sha512(A, B, ZKNHSelect[2:0], sha512res);                    // 512-bit SHA support: sha512{sig0h/sig0l/sig1h/sig1l/sum0r/sum1r}
+  cvw_mux2 #(32) resultmux(sha256res, sha512res, ZKNHSelect[3], ZKNHResult); // SHA256 vs. SHA512 result mux
+endmodule

@@ -8,7 +8,7 @@ SHELL := /bin/bash
 
 # ------ Configuration variables (overridden by wsim) ------
 WALLYCONF  ?= rv64gc        # Wally configuration (e.g. rv64gc, rv32i)
-TESTBENCH  ?= testbench     # Top-level testbench module (testbench or testbench_fp)
+TESTBENCH  ?= testbench     # Testbench selector (testbench or testbench_fp)
 PARAM_ARGS  =               # Compile-time parameter overrides (e.g. MAKE_VCD=1)
 DEFINE_ARGS =               # Compile-time defines (e.g. +define+USE_IMPERAS_DV)
 BUILD_HASH ?=               # Hash suffix for workdir when PARAM_ARGS/DEFINE_ARGS vary;
@@ -38,7 +38,7 @@ endif
 # ------ Paths ------
 VERILATOR_DIR = ${WALLY}/sim/verilator
 INCLUDE_PATH  = "-I${WALLY}/config/shared" "-I${WALLY}/config/$(WALLYCONF)" "-I${WALLY}/config/deriv/$(WALLYCONF)"
-SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
+SOURCES       = ${WALLY}/src/cvw.sv ${WALLY}/testbench/cvw_${TESTBENCH}.sv ${WALLY}/testbench/common/*.sv \
                 ${WALLY}/src/*/*.sv ${WALLY}/src/*/*/*.sv
 # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
 ifneq ($(findstring RVVI_SYNTH_SUPPORTED=1,$(PARAM_ARGS)),)
@@ -116,10 +116,10 @@ default: compile
 compile:
 	mkdir -p $(WORKDIR)
 	verilator \
-	--Mdir $(WORKDIR) -o V${TESTBENCH} \
+	--Mdir $(WORKDIR) --prefix V${TESTBENCH} -o V${TESTBENCH} \
 	--binary -j $(JOBS) \
 	$(VERILATOR_FLAGS) \
-	--top-module ${TESTBENCH}  --relative-includes \
+	--top-module cvw_${TESTBENCH} --relative-includes \
 	$(INCLUDE_PATH) \
 	${WRAPPER} \
 	${DEFINE_ARGS} \

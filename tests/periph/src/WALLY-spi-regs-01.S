@@ -197,7 +197,7 @@ EXPECT_BEGIN
     CHKE SPI_TXDATA, 0x0
 
 // ---------------- Sub-word accesses ----------------
-    // 19.3: the SPI needs only naturally aligned 32-bit accesses.  Wally's PMA (adrdecs.sv) makes the
+    // 19.3: the SPI needs only naturally aligned 32-bit accesses.  Wally's PMA (cvw_adrdecs.sv) makes the
     // SPI word-only, so byte and halfword accesses take an access fault (the trap handler records
     // mcause and skips the instruction) and leave the register unchanged.
     li t2, 0x77

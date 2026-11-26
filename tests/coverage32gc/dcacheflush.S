@@ -7,13 +7,13 @@
 //          ending on a dirty line.
 //          1. (RV32 port of the flush part of tests/coverage64gc/dcache1.S) Four lines that share a set
 //             fill the four ways; cbo.flush of dirty lines, cbo.flush of clean lines and cbo.inval
-//             clear the valid bit of each way (cacheway.sv ClearValidWay / ValidBits clear, cachefsm.sv
+//             clear the valid bit of each way (cvw_cacheway.sv ClearValidWay / ValidBits clear, cvw_cachefsm.sv
 //             ClearValid in STATE_ACCESS and STATE_WRITEBACK).  Reloading each line reads memory, so the
 //             writebacks are checked.
 //          2. fence.i flushes the D$ (STATE_FLUSH / STATE_FLUSH_WRITEBACK).  The flush visits the sets
 //             in order and the ways 0 to 3 within a set, so it ends (FlushFlag) on set 63, way 3.  Making
 //             every way of set 63 dirty makes the last line dirty: STATE_FLUSH sees LineDirty with
-//             FlushFlag and STATE_FLUSH_WRITEBACK gets CacheBusAck with FlushFlag (cachefsm.sv L135-L139,
+//             FlushFlag and STATE_FLUSH_WRITEBACK gets CacheBusAck with FlushFlag (cvw_cachefsm.sv L135-L139,
 //             FlushCntRst).  cbo.inval then discards the cached copies and reloads check memory.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.

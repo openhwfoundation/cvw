@@ -27,7 +27,7 @@ onerror {quit -f}
 
 # Initialize variables
 set CFG ${1}
-set TESTBENCH ${2}
+set TESTBENCH cvw_${2}
 set WKDIR ${3}
 set WALLY $::env(WALLY)
 set CONFIG ${WALLY}/config

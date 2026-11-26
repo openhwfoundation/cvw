@@ -6,13 +6,13 @@
 // Purpose: RV32-specific decode and FPU corner cases on rv32gc:
 //          - Reserved OP-FP encodings next to the RV32-only Zfa moves and the fmv/fli groups: funct3 != 0
 //            with funct7 = fmv.x.w (rs2 = 0), fmvh.x.d (rs2 = 1), fmv.w.x (rs2 = 0), fli.s (rs2 = 1) and
-//            fmvp.d.x.  Each is an illegal instruction (fctrl.sv Funct3D == 0 conditions).
+//            fmvp.d.x.  Each is an illegal instruction (cvw_fctrl.sv Funct3D == 0 conditions).
 //          - Reserved compressed encodings: c.addi16sp with imm = 0 and c.lwsp with rd = x0
-//            (decompress.sv immCIASP != 0 and c.lwsp rds1 != 0 conditions).
-//          - sret with rs1 != 0, which is reserved and so illegal in M mode (privdec.sv rs1zeroM).
+//            (cvw_decompress.sv immCIASP != 0 and c.lwsp rds1 != 0 conditions).
+//          - sret with rs1 != 0, which is reserved and so illegal in M mode (cvw_privdec.sv rs1zeroM).
 //          - fsqrt with f0 = +0: fsqrt has rs2 = 0, so the divider's Y operand is f0, and a zero Y must not
-//            raise divide-by-zero for a square root (flags.sv DivByZero Sqrt term).
-//          - fdiv.d finishing while an injected ExternalStall holds the pipeline (fdivsqrtfsm.sv DONE with
+//            raise divide-by-zero for a square root (cvw_flags.sv DivByZero Sqrt term).
+//          - fdiv.d finishing while an injected ExternalStall holds the pipeline (cvw_fdivsqrtfsm.sv DONE with
 //            StallM): the testbench stall injector (slti x0, x0, imm with imm = {length, delay}) starts a
 //            stall right after the divide starts, so the divider reaches DONE with StallM = 1.
 //

@@ -1,0 +1,84 @@
+///////////////////////////////////////////
+// cvw_fma.sv
+//
+// Written:  Katherine Parry me@KatherineParry.com, David Harris David_Harris@hmc.edu 23 June 2021
+// Modified:
+//
+// Purpose: Fused multiply-add datapath.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_fma import cvw::*; #(parameter cvw_t P) (
+  input  logic                          Xs, Ys, Zs,          // input's signs
+  input  logic [P.NE-1:0]               Xe, Ye, Ze,          // input's biased exponents in B(NE.0) format
+  input  logic [P.NF:0]                 Xm, Ym, Zm,          // input's significands in U(1.NF) format
+  input  logic                          XZero, YZero, ZZero, // is the input zero
+  input  logic [2:0]                    OpCtrl,              // operation control
+  output logic                          ASticky,             // sticky bit that is calculated during alignment
+  output logic [P.FMALEN-1:0]           Sm,                  // the positive sum's significand
+  output logic                          InvA,                // Was A inverted for effective subtraction (P-A or -P+A)
+  output logic                          As,                  // the aligned addend's sign (modified Z sign for other operations)
+  output logic                          Ps,                  // the product's sign
+  output logic                          Ss,                  // the sum's sign
+  output logic [P.NE+1:0]               Se,                  // the sum's exponent
+  output logic [$clog2(P.FMALEN+1)-1:0] SCnt                    // normalization shift count
+);
+
+  //  OpCtrl:
+  //    Fma: {not multiply-add?, negate prod? (multiply-add) or add/sub? (otherwise), negate Z?}
+  //        000 - fmadd
+  //        001 - fmsub
+  //        010 - fnmsub
+  //        011 - fnmadd
+  //        100 - mul
+  //        110 - add
+  //        111 - sub
+
+  logic [2*P.NF+1:0]   Pm;         // the product's significand in U(2.2Nf) format
+  logic [P.FMALEN-1:0] Am;         // addend aligned's mantissa for addition in U(NF+4.2NF)
+  logic [P.FMALEN-1:0] AmInv;      // aligned addend's mantissa possibly inverted
+  logic [2*P.NF+1:0]   PmKilled;   // the product's mantissa possibly killed U(2.2Nf)
+  logic                KillProd;   // set the product to zero before addition if the product is too small to matter
+  logic [P.NE+1:0]     Pe;         // the product's exponent B(NE+2.0) format; adds 2 bits to allow for size of number and negative sign
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // Calculate the product
+  //      - When multiplying two fp numbers, add the exponents
+  //      - Subtract the bias (XExp + YExp has two biases, one from each exponent)
+  //      - If the product is zero then kill the exponent
+  //      - Multiply the mantissas
+  ///////////////////////////////////////////////////////////////////////////////
+
+  // calculate the product's exponent
+  cvw_fmaexpadd #(P) expadd(.Xe, .Ye, .XZero, .YZero, .Pe);
+
+  // multiplication of the mantissas
+  cvw_fmamult #(P) mult(.Xm, .Ym, .Pm);
+
+  // calculate the signs and take the operation into account
+  cvw_fmasign sign(.OpCtrl, .Xs, .Ys, .Zs, .Ps, .As, .InvA);
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // Alignment shifter
+  ///////////////////////////////////////////////////////////////////////////////
+
+  cvw_fmaalign #(P) align(.Ze, .Zm, .XZero, .YZero, .ZZero, .Xe, .Ye, .Am, .ASticky, .KillProd);
+
+  // ///////////////////////////////////////////////////////////////////////////////
+  // // Addition/LZA
+  // ///////////////////////////////////////////////////////////////////////////////
+
+  cvw_fmaadd #(P) add(.Am, .Pm, .Ze, .Pe, .Ps, .KillProd, .ASticky, .AmInv, .PmKilled, .InvA, .Sm, .Se, .Ss);
+
+  // LZA carry-in matches the +1 of the adder's two's complement negation of A (see fmaadd)
+  cvw_fmalza #(P.FMALEN, P.NF) lza(.A(AmInv), .Pm(PmKilled), .Cin(InvA & (~ASticky | KillProd)), .sub(InvA), .SCnt);
+
+endmodule

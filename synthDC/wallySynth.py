@@ -10,7 +10,7 @@ def runSynth(config, mod, tech, freq, maxopt, usesram):
     global pool
     prefix = "syn_sram_" if usesram else "syn_"
     cfg = prefix + config
-    command = f"make synth DESIGN=wallypipelinedcore CONFIG={cfg} MOD={mod} TECH={tech} DRIVE=FLOP FREQ={freq} MAXOPT={maxopt} USESRAM={usesram} MAXCORES=1"
+    command = f"make synth DESIGN=cvw_wallypipelinedcore CONFIG={cfg} MOD={mod} TECH={tech} DRIVE=FLOP FREQ={freq} MAXOPT={maxopt} USESRAM={usesram} MAXCORES=1"
     pool.map(mask, [command])
 
 def mask(command):

@@ -33,8 +33,8 @@ my $macroC = "Number of macros/black boxes:";
 my $seqC = "Number of sequential cells:";
 my $bufC = "Number of buf/inv:";
 my $combC = "Number of combinational cells:";
-my @keywords = ("ifu", "ieu", "lsu", "hzu", "ebu.ebu", "priv.priv", "mdu.mdu", "fpu.fpu", "wallypipelinedcore", $macro, $seq, $buf, $comb, $macroC, $seqC, $bufC, $combC);
-my @keywordsp = ("ifu", "ieu", "lsu", "hzu", "ebu.ebu", "priv.priv", "mdu.mdu", "fpu.fpu", "wallypipelinedcore",
+my @keywords = ("ifu", "ieu", "lsu", "hzu", "ebu.ebu", "priv.priv", "mdu.mdu", "fpu.fpu", "cvw_wallypipelinedcore", $macro, $seq, $buf, $comb, $macroC, $seqC, $bufC, $combC);
+my @keywordsp = ("ifu", "ieu", "lsu", "hzu", "ebu.ebu", "priv.priv", "mdu.mdu", "fpu.fpu", "cvw_wallypipelinedcore",
                  "RAMs", "Flip-flops", "Inv/Buf", "Logic", "RAMs Cnt", "Flip-flops Cnt", "Inv/Buf Cnt", "Logic Cnt", "Total Cnt");
 my @configs = ("rv32e", "rv32i", "rv32imc", "rv32gc", "rv64i", "rv64gc");
 

@@ -1,7 +1,7 @@
 // mempipeprobe.svh — cycle trace of the HPTW / LSU / D$ / bus / IFU arbitration.
 // State legends: HPTW 0..9=L0_ADR,L0_RD,L1_ADR,L1_RD,L2_ADR,L2_RD,L3_ADR,L3_RD,L4_ADR,L4_RD 10=LEAF 11=IDLE 12=UPDATE_PTE 13=FAULT;
 //   D$/I$ 0=ACCESS 1=FETCH 2=WRITEBACK 3=WRITE_LINE 4=ADDRESS_SETUP 5=FLUSH 6=FLUSH_WRITEBACK; busfsm 0=ADR 1=DATA 2=ATOMIC_READ 3=ATOMIC 4=MEM3 5=CACHE_FETCH 6=CACHE_WRITEBACK
-// Debug aid only (issue #1538 / #1766). Included from testbench.sv under `ifdef MEMPIPE_PROBE.
+// Debug aid only (issue #1538 / #1766). Included from cvw_testbench.sv under `ifdef MEMPIPE_PROBE.
 // Plusargs: +PROBE_T0=<time> +PROBE_T1=<time> window (default whole run);
 //           +PROBE_ALL=1 print every cycle in the window (default: only "interesting" cycles);
 //           +PROBE_PA_LO=<hex> +PROBE_PA_HI=<hex> also print any D$/bus access whose PAdrM is in range.

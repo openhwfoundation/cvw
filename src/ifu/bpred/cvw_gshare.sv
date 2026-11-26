@@ -1,0 +1,104 @@
+///////////////////////////////////////////
+// cvw_gshare.sv
+//
+// Written:  Rose Thompson rose@rosethompson.net, Shreya Sanghai ssanghai@hmc.edu 16 March 2021
+// Modified:
+//
+// Purpose: Gshare / global-history direction predictor.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+module cvw_gshare import cvw::*; #(parameter cvw_t P,
+                               parameter XLEN,
+                               parameter k = 10,
+                               parameter integer TYPE = 1) (
+  input  logic            clk,
+  input  logic            reset,
+  input  logic            StallF, StallD, StallE, StallM, StallW,
+  input  logic            FlushD, FlushE, FlushM, FlushW,
+  output logic [1:0]      BPDirF,
+  output logic            BPDirWrongE,
+  // update
+  input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
+  input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE
+);
+
+  logic                   MatchD, MatchE, MatchM, MatchW;
+  logic                   MatchX;
+
+  logic [1:0]             PHTBPDirF, BPDirD, BPDirE, FwdNewBPDirF;
+  logic [1:0]             NewBPDirE, NewBPDirM, NewBPDirW;
+
+  logic [k-1:0]           IndexNextF, IndexF, IndexD, IndexE, IndexM, IndexW;
+
+  logic [k-1:0]           GHRF, GHRD, GHRE, GHRM;
+  logic [k-1:0]           GHRNextM, GHRNextF;
+  logic                   PCSrcM;
+
+  if (TYPE == 1) begin // gshare: index is global history XOR PC
+    assign IndexNextF = GHRNextF ^ {PCNextF[k+1] ^ PCNextF[1], PCNextF[k:2]};
+    assign IndexF = GHRF ^ {PCF[k+1] ^ PCF[1], PCF[k:2]};
+    assign IndexD = GHRD ^ {PCD[k+1] ^ PCD[1], PCD[k:2]};
+    assign IndexE = GHRE ^ {PCE[k+1] ^ PCE[1], PCE[k:2]};
+    assign IndexM = GHRM ^ {PCM[k+1] ^ PCM[1], PCM[k:2]};
+  end else if (TYPE == 0) begin // global: index is global history only
+    assign IndexNextF = GHRNextF;
+    assign IndexF = GHRF;
+    assign IndexD = GHRD;
+    assign IndexE = GHRE;
+    assign IndexM = GHRM;
+  end
+
+  cvw_flopenrc #(k) IndexWReg(clk, reset, FlushW, ~StallW, IndexM, IndexW);
+
+  assign MatchD = BranchD & ~FlushE & (IndexF == IndexD);
+  assign MatchE = BranchE & ~FlushM & (IndexF == IndexE);
+  assign MatchM = BranchM & ~FlushW & (IndexF == IndexM);
+  assign MatchW = BranchW & ~FlushW & (IndexF == IndexW);
+  assign MatchX = MatchD | MatchE | MatchM | MatchW;
+
+  assign FwdNewBPDirF = MatchD ? {2{BPDirD[1]}} :
+                        MatchE ? {NewBPDirE} :
+                        MatchM ? {NewBPDirM} :
+                        NewBPDirW;
+
+  assign BPDirF = MatchX ? FwdNewBPDirF : PHTBPDirF;
+
+  cvw_ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(2**k), .WIDTH(2)) PHT(.clk(clk),
+    .ce1(~StallF), .ce2(~StallW & ~FlushW),
+    .ra1(IndexNextF),
+    .rd1(PHTBPDirF),
+    .wa2(IndexM),
+    .wd2(NewBPDirM),
+    .we2(BranchM),
+    .bwe2(1'b1));
+
+  cvw_flopenrc #(2) PredictionRegD(clk, reset, FlushD, ~StallD, BPDirF, BPDirD);
+  cvw_flopenrc #(2) PredictionRegE(clk, reset, FlushE, ~StallE, BPDirD, BPDirE);
+
+  cvw_satCounter2 BPDirUpdateE(.BrDir(PCSrcE), .OldState(BPDirE), .NewState(NewBPDirE));
+  cvw_flopenrc #(2) NewPredictionRegM(clk, reset, FlushM, ~StallM, NewBPDirE, NewBPDirM);
+  cvw_flopenrc #(2) NewPredictionRegW(clk, reset, FlushW, ~StallW, NewBPDirM, NewBPDirW);
+
+  assign BPDirWrongE = PCSrcE != BPDirE[1] & BranchE;
+
+  // Speculative global history: shift in the predicted direction of branches in F and D
+  // and the resolved direction of branches in E and M
+  assign GHRNextF = BPBranchF ? {BPDirF[1], GHRF[k-1:1]} : GHRF;
+  assign GHRF = BranchD ? {BPDirD[1], GHRD[k-1:1]} : GHRD;
+  assign GHRD = BranchE ? {PCSrcE, GHRE[k-1:1]} : GHRE;
+  assign GHRE = BranchM ? {PCSrcM, GHRM[k-1:1]} : GHRM;
+
+  assign GHRNextM = {PCSrcM, GHRM[k-1:1]};
+
+  cvw_flopenr #(k) GHRReg(clk, reset, ~StallW & ~FlushW & BranchM, GHRNextM, GHRM);
+  cvw_flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
+
+endmodule

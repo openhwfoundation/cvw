@@ -5,7 +5,7 @@
 //
 // Purpose: Test coverage for a cbo.inval that hits in the data cache but takes an access fault.
 //          The hit asks the way to clear its valid bit, and in the same cycle the access's own
-//          fault squashes it (lsu.sv SelfFaultM, part of LSUFlushW), which must cancel the clear.
+//          fault squashes it (cvw_lsu.sv SelfFaultM, part of LSUFlushW), which must cancel the clear.
 //          Four lines that share a set are loaded first, so the faulting cbo.invals hit in each
 //          of the four ways.  Each line is then stored to, so it holds data memory does not:
 //          reading it back after the faults shows the clear was cancelled.

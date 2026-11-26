@@ -9,12 +9,12 @@
 //          after the first, even while the pipeline is stalled.  In each sequence the first half hits in
 //          the I$ in the cycle a load starts on the bus, and the second half misses in the next cycle.
 //          1. The load misses in the D$, so the LSU is one beat into a 16-beat line fill when the IFU asks.
-//             ebufsmarb.sv starts counting the LSU's beats only when it enters ARBITRATE, so it sees the
+//             cvw_ebufsmarb.sv starts counting the LSU's beats only when it enters ARBITRATE, so it sees the
 //             LSU's request drop (both = 0, HREADY = 1) before its own count reaches the final beat
 //             (FinalBeatD = 0) and stays in ARBITRATE until the count finishes.
 //          2. (RV32 port of tests/coverage64gc/icachebusbusy.S) The load reads mtime from the CLINT, and
 //             the APB bridge holds HREADY low while the IFU's line fill asks for the bus
-//             (buscachefsm.sv HTRANS with CacheBusRW and HREADY = 0 in ADR_PHASE).
+//             (cvw_buscachefsm.sv HTRANS with CacheBusRW and HREADY = 0 in ADR_PHASE).
 //          The results of the loads and of the spilled instructions are checked afterwards.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.

@@ -1,0 +1,47 @@
+///////////////////////////////////////////
+// cvw_zbc.sv
+//
+// Written:  Kevin Kim kekim@hmc.edu, Kip Macsai-Goren kmacsaigoren@hmc.edu 2 February 2023
+// Modified: David Harris
+//
+// Purpose: Zbc and Zbkc carry-less multiply unit.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_zbc import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.XLEN-1:0] A, RevA, B,       // Operands
+  input  logic [1:0]        Funct3,           // Indicates operation to perform
+  output logic [P.XLEN-1:0] ZBCResult);       // ZBC result
+
+  logic [P.XLEN-1:0] ClmulResult, RevClmulResult;
+  logic [P.XLEN-1:0] RevB;
+  logic [P.XLEN-1:0] X, Y;
+
+  cvw_bitreverse #(P.XLEN) brB(B, RevB);
+
+  // choose X = A for clmul, Rev(A) << 1 for clmulh, Rev(A) for clmulr
+  // unshifted Rev(A) source is only needed for clmulr in ZBC, not in ZBKC
+  // ~Funct3[1:0] maps clmulh (11) to 00, clmulr (10) to 01, clmul (01) to 10
+  if (P.ZBC_SUPPORTED)
+    cvw_mux3 #(P.XLEN) xmux({RevA[P.XLEN-2:0], {1'b0}}, RevA, A, ~Funct3[1:0], X);
+  else
+    cvw_mux2 #(P.XLEN) xmux(A, {RevA[P.XLEN-2:0], {1'b0}}, Funct3[1], X);
+
+  // choose Y = B for clmul, Rev(B) for clmulh/clmulr
+  cvw_mux2 #(P.XLEN) ymux(B, RevB, Funct3[1], Y);
+
+  // carry free multiplier
+  cvw_clmul #(P.XLEN) clm(.X, .Y, .ClmulResult);
+
+  // choose result = rev(X @ Y) for clmulh/clmulr
+  cvw_bitreverse #(P.XLEN) brClmulResult(ClmulResult, RevClmulResult);
+  cvw_mux2 #(P.XLEN) zbcresultmux(ClmulResult, RevClmulResult, Funct3[1], ZBCResult);
+endmodule

@@ -4,7 +4,7 @@
 # Madeleine Masser-Frye (mmasserfrye@hmc.edu) 1/27/2023
 NAME := synth
 # defaults
-export DESIGN ?= wallypipelinedcore
+export DESIGN ?= cvw_wallypipelinedcore
 export FREQ ?= 10000
 export CONFIG ?= rv64gc
 export MOD ?= orig

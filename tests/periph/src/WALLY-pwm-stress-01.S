@@ -145,7 +145,7 @@ EXPECT_BEGIN
     QUIESCE
 
 // ===================================================================================================
-// 5. Access size.  Wally's PMA makes the PWM region word-only (src/mmu/adrdecs.sv): byte, halfword,
+// 5. Access size.  Wally's PMA makes the PWM region word-only (src/mmu/cvw_adrdecs.sv): byte, halfword,
 //    and doubleword accesses take an access fault and must not modify the register.  (The FE310
 //    manual does not define sub-word accesses; this checks the documented Wally behavior.)
 // ===================================================================================================

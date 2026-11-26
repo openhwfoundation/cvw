@@ -5,7 +5,7 @@
 //
 // Purpose: PMP lock cascade on rv32gc (16 entries, 4 per pmpcfg CSR).  A locked entry ignores writes to
 //          its pmpcfg byte and pmpaddr, and a locked TOR entry i also locks pmpaddr[i-1], which is its
-//          region's lower bound (csrm.sv ADDRLocked).  Locks are sticky until reset, so the test locks
+//          region's lower bound (cvw_csrm.sv ADDRLocked).  Locks are sticky until reset, so the test locks
 //          entries 15 down to 2 as TOR in order: when entry i is locked, entry i-1 is still unlocked,
 //          which exercises ADDRLocked[i-1] = L[i-1] | (L[i] & A[i] == TOR) with only the cascade term
 //          true.  Entry 15 is first made TOR while unlocked, when pmpaddr14 must still be writable.

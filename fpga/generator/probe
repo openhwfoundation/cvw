@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 ###########################################
-## fpgaTop.sv
+## cvw_fpgaTop.sv
 ##
 ## Written: jacob.pease@okstate.edu 06 April 2023
 ## Modified:
