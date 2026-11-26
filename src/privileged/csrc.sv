@@ -68,7 +68,7 @@ module csrc import cvw::*; #(parameter cvw_t P) (
 
   logic [4:0]              CounterNumM;
   logic                    CounterEnM, SCounterEnM, HCounterEnM;
-  logic                    CounterAllowedM;
+  logic                    CounterAllowedM, UserCounterCSRM;
   logic [P.XLEN-1:0]       HPMCOUNTER_REGW[P.COUNTERS-1:0];
   logic [P.XLEN-1:0]       HPMCOUNTERH_REGW[P.COUNTERS-1:0];
   logic [P.XLEN-1:0]       MHPMEVENT_REGW[HPMEVENTTOP:3];
@@ -179,54 +179,15 @@ module csrc import cvw::*; #(parameter cvw_t P) (
   assign CounterEnM = MCOUNTEREN_REGW[CounterNumM];
   assign SCounterEnM = SCOUNTEREN_REGW[CounterNumM];
   assign HCounterEnM = HCOUNTEREN_REGW[CounterNumM];
-  if (P.H_SUPPORTED) begin: counterreadable_h
-    always_comb begin
-      if (PrivilegeModeW == P.M_MODE)
-        CounterAllowedM = 1'b1;
-      else if (VirtModeW) begin
-        // In VS/VU, hcounteren further gates counter access.
-        if (PrivilegeModeW == P.S_MODE)
-          CounterAllowedM = CounterEnM & HCounterEnM;
-        else
-          CounterAllowedM = CounterEnM & HCounterEnM & SCounterEnM;
-      end else
-        CounterAllowedM = CounterEnM & (PrivilegeModeW == P.S_MODE | SCounterEnM);
-    end
-  end else begin: counterreadable_noh
-    always_comb begin
-      if (PrivilegeModeW == P.M_MODE)
-        CounterAllowedM = 1'b1;
-      else
-        CounterAllowedM = CounterEnM & (!P.S_SUPPORTED | PrivilegeModeW == P.S_MODE | SCounterEnM);
-    end
-  end
-
-  // In V modes, counter access denials caused by hcounteren/scounteren are
-  // virtual-instruction traps when mcounteren would otherwise permit access.
-  if (P.H_SUPPORTED) begin: virtualcounter_h
-    logic CounterExistsM;
-
-    if (P.XLEN == 64) begin: counterexists64
-      assign CounterExistsM = (CSRAdrM == TIME) |
-                              (CSRAdrM >= HPMCOUNTERBASE & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS);
-    end else begin: counterexists32
-      assign CounterExistsM = (CSRAdrM == TIME) | (CSRAdrM == TIMEH) |
-                              (CSRAdrM >= HPMCOUNTERBASE & CSRAdrM < HPMCOUNTERBASE+P.COUNTERS) |
-                              (CSRAdrM >= HPMCOUNTERHBASE & CSRAdrM < HPMCOUNTERHBASE+P.COUNTERS);
-    end
-
-    always_comb begin
-      VirtualCSRCAccessM = 1'b0;
-      if (VirtModeW & CounterExistsM & ~CSRWriteM & CounterEnM) begin
-        if (PrivilegeModeW == P.S_MODE)
-          VirtualCSRCAccessM = ~HCounterEnM;
-        else if (PrivilegeModeW == P.U_MODE)
-          VirtualCSRCAccessM = ~HCounterEnM | ~SCounterEnM;
-      end
-    end
-  end else begin: virtualcounter_noh
-    assign VirtualCSRCAccessM = 1'b0;
-  end
+  // M-mode reads every counter; other modes need mcounteren, plus scounteren in U/VU and hcounteren in VS/VU
+  assign CounterAllowedM = (PrivilegeModeW == P.M_MODE) |
+                           CounterEnM & (!P.S_SUPPORTED | PrivilegeModeW == P.S_MODE | SCounterEnM) &
+                           (~(P.H_SUPPORTED & VirtModeW) | HCounterEnM);
+  // At V=1, a user counter read that mcounteren allows but hcounteren or scounteren blocks is a
+  // virtual-instruction fault.  mcounteren bits are writable only for implemented counters, so
+  // CounterEnM already implies the counter exists.
+  assign UserCounterCSRM = (CSRAdrM[11:5] == 7'b1100000) | ((P.XLEN == 32) & (CSRAdrM[11:5] == 7'b1100100)); // 0xC00-0xC1F, 0xC80-0xC9F
+  assign VirtualCSRCAccessM = P.H_SUPPORTED & VirtModeW & UserCounterCSRM & ~CSRWriteM & CounterEnM & ~CounterAllowedM;
 
   always_comb begin
     CSRCReadValM = '0; // default value
