@@ -24,18 +24,18 @@ if {$boardName!="ArtyA7" && $boardName!="qmtechk7" } {
 
 # read package first
 add_files  ../src/CopiedFiles_do_not_add_to_repo/cvw.sv
-#read_verilog -sv  ../src/wallypipelinedsocwrapper.sv
+#read_verilog -sv  ../src/cvw_wallypipelinedsocwrapper.sv
 # then read top level
 if {$board=="ArtyA7"} {
-    add_files  {../src/fpgaTopArtyA7.sv}
+    add_files  {../src/cvw_fpgaTopArtyA7.sv}
 } elseif {$board=="genesys2"} {
-    add_files  {../src/fpgaTopGenesys2.sv}
+    add_files  {../src/cvw_fpgaTopGenesys2.sv}
 } elseif {$board=="nexysa7"} {
-    add_files  {../src/fpgaTopNexysA7.sv}
+    add_files  {../src/cvw_fpgaTopNexysA7.sv}
 } elseif {$board=="qmtechk7"} {
-    add_files  {../src/fpgaTopQmtechk7.sv}
+    add_files  {../src/cvw_fpgaTopQmtechk7.sv}
 } else {
-    add_files  {../src/fpgaTop.sv}
+    add_files  {../src/cvw_fpgaTop.sv}
 }
 
 # read in ip
@@ -60,7 +60,7 @@ set_property include_dirs {../src/CopiedFiles_do_not_add_to_repo/config ../../co
 
 
 # define top level
-set_property top fpgaTop [current_fileset]
+set_property top cvw_fpgaTop [current_fileset]
 
 update_compile_order -fileset sources_1
 # This is important as the ddr3/4 IP contains the generate clock constraint which the user constraints depend on.

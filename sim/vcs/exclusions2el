@@ -58,9 +58,9 @@ from collections import defaultdict
 from pathlib import Path
 
 # Questa scopes in the exclusion file are rooted at the saved instance /core (wally-run.do saves
-# /testbench/dut/core); VCS reports full hierarchical names
+# /cvw_testbench/dut/core); VCS reports full hierarchical names
 QUESTA_ROOT = "/core"
-VCS_ROOT = "testbench.dut.core"
+VCS_ROOT = "cvw_testbench.dut.core"
 
 # Replays a Questa .do file, printing each "coverage exclude" command's arguments separated by \x1f
 REPLAY_TCL = r"""

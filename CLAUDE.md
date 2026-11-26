@@ -8,12 +8,16 @@ CORE-V-Wally (cvw) is a configurable, 5-stage pipelined RISC-V processor written
 
 ## Environment Setup
 
-Before doing anything, source the setup script (required every session):
-```bash
-source setup.sh
-```
+Before running project commands, use the shell configured for the current environment and source its matching setup script from the repository root:
 
-This sets `$WALLY` (repo root) and `$RISCV` (toolchain installation at `~/riscv` or `/opt/riscv`), and adds `$WALLY/bin` to `$PATH`. The Python tools in `bin/` run through `uv` (`#!/usr/bin/env -S uv run --script`).
+| Environment shell | Setup command |
+| --- | --- |
+| Bash, with a Bash-compatible site toolchain | `source ./setup.sh` |
+| `csh` or `tcsh`, with a C-shell site toolchain | `source ./setup.csh` (loads `./site-setup.csh` automatically) |
+
+Agents should use the environment's shell, not assume the command runner's default is correct. On a C-shell-only site, use `csh` or `tcsh` even if the command runner starts in Bash. Run setup and project commands in the same shell invocation; for example, `tcsh -c 'source ./setup.csh && lint-wally'`.
+
+Setup sets `$WALLY` (repo root) and `$RISCV` (toolchain directory), and adds `$WALLY/bin` to `$PATH`. The Python tools in `bin/` run through `uv` (`#!/usr/bin/env -S uv run --script`).
 
 ## Build and Test Commands
 
@@ -77,7 +81,7 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 ### Directory Structure
 - `src/` — RTL source (SystemVerilog)
 - `config/` — Configuration files per target (`rv64gc`, `rv32gc`, `rv32i`, etc.)
-- `testbench/` — Top-level testbenches (`testbench.sv`, `testbench_fp.sv`)
+- `testbench/` — Top-level testbenches (`cvw_testbench.sv`, `cvw_testbench_fp.sv`)
 - `sim/` — Simulation infrastructure (`questa/`, `verilator/`, `vcs/`)
 - `tests/` — Test suites (`coverage/`, `fp/`, `custom/`, `periph/` self-checking peripheral tests)
 - `addins/` — Git submodules (riscv-arch-test, embench-iot, coremark, berkeley-softfloat/testfloat, cover-float, etc.)
@@ -88,20 +92,20 @@ derivgen.pl                             # regenerates config/deriv/ from config/
 ### RTL Hierarchy
 
 ```
-wallypipelinedsoc (src/wally/wallypipelinedsoc.sv)
-├── wallypipelinedcore (src/wally/wallypipelinedcore.sv)
-│   ├── ifu (src/ifu/ifu.sv)          — Instruction Fetch Unit: PC, icache, branch predictor
+cvw_wallypipelinedsoc (src/wally/cvw_wallypipelinedsoc.sv)
+├── cvw_wallypipelinedcore (src/wally/cvw_wallypipelinedcore.sv)
+│   ├── cvw_ifu (src/ifu/cvw_ifu.sv)  — Instruction Fetch Unit: PC, icache, branch predictor
 │   │   └── bpred/                    — Branch predictors (BTB, GSHARE, RAS, etc.)
-│   ├── ieu (src/ieu/ieu.sv)          — Integer Execution Unit: ALU, control, datapath, regfile
-│   ├── lsu (src/lsu/lsu.sv)          — Load/Store Unit: dcache, HPTW, atomics, endian swap
-│   ├── fpu (src/fpu/)                — Floating Point Unit (F, D, Q, ZFH)
-│   ├── privileged (src/privileged/)  — CSRs, traps, privilege modes, PMP
-│   ├── hazard (src/hazard/)          — Pipeline stall/flush control
-│   ├── mdu (src/mdu/)                — Multiply/Divide Unit
-│   └── ebu (src/ebu/)                — External Bus Unit (AHB arbiter)
-├── uncore (src/uncore/)              — Peripherals: RAM, ROM, CLINT, PLIC, UART, GPIO, SPI
-├── cache (src/cache/)                — Shared cache infrastructure (used by IFU and LSU)
-└── mmu (src/mmu/)                    — MMU: TLBs, page table walker, PMP/PMA checkers
+│   ├── cvw_ieu (src/ieu/cvw_ieu.sv)  — Integer Execution Unit: ALU, control, datapath, regfile
+│   ├── cvw_lsu (src/lsu/cvw_lsu.sv)  — Load/Store Unit: dcache, HPTW, atomics, endian swap
+│   ├── cvw_fpu (src/fpu/)            — Floating Point Unit (F, D, Q, ZFH)
+│   ├── cvw_privileged (src/privileged/) — CSRs, traps, privilege modes, PMP
+│   ├── cvw_hazard (src/hazard/)      — Pipeline stall/flush control
+│   ├── cvw_mdu (src/mdu/)            — Multiply/Divide Unit
+│   └── cvw_ebu (src/ebu/)            — External Bus Unit (AHB arbiter)
+├── cvw_uncore (src/uncore/)          — Peripherals: RAM, ROM, CLINT, PLIC, UART, GPIO, SPI
+├── cvw_cache (src/cache/)            — Shared cache infrastructure (used by IFU and LSU)
+└── cvw_mmu (src/mmu/)                — MMU: TLBs, page table walker, PMP/PMA checkers
 ```
 
 ### Configuration System
@@ -118,7 +122,7 @@ cvw owns the riscv-arch-test (ACT) configuration for each of its configurations 
 
 ### Pipeline Stages
 
-Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stall and flush signals (`StallF`/`FlushD` etc.) are computed in `hazard.sv` and threaded through every stage register.
+Five stages: Fetch (F), Decode (D), Execute (E), Memory (M), Writeback (W). Stall and flush signals (`StallF`/`FlushD` etc.) are computed in `cvw_hazard.sv` and threaded through every stage register.
 
 ### Simulators
 

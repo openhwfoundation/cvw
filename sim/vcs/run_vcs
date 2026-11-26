@@ -42,7 +42,7 @@ CCOV_METRICS = "line+cond+branch+fsm"
 CCOV_COMPILE = ["-cm", CCOV_METRICS, "-cm_line", "contassign", "-cm_cond", "obs", "-cm_noconst", "-cm_hier", f"{simdir}/coverage.hier"]
 
 # Memories that are generated per FPGA target rather than compiled into the simulation
-EXCLUDED_SOURCES = {f"{srcdir}/generic/mem/{name}.sv" for name in
+EXCLUDED_SOURCES = {f"{srcdir}/generic/mem/cvw_{name}.sv" for name in
                     ("rom1p1r_128x64", "ram2p1r1wbe_128x64", "rom1p1r_128x32", "ram2p1r1wbe_2048x64")}
 
 def svFiles(directory):
@@ -61,12 +61,12 @@ def parseArgs():
     parser.add_argument("--define", "-d", help="Optional define macros passed to simulator", default="")
     parser.add_argument("--lockstep", "-l", help="Run ImperasDV lock, step, and compare.", action="store_true")
     parser.add_argument("--breker", "-b", help="Run Breker test", action="store_true")
-    parser.add_argument("--ccov", "-c", help="Code coverage of testbench.dut.core", action="store_true")
+    parser.add_argument("--ccov", "-c", help="Code coverage of cvw_testbench.dut.core", action="store_true")
     parser.add_argument("--fcov", "-f", help="Functional coverage: compile in the riscv-arch-test covergroups", action="store_true")
     return parser.parse_args()
 
 def generateFileList(testbench, params):
-    files = [f"{tbdir}/{testbench}.sv", *svFiles(srcdir), *svFiles(f"{tbdir}/common")]
+    files = [f"{tbdir}/cvw_{testbench}.sv", *svFiles(srcdir), *svFiles(f"{tbdir}/common")]
     # Only the synthesizable RVVI interface (wsim --rvvi) uses the verilog-ethernet MAC
     if "RVVI_SYNTH_SUPPORTED=1" in params.split():
         files += svFiles(f"{WALLY}/addins/verilog-ethernet")
@@ -154,7 +154,7 @@ def setupParamOverrides(wkdir, args):
         for param in args.params.split():
             [param, value] = param.split("=")
             value = value.replace("\\'", "'") if "\\'" in value else f'"{value}"' # transform quotes/bit indicators
-            f.write(f"assign {value} {args.tb}/{param}\n")
+            f.write(f"assign {value} cvw_{args.tb}/{param}\n")
     return ["-parameters", paramOverrideFile]
 
 def compileDesign(wkdir, args):
@@ -167,7 +167,7 @@ def compileDesign(wkdir, args):
                    f"+incdir+{WALLY}/tests", f"+incdir+{tbdir}", f"+incdir+{srcdir}"]
     vcsStandardFlags = ["+lint=all,noGCWM,noUI,noSVA-UA,noIDTS,noNS,noULCO,noCAWM-L,noWMIA-L,noSV-PIU,noSTASKW_CO,noSTASKW_CO1,noSTASKW_RMCOF",
                         "-suppress", "+warn", "-sverilog", "+vc", "-Mupdate", "-line", "-full64", "-lca", "-ntb_opts", "sensitive_dyn"]
-    vcsCMD = ["vcs", *vcsStandardFlags, "-top", args.tb, *compileOptions, f"-Mdir={wkdir}", *includePath, f"{srcdir}/cvw.sv",
+    vcsCMD = ["vcs", *vcsStandardFlags, "-top", f"cvw_{args.tb}", *compileOptions, f"-Mdir={wkdir}", *includePath, f"{srcdir}/cvw.sv",
               *rtlFiles, "-o", f"{wkdir}/sim_out", "-work", wkdir, f"-Mlib={wkdir}", "-l", f"{logdir}/{os.path.basename(wkdir)}_compile.log"]
     print(f"Compiling VCS: {shlex.join(vcsCMD)}")
     subprocess.run(vcsCMD, check=True)

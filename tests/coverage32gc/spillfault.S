@@ -7,7 +7,7 @@
 //          halfword faults.  A 4-byte instruction starts in the last halfword of a non-executable
 //          page (or a PMP grain without execute permission) and ends in an executable one, so only
 //          the first half faults and the IFU must report the fault from the first half alone
-//          (spill.sv TakeSpillF row InstrPageFaultF_1).  The IFU only treats a fetch as a spill
+//          (cvw_spill.sv TakeSpillF row InstrPageFaultF_1).  The IFU only treats a fetch as a spill
 //          when the bytes it gets back look like a 32-bit instruction, so each straddling line is
 //          executed once while it is still allowed, to bring it into the instruction cache, before
 //          the permission is revoked.  Both traps resume after the straddling instruction.

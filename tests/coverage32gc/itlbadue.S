@@ -7,7 +7,7 @@
 //          With ADUE=0, a fetch from a page whose leaf PTE has A=0 walks the page table, fills the ITLB
 //          with the A=0 leaf, and then raises an instruction page fault from the ITLB hit.  Setting ADUE=1
 //          without sfence.vma and fetching from the page again hits that cached A=0 entry, so the ITLB
-//          requests an A update (ifu.sv: InstrUpdateAF = 1 with ITLBMissF = 0 in ITLBMissOrUpdateRawF),
+//          requests an A update (cvw_ifu.sv: InstrUpdateAF = 1 with ITLBMissF = 0 in ITLBMissOrUpdateRawF),
 //          the walker sets A in the PTE, and the fetch proceeds.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.

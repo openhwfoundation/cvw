@@ -3,11 +3,11 @@
 //
 // Written: david_harris@hmc.edu
 //
-// Purpose: Directed coverage test for src/fpu/fctrl.sv line 98.
+// Purpose: Directed coverage test for src/fpu/cvw_fctrl.sv line 98.
 //          Hits the focused-expression input terms (FRM_REGW == 5)_1 and
 //          (FRM_REGW == 6)_1 in the SupportedRM assignment.
 //
-//          fctrl.sv:98:
+//          cvw_fctrl.sv:98:
 //            assign SupportedRM = ~(Funct3D == 3'b101 | Funct3D == 3'b110 |
 //                                  (Funct3D == 3'b111 & (FRM_REGW == 3'b101 |
 //                                   FRM_REGW == 3'b110 | FRM_REGW == 3'b111))) | ...

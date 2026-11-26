@@ -21,7 +21,7 @@
 # how to invoke this simulator:
 # CacheSim.py <number of lines> <number of ways> <length of physical address> <length of tag> -f <log file> (-v)
 # so the default invocation for rv64gc is 'CacheSim.py 64 4 56 44 -f <log file>'
-# the log files to run this simulator on can be generated from testbench.sv
+# the log files to run this simulator on can be generated from cvw_testbench.sv
 # by setting I_CACHE_ADDR_LOGGER and/or D_CACHE_ADDR_LOGGER to 1 before running tests.
 # I (Lim) recommend logging a single set of tests (such as wally64priv) at a time.
 # This helps avoid unexpected logger behavior.

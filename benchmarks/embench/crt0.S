@@ -49,7 +49,7 @@ bssdone:
 
   .align 2
 
-// The signature holds five XLEN-bit words, read back by testbench.sv and run_wally.py:
+// The signature holds five XLEN-bit words, read back by cvw_testbench.sv and run_wally.py:
 // start cycle, stop cycle, start instret, stop instret, and the success code
 .global write_tohost
 write_tohost:

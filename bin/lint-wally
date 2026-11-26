@@ -51,12 +51,12 @@ def lint_config(WALLY: Path, config: str) -> bool:
         "--lint-only",
         "--quiet",
         "--top-module",
-        "wallywrapper",
+        "cvw_wallywrapper",
         f"-I{WALLY}/config/shared",
         f"-I{WALLY}/config/{config}",
         f"-I{WALLY}/config/deriv/{config}",
         f"{WALLY}/src/cvw.sv",
-        f"{WALLY}/testbench/wallywrapper.sv",
+        f"{WALLY}/testbench/cvw_wallywrapper.sv",
     ]
 
     # Add all SystemVerilog files

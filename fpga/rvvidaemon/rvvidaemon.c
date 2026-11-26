@@ -50,9 +50,9 @@
 
 #define BUF_SIZ   1024
 
-//#define ETHER_TYPE   0x0801  // The type defined in packetizer.sv
-#define ETHER_TYPE   0x5c00  // The type defined in packetizer.sv
-//#define ETHER_TYPE   0x0000  // The type defined in packetizer.sv
+//#define ETHER_TYPE   0x0801  // The type defined in cvw_packetizer.sv
+#define ETHER_TYPE   0x5c00  // The type defined in cvw_packetizer.sv
+//#define ETHER_TYPE   0x0000  // The type defined in cvw_packetizer.sv
 #define DEFAULT_IF   "eno1"
 
 struct sockaddr_ll socket_address;

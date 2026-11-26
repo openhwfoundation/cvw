@@ -8,14 +8,14 @@
 //          tlbmisc.S and nonleafpbmtfault.S.
 //          1. With menvcfg.ADUE = 1, a load from an execute-only page misses in the DTLB and the
 //             walker judges the leaf with InvalidRead = ReadAccess & ~Readable & (~MXR | ~Executable)
-//             (hptw.sv).  With MXR clear the load page-faults; with MXR set the same load is allowed.
-//          2. cbo.clean needs read permission, or execute permission with MXR (tlbcontrol.sv
+//             (cvw_hptw.sv).  With MXR clear the load page-faults; with MXR set the same load is allowed.
+//          2. cbo.clean needs read permission, or execute permission with MXR (cvw_tlbcontrol.sv
 //             InvalidCBOM).  With MXR set, cbo.clean on the execute-only page is allowed, and
 //             cbo.clean on a page with W = 1 and R = X = 0 (a reserved encoding) takes a store/AMO
 //             page fault.
-//          3. A non-leaf PTE with A, D or U set is reserved and makes the walk fault (hptw.sv
+//          3. A non-leaf PTE with A, D or U set is reserved and makes the walk fault (cvw_hptw.sv
 //             DAUFaultM).  An AMO through such a PTE takes a store/AMO page fault: the walker's
-//             fault is classed by MemRWM = 2'b11 (hptw.sv HPTWStoreAmoPageFault).
+//             fault is classed by MemRWM = 2'b11 (cvw_hptw.sv HPTWStoreAmoPageFault).
 //          Self-checking (WALLY-selfcheck.h): every page fault is logged (mcause, mepc, mtval) and the
 //          log is compared with the expected list at the end; values loaded and the AMO's memory word
 //          are checked.  Failure indices: 1-6 values, 10 trap count, 11+ log entries, 0xF0 another trap.

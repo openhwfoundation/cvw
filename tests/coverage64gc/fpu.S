@@ -164,7 +164,7 @@ main:
     TRAP 2, 41, fsq ft0, 0(a0)
     TRAP 7, 43, fsh ft0, 8(a0)          // store/AMO access fault
 
-    # Tests for fpu/fctrl.sv
+    # Tests for fpu/cvw_fctrl.sv
     fcvt.h.s ft1, ft0
     CHECKF ft1, 0xffffffffffff4000, 45  // ft0 = 0x3fffffff = 2 - 2^-23 rounds to 2.0
     FLAGS 0x01, 46                      // inexact
@@ -250,7 +250,7 @@ main:
     // instruction), so its result and inexact flag depend on timing and are not checked.  Clear the flags.
     csrw fflags, zero
 
-    # Completing branch coverage in fctrl.sv
+    # Completing branch coverage in cvw_fctrl.sv
     TRAP 2, 83, .word 0x38007553    // Testing the all False case for 119 - funct7 under, op = 101 0011
     TRAP 2, 85, .word 0x40000053    // Line 145 All False Test case - illegal instruction?
     TRAP 2, 87, .word 0xd0400053    // Line 156 All False Test case - illegal instruction?
@@ -258,7 +258,7 @@ main:
     TRAP 2, 91, .word 0xd2400053    // Line 168 All False Test case - illegal instruction?
     TRAP 2, 93, .word 0xc2400053    // Line 174 All False Test case - illegal instruction?
 
-    # Increasing conditional coverage in fctrl.sv
+    # Increasing conditional coverage in cvw_fctrl.sv
     TRAP 2, 95, .word 0xc5000007    // Attempting to toggle (Op7 != 7) to 0 on line 97 in fctrl; a vector load, and V is not supported
     TRAP 2, 97, .word 0xe0101053    // toggling (Rs2D == 0) to 0 on line 139 in fctrl. Illegal Intsr (like fclass but incorrect rs2)
     TRAP 2, 99, .word 0xe0100053    // toggling (Rs2D == 0) to 0 on line 141 in fctrl. Illegal Intsr (like fmv but incorrect rs2)

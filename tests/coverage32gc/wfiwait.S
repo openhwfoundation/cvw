@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 27 October 2026 (RV32 port of tests/coverage64gc/wfitimeout.S and
 //          wfiSnoTW.S)
 //
-// Purpose: The wfi wait counter in privdec.sv saturates after 2^WFI_TIMEOUT_BIT = 2^16 cycles.  It only
+// Purpose: The wfi wait counter in cvw_privdec.sv saturates after 2^WFI_TIMEOUT_BIT = 2^16 cycles.  It only
 //          raises an illegal instruction (TWTimeoutM) when the wfi is in S mode with mstatus.TW = 1 or in
 //          U mode; otherwise the wfi keeps waiting for an interrupt.  This test saturates the counter in
 //          each of the three cases on rv32gc:

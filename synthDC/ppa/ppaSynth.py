@@ -13,7 +13,7 @@ from ppaAnalyze import synthsfromcsv
 
 
 def runCommand(module, width, tech, freq):
-    command = f"make synth DESIGN={module} WIDTH={width} TECH={tech} DRIVE=INV FREQ={freq} MAXOPT=1 MAXCORES=1"
+    command = f"make synth DESIGN=cvw_{module} WIDTH={width} TECH={tech} DRIVE=INV FREQ={freq} MAXOPT=1 MAXCORES=1"
     subprocess.call(command, shell=True)
 
 def deleteRedundant(synthsToRun):

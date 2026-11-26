@@ -19,7 +19,7 @@
 # statements inline with the code whenever possible.
 
 # sim/Makefile (QuestaCodeCoverage) applies this file in Coverage View mode to the merged database, whose
-# top scope is /core (wally-run.do saves /testbench/dut/core).  Applying it there, rather than in each
+# top scope is /core (wally-run.do saves /cvw_testbench/dut/core).  Applying it there, rather than in each
 # simulation, matters: with Questa 2023.4, -fecexprrow/-feccondrow exclude single rows only in the form
 #   coverage exclude -scope <scope> -fecexprrow <line> <row> [<row>|<row>-<row>] ...
 # Combined with "-linerange <line> -item e 1" the row list is read as a line number and the whole expression
@@ -70,7 +70,7 @@ coverage exclude -scope /core/mdu/mdu/div/div -ftrans state DONE->BUSY BUSY->IDL
 set USLC4 $FPU/fdivsqrt/fdivsqrtiter/iterations
 ExcludeRows "${USLC4}\[0\]/stage/fdivsqrtstage/uslc4" e {j1_1 j0_1}
 ExcludeRows "${USLC4}\[1\]/stage/fdivsqrtstage/uslc4" e {j0_1}
-coverage exclude -scope "${USLC4}\[1\]/stage/fdivsqrtstage/uslc4" -linerange [TagLine ${SRC}/fpu/fdivsqrt/fdivsqrtuslc4cmp.sv uslc4-mkj1] -item b 1
+coverage exclude -scope "${USLC4}\[1\]/stage/fdivsqrtstage/uslc4" -linerange [TagLine ${SRC}/fpu/fdivsqrt/cvw_fdivsqrtuslc4cmp.sv uslc4-mkj1] -item b 1
 
 # A divide by zero is a divider special case: the divider loads U = 0 and UM = 1.0 and goes straight to DONE, so
 # the quotient has no bits below its leading one and Guard = Round = Sticky = 0 (DivSticky = ~WZeroM &
@@ -85,7 +85,7 @@ ExcludeRows $FPU/postprocess/flags e {{(FullRe == 1)_0} +UfPlus1_*}
 
 # funct7 1011011 (fmvp.q.x) has FMT = 11, quad precision.  Q_SUPPORTED = 0, so fctrl rejects the instruction as an
 # unsupported format before this case statement and the arm is never selected.
-coverage exclude -scope $FPU/fctrl -linerange [TagLine ${SRC}/fpu/fctrl.sv fmvp-q-x] -item b 1
+coverage exclude -scope $FPU/fctrl -linerange [TagLine ${SRC}/fpu/cvw_fctrl.sv fmvp-q-x] -item b 1
 
 ######################################################################################################
 # IEU
@@ -98,7 +98,7 @@ ExcludeRows /core/ieu/c e {BaseW64D_1 BW64D_1}
 # gm1 (a1 ^ a2) are always 0: their a[7] (reduce) branch is never taken.
 set AES32E /core/ieu/dp/alu/bitmanipalu/balu/zknde/genblk1/ZKN32/genblk2/aes32e/mb
 foreach gm {gm0 gm1} {
-  coverage exclude -scope $AES32E/$gm -linerange [TagLine ${SRC}/ieu/aes/galoismultforward8.sv gf-reduce] -item b 1
+  coverage exclude -scope $AES32E/$gm -linerange [TagLine ${SRC}/ieu/aes/cvw_galoismultforward8.sv gf-reduce] -item b 1
 }
 
 ######################################################################################################
@@ -121,7 +121,7 @@ ExcludeRows /core/priv/priv/trap e {InstrMisalignedFaultM_1}
 
 # The wfi wait counter clears whenever M advances, and M holds the same instruction while it is stalled, so the
 # counter reaches its limit (q[16]) only with the wfi still in M: wfiM_0 is never seen with q[16] = 1.
-ExcludeRows /core/priv/priv/pmd e {wfiM_0} [TagLine ${SRC}/privileged/privdec.sv pmd-tw-timeout]
+ExcludeRows /core/priv/priv/pmd e {wfiM_0} [TagLine ${SRC}/privileged/cvw_privdec.sv pmd-tw-timeout]
 
 # A write to satp from S mode with mstatus.TVM = 1, or to stimecmp/stimecmph from S mode with STCE = 0 (STCE reads 1
 # in M mode), is an illegal CSR access.  It traps, so CSRSWriteM is 0 and these write enables never see the other
@@ -140,8 +140,8 @@ ExcludeRows /core/priv/priv/csr/csru/csru e {{(STATUS_FS != 0)_0} {+(CSRAdrM == 
 # counter's write enables and its write mux branches cannot be reached.
 ExcludeGenRows $CNT {cntr[1]} e {CSRMWriteM_1 {(CSRAdrM == (2816 + 1))_1}}
 ExcludeGenRows $CNT {cntr[1]} e {CSRMWriteM_1 {(CSRAdrM == (2944 + 1))_1}}
-coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounter] -item b 1
-coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounterh] -item b 1
+coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/cvw_csrc.sv next-hpmcounter] -item b 1
+coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/cvw_csrc.sv next-hpmcounterh] -item b 1
 
 # CounterEvent[0] (mcycle) is tied to 1 and CounterEvent[1] (no counter 1) to 0, so CounterEvent[0]_0 and
 # CounterEvent[1]_1, and the MCOUNTINHIBIT[1] rows that need CounterEvent[1] = 1, cannot be reached.
@@ -160,13 +160,13 @@ for {set i 25} {$i < 32} {incr i} {
 # hpmcounterh ranges, BASE + COUNTERS <= CSRAdrM < BASE + 32, are empty, so their branches, read-only-zero statements
 # and the condition rows that need the range true never run.
 ExcludeRows $CNT c {{(CSRAdrM < ((803 + 32) - 3))_0}}
-coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/csrc.sv unused-event-zero] -item bs 1
+coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/cvw_csrc.sv unused-event-zero] -item bs 1
 foreach {range base} {mhpmcounter 2816 hpmcounter 3072 mhpmcounterh 2944 hpmcounterh 3200} {
   set terms [list "(CSRAdrM >= ($base + 32))_1" "(CSRAdrM < ($base + 32))_1"]
   if {$range eq "hpmcounter" || $range eq "hpmcounterh"} { lappend terms CSRWriteM_* }
-  ExcludeRows $CNT c $terms [TagLine ${SRC}/privileged/csrc.sv unused-$range-range]
-  coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/csrc.sv unused-$range-range] -item b 1
-  coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/csrc.sv unused-$range-zero] -item s 1
+  ExcludeRows $CNT c $terms [TagLine ${SRC}/privileged/cvw_csrc.sv unused-$range-range]
+  coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/cvw_csrc.sv unused-$range-range] -item b 1
+  coverage exclude -scope $CNT -linerange [TagLine ${SRC}/privileged/cvw_csrc.sv unused-$range-zero] -item s 1
 }
 
 ######################################################################################################
@@ -175,7 +175,7 @@ foreach {range base} {mhpmcounter 2816 hpmcounter 3072 mhpmcounterh 2944 hpmcoun
 
 # There is no IROM (IROM_SUPPORTED = 0), so SelIROM is tied to 0 and the uncached-data mux never selects it.
 ExcludeTermRows /core/ifu c {SelIROM_1}
-coverage exclude -scope /core/ifu/bus/icache/UnCachedDataMux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1
+coverage exclude -scope /core/ifu/bus/icache/UnCachedDataMux -linerange [TagLine ${SRC}/generic/cvw_mux.sv mux3] -item b 1
 
 # BusCommittedF without CacheCommittedF needs an uncached fetch (see the I$ bus FSM below): the I$ bus FSM leaves
 # ADR_PHASE only for CACHE_FETCH, which it enters with the I$ in STATE_FETCH (committed), and both return together
@@ -187,22 +187,22 @@ ExcludeRows /core/ifu e {BusCommittedF_1}
 # STATE_WRITEBACK, STATE_FLUSH or STATE_FLUSH_WRITEBACK, never sets a dirty bit or clears a valid bit, and never
 # selects FlushAdr or the writeback address.  The rows below need one of these.
 coverage exclude -scope $IC/cachefsm -fstate CurrState STATE_WRITEBACK STATE_FLUSH STATE_FLUSH_WRITEBACK
-coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cachefsm.sv "icache FLUSHStatement"] -item bs 1
-coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cachefsm.sv "icache WRITEBACKStatement"] -item bs 1
-coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cachefsm.sv cachefsm-writeback-arm]-[TagLine ${SRC}/cache/cachefsm.sv cachefsm-flush-writeback-wait]
+coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache FLUSHStatement"] -item bs 1
+coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache WRITEBACKStatement"] -item bs 1
+coverage exclude -scope $IC/cachefsm -linerange [TagLine ${SRC}/cache/cvw_cachefsm.sv cachefsm-writeback-arm]-[TagLine ${SRC}/cache/cvw_cachefsm.sv cachefsm-flush-writeback-wait]
 ExcludeTermRows $IC/cachefsm e {{CacheRWF\[0\]_1} FlushCache_1 AnyUpdateHit_1 LineDirty_1 {(CurrState == STATE_WRITEBACK)_1}
   {(CurrState == STATE_FLUSH)_1} {(CurrState == STATE_FLUSH_WRITEBACK)_1}}
-ExcludeRows $IC/cachefsm e {Hit_*} [TagLine ${SRC}/cache/cachefsm.sv "icache storeAMO1"]
-ExcludeRows $IC/cachefsm e {{(CurrState == STATE_ACCESS)_*} {(CurrState == STATE_WRITE_LINE)_*}} [TagLine ${SRC}/cache/cachefsm.sv "icache SetDirty"]
-ExcludeRows $IC/cachefsm e {{(CurrState == STATE_FLUSH)_0} LineDirty_0} [TagLine ${SRC}/cache/cachefsm.sv "icache ClearDirty"]
+ExcludeRows $IC/cachefsm e {Hit_*} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache storeAMO1"]
+ExcludeRows $IC/cachefsm e {{(CurrState == STATE_ACCESS)_*} {(CurrState == STATE_WRITE_LINE)_*}} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache SetDirty"]
+ExcludeRows $IC/cachefsm e {{(CurrState == STATE_FLUSH)_0} LineDirty_0} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache ClearDirty"]
 ExcludeRows $IC/cachefsm e {CacheBusAck_* {(CurrState == STATE_ACCESS)_*} AnyMiss_* {+(CurrState == STATE_WRITE_LINE)*}}
-ExcludeRows $IC/cachefsm e {CacheBusAck_* {(CurrState == STATE_ACCESS)_*} AnyMiss_*} [TagLine ${SRC}/cache/cachefsm.sv cachefsm-sel-writeback]
+ExcludeRows $IC/cachefsm e {CacheBusAck_* {(CurrState == STATE_ACCESS)_*} AnyMiss_*} [TagLine ${SRC}/cache/cvw_cachefsm.sv cachefsm-sel-writeback]
 ExcludeRows $IC/cachefsm e {LineDirty_* CacheBusAck_* {+(CurrState == STATE_FLUSH)*}}
-ExcludeRows $IC/cachefsm e {{(CurrState == STATE_ACCESS)_*} LoadMiss_* CacheBusAck_*} [TagLine ${SRC}/cache/cachefsm.sv "icache CacheBusW"]
+ExcludeRows $IC/cachefsm e {{(CurrState == STATE_ACCESS)_*} LoadMiss_* CacheBusAck_*} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache CacheBusW"]
 foreach mux {AdrSelMuxData AdrSelMuxTag AdrSelMuxLRU} {
-  coverage exclude -scope $IC/$mux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1
+  coverage exclude -scope $IC/$mux -linerange [TagLine ${SRC}/generic/cvw_mux.sv mux3] -item b 1
 }
-coverage exclude -scope $IC/CacheBusAdrMux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1 3
+coverage exclude -scope $IC/CacheBusAdrMux -linerange [TagLine ${SRC}/generic/cvw_mux.sv mux3] -item b 1 3
 for {set i 0} {$i < 4} {incr i} {
   set way "$IC/CacheWays\[$i\]"
   ExcludeRows $way e {ClearValid_1 SelectedWay_*}
@@ -210,7 +210,7 @@ for {set i 0} {$i < 4} {incr i} {
   ExcludeRows $way e {SetDirtyWay_1}
   ExcludeRows $way e {ClearValidWay_1 FlushStage_*}
   ExcludeRows $way e {SelectedDirty_* HitDirtyWay_1}
-  coverage exclude -scope $way -linerange [TagLine ${SRC}/cache/cacheway.sv "icache ClearValidBits"] -item bs 1
+  coverage exclude -scope $way -linerange [TagLine ${SRC}/cache/cvw_cacheway.sv "icache ClearValidBits"] -item bs 1
 }
 
 # The I$ is flushed by FlushD, which comes from a trap, xRET, CSR fence or branch mispredict.  While the I$ fills a
@@ -221,15 +221,15 @@ coverage exclude -scope $IC/cachefsm -ftrans CurrState STATE_FETCH->STATE_ACCESS
 for {set i 0} {$i < 4} {incr i} {
   set way "$IC/CacheWays\[$i\]"
   ExcludeRows $way e {FlushStage_1 +SetDirtyWay_*}
-  ExcludeRows $way e {FlushStage_1} [TagLine ${SRC}/cache/cacheway.sv "cache SetValidEN"]
+  ExcludeRows $way e {FlushStage_1} [TagLine ${SRC}/cache/cvw_cacheway.sv "cache SetValidEN"]
 }
 
 # resetDelay is 1 only in the first cycle after reset, when the cold I$ is missing on the reset vector fetch, so
 # the AnyMiss term of SelAdrData/SelAdrTag is 1 and masks it.  The I$ CacheEn reset_1 row needs reset while the I$
 # is in STATE_ACCESS and stalled without a stall condition; the I$ is not stalled during reset.
 ExcludeRows $IC/cachefsm e {resetDelay_1 {+CacheRWF\[0\]*}}
-ExcludeRows $IC/cachefsm e {resetDelay_1} [TagLine ${SRC}/cache/cachefsm.sv "icache SelAdrTag"]
-ExcludeRows $IC/cachefsm e {reset_1} [TagLine ${SRC}/cache/cachefsm.sv "dcache CacheEn"]
+ExcludeRows $IC/cachefsm e {resetDelay_1} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache SelAdrTag"]
+ExcludeRows $IC/cachefsm e {reset_1} [TagLine ${SRC}/cache/cvw_cachefsm.sv "dcache CacheEn"]
 
 # I$ bus FSM (buscachefsm READ_ONLY_CACHE = 1).  The IFU makes an uncached bus fetch (BusRW) only for a fetch with
 # CacheableF = 0 that does not fault.  Without Svpbmt (SVPBMT_SUPPORTED = 0) Cacheable is CacheableRegion, and the
@@ -237,12 +237,12 @@ ExcludeRows $IC/cachefsm e {reset_1} [TagLine ${SRC}/cache/cachefsm.sv "dcache C
 # the FSM only uses ADR_PHASE and CACHE_FETCH: DATA_PHASE, MEM3, the atomic states and CACHE_WRITEBACK (a read-only
 # cache never writes) are never entered.
 coverage exclude -scope $ICBUS/AHBBuscachefsm -fstate CurrState DATA_PHASE MEM3 ATOMIC_READ_DATA_PHASE ATOMIC_PHASE CACHE_WRITEBACK
-coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY2"]-[TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-mem3-done]
-coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm WritebackWriteback"]-[TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm WritebackWriteback2"]
-coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"] -item b 2
-coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"] -item s 1
-coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY1"] -item bs 1
-ExcludeRows $ICBUS/AHBBuscachefsm c {HREADY_* |BusRW_1} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"]
+coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY2"]-[TagLine ${SRC}/ebu/cvw_buscachefsm.sv buscachefsm-mem3-done]
+coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm WritebackWriteback"]-[TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm WritebackWriteback2"]
+coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY0"] -item b 2
+coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY0"] -item s 1
+coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY1"] -item bs 1
+ExcludeRows $ICBUS/AHBBuscachefsm c {HREADY_* |BusRW_1} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY0"]
 ExcludeTermRows $ICBUS/AHBBuscachefsm e {{(CurrState == DATA_PHASE)_1} {(CurrState == ATOMIC_PHASE)_1}
   {(CurrState == ATOMIC_READ_DATA_PHASE)_1} {(CurrState == CACHE_WRITEBACK)_1} {(NextState == CACHE_WRITEBACK)_1}}
 ExcludeTermRows $ICBUS/AHBBuscachefsm c {{(CurrState == ATOMIC_READ_DATA_PHASE)_1}}
@@ -254,19 +254,19 @@ ExcludeRows $ICBUS/AHBBuscachefsm e {{(CurrState == ADR_PHASE)_*} {BusRW\[0\]_1}
 # at the final beat of a fetch (no pipelined second request: FetchWriteback, FetchWait), and ~|CacheBusRW implies
 # HREADY & FinalBeatCount in CACHE_FETCH.  The I$ never writes (CacheBusRW[0] = 0).
 foreach fsm [list $ICBUS/AHBBuscachefsm $DCBUS/AHBBuscachefsm] {
-  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm FetchWriteback"] -item b 2
-  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm FetchWriteback"] -item s 1
-  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm FetchWait"] -item bs 1
-  ExcludeRows $fsm c {HREADY_* FinalBeatCount_* {CacheBusRW\[0\]_1}} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm FetchWriteback"]
-  ExcludeRows $fsm c {HREADY_* FinalBeatCount_1 {CacheBusRW\[1\]_1}} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm FetchWait"]
-  ExcludeRows $fsm c {HREADY_0 FinalBeatCount_0 ~|CacheBusRW_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-fetch-done]
+  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm FetchWriteback"] -item b 2
+  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm FetchWriteback"] -item s 1
+  coverage exclude -scope $fsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm FetchWait"] -item bs 1
+  ExcludeRows $fsm c {HREADY_* FinalBeatCount_* {CacheBusRW\[0\]_1}} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm FetchWriteback"]
+  ExcludeRows $fsm c {HREADY_* FinalBeatCount_1 {CacheBusRW\[1\]_1}} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm FetchWait"]
+  ExcludeRows $fsm c {HREADY_0 FinalBeatCount_0 ~|CacheBusRW_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv buscachefsm-fetch-done]
 }
 coverage exclude -scope $DCBUS/AHBBuscachefsm -ftrans CurrState CACHE_FETCH->CACHE_WRITEBACK
 
 # BeatCount is nonzero outside CACHE_FETCH/CACHE_WRITEBACK only after a burst cut short by a flush, or in the MEM3
 # that ends the bus write of an uncached cbo.zero (BeatCntReset waits for ADR_PHASE).  A burst is never flushed
 # (I$: see the fill note above; D$: a trap waits for the committed access, and an access that faults on its own is
-# squashed before it reaches the bus, lsu.sv SelfFaultM), and an uncached cbo.zero never reaches the bus (see the LSU
+# squashed before it reaches the bus, cvw_lsu.sv SelfFaultM), and an uncached cbo.zero never reaches the bus (see the LSU
 # below).  So CacheAccess = 0 never comes with FinalBeatCount or |BeatCount.  HREADY is low only while the other
 # requester owns the bus, and a burst owner keeps it with no wait states (RAM_LATENCY = 0), so HREADY_0 is never
 # seen at the final beat.  BeatCntEn's
@@ -274,7 +274,7 @@ coverage exclude -scope $DCBUS/AHBBuscachefsm -ftrans CurrState CACHE_FETCH->CAC
 # term) nor ADR_PHASE: that is DATA_PHASE, which the I$ never enters and the D$ enters only without a cache request.
 foreach fsm [list $ICBUS/AHBBuscachefsm $DCBUS/AHBBuscachefsm] {
   ExcludeRows $fsm c {CacheAccess_0 {+(CurrState == ATOMIC_READ_DATA_PHASE)*}}
-  ExcludeRows $fsm c {CacheAccess_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-htrans-burst]
+  ExcludeRows $fsm c {CacheAccess_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv buscachefsm-htrans-burst]
   ExcludeRows $fsm e {CacheAccess_0 HREADY_0 +FinalBeatCount_*}
   ExcludeRows $fsm e {{(NextState == ADR_PHASE)_0} +|CacheBusRW_*}
 }
@@ -294,7 +294,7 @@ for {set i 1} {$i < 16} {incr i} {
 
 # There is no DTIM (DTIM_SUPPORTED = 0), so SelDTIM is tied to 0 and the uncached-data mux never selects it.
 ExcludeTermRows /core/lsu c {SelDTIM_1}
-coverage exclude -scope /core/lsu/bus/dcache/UnCachedDataMux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1
+coverage exclude -scope /core/lsu/bus/dcache/UnCachedDataMux -linerange [TagLine ${SRC}/generic/cvw_mux.sv mux3] -item b 1
 
 # Every region that accepts a cache block operation (uncore RAM; external memory is not supported) is cacheable,
 # and without Svpbmt no page changes that.  The peripheral decoders need AccessRW, which a CMO does not set.  So a
@@ -307,36 +307,36 @@ ExcludeRows /core/lsu e {HoldAccessM_1 +CacheableM_*}
 ExcludeTermRows $DC/cachefsm c {InvalidateCache_1}
 ExcludeTermRows $DC/cachefsm e {InvalidateCache_1}
 ExcludeRows $DC/cachefsm c {InvalidateFlushStage_*}
-coverage exclude -scope $DC/cachefsm -linerange [TagLine ${SRC}/cache/cachefsm.sv "dcache InvalidateCheck"] -item b 2
-coverage exclude -scope $DC/cachefsm -linerange [TagLine ${SRC}/cache/cachefsm.sv "dcache InvalidateCheck"] -item s 1
+coverage exclude -scope $DC/cachefsm -linerange [TagLine ${SRC}/cache/cvw_cachefsm.sv "dcache InvalidateCheck"] -item b 2
+coverage exclude -scope $DC/cachefsm -linerange [TagLine ${SRC}/cache/cvw_cachefsm.sv "dcache InvalidateCheck"] -item s 1
 ExcludeRows $DC/vict/cacheLRU c {InvalidateCache_1 InvalidateFlushStage_*}
 for {set i 0} {$i < 4} {incr i} {
   set way "$DC/CacheWays\[$i\]"
   ExcludeRows $way c {InvalidateCache_1 InvalidateFlushStage_*}
   ExcludeRows $way e {InvalidateCacheDelay_1}
-  coverage exclude -scope $way -linerange [TagLine ${SRC}/cache/cacheway.sv "dcache invalidateway"] -item bs 1
+  coverage exclude -scope $way -linerange [TagLine ${SRC}/cache/cvw_cacheway.sv "dcache invalidateway"] -item bs 1
 }
 
 # D$ cachefsm.  (|CMOpM & ~CMOWriteback) is the else-if after ((AnyMiss | CMOWriteback) & ~READ_ONLY_CACHE), which
 # takes every CMOWriteback = 1 case first.  In CacheBusRW[0], the term STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) &
 # ~CacheBusAck is contained in the earlier STATE_WRITEBACK & ~CacheBusAck term, so CacheCMOpM[1]/[2] never decide it.
 ExcludeRows $DC/cachefsm c {CMOWriteback_1 +|CMOpM_*}
-ExcludeRows $DC/cachefsm e {{CacheCMOpM\[1\]_*} {CacheCMOpM\[2\]_*}} [TagLine ${SRC}/cache/cachefsm.sv "icache CacheBusW"]
+ExcludeRows $DC/cachefsm e {{CacheCMOpM\[1\]_*} {CacheCMOpM\[2\]_*}} [TagLine ${SRC}/cache/cvw_cachefsm.sv "icache CacheBusW"]
 
 # D$ states leave for STATE_ACCESS early only on reset | FlushStage (LSUFlushW).  A trap's FlushW waits for the
 # committed access (interrupts are held while the cache is committed), an access that faults on its own is
 # squashed by SelfFaultM before it reaches the cache, and HPTWFlushW is asserted only before the walker has a bus
-# transaction (hptw.sv).  The testbench asserts reset only between programs.
+# transaction (cvw_hptw.sv).  The testbench asserts reset only between programs.
 coverage exclude -scope $DC/cachefsm -ftrans CurrState STATE_WRITEBACK->STATE_ACCESS STATE_FETCH->STATE_ACCESS STATE_FLUSH->STATE_ACCESS STATE_WRITE_LINE->STATE_ACCESS STATE_FLUSH_WRITEBACK->STATE_ACCESS
 
 # D$ bus FSM.  An AMO or LR/SC is allowed only in DTIM, external memory or uncore RAM; the first two are not
 # supported and uncore RAM is cacheable (no Svpbmt), so an uncached atomic (BusAtomic) takes an access fault and
 # never reaches the bus: the atomic states are never entered.
 coverage exclude -scope $DCBUS/AHBBuscachefsm -fstate CurrState ATOMIC_READ_DATA_PHASE ATOMIC_PHASE
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm AtomicReadData"]-[TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm AtomicWait"]
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY2"] -item b 2
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY2"] -item s 1
-ExcludeRows $DCBUS/AHBBuscachefsm c {BusAtomic_1} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY3"]
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm AtomicReadData"]-[TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm AtomicWait"]
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY2"] -item b 2
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY2"] -item s 1
+ExcludeRows $DCBUS/AHBBuscachefsm c {BusAtomic_1} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY3"]
 ExcludeTermRows $DCBUS/AHBBuscachefsm e {{(CurrState == ATOMIC_PHASE)_1} {(CurrState == ATOMIC_READ_DATA_PHASE)_1}}
 ExcludeTermRows $DCBUS/AHBBuscachefsm c {{(CurrState == ATOMIC_READ_DATA_PHASE)_1}}
 
@@ -345,14 +345,14 @@ ExcludeTermRows $DCBUS/AHBBuscachefsm c {{(CurrState == ATOMIC_READ_DATA_PHASE)_
 # final beat); a cacheable writeback holds CacheBusRW[0] until CacheBusAck, so ~|CacheBusRW implies the final beat.
 # HREADY is never low at the final beat (see above).  BusCMOZero is never 1 on the bus (see the LSU above), so
 # CACHE_WRITEBACK never goes to MEM3.
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm WritebackWriteback"] -item b 2
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm WritebackWriteback"] -item s 1
-coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY5"] -item bs 1
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm WritebackWriteback"] -item b 2
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm WritebackWriteback"] -item s 1
+coverage exclude -scope $DCBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY5"] -item bs 1
 coverage exclude -scope $DCBUS/AHBBuscachefsm -ftrans CurrState CACHE_WRITEBACK->MEM3
-ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_* FinalBeatCount_1 {CacheBusRW\[0\]_1}} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm WritebackWriteback"]
-ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_0 FinalBeatCount_0} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY4"]
-ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_* FinalBeatCount_* BusCMOZero_1} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY5"]
-ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_0 FinalBeatCount_0 ~|CacheBusRW_0} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY6"]
+ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_* FinalBeatCount_1 {CacheBusRW\[0\]_1}} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm WritebackWriteback"]
+ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_0 FinalBeatCount_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY4"]
+ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_* FinalBeatCount_* BusCMOZero_1} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY5"]
+ExcludeRows $DCBUS/AHBBuscachefsm c {HREADY_0 FinalBeatCount_0 ~|CacheBusRW_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv "buscachefsm HREADY6"]
 ExcludeRows $DCBUS/AHBBuscachefsm e {BusCMOZero_1 +CacheAccess_*}
 
 # D$ bus FSM: the D$ bus is never flushed in a data phase (a trap waits for the committed access, and an access that
@@ -364,15 +364,15 @@ ExcludeRows $DCBUS/AHBBuscachefsm e {Flush_1 {+BusRW\[1\]*}}
 # Reset (HRESETn = 0) with BeatCntReset = 0 needs a bus request pending during reset.  The testbench asserts reset
 # only between programs, when the LSU has no request, so BeatCntReset (NextState == ADR_PHASE) is 1 throughout
 # reset.
-ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-beat-count-reset]
-ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-beat-count-delayed-reset]
+ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv buscachefsm-beat-count-reset]
+ExcludeRows $DCBUS/AHBBuscachefsm e {HRESETn_0} [TagLine ${SRC}/ebu/cvw_buscachefsm.sv buscachefsm-beat-count-delayed-reset]
 
 ######################################################################################################
 # MMU (instruction and data) and page table walker
 ######################################################################################################
 
 # The IFU ties the instruction MMU's ReadAccessM, WriteAccessM, AtomicAccessM and CMOpM to 0 and ExecuteAccessF to 1
-# (ifu.sv), so in the IMMU AccessRWXC, the TLB's ReadAccess and TLBAccess are always 1, and ReadNoAmoAccessM, the
+# (cvw_ifu.sv), so in the IMMU AccessRWXC, the TLB's ReadAccess and TLBAccess are always 1, and ReadNoAmoAccessM, the
 # load/store/CMO faults of the PMA and PMP checkers and the CBO faults are always 0.  The rows for the other values,
 # and the rows whose non-masking condition needs one of them, cannot be reached.
 ExcludeTermRows $IMMU e {ReadAccessM_1 WriteAccessM_1 ExecuteAccessF_0 ReadNoAmoAccessM_1 |CMOpM_1}
@@ -386,7 +386,7 @@ ExcludeRows $IMMU e {TLBPageFault_* +ReadNoAmoAccessM_*}
 ExcludeRows $IMMU e {TLBPageFault_* +WriteAccessM_*}
 ExcludeTermRows $IMMU/pmachecker e {ReadAccessM_1 WriteAccessM_1 ExecuteAccessF_0 |CMOpM_1 AccessRWXC_0 AtomicAccessM_1}
 ExcludeRows $IMMU/pmachecker e {ReadAccessM_0 WriteAccessM_0 |CMOpM_0}
-ExcludeRows $IMMU/pmachecker e {ReadAccessM_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-rx]
+ExcludeRows $IMMU/pmachecker e {ReadAccessM_0} [TagLine ${SRC}/mmu/cvw_pmachecker.sv pma-access-rx]
 ExcludeRows $IMMU/pmachecker e {AtomicAllowed_* +AtomicAccessM_*}
 ExcludeRows $IMMU/pmachecker e {WriteAccessM_0 PMADataAccessFault_* +ReadAccessM_*}
 ExcludeRows $IMMU/pmachecker e {PMADataAccessFault_* +|CMOpM_*}
@@ -406,7 +406,7 @@ ExcludeRows $IMMU/tlb/tlb/tlbcontrol e {WriteAccess_0 |CMOpM_0}
 # The IMMU fetches words (Size = 2'b10), so the byte, halfword and doubleword arms of the misalignment case never
 # run, and fetch addresses are 2-byte aligned (VAdr[0] = 0).  The IFU also ties the IMMU's DisableTranslation to 0.
 foreach size {byte half double} {
-  coverage exclude -scope $IMMU -linerange [TagLine ${SRC}/mmu/mmu.sv mmu-size-$size] -item bs 1
+  coverage exclude -scope $IMMU -linerange [TagLine ${SRC}/mmu/cvw_mmu.sv mmu-size-$size] -item bs 1
 }
 ExcludeRows $IMMU e {{VAdr\[0\]_1}}
 ExcludeRows $IMMU/tlb/tlb/tlbcontrol e {DisableTranslation_1}
@@ -425,15 +425,15 @@ ExcludeRows $DMMU/pmp/pmpchecker e {MatchingX_* EnforcePMP_* ExecuteAccessF_1}
 foreach mmu [list $IMMU $DMMU] {
   ExcludeTermRows $mmu/pmachecker e {{SelRegions\[1\]_1} {SelRegions\[2\]_1} {SelRegions\[3\]_1} SelExtMem_1 SelExtIO_1}
   # SelExtIO_0 in SelExtMem needs SelRegions[3] = 1
-  ExcludeRows $mmu/pmachecker e {SelExtIO_0} [TagLine ${SRC}/mmu/pmachecker.sv sel-ext-mem]
+  ExcludeRows $mmu/pmachecker e {SelExtIO_0} [TagLine ${SRC}/mmu/cvw_pmachecker.sv sel-ext-mem]
   # extiodec: Sel = Match & Supported & AccessValid & SizeValid with Supported = 0, so only Supported_0 can be reached
   ExcludeRows $mmu/pmachecker/extiodec e {Match_* Supported_1 AccessValid_* SizeValid_*}
 }
 # In PMAAccessFault the window term ExecuteAccessF & SelExtIO is always 0: ExecuteAccessF_1 needs SelExtIO = 1 (the
 # IMMU's ExecuteAccessF_0 row is excluded above with its tied ExecuteAccessF), and in the DMMU, whose ExecuteAccessF
 # is tied to 0, ExecuteAccessF_0 needs SelExtIO = 1 and SelExtIO_0 needs ExecuteAccessF = 1.
-ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
-ExcludeRows $DMMU/pmachecker e {ExecuteAccessF_0 SelExtIO_0} [TagLine ${SRC}/mmu/pmachecker.sv pma-access-fault]
+ExcludeRows $IMMU/pmachecker e {ExecuteAccessF_1} [TagLine ${SRC}/mmu/cvw_pmachecker.sv pma-access-fault]
+ExcludeRows $DMMU/pmachecker e {ExecuteAccessF_0 SelExtIO_0} [TagLine ${SRC}/mmu/cvw_pmachecker.sv pma-access-fault]
 
 # Region decoders: Sel = Match & Supported & AccessValid & SizeValid.  Supported is a configuration constant: 0 for
 # the DTIM, IROM, external memory and SD card controller, 1 for the rest.  Instruction side: AccessValid is AccessRW
@@ -474,7 +474,7 @@ foreach mmu [list $IMMU $DMMU] {
 }
 
 # TLB camlines.  Sv32 has two levels, so the walker writes PageType 0 (kilopage) or 1 (megapage) and PageType > 1
-# never holds.  tlb.sv ties WritePTE_NAPOT to P.SVNAPOT_SUPPORTED & ..., which is 0, and the Match0Upper rows need it.
+# never holds.  cvw_tlb.sv ties WritePTE_NAPOT to P.SVNAPOT_SUPPORTED & ..., which is 0, and the Match0Upper rows need it.
 foreach mmu [list $IMMU $DMMU] {
   for {set i 0} {$i < 32} {incr i} {
     set cam "$mmu/tlb/tlb/tlbcam/camlines\[$i\]"
@@ -494,14 +494,14 @@ foreach mmu [list $IMMU $DMMU] {
 # unused.  L1_ADR is entered from IDLE or a chained LEAF, both of which clear the PTE register (PRegEn with
 # NextPTE2 = 0), and an *_ADR state makes no memory access, so HPTWFaultM (a non-leaf PTE fault or an LSU access
 # fault) is 0 there.
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-pagetype-l4]-[TagLine ${SRC}/mmu/hptw.sv hptw-pagetype-l2]
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-l4-adr]-[TagLine ${SRC}/mmu/hptw.sv hptw-l2-rd-next]
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-l1-adr-fault] -item b 2
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-l1-adr-fault] -item s 1
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-l1-adr-leaf] -item bs 1
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-pagetype-l4]-[TagLine ${SRC}/mmu/cvw_hptw.sv hptw-pagetype-l2]
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-l4-adr]-[TagLine ${SRC}/mmu/cvw_hptw.sv hptw-l2-rd-next]
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-l1-adr-fault] -item b 2
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-l1-adr-fault] -item s 1
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-l1-adr-leaf] -item bs 1
 ExcludeRows $HPTW c {{(InitialWalkerState == L1_ADR)_0} ValidNonLeafPTE_*}
 ExcludeRows $HPTW e {{(NextWalkerState == L2_RD)_1} {(NextWalkerState == L3_RD)_1} {(NextWalkerState == L4_RD)_1}}
 
 # UPDATE_PTE writes the PTE that the same walk just read, with the LSU stalled so the line cannot be evicted: the
 # store hits in the D$, DCacheBusStallM is 0, and UPDATE_PTE never waits on itself.
-coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/hptw.sv hptw-update-pte-wait] -item bs 1
+coverage exclude -scope $HPTW -linerange [TagLine ${SRC}/mmu/cvw_hptw.sv hptw-update-pte-wait] -item bs 1

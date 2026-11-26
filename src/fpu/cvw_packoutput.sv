@@ -1,0 +1,93 @@
+///////////////////////////////////////////
+// cvw_packoutput.sv
+//
+// Written:  David Harris David_Harris@hmc.edu 11 May 2024
+// Modified:
+//
+// Purpose: Packs a result into the selected format, NaN-boxed.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2024-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_packoutput import cvw::*; #(parameter cvw_t P) (
+  input  logic [P.FLEN-1:0]       Unpacked,  // value in the largest format
+  input  logic [P.FMTBITS-1:0]    Fmt,       // output format
+  output logic [P.FLEN-1:0]       Packed     // value in format Fmt, NaN-boxed to FLEN
+);
+
+  logic             Sign;
+  logic [P.NE1-1:0] Exp1;
+  logic [P.NF1-1:0] Fract1;
+  logic [P.NE2-1:0] Exp2;
+  logic [P.NF2-1:0] Fract2;
+  logic [P.H_NE-1:0] Exp3;
+  logic [P.H_NF-1:0] Fract3;
+
+  // Pack exponent and fraction, with NaN-boxing to full FLEN
+  // A smaller exponent keeps the msb and low bits of the larger one; the dropped bits are copies of ~msb
+  // for any value representable in the smaller format, so this also re-biases the exponent
+
+  assign Sign = Unpacked[P.FLEN-1];
+  if (P.FPSIZES == 1) begin
+    assign Packed = Unpacked;
+  end else if (P.FPSIZES == 2) begin
+    always_comb begin
+      {Exp1, Fract1} = '0; // default if not used, to prevent latch
+      case (Fmt)
+        1'b1: Packed = Unpacked;
+        1'b0: begin
+                Exp1 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE1-2:P.NF]};
+                Fract1 = Unpacked[P.NF-1:P.NF-P.NF1];
+                Packed = {{(P.FLEN-P.LEN1){1'b1}}, Sign, Exp1, Fract1};
+              end
+      endcase
+    end
+  end else if (P.FPSIZES == 3) begin
+    always_comb begin
+      {Exp1, Fract1, Exp2, Fract2} = '0; // default if not used, to prevent latch
+      case (Fmt)
+        P.FMT: Packed = Unpacked;
+        P.FMT1: begin
+                Exp1 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE1-2:P.NF]};
+                Fract1 = Unpacked[P.NF-1:P.NF-P.NF1];
+                Packed = {{(P.FLEN-P.LEN1){1'b1}}, Sign, Exp1, Fract1};
+              end
+        P.FMT2: begin
+                Exp2 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE2-2:P.NF]};
+                Fract2 = Unpacked[P.NF-1:P.NF-P.NF2];
+                Packed = {{(P.FLEN-P.LEN2){1'b1}}, Sign, Exp2, Fract2};
+              end
+        default: Packed = 'x;
+      endcase
+    end
+  end else if (P.FPSIZES == 4) begin
+    always_comb begin
+      {Exp1, Fract1, Exp2, Fract2, Exp3, Fract3} = '0; // default if not used, to prevent latch
+      case (Fmt)
+        P.Q_FMT: Packed = Unpacked;  // Quad
+        P.D_FMT: begin // double
+                Exp1 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE1-2:P.NF]};
+                Fract1 = Unpacked[P.NF-1:P.NF-P.NF1];
+                Packed = {{(P.FLEN-P.LEN1){1'b1}}, Sign, Exp1, Fract1};
+              end
+        P.S_FMT: begin // float
+                Exp2 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.NE2-2:P.NF]};
+                Fract2 = Unpacked[P.NF-1:P.NF-P.NF2];
+                Packed = {{(P.FLEN-P.LEN2){1'b1}}, Sign, Exp2, Fract2};
+              end
+        P.H_FMT: begin // half
+                Exp3 = {Unpacked[P.FLEN-2], Unpacked[P.NF+P.H_NE-2:P.NF]};
+                Fract3 = Unpacked[P.NF-1:P.NF-P.H_NF];
+                Packed = {{(P.FLEN-P.H_LEN){1'b1}}, Sign, Exp3, Fract3};
+              end
+      endcase
+    end
+  end
+endmodule

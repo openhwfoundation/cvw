@@ -3,7 +3,7 @@
 //
 // Written: David_Harris@hmc.edu 30 October 2026
 //
-// Purpose: The forwarding logic in controller.sv compares each Execute-stage source with RdW, which is
+// Purpose: The forwarding logic in cvw_controller.sv compares each Execute-stage source with RdW, which is
 //          bits 11:7 of the Writeback-stage instruction whatever its type, and forwards only when
 //          RegWriteW is set.  A store has no rd, so bits 11:7 hold the low bits of its offset: sb with an
 //          offset of 6 makes RdW = x6 with RegWriteW = 0.  Two instructions later, an instruction that

@@ -42,8 +42,8 @@
 .equ GPIO_INPUT_EN,    0x04
 .equ GPIO_OUTPUT_EN,   0x08
 .equ GPIO_OUTPUT_VAL,  0x0C
-.equ GPIO_PUE,         0x10   // FE310 pull-up enable: not implemented by Wally (gpio_apb.sv header)
-.equ GPIO_DS,          0x14   // FE310 drive strength: not implemented by Wally (gpio_apb.sv header)
+.equ GPIO_PUE,         0x10   // FE310 pull-up enable: not implemented by Wally (cvw_gpio_apb.sv header)
+.equ GPIO_DS,          0x14   // FE310 drive strength: not implemented by Wally (cvw_gpio_apb.sv header)
 .equ GPIO_RISE_IE,     0x18
 .equ GPIO_RISE_IP,     0x1C
 .equ GPIO_FALL_IE,     0x20

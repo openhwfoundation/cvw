@@ -379,7 +379,7 @@ PLIC_EXPECTED_BEGIN
 
 // =============================================================================================
 // 9. Access width.  The PLIC registers are 32 bits wide and "accessed atomically with LW and SW"
-//    ("Memory Map"); other widths are impl.  Wally's PMA (adrdecs.sv) makes the PLIC region
+//    ("Memory Map"); other widths are impl.  Wally's PMA (cvw_adrdecs.sv) makes the PLIC region
 //    word-only, so byte, halfword and doubleword accesses take a load (mcause 5) or store (7)
 //    access fault, recorded by the trap handler, and must have no effect: no register change, no
 //    claim, no completion.

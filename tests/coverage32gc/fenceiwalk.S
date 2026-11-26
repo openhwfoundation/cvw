@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 27 October 2026
 //
 // Purpose: rv32gc: an instruction TLB walk while fence.i is in the Memory stage, so the D$ flush request
-//          (FlushDCacheM) is held off by the walker (lsu.sv: FlushDCache = FlushDCacheM & ~SelHPTW).
+//          (FlushDCacheM) is held off by the walker (cvw_lsu.sv: FlushDCache = FlushDCacheM & ~SelHPTW).
 //          In S mode with Sv32 translation, a loop writes code into a fresh page, executes fence.i, and
 //          calls the page.  From the second pass on, the branch predictor sends the front end down a
 //          wrong path to an untranslated address while fence.i flushes the D$ in M, and the ITLB miss is

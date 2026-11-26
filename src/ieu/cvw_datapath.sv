@@ -1,0 +1,133 @@
+///////////////////////////////////////////
+// cvw_datapath.sv
+//
+// Written:  David Harris David_Harris@hmc.edu, Sarah Harris Sarah.Harris@unlv.edu 9 January 2021
+// Modified: Katherine Parry, Rose Thompson, Kevin Kim, James Stine, Kip Macsai-Goren, Madeleine Masser-Frye, Shreya Sanghai
+//
+// Purpose: Integer datapath.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_datapath import cvw::*; #(parameter cvw_t P) (
+  input  logic              clk, reset,
+  // Decode stage signals
+  input  logic [2:0]        ImmSrcD,                 // Selects type of immediate extension
+  input  logic [31:0]       InstrD,                  // Instruction in Decode stage
+  input  logic [4:0]        Rs1D, Rs2D, Rs2E,        // Source registers
+  // Execute stage signals
+  input  logic [P.XLEN-1:0] PCE,                     // PC in Execute stage
+  input  logic [P.XLEN-1:0] PCLinkE,                 // PC + 4 (of instruction in Execute stage)
+  input  logic [2:0]        Funct3E,                 // Funct3 field of instruction in Execute stage
+  input  logic [6:0]        Funct7E,                 // Funct7 field of instruction in Execute stage
+  input  logic              StallE, FlushE,          // Stall, flush Execute stage
+  input  logic [1:0]        ForwardAE, ForwardBE,    // Forward ALU operands from later stages
+  input  logic              W64E, UW64E,             // W64/.uw-type instruction
+  input  logic              SubArithE,               // Subtraction or arithmetic shift
+  input  logic              ALUSrcAE, ALUSrcBE,      // ALU operands
+  input  logic              ALUResultSrcE,           // Selects result to pass on to Memory stage
+  input  logic [2:0]        ALUSelectE,              // ALU mux select signal
+  input  logic              JumpE,                   // Jump (jal or jalr) instruction
+  input  logic              BranchSignedE,           // Branch comparison operands are signed (if it's a branch)
+  input  logic [3:0]        BSelectE,                // BMU result select (binary encoded; see bitmanipalu)
+  input  logic [3:0]        ZBBSelectE,              // ZBB mux select signal
+  input  logic [2:0]        BALUControlE,            // ALU Control signals for B instructions in Execute Stage
+  input  logic              BMUActiveE,              // Bit manipulation instruction being executed
+  input  logic [1:0]        CZeroE,                  // {czero.nez, czero.eqz} instructions active
+  output logic [1:0]        FlagsE,                  // Comparison flags ({eq, lt})
+  output logic [P.XLEN-1:0] IEUAdrE,                 // Address computed by ALU
+  output logic [P.XLEN-1:0] ForwardedSrcAE, ForwardedSrcBE, // ALU sources before the mux chooses between them and PCE to put in srcA/B
+  // Memory stage signals
+  input  logic              StallM, FlushM,          // Stall, flush Memory stage
+  input  logic              FWriteIntM, FCvtIntW,    // FPU writes integer register file, FPU converts float to int
+  input  logic [P.XLEN-1:0] FIntResM,                // FPU integer result
+  output logic [P.XLEN-1:0] SrcAM,                   // ALU's Source A in Memory stage to privilege unit for CSR writes
+  output logic [P.XLEN-1:0] WriteDataM,              // Write data in Memory stage
+  // Writeback stage signals
+  input  logic              StallW, FlushW,          // Stall, flush Writeback stage
+  input  logic              RegWriteW, IntDivW,      // Write register file, integer divide instruction
+  input  logic              SquashSCW,               // Squash a store conditional when a conflict arose
+  input  logic [2:0]        ResultSrcW,              // Select source of result to write back to register file
+  input  logic [P.XLEN-1:0] FCvtIntResW,             // FPU convert fp to integer result
+  input  logic [P.XLEN-1:0] ReadDataW,               // Read data from LSU
+  input  logic [P.XLEN-1:0] CSRReadValW,             // CSR read result
+  input  logic [P.XLEN-1:0] MDUResultW,              // MDU (Multiply/divide unit) result
+  input  logic [P.XLEN-1:0] FIntDivResultW,          // FPU's integer divide result
+  input  logic [4:0]        RdW                      // Destination register
+);
+
+  // Decode stage signals
+  logic [P.XLEN-1:0] R1D, R2D;                       // Read data from Rs1 (RD1), Rs2 (RD2)
+  logic [P.XLEN-1:0] ImmExtD;                        // Extended immediate in Decode stage
+  // Execute stage signals
+  logic [P.XLEN-1:0] R1E, R2E;                       // Source operands read from register file
+  logic [P.XLEN-1:0] ImmExtE;                        // Extended immediate in Execute stage
+  logic [P.XLEN-1:0] SrcAE, SrcBE;                   // ALU operands
+  logic [P.XLEN-1:0] ALUResultE, AltResultE, IEUResultE; // ALU result, Alternative result (ImmExtE or PC+4), result of execution stage
+  logic [P.XLEN-1:0] IEUAdrRawE;                     // ALU sum before clearing bit 0 of a jump target
+  // Memory stage signals
+  logic [P.XLEN-1:0] IEUResultM;                     // Result from execution stage
+  logic [P.XLEN-1:0] IFResultM;                      // Result from either IEU or single-cycle FPU op writing an integer register
+  // Writeback stage signals
+  logic [P.XLEN-1:0] SCResultW;                      // Store Conditional result
+  logic [P.XLEN-1:0] ResultW;                        // Result to write to register file
+  logic [P.XLEN-1:0] IFResultW;                      // Result from either IEU or single-cycle FPU op writing an integer register
+  logic [P.XLEN-1:0] IFCvtResultW;                   // Result from IEU, single-cycle FPU op, or 2-cycle FCVT float to int
+  logic [P.XLEN-1:0] MulDivResultW;                  // Multiply always comes from MDU.  Divide could come from MDU or FPU (when using fdivsqrt for integer division)
+
+  // Decode stage
+  cvw_regfile #(P.XLEN, P.E_SUPPORTED, P.LATCH_BASED_REGISTERFILE) regf(clk, reset, RegWriteW, Rs1D, Rs2D, RdW, ResultW, R1D, R2D);
+  cvw_extend #(P)        ext(.InstrD(InstrD[31:7]), .ImmSrcD, .ImmExtD);
+
+  // Execute stage pipeline register and logic
+  cvw_flopenrc #(P.XLEN) RD1EReg(clk, reset, FlushE, ~StallE, R1D, R1E);
+  cvw_flopenrc #(P.XLEN) RD2EReg(clk, reset, FlushE, ~StallE, R2D, R2E);
+  cvw_flopenrc #(P.XLEN) ImmExtEReg(clk, reset, FlushE, ~StallE, ImmExtD, ImmExtE);
+
+  cvw_mux3  #(P.XLEN)  faemux(R1E, ResultW, IFResultM, ForwardAE, ForwardedSrcAE);
+  cvw_mux3  #(P.XLEN)  fbemux(R2E, ResultW, IFResultM, ForwardBE, ForwardedSrcBE);
+  cvw_comparator #(P.XLEN) comp(ForwardedSrcAE, ForwardedSrcBE, BranchSignedE, FlagsE);
+  cvw_mux2  #(P.XLEN)  srcamux(ForwardedSrcAE, PCE, ALUSrcAE, SrcAE);
+  cvw_mux2  #(P.XLEN)  srcbmux(ForwardedSrcBE, ImmExtE, ALUSrcBE, SrcBE);
+  cvw_alu   #(P)       alu(SrcAE, SrcBE, W64E, UW64E, SubArithE, ALUSelectE, BSelectE, ZBBSelectE, Funct3E, Funct7E, Rs2E, BALUControlE, BMUActiveE, CZeroE, ALUResultE, IEUAdrRawE);
+  // jalr sets the least significant bit of the target address to zero.  jal and branch targets are
+  // always even, so masking on JumpE alone is sufficient and leaves load/store addresses untouched.
+  assign IEUAdrE = {IEUAdrRawE[P.XLEN-1:1], IEUAdrRawE[0] & ~JumpE};
+  cvw_mux2  #(P.XLEN)  altresultmux(ImmExtE, PCLinkE, JumpE, AltResultE);
+  cvw_mux2  #(P.XLEN)  ieuresultmux(ALUResultE, AltResultE, ALUResultSrcE, IEUResultE);
+
+  // Memory stage pipeline register
+  cvw_flopenrc #(P.XLEN) SrcAMReg(clk, reset, FlushM, ~StallM, SrcAE, SrcAM);
+  cvw_flopenrc #(P.XLEN) IEUResultMReg(clk, reset, FlushM, ~StallM, IEUResultE, IEUResultM);
+  cvw_flopenrc #(P.XLEN) WriteDataMReg(clk, reset, FlushM, ~StallM, ForwardedSrcBE, WriteDataM);
+
+  // Writeback stage pipeline register and logic
+  cvw_flopenrc #(P.XLEN) IFResultWReg(clk, reset, FlushW, ~StallW, IFResultM, IFResultW);
+
+  // floating point inputs: FIntResM comes from fclass, fcmp, fmv; FCvtIntResW comes from fcvt
+  if (P.F_SUPPORTED) begin : fpmux
+    cvw_mux2  #(P.XLEN)  resultmuxM(IEUResultM, FIntResM, FWriteIntM, IFResultM);
+    cvw_mux2  #(P.XLEN)  cvtresultmuxW(IFResultW, FCvtIntResW, FCvtIntW, IFCvtResultW);
+    if (P.IDIV_ON_FPU & P.F_SUPPORTED) begin
+      cvw_mux2  #(P.XLEN)  divresultmuxW(MDUResultW, FIntDivResultW, IntDivW, MulDivResultW);
+    end else begin
+      assign MulDivResultW = MDUResultW;
+    end
+  end else begin : fpmux
+    assign IFResultM = IEUResultM;
+    assign IFCvtResultW = IFResultW;
+    assign MulDivResultW = MDUResultW;
+  end
+  cvw_mux5  #(P.XLEN) resultmuxW(IFCvtResultW, ReadDataW, CSRReadValW, MulDivResultW, SCResultW, ResultSrcW, ResultW);
+
+  // handle Store Conditional result if atomic extension supported
+  if (P.ZALRSC_SUPPORTED) assign SCResultW = {{(P.XLEN-1){1'b0}}, SquashSCW};
+  else                    assign SCResultW = '0;
+endmodule

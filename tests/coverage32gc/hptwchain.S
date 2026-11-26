@@ -5,7 +5,7 @@
 //
 // Purpose: The page table walker receives a DTLB request and an ITLB request in the same cycle.  It
 //          serves the DTLB walk first and, from LEAF, chains directly to the pending ITLB walk
-//          (hptw.sv: LEAF, DTLBWalk & ITLBWalkPending).  Each code page starts with sfence.vma, which
+//          (cvw_hptw.sv: LEAF, DTLBWalk & ITLBWalkPending).  Each code page starts with sfence.vma, which
 //          flushes every non-global TLB entry, and ends with a load or store to a data page followed by
 //          g = 1, 2 or 3 nops.  With g = 2 the access reaches the Memory stage in the cycle the fetch
 //          moves to the first instruction of the next page, so the access's DTLB miss and the fetch's

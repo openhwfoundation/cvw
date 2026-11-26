@@ -82,7 +82,7 @@ TRAP_HANDLER m
 GPIO_TEST_BEGIN
 
 // ---------------- Reset values (Table 52: all registers reset to 0) ----------------
-// pue and ds are not implemented by Wally (gpio_apb.sv header) and read 0.  passthru_*_ie exist only in
+// pue and ds are not implemented by Wally (cvw_gpio_apb.sv header) and read 0.  passthru_*_ie exist only in
 // the v1p4 manual.  With input_en = 0 every pin reads 0 (17.3), so low_ip is set on every pin as soon
 // as reset ends (17.4: level interrupt on a low pin) and nothing else is pending.
     CHK_ALL 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFFFFFFFF, 0, 0, 0
@@ -214,7 +214,7 @@ GPIO_TEST_BEGIN
 
 // ---------------- Access sizes ----------------
 // Table 52: "Only naturally aligned 32-bit memory accesses are supported."  What other accesses do is
-// not specified; Wally's PMA (adrdecs.sv) makes the GPIO word-only, so they take an access fault
+// not specified; Wally's PMA (cvw_adrdecs.sv) makes the GPIO word-only, so they take an access fault
 // (load 5, store 7), the load leaves rd unchanged, and the store leaves the register unchanged.
     GW GPIO_OUTPUT_VAL, 0x12345678
     .irp off, 0, 1, 2, 3
@@ -315,7 +315,7 @@ GPIO_TEST_BEGIN
 #endif
 
 // Atomic memory operations: 17 notes "Atomic operations such as toggles are natively possible with the
-// RISC-V 'A' extension" on the FE310.  Wally allows AMOs only on RAM (pmachecker.sv AtomicAllowed), a
+// RISC-V 'A' extension" on the FE310.  Wally allows AMOs only on RAM (cvw_pmachecker.sv AtomicAllowed), a
 // documented design choice, so they take a store/AMO access fault and leave the register unchanged.
     GW GPIO_OUTPUT_VAL, 0x0000FF00
     .option push

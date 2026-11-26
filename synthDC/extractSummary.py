@@ -21,7 +21,7 @@ def synthsintocsv():
     each line contains the module, tech, width, target freq, and resulting metrics
     """
     print("This takes a moment...")
-    bashCommand = "find . -path '*runs/wallypipelinedcore_*' -prune"
+    bashCommand = "find . \\( -path '*runs/cvw_wallypipelinedcore_*' -o -path '*runs/wallypipelinedcore_*' \\) -prune"
     output = subprocess.check_output(["bash", "-c", bashCommand])
     allSynths = output.decode("utf-8").split("\n")[:-1]
 
@@ -33,7 +33,7 @@ def synthsintocsv():
         writer.writerow(["Width", "Config", "Mod", "Tech", "Target Freq", "Delay", "Area"])
 
         for oneSynth in allSynths:
-            descrip = specReg.findall(oneSynth)
+            descrip = specReg.findall(oneSynth.replace("/cvw_wallypipelinedcore_", "/wallypipelinedcore_"))
             #        print("From " + oneSynth + " Find ")
             #        for d in descrip:
             #            print(d)

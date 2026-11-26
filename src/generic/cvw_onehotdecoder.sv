@@ -1,0 +1,27 @@
+///////////////////////////////////////////
+// cvw_onehotdecoder.sv
+//
+// Written:  Rose Thompson rose@rosethompson.net 9 July 2021
+// Modified:
+//
+// Purpose: Binary to one-hot decoder.
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2021-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_onehotdecoder #(parameter WIDTH = 2) (
+  input  logic [WIDTH-1:0]    bin,
+  output logic [2**WIDTH-1:0] decoded
+);
+
+  always_comb begin
+    decoded = '0;
+    decoded[bin] = 1'b1;
+  end
+
+endmodule

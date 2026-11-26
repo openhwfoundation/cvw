@@ -3,8 +3,8 @@
 //
 // Written: David_Harris@hmc.edu 27 October 2026
 //
-// Purpose: Sv32 coverage of every ITLB and DTLB camline (tlbcamline.sv) with kilopage, megapage and
-//          global entries, ASID changes and both kinds of sfence.vma, and of the NAPOT4 term of tlb.sv.
+// Purpose: Sv32 coverage of every ITLB and DTLB camline (cvw_tlbcamline.sv) with kilopage, megapage and
+//          global entries, ASID changes and both kinds of sfence.vma, and of the NAPOT4 term of cvw_tlb.sv.
 //          RV32 counterpart of tests/coverage64gc/tlbGLBASID.S, tlbGLBHIT.S, tlbASIDMISS.S and parts of
 //          tlbOverlap.S.  The TLB replaces the first line not recently used, so 64 misses to distinct
 //          pages fill all 32 lines of a TLB.
@@ -34,7 +34,7 @@
 //            H. R2 pages of W: lines with the same VPN[0] and another VPN[1] (Match1 = 0).
 //          Then 64 aligned megapages (VA 0xC0000000 + i * 4 MiB) fill every line with a megapage, and R
 //          lookups compare them with another VPN[0] (PageType > 0).  A megapage leaf with a misaligned
-//          PPN ending in 4'b1000 faults on a load and a fetch (tlb.sv NAPOT4 with HitPageType = 1).
+//          PPN ending in 4'b1000 faults on a load and a fetch (cvw_tlb.sv NAPOT4 with HitPageType = 1).
 //          No PTE ever changes its translation, so a stale TLB entry gives the same result as a walk.
 //          Self-checking (WALLY-selfcheck.h): every load returns the tag, every fetch traps with
 //          mcause 9 (ecall from S) and mepc = the VA, and each fault (steps B and C, the misaligned

@@ -1,0 +1,168 @@
+///////////////////////////////////////////
+// cvw_align.sv
+//
+// Written:  Rose Thompson rose@rosethompson.net 26 October 2023
+// Modified: David Harris
+//
+// Purpose: Splits misaligned accesses that cross a line boundary (Zicclsm).
+//          Similar to the IFU's spill module; the two could be merged with some effort.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2023-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_align import cvw::*; #(parameter cvw_t P) (
+  input  logic                    clk,
+  input  logic                    reset,
+  input  logic                    StallM, FlushM,
+  input  logic [P.XLEN-1:0]       IEUAdrM,      // Memory stage memory address
+  input  logic [P.XLEN-1:0]       IEUAdrE,      // The next IEUAdrM
+  input  logic [2:0]              Funct3M,      // Size of memory operation
+  input  logic                    FpLoadStoreM, // Floating point Load or Store
+  input  logic [1:0]              MemRWM,
+  input  logic [P.LLEN*2-1:0]     DCacheReadDataWordM, // D$ read data, two LLEN words wide
+  input  logic                    CacheBusHPTWStall,        // D$, bus, or HPTW is stalled. Transition to second access of spill after the first completes
+  input  logic                    SelHPTW,
+  input  logic                    DataFaultM,   // This M-stage access raises a page or access fault: do not take the spill
+
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskM,
+  input  logic [(P.LLEN-1)/8:0]   ByteMaskExtendedM,
+  input  logic [P.LLEN-1:0]       LSUWriteDataM,
+
+  output logic [(P.LLEN*2-1)/8:0] ByteMaskSpillM,
+  output logic [P.LLEN*2-1:0]     LSUWriteDataSpillM,
+
+  output logic [P.XLEN-1:0]       IEUAdrSpillE, // The next IEUAdrM for one of the two memory addresses of the spill
+  output logic [P.XLEN-1:0]       IEUAdrSpillM, // IEUAdrM for one of the two memory addresses of the spill
+  output logic [P.XLEN-1:0]       IEUAdrxTvalM, // IEUAdrM or spilled and aligned to next page
+  output logic                    SelSpillE,    // During the transition between the two spill operations, the LSU should stall the pipeline
+  output logic [P.LLEN-1:0]       DCacheReadDataWordSpillM, // Read data after merging the two halves of a spilled access
+  output logic                    SpillStallM);
+
+  localparam LLENINBYTES = P.LLEN/8;
+  localparam OFFSET_BIT_POS = $clog2(P.DCACHE_LINELENINBITS/8);
+  // A spill occurs when a misaligned access crosses a cache line boundary
+  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
+
+  statetype          CurrState, NextState;
+  logic              ValidSpillM;
+  logic              SelSpillM;
+  logic              SpillSaveM;
+  logic [P.LLEN-1:0] ReadDataWordFirstHalfM;
+  logic              MisalignedM;
+  logic [P.LLEN*2-1:0] ReadDataWordSpillAllM;
+  logic [P.LLEN*2-1:0] ReadDataWordSpillShiftedM;
+
+  logic [P.XLEN-1:0]   IEUAdrIncrementM;
+
+  localparam OFFSET_LEN = $clog2(LLENINBYTES);
+  logic [$clog2(LLENINBYTES)-1:0]              AccessByteOffsetM;
+  logic [$clog2(LLENINBYTES)+2:0]              ShiftAmount;
+  logic                                        PotentialSpillM;
+  logic [P.LLEN*3-1:0]                         LSUWriteDataShiftedExtM;
+
+  /* verilator lint_off WIDTHEXPAND */
+  assign IEUAdrIncrementM = IEUAdrM + LLENINBYTES;
+  /* verilator lint_on WIDTHEXPAND */
+  cvw_mux2 #(P.XLEN) ieuadrspillemux(.d0(IEUAdrE), .d1(IEUAdrIncrementM), .s(SelSpillE), .y(IEUAdrSpillE));
+  cvw_mux2 #(P.XLEN) ieuadrspillmmux(.d0(IEUAdrM), .d1(IEUAdrIncrementM), .s(SelSpillM), .y(IEUAdrSpillM));
+  cvw_mux2 #(P.XLEN) ieuadrxtvalmmux(.d0(IEUAdrM), .d1({IEUAdrIncrementM[P.XLEN-1:OFFSET_LEN], {{OFFSET_LEN}{1'b0}}}), .s(SelSpillM), .y(IEUAdrxTvalM));
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Detect spill
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // spill detection in lsu is more complex than ifu, depends on 3 factors
+  // 1) operation size
+  // 2) offset
+  // 3) access location within the cacheline
+
+  // compute misalignment
+  always_comb begin
+    // funct3[2] is the unsigned flag for integer loads, but selects quad width for FP loads/stores
+    case (Funct3M & {FpLoadStoreM, 2'b11})
+      3'b000: AccessByteOffsetM = '0; // byte access
+      3'b001: AccessByteOffsetM = {{OFFSET_LEN-1{1'b0}}, IEUAdrM[0]}; // half access
+      3'b010: AccessByteOffsetM = {{OFFSET_LEN-2{1'b0}}, IEUAdrM[1:0]}; // word access
+      3'b011: if (P.LLEN >= 64) AccessByteOffsetM = {{OFFSET_LEN-3{1'b0}}, IEUAdrM[2:0]}; // double access
+              else              AccessByteOffsetM = '0;                                    // shouldn't happen
+      // coverage off
+      // RV64GC doesn't support Q
+      3'b100: if (P.LLEN == 128) AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0]; // quad access
+              else               AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0];
+      // coverage on
+      default: AccessByteOffsetM = '0;                                        // shouldn't happen
+    endcase
+    // An access can spill only if it starts in the last naturally aligned slot of its size in the cache line
+    case (Funct3M & {FpLoadStoreM, 2'b11})
+      3'b000: PotentialSpillM = 1'b0; // byte access
+      3'b001: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:1] == '1; // half access
+      3'b010: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:2] == '1; // word access
+      3'b011: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:3] == '1; // double access
+      // coverage off
+      // RV64GC doesn't support Q
+      3'b100: PotentialSpillM = IEUAdrM[OFFSET_BIT_POS-1:4] == '1; // quad access
+      // coverage on
+      default: PotentialSpillM = 1'b0;
+    endcase
+  end
+  assign MisalignedM = (|MemRWM) & (AccessByteOffsetM != 0);
+
+  // Don't take the spill if there is a stall or the access faults.  A faulting access must keep presenting the
+  // original address: the fault is recomputed combinationally each cycle and would vanish at the second-half
+  // address while a committed I$ fill defers the trap, losing the exception and half-executing a store.
+  assign ValidSpillM = MisalignedM & PotentialSpillM & ~CacheBusHPTWStall & ~DataFaultM;
+
+  always_ff @(posedge clk)
+    if (reset | FlushM)    CurrState <= STATE_READY;
+    else CurrState <= NextState;
+
+  always_comb begin
+    case (CurrState)
+      STATE_READY: if (ValidSpillM)               NextState = STATE_SPILL;       // load spill
+                   else                           NextState = STATE_READY;       // no spill
+      STATE_SPILL: if (StallM)                    NextState = STATE_SPILL;
+                   else                           NextState = STATE_READY;
+      default:                                    NextState = STATE_READY;
+    endcase
+  end
+
+  assign SelSpillM = CurrState == STATE_SPILL;
+  assign SelSpillE = (CurrState == STATE_READY & ValidSpillM) | (CurrState == STATE_SPILL & CacheBusHPTWStall);
+  assign SpillSaveM = (CurrState == STATE_READY) & ValidSpillM & ~FlushM;
+  assign SpillStallM = SelSpillE;
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Merge spilled data
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // save the first native word
+  cvw_flopenr #(P.LLEN) SpillDataReg(clk, reset, SpillSaveM, DCacheReadDataWordM[P.LLEN-1:0], ReadDataWordFirstHalfM);
+
+  // merge together
+  cvw_mux2 #(2*P.LLEN) postspillmux(DCacheReadDataWordM, {DCacheReadDataWordM[P.LLEN-1:0], ReadDataWordFirstHalfM}, SelSpillM & ~SelHPTW, ReadDataWordSpillAllM);
+
+  // shifter (4:1 mux for 32 bit, 8:1 mux for 64 bit)
+  // 8 * is for shifting by bytes not bits
+  assign ShiftAmount = SelHPTW ? '0 : {AccessByteOffsetM, 3'b0}; // AND gate
+  assign ReadDataWordSpillShiftedM = ReadDataWordSpillAllM >> ShiftAmount;
+  assign DCacheReadDataWordSpillM = ReadDataWordSpillShiftedM[P.LLEN-1:0];
+
+  // write path.
+  // 3*LLEN to 2*LLEN funnel shifter to perform left rotation.
+  // Vivado correctly optimizes as 2*LLEN log2(LLEN):1 muxes
+  assign LSUWriteDataShiftedExtM = {LSUWriteDataM, LSUWriteDataM, LSUWriteDataM} << ShiftAmount;
+  assign LSUWriteDataSpillM = LSUWriteDataShiftedExtM[P.LLEN*3-1:P.LLEN];
+
+  cvw_mux3 #(2*P.LLEN/8) bytemaskspillmux({ByteMaskExtendedM, ByteMaskM}, // no spill
+                                      {{{P.LLEN/8}{1'b0}}, ByteMaskM}, // spill, first half
+                                      {{{P.LLEN/8}{1'b0}}, ByteMaskExtendedM}, // spill, second half
+                                      {SelSpillM & ~SelHPTW, SelSpillE & ~SelHPTW}, ByteMaskSpillM);
+
+endmodule

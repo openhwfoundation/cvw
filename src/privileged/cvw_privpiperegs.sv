@@ -1,0 +1,48 @@
+///////////////////////////////////////////
+// cvw_privpiperegs.sv
+//
+// Written:  David Harris David_Harris@hmc.edu 12 May 2022
+// Modified: Rose Thompson
+//
+// Purpose: Pipeline registers for early exceptions.
+//
+// Documentation: RISC-V System on Chip Design
+//
+// A component of the CORE-V-WALLY configurable RISC-V project.
+// https://github.com/openhwfoundation/cvw
+//
+// Copyright (C) 2022-26 Harvey Mudd College & Oklahoma State University
+//
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+module cvw_privpiperegs (
+  input  logic         clk, reset,
+  input  logic         StallD, StallE, StallM,
+  input  logic         FlushD, FlushE, FlushM,
+  input  logic         InstrPageFaultF, InstrAccessFaultF,  // instruction faults
+  input  logic         HPTWInstrAccessFaultF,               // hptw access fault during instruction page fetch
+  input  logic         HPTWInstrPageFaultF,                 // hptw page fault during instruction page fetch
+  input  logic         IllegalIEUFPUInstrD,                 // illegal IEU instruction decoded
+  output logic         InstrPageFaultM, InstrAccessFaultM,  // delayed instruction faults
+  output logic         IllegalIEUFPUInstrM,                 // delayed illegal IEU instruction
+  output logic         HPTWInstrAccessFaultM,               // hptw access fault during instruction page fetch
+  output logic         HPTWInstrPageFaultM                  // hptw page fault during instruction page fetch
+);
+
+  // Delayed fault signals
+  logic                InstrPageFaultD, InstrAccessFaultD, HPTWInstrAccessFaultD, HPTWInstrPageFaultD;
+  logic                InstrPageFaultE, InstrAccessFaultE, HPTWInstrAccessFaultE, HPTWInstrPageFaultE;
+  logic                IllegalIEUFPUInstrE;
+
+  // pipeline fault signals
+  cvw_flopenrc #(4) faultregD(clk, reset, FlushD, ~StallD,
+                  {InstrPageFaultF, InstrAccessFaultF, HPTWInstrAccessFaultF, HPTWInstrPageFaultF},
+                  {InstrPageFaultD, InstrAccessFaultD, HPTWInstrAccessFaultD, HPTWInstrPageFaultD});
+  cvw_flopenrc #(5) faultregE(clk, reset, FlushE, ~StallE,
+                  {IllegalIEUFPUInstrD, InstrPageFaultD, InstrAccessFaultD, HPTWInstrAccessFaultD, HPTWInstrPageFaultD},
+                  {IllegalIEUFPUInstrE, InstrPageFaultE, InstrAccessFaultE, HPTWInstrAccessFaultE, HPTWInstrPageFaultE});
+  cvw_flopenrc #(5) faultregM(clk, reset, FlushM, ~StallM,
+                  {IllegalIEUFPUInstrE, InstrPageFaultE, InstrAccessFaultE, HPTWInstrAccessFaultE, HPTWInstrPageFaultE},
+                  {IllegalIEUFPUInstrM, InstrPageFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM});
+endmodule

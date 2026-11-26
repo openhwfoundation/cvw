@@ -4,7 +4,7 @@
 // Written: David_Harris@hmc.edu 30 October 2026
 //
 // Purpose: rv32gc: a page table walk whose level-0 PTE read misses the D$, so the walker waits in L0_RD
-//          while DCacheBusStallM is set (hptw.sv: L0_RD -> L0_RD).  Sv32 maps DATA_VA through a level-0
+//          while DCacheBusStallM is set (cvw_hptw.sv: L0_RD -> L0_RD).  Sv32 maps DATA_VA through a level-0
 //          table; M mode writes the table and flushes its line from the D$ with cbo.flush, then S mode
 //          loads from DATA_VA.  The DTLB misses, the walk reads the root PTE and then the flushed level-0
 //          PTE, which must be fetched from memory.

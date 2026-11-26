@@ -6,7 +6,7 @@
 // Purpose: RV32 port of the cacheable cases of tests/coverage64gc/holdaccess.S (rv32gc has no
 //          Svpbmt, so the non-cacheable pages are left out).  A memory access completes while the
 //          pipeline is stalled by an ITLB miss that arrived after the access started: the walker
-//          then accepts the ITLB request with the access already performed (hptw.sv HPTWFlushW,
+//          then accepts the ITLB request with the access already performed (cvw_hptw.sv HPTWFlushW,
 //          AcceptReq & MemAccessDoneM), and the LSU must hold the finished access until it
 //          retires instead of reissuing it.  A 32-bit instruction straddling the page boundary
 //          makes the ITLB miss appear late: its first half is fetched normally and its second

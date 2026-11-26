@@ -6,7 +6,7 @@
 //          v1p5, chapter 19 (Serial Peripheral Interface), cited by section, rather than the RTL.
 //          Wally's SPI has 4 chip selects (cs_width = 4), a 12-bit divisor, and 8-entry FIFOs,
 //          like SPI 1 of the FE310 (Table 62), and no flash interface (fctrl/ffmt absent).
-//          Documented deviations (src/uncore/spi_apb.sv header): dual and quad protocols are not
+//          Documented deviations (src/uncore/cvw_spi_apb.sv header): dual and quad protocols are not
 //          supported, so fmt.proto reads 0.
 //
 // A component of the CORE-V-WALLY configurable RISC-V project.

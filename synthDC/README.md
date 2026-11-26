@@ -6,7 +6,7 @@ This subdirectory contains synthesis scripts for use with Synopsys
 
 ## Example Usage
 ```bash
-make synth DESIGN=wallypipelinedcore FREQ=500 CONFIG=rv32e
+make synth DESIGN=cvw_wallypipelinedcore FREQ=500 CONFIG=rv32e
 ```
 
 ## Environment Variables

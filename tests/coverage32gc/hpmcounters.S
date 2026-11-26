@@ -4,13 +4,13 @@
 // Written: David_Harris@hmc.edu 18 September 2026; RV32 port 27 October 2026
 //
 // Purpose: RV32 port of tests/coverage64gc/hpmcounters.S.  Exercise and check the hardware performance
-//          monitor counters in csrc.sv, each a 64-bit counter read and written as an mhpmcounter /
+//          monitor counters in cvw_csrc.sv, each a 64-bit counter read and written as an mhpmcounter /
 //          mhpmcounterh pair on RV32.
 //
 //          Counters 3 and above only increment when their event selector is nonzero
 //          (CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0)),
 //          so nothing in that expression is exercised until a test writes mhpmevent.  This test
-//          runs a workload that generates every event csrc.sv counts, including one machine timer
+//          runs a workload that generates every event cvw_csrc.sv counts, including one machine timer
 //          interrupt, three times, and checks each term of CounterInc:
 //            1. every mhpmevent = 0: no mhpmcounter changes
 //            2. every counter inhibited: no counter changes, including mcycle and minstret, and a
@@ -226,7 +226,7 @@ main:
     SC_PASS
     j done
 
-// Generate each event csrc.sv counts: branches, jumps and returns, mispredictions of direction,
+// Generate each event cvw_csrc.sv counts: branches, jumps and returns, mispredictions of direction,
 // target, return address and instruction class, load and store stalls, data and instruction cache
 // accesses, misses and stall cycles, CSR writes, fence.i, sfence.vma, an interrupt, exceptions
 // and divides.  The events that are a property of the instructions retired are counted exactly

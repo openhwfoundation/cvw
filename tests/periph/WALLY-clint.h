@@ -30,7 +30,7 @@
 //   - mip.MTIP and mip.MSIP are read-only in mip.  [PRIV]
 //   - time/timeh are read-only shadows of mtime.  [PRIV, Zicntr]
 //   - A store writes only the bytes it addresses: the PMA of this platform accepts byte, halfword,
-//     word (and on RV64 doubleword) accesses to the CLINT region (adrdecs.sv), so a narrow store
+//     word (and on RV64 doubleword) accesses to the CLINT region (cvw_adrdecs.sv), so a narrow store
 //     must not change bytes it does not cover, and a store to another hart's slot must not change
 //     hart 0's registers.
 //
