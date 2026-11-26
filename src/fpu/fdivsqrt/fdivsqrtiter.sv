@@ -19,7 +19,7 @@
 module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
   input  logic              clk,
   input  logic              IFDivStartE,
-  input  logic              FDivBusyE,
+  input  logic              IterEnE,          // advance the iteration registers
   input  logic              SqrtE,
   input  logic [P.DIVb+3:0] X, D,                  // Q4.DIVb
   output logic [P.DIVb:0]   FirstU, FirstUM,       // U1.DIVb
@@ -40,7 +40,6 @@ module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
 
   logic [P.DIVb+3:0]      WSN, WCN;                // Q4.DIVb
   logic [P.DIVb+3:0]      DBar, D2, DBar2;         // Q4.DIVb
-  logic [P.DIVb+1:0]      NextC;                   // Q2.DIVb
   logic [P.DIVb:0]        UMux, UMMux;             // U1.DIVb
   logic [P.DIVb:0]        initU, initUM;           // U1.DIVb
 
@@ -52,8 +51,8 @@ module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
   // Residual WS/WC registers/initialization mux
   mux2   #(P.DIVb+4) wsmux(WS[P.DIVCOPIES], X, IFDivStartE, WSN);
   mux2   #(P.DIVb+4) wcmux(WC[P.DIVCOPIES], '0, IFDivStartE, WCN);
-  flopen #(P.DIVb+4) wsreg(clk, FDivBusyE, WSN, WS[0]);
-  flopen #(P.DIVb+4) wcreg(clk, FDivBusyE, WCN, WC[0]);
+  flopen #(P.DIVb+4) wsreg(clk, IterEnE, WSN, WS[0]);
+  flopen #(P.DIVb+4) wcreg(clk, IterEnE, WCN, WC[0]);
 
   // UOTFC Result U and UM registers/initialization mux
   // Initialize U to 0 = 0.0000... and UM to -1 = 1.00000... (in Q1.Divb)
@@ -61,15 +60,31 @@ module fdivsqrtiter import cvw::*; #(parameter cvw_t P) (
   assign initUM = {{1'b1}, {(P.DIVb){1'b0}}};
   mux2   #(P.DIVb+1)  uinitmux(UNext[P.DIVCOPIES-1],  initU,  IFDivStartE, UMux);
   mux2   #(P.DIVb+1) uminitmux(UMNext[P.DIVCOPIES-1], initUM, IFDivStartE, UMMux);
-  flopen #(P.DIVb+1)  UReg(clk, FDivBusyE, UMux,  U[0]);
-  flopen #(P.DIVb+1) UMReg(clk, FDivBusyE, UMMux, UM[0]);
+  flopen #(P.DIVb+1)  UReg(clk, IterEnE, UMux,  U[0]);
+  flopen #(P.DIVb+1) UMReg(clk, IterEnE, UMMux, UM[0]);
 
   // C register/initialization mux: C = -R:
   // C = -4 = 00.000000... (in Q2.DIVb) for radix 4, C = -2 = 10.000000... for radix 2
   if (P.RADIX == 4) assign initC = '0;
   else             assign initC = {2'b10, {{P.DIVb{1'b0}}}};
-  mux2   #(P.DIVb+2) cmux(C[P.DIVCOPIES], initC, IFDivStartE, NextC);
-  flopen #(P.DIVb+2) creg(clk, FDivBusyE, NextC, C[0]);
+  // C is a thermometer code that gains RK ones per cycle, so at the start of each cycle it is uniform in groups
+  // of RK bits (below CTOP leading bits that never change).  Register one bit per group and replicate it.  Besides
+  // saving flops, this shows synthesis that the one-hot K vectors each stage derives from C can only be nonzero
+  // at fixed offsets within a group, which shrinks the on-the-fly converters and F generation.
+  localparam CW   = P.DIVb+2;
+  localparam CNG  = CW / P.RK;          // number of groups
+  localparam CTOP = CW - CNG*P.RK;      // leading bits above the groups (1 for radix 2 with RK > 1, else 0)
+  logic [CNG-1:0] CG, CGNext, initCG;
+  genvar g;
+  for (g = 0; g < CNG; g++) begin : cgroups
+    assign initCG[g] = initC[g*P.RK];
+    assign C[0][g*P.RK +: P.RK] = {P.RK{CG[g]}};
+  end
+  if (CTOP > 0) begin : ctop
+    assign C[0][CW-1 -: CTOP] = initC[CW-1 -: CTOP]; // constant ones
+  end
+  mux2   #(CNG) cmux({1'b1, CG[CNG-1:1]}, initCG, IFDivStartE, CGNext);
+  flopen #(CNG) creg(clk, IterEnE, CGNext, CG);
 
   // Divisor Selections
   assign DBar    = ~D;        // for -D

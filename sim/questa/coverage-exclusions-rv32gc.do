@@ -54,12 +54,12 @@ set CNT   /core/priv/priv/csr/counters
 # FPU and integer divider
 ######################################################################################################
 
-# The FP divider (fdivsqrtfsm) and the integer divider (mdu div, used because IDIV_ON_FPU = 0) have the same FSM.
 # DONE -> BUSY: a divide starts only from IDLE (IFDivStartE and DivStartE both require state == IDLE).
-# BUSY -> IDLE: only reset or FlushE & ~StallM leave BUSY early.  A busy divider stalls E, so M holds the bubble
-# left behind the divide (InstrValidM = 0) and no trap, xRET or CSR fence can be raised in M; FlushECause ignores
-# BPWrongE while the divider is busy.  The testbench asserts reset only between programs.
-coverage exclude -scope $FPU/fdivsqrt/fdivsqrtfsm -ftrans state DONE->BUSY BUSY->IDLE
+# BUSY -> IDLE in the integer divider (mdu div, used because IDIV_ON_FPU = 0): only reset or FlushE & ~StallM leave
+# BUSY early.  A busy divider stalls E, so M holds the bubble left behind the divide (InstrValidM = 0) and no trap,
+# xRET or CSR fence can be raised in M; FlushECause ignores BPWrongE while the divider is busy.  The testbench
+# asserts reset only between programs.  (The FP divider goes from BUSY to IDLE at the end of every operation.)
+coverage exclude -scope $FPU/fdivsqrt/fdivsqrtfsm -ftrans state DONE->BUSY
 coverage exclude -scope /core/mdu/mdu/div/div -ftrans state DONE->BUSY BUSY->IDLE
 
 # Square root digit selection, sqrtspecial = SqrtE & (j1 | j0).  The on-the-fly register C starts at 0 and each

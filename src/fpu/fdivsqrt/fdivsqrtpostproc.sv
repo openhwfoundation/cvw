@@ -17,8 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
-  input  logic                 clk, reset,
-  input  logic                 StallM,
+  input  logic                 clk,
+  input  logic                 IFDivStartE,
   input  logic [P.DIVb+3:0]    WS, WC,            // Q4.DIVb
   input  logic [P.DIVb+3:0]    D,                 // Q4.DIVb
   input  logic [P.DIVb:0]      FirstU, FirstUM,   // U1.DIVb
@@ -42,7 +42,9 @@ module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]         IntDivResultM;
 
   //////////////////////////
-  // Execute Stage: Detect early termination for an exact result
+  // Detect an exact result.  The iteration registers hold the residual of the divide in Execute while it iterates
+  // (for early termination) and of the divide in Memory after it finishes (for the sticky bit), so one detector serves
+  // both.
   //////////////////////////
 
   // check for early termination on an exact result.
@@ -52,13 +54,15 @@ module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
     logic [P.DIVb+3:0] FZeroE, FZeroSqrtE, FZeroDivE;
     logic [P.DIVb+2:0] FirstK;
     logic wfeq0E;
+    logic SqrtOp;  // held from the start: SqrtE belongs to a later instruction once the divide is in Memory
     logic [P.DIVb+3:0] WCF, WSF;
 
+    flopen #(1) sqrtopreg(clk, IFDivStartE, SqrtE, SqrtOp);
     // FirstK is the lowest 1 of the thermometer code C, marking the current digit position
     assign FirstK = ({1'b1, FirstC} & ~({1'b1, FirstC} << 1));
     assign FZeroSqrtE = {FirstUM[P.DIVb], FirstUM, 2'b0} | {FirstK, 1'b0};   // F for square root
     assign FZeroDivE  = D << 1;                                    // F for divide
-    mux2 #(P.DIVb+4) fzeromux(FZeroDivE, FZeroSqrtE, SqrtE, FZeroE);
+    mux2 #(P.DIVb+4) fzeromux(FZeroDivE, FZeroSqrtE, SqrtOp, FZeroE);
     csa #(P.DIVb+4) fadd(WS, WC, FZeroE, 1'b0, WSF, WCF); // compute {WCF, WSF} = {WS + WC + FZero};
     aplusbeq0 #(P.DIVb+4) wcfpluswsfeq0(WCF, WSF, wfeq0E);
     assign WZeroE = weq0E | wfeq0E;
@@ -66,11 +70,7 @@ module fdivsqrtpostproc import cvw::*; #(parameter cvw_t P) (
     assign WZeroE = weq0E;
   end
 
-  //////////////////////////
-  // E/M Pipeline register
-  //////////////////////////
-
-  flopenr #(1) WZeroMReg(clk, reset, ~StallM, WZeroE, WZeroM);
+  assign WZeroM = WZeroE;
 
   //////////////////////////
   // Memory Stage: Postprocessing

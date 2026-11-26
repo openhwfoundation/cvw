@@ -30,6 +30,7 @@ module fdivsqrtfsm import cvw::*; #(parameter cvw_t P) (
   input  logic [P.DURLEN-1:0] CyclesE,
   output logic                IFDivStartE,
   output logic                FDivBusyE, FDivDoneE,
+  output logic                IterEnE,      // advance the iteration registers
   output logic                SpecialCaseM
 );
 
@@ -37,12 +38,18 @@ module fdivsqrtfsm import cvw::*; #(parameter cvw_t P) (
   statetype state;
 
   logic SpecialCaseE, FSpecialCaseE;
+  logic LastStepE;
   logic [P.DURLEN-1:0] step;
 
   // FDivStartE and IDivStartE come from fctrl, reflecting the start of floating-point and possibly integer division
   assign IFDivStartE = (FDivStartE | (IDivStartE & P.IDIV_ON_FPU)) & (state == IDLE) & ~StallM;
-  assign FDivDoneE = (state == DONE);
-  assign FDivBusyE = (state == BUSY) | IFDivStartE;
+  // The last iteration does not stall Execute: the divide moves to Memory as its final residual and result are
+  // written, and the Memory stage postprocesses them directly from the iteration registers.
+  // If StallM holds the divide in Execute instead, the FSM waits in DONE with the iteration registers held.
+  assign LastStepE = (state == BUSY) & (step == 1);
+  assign FDivDoneE = (state == DONE) | LastStepE;
+  assign FDivBusyE = (state == BUSY) & ~LastStepE | IFDivStartE;
+  assign IterEnE   = (state == BUSY) | IFDivStartE;
 
   // terminate immediately on special cases: X is 0, Inf, or NaN; sqrt of negative X; or divide with Y 0, Inf, or NaN
   assign FSpecialCaseE = XZeroE | XInfE | XNaNE | (XsE & SqrtE) | (YZeroE | YInfE | YNaNE) & ~SqrtE;
@@ -61,7 +68,8 @@ module fdivsqrtfsm import cvw::*; #(parameter cvw_t P) (
       if (SpecialCaseE) state <= DONE;
       else              state <= BUSY;
     end else if (state == BUSY) begin
-      if (step == 1 | WZeroE) state <= DONE; // finished steps or terminate early on zero residual
+      if (step == 1)   state <= StallM ? DONE : IDLE; // finished steps: the divide leaves Execute unless stalled
+      else if (WZeroE) state <= DONE;                 // terminate early on zero residual
       step <= step - 1;
     end else if (state == DONE) begin
       if (StallM) state <= DONE;

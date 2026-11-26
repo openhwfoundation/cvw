@@ -27,28 +27,27 @@ module fdivsqrtstage2 import cvw::*; #(parameter cvw_t P) (
   output logic [P.DIVb+3:0] WSNext, WCNext  // Q4.DIVb
 );
 
-  logic [P.DIVb+3:0]        Dsel;     // Q4.DIVb
-  logic                     up, uz, un; // Result digit is +1, 0, or -1
-  logic [P.DIVb+3:0]        F;        // Q4.DIVb
+  logic                     up, un;   // Result digit is +1 or -1 (0 if neither)
+  logic [P.DIVb+3:0]        FP, FN;   // Q4.DIVb square root addends for digits +1 and -1
+  logic [P.DIVb+3:0]        AP, AN;   // Q4.DIVb addends for digits +1 and -1 in the current mode
   logic [P.DIVb+3:0]        AddIn;    // Q4.DIVb
   logic [P.DIVb+3:0]        WSA, WCA; // Q4.DIVb
 
   // Quotient Selection logic
   // Given partial remainder, select digit of +1, 0, or -1 (up, uz, un)
-  fdivsqrtuslc2 uslc2(.WS(WS[P.DIVb+3:P.DIVb]), .WC(WC[P.DIVb+3:P.DIVb]), .up, .uz, .un);
+  fdivsqrtuslc2 uslc2(.WS(WS[P.DIVb+3:P.DIVb]), .WC(WC[P.DIVb+3:P.DIVb]), .up, .uz(), .un);
 
   // Sqrt F generation.  Extend C, U, UM to Q4.DIVb
-  fdivsqrtfgen2 #(P) fgen2(.up, .uz, .C({2'b11, CNext}), .U({3'b000, U}), .UM({3'b000, UM}), .F);
+  fdivsqrtfgen2 #(P) fgen2(.C({2'b11, CNext}), .U({3'b000, U}), .UM({3'b000, UM}), .FP, .FN);
 
-  // Divisor multiple
-  always_comb
-    if      (up) Dsel = DBar;
-    else if (uz) Dsel = '0;
-    else         Dsel = D; // un
+  // Choose the addend for each nonzero digit before the digit is known (SqrtE is constant during an operation),
+  // so the late digit drives a single AND-OR: -D or D for division, F for square root
+  assign AP = SqrtE ? FP : DBar;
+  assign AN = SqrtE ? FN : D;
+  assign AddIn = ({(P.DIVb+4){up}} & AP) | ({(P.DIVb+4){un}} & AN);
 
   // Residual Update
   //  WSA, WCA = WS + WC - qD
-  mux2 #(P.DIVb+4) addinmux(Dsel, F, SqrtE, AddIn);
   csa #(P.DIVb+4) csa(WS, WC, AddIn, up & ~SqrtE, WSA, WCA); // carry in completes the 2's complement of -D for division digit +1
   assign WSNext = WSA << 1;
   assign WCNext = WCA << 1;
