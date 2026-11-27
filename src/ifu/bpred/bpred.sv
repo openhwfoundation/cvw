@@ -59,7 +59,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
   logic                    CallD, CallE, CallM, CallW;
   logic                    ReturnD, ReturnE, ReturnM, ReturnW;
   logic                    BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF;
-  logic                    BPBranchF, BPJumpF, BPReturnF, BPCallF;
+  logic                    BPBranchF, BPJumpF, BPReturnF;
   logic                    BPCallD, BPReturnD, BPReturnWrongD;
 
   if (P.BPRED_TYPE == BP_STATIC) begin : staticbp
@@ -198,7 +198,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
     .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
     .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW, .BTBCallF, .BTBReturnF, .BTBJumpF,
-    .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
+    .BTBBranchF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
 
   flopenrc #(1) BPWrongMReg(clk, reset, FlushM, ~StallM, BPWrongE, BPWrongM);
   assign IClassM = {CallM, ReturnM, JumpM, BranchM};

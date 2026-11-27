@@ -27,13 +27,14 @@ module icpred import cvw::*; #(parameter cvw_t P,
   output logic             CallD, CallE, CallM, CallW,
   output logic             ReturnD, ReturnE, ReturnM, ReturnW,
   input  logic             BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF,
-  output logic             BPCallF, BPReturnF, BPJumpF, BPBranchF,
+  output logic             BPReturnF, BPJumpF, BPBranchF,
   output logic             IClassWrongM, BPReturnWrongD,
   output logic             BPReturnD,                         // the instruction in D was predicted to be a return
   output logic             BPCallD                            // the instruction in D was predicted to be a call
 );
 
   logic                    IClassWrongD;
+  logic                    BPCallF;
   logic                    BPBranchD, BPJumpD;
   logic                    IClassWrongE;
 
