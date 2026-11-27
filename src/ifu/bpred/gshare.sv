@@ -16,7 +16,6 @@
 
 
 module gshare import cvw::*; #(parameter cvw_t P,
-                               parameter XLEN,
                                parameter k = 10,
                                parameter integer TYPE = 1) (
   input  logic            clk,
@@ -26,7 +25,7 @@ module gshare import cvw::*; #(parameter cvw_t P,
   output logic [1:0]      BPDirF,
   output logic            BPDirWrongE,
   // update
-  input  logic [XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
+  input  logic [P.XLEN-1:0] PCNextF, PCF, PCD, PCE, PCM,
   input  logic            BPBranchF, BranchD, BranchE, BranchM, BranchW, PCSrcE
 );
 

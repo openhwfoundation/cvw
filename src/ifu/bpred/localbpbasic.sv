@@ -15,7 +15,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module localbpbasic import cvw::*; #(parameter cvw_t P,
-                                     parameter XLEN,
                                      parameter m = 6, // 2^m = number of local history branches
                                      parameter k = 10) ( // number of past branches stored
   input  logic            clk,
@@ -25,7 +24,7 @@ module localbpbasic import cvw::*; #(parameter cvw_t P,
   output logic [1:0]      BPDirF,
   output logic            BPDirWrongE,
   // update
-  input  logic [XLEN-1:0] PCNextF, PCM,
+  input  logic [P.XLEN-1:0] PCNextF, PCM,
   input  logic            BranchE, BranchM, PCSrcE
 );
 

@@ -89,26 +89,26 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
     // Part 1 branch direction prediction
     if (P.BPRED_TYPE == BP_TWOBIT) begin : Predictor
-      twoBitPredictor #(P, P.XLEN, P.BPRED_SIZE) DirPredictor(.clk, .reset, .StallF, .StallD, .StallE, .StallM, .StallW,
+      twoBitPredictor #(P, P.BPRED_SIZE) DirPredictor(.clk, .reset, .StallF, .StallD, .StallE, .StallM, .StallW,
         .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCM, .BPDirF, .BPDirWrongE,
         .BranchE, .BranchM, .PCSrcE);
 
     end else if (P.BPRED_TYPE == BP_GSHARE | P.BPRED_TYPE == BP_GLOBAL) begin : Predictor // TYPE = 1: gshare, 0: global
-      gshare #(P, P.XLEN, P.BPRED_SIZE, P.BPRED_TYPE == BP_GSHARE ? 1 : 0) DirPredictor(.clk, .reset,
+      gshare #(P, P.BPRED_SIZE, P.BPRED_TYPE == BP_GSHARE ? 1 : 0) DirPredictor(.clk, .reset,
         .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCF, .PCD, .PCE, .PCM, .BPDirF, .BPDirWrongE,
         .BPBranchF, .BranchD, .BranchE, .BranchM, .BranchW,
         .PCSrcE);
 
     end else if (P.BPRED_TYPE == BP_GSHARE_BASIC | P.BPRED_TYPE == BP_GLOBAL_BASIC) begin : Predictor // TYPE = 1: gshare, 0: global
-      gsharebasic #(P, P.XLEN, P.BPRED_SIZE, P.BPRED_TYPE == BP_GSHARE_BASIC ? 1 : 0) DirPredictor(.clk, .reset,
+      gsharebasic #(P, P.BPRED_SIZE, P.BPRED_TYPE == BP_GSHARE_BASIC ? 1 : 0) DirPredictor(.clk, .reset,
         .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCM, .BPDirF, .BPDirWrongE,
         .BranchE, .BranchM, .PCSrcE);
 
     end else if (P.BPRED_TYPE == BP_LOCAL_BASIC) begin : Predictor
-      localbpbasic #(P, P.XLEN, P.BPRED_NUM_LHR, P.BPRED_SIZE) DirPredictor(.clk, .reset,
+      localbpbasic #(P, P.BPRED_NUM_LHR, P.BPRED_SIZE) DirPredictor(.clk, .reset,
         .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
         .PCNextF, .PCM, .BPDirF, .BPDirWrongE,
         .BranchE, .BranchM, .PCSrcE);
