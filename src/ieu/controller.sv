@@ -23,6 +23,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   input  logic [31:0] InstrD,                  // Instruction in Decode stage
   input  logic [1:0]  STATUS_FS,               // is FPU enabled?
   input  logic [3:0]  ENVCFG_CBE,              // Cache block operation enables
+  input  logic        HLVHSVEnW,               // HLV/HLVX/HSV are legal in the current mode
   output logic [2:0]  ImmSrcD,                 // Type of immediate extension
   input  logic        IllegalIEUFPUInstrD,     // Illegal IEU and FPU instruction
   output logic        IllegalBaseInstrD,       // Illegal base integer instruction, or illegal RV32E access to upper 16 registers
@@ -317,10 +318,11 @@ module controller import cvw::*; #(parameter cvw_t P) (
                       ControlsD = `CTRLW'b1_000_01_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jalr
       7'b1101111:     ControlsD = `CTRLW'b1_011_11_00_000_0_0_1_1_0_0_0_0_0_00_0_0; // jal
       7'b1110011: if (P.ZICSR_SUPPORTED) begin
+                    // HLV/HLVX/HSV stay illegal when ~HLVHSVEnW (privdec makes V=1 a virtual instruction)
                     if (HLVHSVInstrD) begin
-                      if (HLVHSVLoadD)
+                      if (HLVHSVEnW & HLVHSVLoadD)
                         ControlsD = `CTRLW'b1_101_01_10_001_0_0_0_0_0_0_0_0_0_00_0_0; // HLV/HLVX: zero-offset virtual-machine load
-                      else
+                      else if (HLVHSVEnW)
                         ControlsD = `CTRLW'b0_101_01_01_000_0_0_0_0_0_0_0_0_0_00_0_0; // HSV: zero-offset virtual-machine store
                     end else if (PFunctD)
                       ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_1_0_0_00_0_0; // privileged; decoded further in privdec modules

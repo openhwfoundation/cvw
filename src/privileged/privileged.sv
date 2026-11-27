@@ -98,7 +98,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic              RetM, TrapM,                                    // return instruction, or trap
   output logic              sfencevmaM,                                     // sfence.vma instruction
   output logic              sfencevmaAllM,                                  // sfence.vma with rs2=x0: flush all TLB entries including global
-  output logic              HLVHSVLegalM,                                   // HLV/HLVX/HSV may issue its LSU access
+  output logic              HLVHSVEnW,                                      // HLV/HLVX/HSV are legal in the current mode
   input  logic              InvalidateICacheM,                              // fence.i instruction
   output logic              BigEndianM,                                     // Use big endian in current privilege mode
   // Fault outputs
@@ -123,8 +123,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     STATUS_SPP, STATUS_TSR, STATUS_TW, STATUS_TVM;  // Status bits needed within privileged unit
   logic                     STATUS_MIE, STATUS_SIE;                         // status bits: interrupt enables
   logic [15:0]              MIP_REGW, MIE_REGW;                             // interrupt pending and enable bits
-  logic [1:0]               NextPrivilegeModeM;                             // next privilege mode based on trap or return
-  logic                     DelegateM;                                      // trap should be delegated
   logic                     InterruptM;                                     // interrupt occurring
   logic                     ExceptionM;                                     // Memory stage instruction caused a fault
   logic                     HPTWInstrAccessFaultM;                          // Hardware page table access fault while fetching instruction PTE
@@ -137,24 +135,21 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     // --- Hypervisor ---
   logic                     MSTATUS_MPV;     // from CSR (prev V for MRET)
   logic                     HSTATUS_SPV;     // from CSR (prev V for SRET in HS)
-  logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM, HSTATUS_HU;
-  logic                     HLVHSVBareM;     // VSATP/HGATP both Bare for initial HLV/HSV path
+  logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM;
   logic                     VSSTATUS_SPP, VSSTATUS_SIE;
   logic                     TrapToM, TrapToHSM, TrapToVSM; // trap target one-hots
-  assign HLVHSVLegalM = P.H_SUPPORTED & HLVHSVInstrM & ~VirtModeW & HLVHSVBareM &
-                        ((PrivilegeModeW != P.U_MODE) | HSTATUS_HU);
 
   // track the current privilege level
-  privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM, .DelegateM,
-    .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToVSM,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW);
+  privmode #(P) privmode(.clk, .reset, .StallW, .TrapM, .mretM, .sretM,
+    .STATUS_MPP, .STATUS_SPP, .VSSTATUS_SPP, .MSTATUS_MPV, .HSTATUS_SPV, .TrapToM, .TrapToVSM,
+    .PrivilegeModeW, .VirtModeW);
 
   // decode privileged instructions
   logic VirtualInstrFaultM;
   privdec #(P) pmd(.clk, .reset, .StallM, .InstrM(InstrM[31:7]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM, .VirtualCSRAccessM, .VirtualCMOInstrM, .HLVHSVInstrM,
-    .HLVHSVBareM, .PrivilegeModeW, .VirtModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW,
-    .HSTATUS_VTSR, .HSTATUS_VTVM, .HSTATUS_VTW, .HSTATUS_HU, .IntPendingM, .IllegalInstrFaultM, .VirtualInstrFaultM,
+    .PrivilegeModeW, .VirtModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW,
+    .HSTATUS_VTSR, .HSTATUS_VTVM, .HSTATUS_VTW, .IntPendingM, .IllegalInstrFaultM, .VirtualInstrFaultM,
     .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .WaitM, .WaitedM, .sfencevmaM, .sfencevmaAllM);
 
   // Control and Status Registers
@@ -166,15 +161,15 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .BPDirWrongM, .BTAWrongM, .RASPredPCWrongM, .BPWrongM,
     .sfencevmaM, .ExceptionM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .IClassWrongM, .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess,
-    .NextPrivilegeModeM, .PrivilegeModeW, .VirtModeW, .HLVHSVLegalM, .CauseM, .SelHPTW,
+    .PrivilegeModeW, .VirtModeW, .HLVHSVInstrM, .CauseM, .SelHPTW,
     .STATUS_MPP, .MSTATUS_MPV, .STATUS_SPP, .STATUS_TSR, .STATUS_TVM,
     .STATUS_MIE, .STATUS_SIE, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_TW, .STATUS_FS,
-    .HSTATUS_SPV, .HSTATUS_SPVP, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM, .HSTATUS_HU, .VSSTATUS_SPP, .VSSTATUS_SIE,
+    .HSTATUS_SPV, .HSTATUS_SPVP, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM, .VSSTATUS_SPP, .VSSTATUS_SIE,
     .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .HIE_REGW, .HGEIE_REGW, .MIP_REGW, .MIE_REGW, .MIDELEG_REGW,
     .SATP_REGW, .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
     .SetFflagsM, .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EPCM, .TrapVectorM,
-    .CSRReadValW, .IllegalCSRAccessM, .VirtualCSRAccessM, .VirtualCMOInstrM, .HLVHSVBareM, .BigEndianM);
+    .CSRReadValW, .IllegalCSRAccessM, .VirtualCSRAccessM, .VirtualCMOInstrM, .HLVHSVEnW, .BigEndianM);
 
   // pipeline early-arriving trap sources
   privpiperegs ppr(.clk, .reset, .StallD, .StallE, .StallM, .FlushD, .FlushE, .FlushM,
@@ -190,6 +185,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .PrivilegeModeW, .VirtModeW,
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .HEDELEG_REGW, .HIDELEG_REGW, .STATUS_MIE, .STATUS_SIE, .VSSTATUS_SIE,
     .InstrValidM, .CommittedM, .CommittedF,
-    .TrapM, .WaitedM, .InterruptM, .ExceptionM, .IntPendingM, .DelegateM, .CauseM,
+    .TrapM, .WaitedM, .InterruptM, .ExceptionM, .IntPendingM, .CauseM,
     .TrapToM, .TrapToHSM, .TrapToVSM);
 endmodule
