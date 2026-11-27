@@ -24,7 +24,6 @@ module zbkb #(parameter WIDTH=32) (
 
   logic [WIDTH-1:0]         Brev8Result;  // brev8
   logic [WIDTH-1:0]         PackResult;   // pack, packh, packw (RV64 only)
-  logic [WIDTH-1:0]         ZipResult;    // zip, unzip
 
   // brev8 just uses wires
   genvar i, j;
@@ -33,8 +32,13 @@ module zbkb #(parameter WIDTH=32) (
       assign Brev8Result[i*8+j] = A[i*8+7-j];
 
   packer #(WIDTH) pack(.A(A[WIDTH/2-1:0]), .B(B[WIDTH/2-1:0]), .PackSelect({ZBKBSelect[2], Funct3[1:0]}), .PackResult);
-  zipper #(WIDTH) zipper(.A, .ZipSelect(Funct3[2]), .ZipResult);
 
-  // ZBKB Result Select Mux
-  mux3 #(WIDTH) zbkbresultmux(Brev8Result, PackResult, ZipResult, ZBKBSelect[1:0], ZBKBResult);
+  // ZBKB Result Select Mux.  zip and unzip are RV32-only instructions
+  if (WIDTH == 32) begin : zip
+    logic [WIDTH-1:0] ZipResult;          // zip, unzip
+    zipper #(WIDTH) zipper(.A, .ZipSelect(Funct3[2]), .ZipResult);
+    mux3 #(WIDTH) zbkbresultmux(Brev8Result, PackResult, ZipResult, ZBKBSelect[1:0], ZBKBResult);
+  end else begin : nozip
+    mux2 #(WIDTH) zbkbresultmux(Brev8Result, PackResult, ZBKBSelect[0], ZBKBResult);
+  end
 endmodule
