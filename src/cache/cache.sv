@@ -68,7 +68,6 @@ module cache import cvw::*; #(parameter cvw_t P,
   logic [NUMWAYS-1:0]            VictimWay, DirtyWay, HitDirtyWay;
   logic                          LineDirty, HitLineDirty;
   logic [TAGLEN-1:0]             TagWay [NUMWAYS-1:0];
-  logic [TAGLEN-1:0]             Tag;
   logic [SETLEN-1:0]             FlushAdr;
   logic                          FlushAdrCntEn;
   logic                          FlushAdrFlag, FlushWayFlag;
@@ -125,7 +124,6 @@ module cache import cvw::*; #(parameter cvw_t P,
   // Need to OR together each way in a bitwise manner.
   // Final part of the AO Mux.  First is the AND in the cacheway.
   or_rows #(NUMWAYS, LINELEN) ReadDataAOMux(.a(ReadDataLineWay), .y(ReadDataLineCache));
-  or_rows #(NUMWAYS, TAGLEN) TagAOMux(.a(TagWay), .y(Tag));
 
   // Data cache needs to choose word offset from PAdr or BeatCount to writeback dirty lines
   if (!READ_ONLY_CACHE)
@@ -143,10 +141,16 @@ module cache import cvw::*; #(parameter cvw_t P,
     .PAdr(WordOffsetAddr), .ReadDataLine, .ReadDataWord);
 
   // Bus address for fetch, writeback, or flush writeback
-  mux3 #(PA_BITS) CacheBusAdrMux(.d0({PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
-    .d1({Tag, PAdr[SETTOP-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
-    .d2({Tag, FlushAdr, {OFFSETLEN{1'b0}}}),
-    .s({FlushCache, SelWriteback}), .y(CacheBusAdr));
+  if (!READ_ONLY_CACHE) begin : busadr
+    logic [TAGLEN-1:0] Tag; // tag of the victim or flushed line to write back
+    or_rows #(NUMWAYS, TAGLEN) TagAOMux(.a(TagWay), .y(Tag));
+    mux3 #(PA_BITS) CacheBusAdrMux(.d0({PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
+      .d1({Tag, PAdr[SETTOP-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
+      .d2({Tag, FlushAdr, {OFFSETLEN{1'b0}}}),
+      .s({FlushCache, SelWriteback}), .y(CacheBusAdr));
+  end else begin : busadr // I$ never writes back, so it only fetches the line at PAdr
+    assign CacheBusAdr = {PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}};
+  end
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Write Path

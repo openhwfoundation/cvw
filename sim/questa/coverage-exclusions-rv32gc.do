@@ -202,7 +202,6 @@ ExcludeRows $IC/cachefsm e {{(CurrState == STATE_ACCESS)_*} LoadMiss_* CacheBusA
 foreach mux {AdrSelMuxData AdrSelMuxTag AdrSelMuxLRU} {
   coverage exclude -scope $IC/$mux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1
 }
-coverage exclude -scope $IC/CacheBusAdrMux -linerange [TagLine ${SRC}/generic/mux.sv mux3] -item b 1 3
 for {set i 0} {$i < 4} {incr i} {
   set way "$IC/CacheWays\[$i\]"
   ExcludeRows $way e {ClearValid_1 SelectedWay_*}

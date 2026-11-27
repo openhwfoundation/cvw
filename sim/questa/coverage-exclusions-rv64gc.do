@@ -127,10 +127,9 @@ coverage exclude -scope /core/ifu/bus/icache/icache/cachefsm -fecexprrow [GetLin
 # because the D$ is stalled out of reset; the I$ Stall is 0 at reset.)
 coverage exclude -scope /core/ifu/bus/icache/icache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "exclusion-tag: dcache CacheEn"] 8
 
-# cache.sv AdrSelMuxData and AdrSelMuxTag and CacheBusAdrMux, excluding unhit Flush branch
+# cache.sv AdrSelMuxData and AdrSelMuxTag, excluding unhit Flush branch (the I$ has no CacheBusAdrMux)
 coverage exclude -scope /core/ifu/bus/icache/icache/AdrSelMuxData -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
 coverage exclude -scope /core/ifu/bus/icache/icache/AdrSelMuxTag -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
-coverage exclude -scope /core/ifu/bus/icache/icache/CacheBusAdrMux -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1 3
 # CacheWay Dirty logic. -scope does not accept wildcards.
 set numcacheways 4
 for {set i 0} {$i < $numcacheways} {incr i} {
