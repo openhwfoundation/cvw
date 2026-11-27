@@ -70,7 +70,7 @@ module cache import cvw::*; #(parameter cvw_t P,
   logic [TAGLEN-1:0]             TagWay [NUMWAYS-1:0];
   logic [TAGLEN-1:0]             Tag;
   logic [SETLEN-1:0]             FlushAdr;
-  logic                          FlushAdrCntEn, FlushCntRst;
+  logic                          FlushAdrCntEn;
   logic                          FlushAdrFlag, FlushWayFlag;
   logic [NUMWAYS-1:0]            FlushWay, NextFlushWay;
   logic                          FlushWayCntEn;
@@ -181,18 +181,16 @@ module cache import cvw::*; #(parameter cvw_t P,
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if (!READ_ONLY_CACHE) begin : flushlogic // D$ can be flushed
-    logic                          ResetOrFlushCntRst;
     logic [SETLEN-1:0]             NextFlushAdr, FlushAdrP1;
 
-    // Flush address (line number)
-    assign ResetOrFlushCntRst = reset | FlushCntRst;
-    flopenr #(SETLEN) FlushAdrReg(clk, ResetOrFlushCntRst, FlushAdrCntEn, FlushAdrP1, NextFlushAdr);
+    // Flush address (line number).  Wraps to 0 after the last set (NUMSETS is a power of 2).
+    flopenr #(SETLEN) FlushAdrReg(clk, reset, FlushAdrCntEn, FlushAdrP1, NextFlushAdr);
     mux2    #(SETLEN) FlushAdrMux(NextFlushAdr, FlushAdrP1, FlushAdrCntEn, FlushAdr);
     assign FlushAdrP1 = NextFlushAdr + 1'b1;
     assign FlushAdrFlag = (NextFlushAdr == FLUSHADRTHRESHOLD[SETLEN-1:0]);
 
-    // Flush way
-    flopenl #(NUMWAYS) FlushWayReg(clk, FlushWayCntEn, ResetOrFlushCntRst, {{NUMWAYS-1{1'b0}}, 1'b1}, NextFlushWay, FlushWay);
+    // Flush way: one-hot ring counter, back at way 0 after the last way
+    flopenl #(NUMWAYS) FlushWayReg(.clk, .load(reset), .en(FlushWayCntEn), .d(NextFlushWay), .val({{NUMWAYS-1{1'b0}}, 1'b1}), .q(FlushWay));
     if (NUMWAYS > 1) assign NextFlushWay = {FlushWay[NUMWAYS-2:0], FlushWay[NUMWAYS-1]};
     else             assign NextFlushWay = FlushWay[NUMWAYS-1];
     assign FlushWayFlag = FlushWay[NUMWAYS-1];
@@ -212,7 +210,7 @@ module cache import cvw::*; #(parameter cvw_t P,
     .Hit, .LineDirty, .HitLineDirty, .CacheStall, .CacheCommitted,
     .CacheMiss, .CacheAccess, .SelAdrData, .SelAdrTag, .SelVictim,
     .ClearDirty, .SetDirty, .SetValid, .ClearValid, .SelWriteback,
-    .FlushAdrCntEn, .FlushWayCntEn, .FlushCntRst,
+    .FlushAdrCntEn, .FlushWayCntEn,
     .FlushAdrFlag, .FlushWayFlag, .FlushCache, .SelFetchBuffer,
     .InvalidateCache, .CMOpM, .CacheEn, .LRUWriteEn);
 endmodule

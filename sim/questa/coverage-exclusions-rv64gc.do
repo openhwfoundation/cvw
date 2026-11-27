@@ -236,11 +236,6 @@ coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -feccondrow [GetLin
 # exclusion above resolves via GetLineNum to L95/AnyMiss; this anchor catches the L193 LoadMiss copy.)
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign LoadMiss"] 4
 
-# D$ cachefsm L195 CacheBusRW[0] CacheCMOpM[1]/[2] terms (FEC rows 13-16): the writeback-CMO term
-# (STATE_WRITEBACK & (CMOpM[1]|CMOpM[2]) & ~CacheBusAck) is logically subsumed by the earlier OR term
-# (STATE_WRITEBACK & ~CacheBusAck), so CacheCMOpM[1]/[2] never independently drive CacheBusRW[0].
-coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "icache CacheBusW"] 13 14 15 16
-
 # D$ InvalidateCache is tied to 1'b0 in lsu.sv (the data cache has no invalidate-all), so the
 # InvalidateCache & ~InvalidateFlushStage invalidate paths can never be exercised in the D$: the rows that need
 # InvalidateCache = 1 (InvalidateCache_1 and both InvalidateFlushStage rows) cannot be hit.

@@ -318,10 +318,8 @@ for {set i 0} {$i < 4} {incr i} {
 }
 
 # D$ cachefsm.  (|CMOpM & ~CMOWriteback) is the else-if after ((AnyMiss | CMOWriteback) & ~READ_ONLY_CACHE), which
-# takes every CMOWriteback = 1 case first.  In CacheBusRW[0], the term STATE_WRITEBACK & (CMOpM[1] | CMOpM[2]) &
-# ~CacheBusAck is contained in the earlier STATE_WRITEBACK & ~CacheBusAck term, so CacheCMOpM[1]/[2] never decide it.
+# takes every CMOWriteback = 1 case first.
 ExcludeRows $DC/cachefsm c {CMOWriteback_1 +|CMOpM_*}
-ExcludeRows $DC/cachefsm e {{CacheCMOpM\[1\]_*} {CacheCMOpM\[2\]_*}} [TagLine ${SRC}/cache/cachefsm.sv "icache CacheBusW"]
 
 # D$ states leave for STATE_ACCESS early only on reset | FlushStage (LSUFlushW).  A trap's FlushW waits for the
 # committed access (interrupts are held while the cache is committed), an access that faults on its own is
