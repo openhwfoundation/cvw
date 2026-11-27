@@ -255,16 +255,8 @@ ExcludeRows /core/ifu e {ICacheStallF_1}
 # Event 9 (return address stack wrong) is RASPredPCWrongM & InstrValidNotFlushedM with RASPredPCWrongM tied to 0
 # (BPRED_SUPPORTED = 0).  (Event 20, fence.i, is under NOFENCEI and event 21, sfence.vma, under NOVM.)
 ExcludeRows $CNT e {RASPredPCWrongM_1 InstrValidNotFlushedM_0 InstrValidNotFlushedM_1}
-# MCYCLE's event (CounterEvent[0]) is tied to 1 and counter 1 (time) has no event (CounterEvent[1] = 0), in
-# every configuration.
+# MCYCLE's event (CounterEvent[0]) is tied to 1 in every configuration.  (Counter 1, time, has no logic.)
 ExcludeGenRows $CNT cntr\[0\] e [list {CounterEvent\[0\]_0}]
-ExcludeGenRows $CNT cntr\[1\] e [list {CounterEvent\[1\]_1} {MCOUNTINHIBIT_REGW\[1\]_0} {MCOUNTINHIBIT_REGW\[1\]_1}]
-# mhpmcounter1 (0xB01) and mhpmcounter1h (0xB81) do not exist (time is not an M-mode counter): a write traps
-# as an illegal instruction, which flushes Writeback, so CSRMWriteM is never asserted with those addresses.
-ExcludeGenRows $CNT cntr\[1\] e [list CSRMWriteM_1 "(CSRAdrM == (2816 + 1))_1"]
-ExcludeGenRows $CNT cntr\[1\] e [list CSRMWriteM_1 "(CSRAdrM == (2944 + 1))_1"]
-coverage exclude -scope $CNT/cntr\[1\] -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounter] -item b 1
-coverage exclude -scope $CNT/cntr\[1\] -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounterh] -item b 1
 
 ######################################################################################################
 # MMU tie-offs and region decoders

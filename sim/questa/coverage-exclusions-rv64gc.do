@@ -616,12 +616,6 @@ coverage exclude -scope /core/priv/priv/pmd -fecexprrow [GetLineNum ${SRC}/privi
 coverage exclude -scope /core/priv/priv/csr/csru/csru -fecexprrow [GetLineNum ${SRC}/privileged/csru.sv "assign WriteFRMM"] 3
 coverage exclude -scope /core/priv/priv/csr/csru/csru -fecexprrow [GetLineNum ${SRC}/privileged/csru.sv "assign WriteFFLAGSM"] 3
 
-# Attempted writes to the nonextistant MTIME register trap, so WriteHPMCOUNTERM cannot be set for that address (0xb01)
-# The scope is the generate block inside the csrc instance named counters; an earlier version of
-# these two lines named counters twice, so vsim reported the scope as not found and excluded nothing.
-coverage exclude -scope /core/priv/priv/csr/counters/cntr[1] -fecexprrow [GetLineNum ${SRC}/privileged/csrc.sv "MTIME traps"] 2 4
-coverage exclude -scope /core/priv/priv/csr/counters/cntr[1] -linerange [GetLineNum ${SRC}/privileged/csrc.sv "assign NextHPMCOUNTERM"] -item b 1
-
 # rv64gc divides integers in the FPU (IDIV_ON_FPU), so the integer divider never runs and DivBusyE is never
 # asserted: row 2 (DivBusyE_1) of the division-cycles event cannot be reached.  FDivBusyE's rows are hit.
 coverage exclude -scope /core/priv/priv/csr/counters -fecexprrow [GetLineNum ${SRC}/privileged/csrc.sv "division cycles"] 2
@@ -629,10 +623,6 @@ coverage exclude -scope /core/priv/priv/csr/counters -fecexprrow [GetLineNum ${S
 # CounterEvent[0] is tied high because MCYCLE always increments, so the FEC row that needs it low
 # cannot be reached.
 coverage exclude -scope /core/priv/priv/csr/counters/cntr[0] -fecexprrow [GetLineNum ${SRC}/privileged/csrc.sv "MCYCLE, CYCLE, and MINSTRET are always incremented"] 1
-
-# Counter 1 does not exist, so CounterEvent[1] is tied low and CounterInc[1] can never assert: rows 2-4 need
-# CounterEvent[1] = 1 (row 1, CounterEvent[1]_0, is hit).
-coverage exclude -scope /core/priv/priv/csr/counters/cntr[1] -fecexprrow [GetLineNum ${SRC}/privileged/csrc.sv "MCYCLE, CYCLE, and MINSTRET are always incremented"] 2-4
 
 # CounterEvent[31:25] is tied low until those event sources are implemented, so counters 25 through
 # 31 can never increment no matter what their event selector or inhibit bit hold: every row except
