@@ -232,6 +232,9 @@ ExcludeRows /core/ieu/c e {FCvtIntStallD_1}
 coverage exclude -scope /core/lsu -linerange [TagLine ${SRC}/lsu/lsu.sv lsu-fp-size] -item b 1
 coverage exclude -scope /core/priv/priv/csr/csrsr -linerange [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty] -item bs 1
 ExcludeRows /core/priv/priv/csr/csrsr c {FRegWriteM_1 WriteFRMM_1 SetOrWriteFFLAGSM_1} [TagLine ${SRC}/privileged/csrsr.sv csrsr-fs-dirty]
+# Without an FPU mstatus.FS stays 00 (nothing dirties it, and a CSR write of FS is masked by F_SUPPORTED), so
+# STATUS_SD never sees FS = 11.
+ExcludeRows /core/priv/priv/csr/csrsr e [list "(STATUS_FS == 3)_1"]
 
 # FlushECause: a divide mispredicted as a taken branch (BPWrongE & DivBusyE) needs a BTB predictor
 # (BP_STATIC predicts only branches and JAL, so BPWrongE is never 1 for a divide); FDivBusyE needs an FPU.
