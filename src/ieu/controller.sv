@@ -315,7 +315,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
     logic IllegalBitmanipInstrD;          // Unrecognized B instruction
     logic BRegWriteD;                     // Indicates if it is a R type BMU instruction in decode stage
     logic BW64D;                          // Indicates if it is a W type BMU instruction in decode stage
-    logic BSubArithD;                     // TRUE for BMU ext, clr, andn, orn, xnor
+    logic BSubArithD;                     // TRUE for BMU bclr[i], andn, orn, xnor, min[u], max[u]
     logic BALUSrcBD;                      // BMU alu src select signal
 
     bmuctrl #(P) bmuctrl(.clk, .reset, .InstrD, .ALUOpD,

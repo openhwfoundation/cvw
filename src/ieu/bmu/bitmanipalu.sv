@@ -20,7 +20,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] A, B,                   // Operands
   input  logic              W64, UW64,              // W64/.uw-type instruction
   input  logic [3:0]        BSelect,                // BMU result select (binary encoded; see result mux)
-  input  logic [3:0]        ZBBSelect,              // ZBB mux select signal
+  input  logic [3:0]        ZBBSelect,              // Select within the unit chosen by BSelect (ZBB, ZBKB, ZBKX, ZKND/ZKNE, ZKNH)
   input  logic [2:0]        Funct3,                 // Funct3 field of opcode indicates operation to perform
   input  logic [6:0]        Funct7,                 // Funct7 field for ZKND and ZKNE operations
   input  logic [4:0]        Rs2E,                   // Register source2 for RNUM of ZKNE/ZKND
@@ -68,10 +68,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
     // sh1add/sh2add/sh3add have Funct3 = 010/100/110, so Funct3[2:1] is the shift amount
     assign PreShiftAmt = Funct3[2:1] & {2{PreShift}};
     assign CondShiftA = CondZextA << (PreShiftAmt);
-  end else begin
-    assign PreShiftAmt = 2'b0;
-    assign CondShiftA = A;
-  end
+  end else assign CondShiftA = A;
 
   // Bit reverse needed for some ZBB, ZBC instructions
   if (P.ZBC_SUPPORTED | P.ZBKC_SUPPORTED | P.ZBB_SUPPORTED) begin : bitreverse
