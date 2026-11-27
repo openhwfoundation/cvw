@@ -42,7 +42,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   input  logic [1:0]               NextPrivilegeModeM,        // STATUS bits updated based on next privilege mode
   input  logic [1:0]               PrivilegeModeW,            // current privilege mode
   input  logic                     VirtModeW,                 // current V Bit
-  input  logic                     HLVHSVLegalM,              // Legal HLV/HLVX/HSV memory access in M stage
+  input  logic                     HLVHSVInstrM,              // HLV/HLVX/HSV in M stage (only a legal one accesses memory)
   input  logic [4:0]               CauseM,                    // Trap cause
   input  logic                     SelHPTW,                   // hardware page table walker active, so base endianness on supervisor mode
   // inputs for performance counters
@@ -70,13 +70,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic                     HSTATUS_SPV,
   output logic                     HSTATUS_SPVP,
   output logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM,
-  output logic                     HSTATUS_HU,
   output logic                     VSSTATUS_SPP, VSSTATUS_SIE,
   output logic [63:0]              MEDELEG_REGW,
   output logic [63:0]              HEDELEG_REGW,
   output logic [15:0]              HIDELEG_REGW,
-  output logic [15:0]              HIE_REGW,
-  output logic [P.XLEN-1:0]        HGEIE_REGW,
   output logic [P.XLEN-1:0]        SATP_REGW,
   output logic [15:0]              MIP_REGW, MIE_REGW, MIDELEG_REGW,
   output logic                     STATUS_MIE, STATUS_SIE,
@@ -96,7 +93,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
   output logic                     VirtualCSRAccessM,         // CSR access that raises a virtual-instruction exception
   output logic                     VirtualCMOInstrM,          // CBO instruction that raises a virtual-instruction exception
-  output logic                     HLVHSVBareM,               // VS-stage and G-stage translation are both Bare for HLV/HSV
+  output logic                     HLVHSVEnW,                 // HLV/HLVX/HSV are legal in the current mode
   output logic                     BigEndianM                 // memory access is big-endian based on privilege mode and STATUS register endian fields
 );
 
@@ -146,10 +143,12 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
   logic [1:0]              VSSTATUS_FS;
   logic                    HSTATUS_VSBE;
+  logic                    HSTATUS_HU;                // hstatus.HU: HLV/HLVX/HSV legal in U-mode
+  logic                    HLVHSVLegalM;              // HLV/HLVX/HSV in M stage that accesses memory
   logic [31:0]             HCOUNTEREN_REGW;
-  logic [11:0]             HVIP_REGW;
   logic [15:0]             HIP_MIP_REGW;
-  logic [63:0]             HTIMEDELTA_REGW;
+  logic [15:0]             HIE_REGW;
+  logic [63:0]             TimeVirt, TimeM;   // mtime + htimedelta from csrh; time CSR value for the current V
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
   logic                    WriteHIEM, WriteVSIEM;
@@ -252,9 +251,8 @@ module csr import cvw::*; #(parameter cvw_t P) (
     CSRSrcM = InstrM[14] ? {{(P.XLEN-5){1'b0}}, InstrM[19:15]} : SrcAM;
 
     // CSR set and clear for MIP/SIP should only touch internal state, not interrupt inputs
-    // mip.VSSIP aliases to hvip.VSSIP (stored in csrh), MIP_REGW_writeable[2] is always zero, OR with the hvip.VSSIP bit
-    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable} |
-        {{(P.XLEN-12){1'b0}}, (HVIP_REGW & 12'h4)};
+    // mip.VSSIP is the writable hvip.VSSIP bit stored in csrh (HIP_MIP_REGW[2]); MIP_REGW_writeable[2] is always zero
+    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-16){1'b0}}, MIP_REGW_writeable | {13'b0, HIP_MIP_REGW[2], 2'b0}};
     else                                 CSRReadVal2M = CSRReadValM;
 
     // Compute AND/OR modification
@@ -367,7 +365,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
       .HSTATUS_SPVP, .HSTATUS_HU,
       .HSTATUS_VSBE, .VSSTATUS_SPP, .VSSTATUS_SIE, .VSSTATUS_SUM, .VSSTATUS_MXR, .VSSTATUS_UBE, .VSSTATUS_FS,
-      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HGEIE_REGW, .HCOUNTEREN_REGW, .HVIP_REGW, .HIP_MIP_REGW, .HTIMEDELTA_REGW, .HENVCFG_REGW,
+      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HCOUNTEREN_REGW, .HIP_MIP_REGW, .TimeVirt, .HENVCFG_REGW,
       .VSTVEC_REGW, .VSEPC_REGW, .VSATP_REGW, .HGATP_REGW);
   end else begin: no_csrh
     assign CSRHReadValM = '0;
@@ -389,17 +387,18 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign HIDELEG_REGW = '0;
     assign WriteHIEM = 1'b0;
     assign WriteVSIEM = 1'b0;
-    assign HGEIE_REGW = '0;
     assign HCOUNTEREN_REGW = '0;
-    assign HVIP_REGW = '0;
     assign HIP_MIP_REGW = '0;
-    assign HTIMEDELTA_REGW = '0;
+    assign TimeVirt = '0;
     assign HENVCFG_REGW = '0;
     assign VSTVEC_REGW = '0;
     assign VSEPC_REGW = '0;
     assign VSATP_REGW = '0;
     assign HGATP_REGW = '0;
   end
+
+  // time CSR: VS/VU read mtime + htimedelta (one adder, shared with the vstimecmp compare in csrh)
+  assign TimeM = (P.H_SUPPORTED & VirtModeW) ? TimeVirt : MTIME_CLINT;
 
   // SATP Mux
   if (P.H_SUPPORTED) begin: satp_mux
@@ -411,15 +410,20 @@ module csr import cvw::*; #(parameter cvw_t P) (
   // Until two-stage translation is integrated, htval trap writes stay zero.
   assign NextHtvalM = '0;
 
-  if (P.H_SUPPORTED & P.VIRTMEM_SUPPORTED) begin: hlsv_bare
+  // HLV/HLVX/HSV are legal at V=0 in M, HS, and U with hstatus.HU=1 (norm:hlsv_mode) and, for now, Bare vsatp/hgatp.
+  // Legality changes only on flushing events (trap, xRET, CSR write), so it is decided in Decode.
+  if (P.H_SUPPORTED) begin: hlsv_en
+    logic HLVHSVBareW;
     if (P.XLEN == 64) begin: hlsv_bare64
-      assign HLVHSVBareM = (VSATP_REGW[63:60] == 4'h0) & (HGATP_REGW[63:60] == 4'h0);
+      assign HLVHSVBareW = (VSATP_REGW[63:60] == 4'h0) & (HGATP_REGW[63:60] == 4'h0);
     end else begin: hlsv_bare32
-      assign HLVHSVBareM = ~VSATP_REGW[31] & ~HGATP_REGW[31];
+      assign HLVHSVBareW = ~VSATP_REGW[31] & ~HGATP_REGW[31];
     end
-  end else begin: hlsv_novirtmem
-    assign HLVHSVBareM = 1'b1;
+    assign HLVHSVEnW = ~VirtModeW & HLVHSVBareW & ((PrivilegeModeW != P.U_MODE) | HSTATUS_HU);
+  end else begin: hlsv_noen
+    assign HLVHSVEnW = 1'b0;
   end
+  assign HLVHSVLegalM = HLVHSVInstrM & HLVHSVEnW;
 
   // Effective status bits for VS-mode
   if (P.H_SUPPORTED) begin: status_vs
@@ -468,7 +472,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .InterruptM, .TrapM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .CSRAdrM, .PrivilegeModeW, .VirtModeW, .CSRWriteValM,
     .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW, .HCOUNTEREN_REGW,
-    .MTIME_CLINT, .HTIMEDELTA_REGW, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
+    .TimeM, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
 
   csrenv #(P) csrenv(.InstrM, .PrivilegeModeW, .VirtModeW, .MENVCFG_REGW, .HENVCFG_REGW,
     .SENVCFG_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .VirtualCMOInstrM);
