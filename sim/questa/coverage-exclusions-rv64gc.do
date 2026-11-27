@@ -493,15 +493,6 @@ coverage exclude -scope /core/lsu -feccondrow $line 4
 set line [GetLineNum ${SRC}/lsu/lsu.sv "assign CacheRWM"]
 coverage exclude -scope /core/lsu -feccondrow $line 2
 
-# Exclude system reset case in ebu
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "BeatCounter\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-set line [GetLineNum ${SRC}/ebu/ebufsmarb.sv "FinalBeatReg\\("]
-coverage exclude -scope /core/ebu/ebu/ebufsmarb -fecexprrow $line 1
-
-set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicElse"]
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line  -item bc 1
-
 set line [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicWait"]
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange $line-$line -item bc 1
 
@@ -574,7 +565,7 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # nonzero outside a cache state if a burst was cut off by a flush, and a D$ burst is never flushed: a cache
 # instruction that faults on its own is squashed before its writeback starts (lsu.sv SelfFaultM).
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "CacheAccess & \\|BeatCount\\) ?"] 1
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign HBURST"] 5
+coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign HBURST"] 7
 
 # D$ AHBBuscachefsm CaptureEn ((~Flush & DATA_PHASE) & BusRW[1]) Flush_1: unreachable for the D$ -- a
 # DATA_PHASE access with BusRW[1] is a committed, non-speculative uncached load read; the D$ Flush input
@@ -584,7 +575,6 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # CacheBusAck HREADY_0 (row 5): at the final beat of a burst, see the HREADY note above.
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign CacheBusAck"] 5
 
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicElse"] -item s 1
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm AtomicWait"] -item s 1
 
 # these transitions will not happen
@@ -608,6 +598,8 @@ coverage exclude -scope /core/lsu/dmmu/dmmu/pmp/pmpchecker/pmp/pmpadrdecs[0] -fe
 # StallD always equals StallF so LatestUnstalledD is always 0
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "StallD always equals StallF"] 1 4
 coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 2
+# BPRedirectD comes only from the static predictor (BP_STATIC); rv64gc uses gshare, so bpred ties it to 0.
+coverage exclude -scope /core/hzu -fecexprrow [GetLineNum ${SRC}/hazard/hazard.sv "coverage tag: LatestUnstalledD always 0"] 6
 
 ####################
 # Privileged

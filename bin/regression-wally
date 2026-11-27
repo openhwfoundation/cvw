@@ -15,7 +15,6 @@
 ##################################
 import argparse
 import glob
-import multiprocessing
 import os
 import re
 import shlex
@@ -39,8 +38,8 @@ def coverageDir(config):
     return f'{WALLY}/tests/coverage{config.removeprefix("rv")}'
 coveragesim = "questa"     # Simulator for code/functional coverage: questa or vcs (--coveragesim)
 defaultsim = "verilator"   # Default simulator for all other tests
-lockstepsim = "questa"
-testfloatsim = "questa"    # change to Verilator when Issue #707 about testfloat not running Verilator is resolved
+# Configurations with an ImperasDV configuration (config/<cfg>/imperas.ic), which regression-wally --lockstep can run
+lockstepConfigs = ["rv64gc", "rv32gc", "rv32imc", "rv32imcb"]
 rvcp_summary = "RVCP-SUMMARY" # search string for RVCP summary line in logs
 
 ##################################
@@ -73,6 +72,8 @@ deriv_coverage_tests = {
     "fdq_rv64gc": ["misalignedQuadSpill", "uncachedQuad"],
     # EXT_IO window: uncached, non-idempotent, no AMOs or LR/SC, not executable
     "extio_rv64gc": ["extIOWindow"],
+    # uncached AMO racing an I$ fill with wait states on the RAM
+    **{f"ram_{r}_rv64gc": ["amoifill"] for r in ["1_0", "1_1", "2_0", "2_1"]},
 }
 
 # The tests below are a list with one element for each configuration
@@ -317,6 +318,12 @@ lockstepwaivers = [
     # ImperasDV treats the CLINT as volatile and does not model its contents, so its walker reads a
     # garbage PTE from the level-0 table this test places in the CLINT and page faults
     "hptwamoioptes.elf",
+
+    # A misaligned load to the CLINT or GPIO may raise address-misaligned or access fault.  rv64gc splits it
+    # and the I/O region faults the pieces (cause 5).  ImperasDV raises address-misaligned (4) when imperas.ic
+    # marks the region aligned-only, and otherwise completes the access, so neither setting matches Wally.
+    "rv64_WALLY-clint-access-01.elf",
+    "rv64_WALLY-gpio-stress-01.elf",
 ]
 
 # tests for cache simulations on a rv64gc derived config - cache_rv64gc.  Each run logs the I$ and
@@ -634,13 +641,14 @@ def actElfDir(config):
 builtTargets = set()
 
 
-def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True):
+def buildTests(periph=True, coverage=False, deriv=False, testfloat=False, act=True, coverfloat=False):
     """Build the tests with the root Makefile, which rebuilds only what is out of date: the ACT ELFs
     for every configuration with an ACT configuration and the boot image a 64-bit IROM (rv64i) is
     preloaded from (zsbl), unless act is False, and optionally the peripheral and coverage tests, the
-    derivative configurations (config/deriv) and the testfloat vectors."""
+    derivative configurations (config/deriv), the testfloat vectors and the cover-float vectors."""
     targets = [t for t in (["act", "zsbl"] if act else []) + (["periph"] if periph else []) + (["coverage"] if coverage else [])
-               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) if t not in builtTargets]
+               + (["deriv"] if deriv else []) + (["testfloat"] if testfloat else []) + (["coverfloat"] if coverfloat else [])
+               if t not in builtTargets]
     if not targets:
         return
     # ACT is its own uv project: drop the VIRTUAL_ENV that `uv run` set for this script so ACT's
@@ -683,7 +691,7 @@ def search_log_for_text(text, grepfile):
         nonrvcp_suites = ["buildroot", "all_lints", "periph", "coverage", "embench", "coremark"]
         if numpassed:
             print(f"{bcolors.OKGREEN}{grepfile}: {numpassed} {rvcp_summary} PASSED{bcolors.ENDC}")
-        if success and not passed:
+        if success and not passed and text == "All tests ran without failures":  # ELF runs; not TestFloat
             if not any(s in grepfile for s in nonrvcp_suites):
                 print(f"{bcolors.WARNING}{grepfile}: WARNING '{text}' found but no {rvcp_summary} PASSED{bcolors.ENDC}")
         if not success and passed:
@@ -779,6 +787,8 @@ def parse_args():
     parser.add_argument("--fcov", nargs="?", const="rv64gc", choices=coverageConfigs, metavar="CONFIG",
                         help=f"Functional coverage of CONFIG ({', '.join(coverageConfigs)}; default rv64gc)")
     parser.add_argument("--coveragesim", help="Simulator for --ccov and --fcov", choices=["questa", "vcs"], default="questa")
+    parser.add_argument("--lockstep", nargs="?", const="rv64gc", choices=lockstepConfigs, metavar="CONFIG",
+                        help="Run the configuration's ACT and coverage tests in lock step with ImperasDV, one simulation per ELF (default rv64gc)")
     parser.add_argument("--nightly", help="Run large nightly regression", action="store_true")
     parser.add_argument("--buildroot", help="Include Buildroot Linux boot test (takes many hours, done along with --nightly)", action="store_true")
     parser.add_argument("--testfloat", help="Include Testfloat floating-point unit tests", action="store_true")
@@ -806,8 +816,10 @@ def process_args(args):
         TIMEOUT_DUR = 60*60 # per simulation; functional coverage splits large directories (see selectTests)
     elif args.buildroot:
         TIMEOUT_DUR = 60*3600 # 2.5 days
+    elif args.lockstep:
+        TIMEOUT_DUR = 20*60 # per ELF
     elif args.testfloat:
-        sims = [testfloatsim]
+        sims = [defaultsim]
         TIMEOUT_DUR = 60*60 # seconds; the fma tests of the largest FPUs take more than half an hour
     elif args.branch or args.cache:
         TIMEOUT_DUR = 120*60 # seconds
@@ -836,7 +848,7 @@ def selectTests(args, sims, coverStr):
     # run full buildroot boot simulation (slow) if buildroot flag is set.  Start it early to overlap with other tests
     if args.buildroot:
         # addTests(tests_buildrootboot, defaultsim) # non-lockstep with Verilator runs in about 2 hours
-        addTests(tests_buildrootbootlockstep, lockstepsim, coverStr, configs) # lockstep with Questa and ImperasDV runs overnight
+        addTests(tests_buildrootbootlockstep, defaultsim, coverStr, configs) # lockstep with ImperasDV; about 45 minutes on Verilator
     # Coverage runs are for verification rather than regression, so every ELF runs in lockstep
     # against the reference model (one simulation per ELF).
     # code coverage: the configuration runs its ACT tests, its coverage-targeted tests, and its peripheral tests
@@ -858,6 +870,13 @@ def selectTests(args, sims, coverStr):
         # Each simulation compiles in only the covergroups of its own directory (see wsim fcovGroups).
         # Split each directory into simulations of at most 8 ELFs so that the large ones run in parallel.
         addTestsByDir(actElfDir(args.fcov), args.fcov, coveragesim, coverStr, configs, chunk=8)
+    # lock step: the configuration's ACT and coverage-targeted tests, one simulation per ELF, compared
+    # instruction by instruction against ImperasDV (the same tests the nightly regression runs in lock step)
+    if args.lockstep:
+        buildTests(periph=False, coverage=True)
+        addTestsByDir(actElfDir(args.lockstep), args.lockstep, defaultsim, coverStr, configs, lockstepMode=1)
+        if os.path.isdir(coverageDir(args.lockstep)):  # rv32imcb has no coverage-targeted tests of its own
+            addTestsByDir(coverageDir(args.lockstep), args.lockstep, defaultsim, coverStr, configs, lockstepMode=1)
      # run branch predictor tests
     if args.branch:
         addTests(bpredtests, defaultsim, coverStr, configs)
@@ -868,10 +887,10 @@ def selectTests(args, sims, coverStr):
     # ACT tests as one simulation, plus the peripheral tests for the configurations that have them.
     # Directories of more than 25 ELFs are split so that the largest ones do not set the length of the
     # run: one simulation per ELF finishes no sooner on a large host and takes far longer on a small one.
-    if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker):
+    if not(args.testfloat or args.ccov or args.fcov or args.cache or args.branch or args.benchmark or args.breker or args.lockstep):
         buildTests()
         for sim in sims:
-            if not (args.buildroot and sim == lockstepsim):  # skip short buildroot sim if running long one
+            if not (args.buildroot and sim == defaultsim):  # skip short buildroot sim if running long one
                 addTests(tests_buildrootshort, sim, coverStr, configs)
             for config in standard_configs:
                 addTestsByDir(actElfDir(config), config, sim, coverStr, configs, chunk=25)
@@ -880,34 +899,54 @@ def selectTests(args, sims, coverStr):
     # run derivative configurations and lockstep tests in nightly regression
     if args.nightly:
         buildTests(periph=False, coverage=True, deriv=True)
-        addTestsByDir(coverageDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv64gc"), "rv64gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32gc"), "rv32gc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", lockstepsim, coverStr, configs, lockstepMode=1)
-        addTestsByDir(coverageDir("rv32imc"), "rv32imc", lockstepsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv64gc"), "rv64gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv64gc"), "rv64gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32gc"), "rv32gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32gc"), "rv32gc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imc"), "rv32imc", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(actElfDir("rv32imcb"), "rv32imcb", defaultsim, coverStr, configs, lockstepMode=1)
+        addTestsByDir(coverageDir("rv32imc"), "rv32imc", defaultsim, coverStr, configs, lockstepMode=1)
         addActTests(derivconfigtests, defaultsim, coverStr, configs)
         for config, tests in deriv_coverage_tests.items():
             addTestGroup("coverage", coverageDir("rv64gc"), tests, config, defaultsim, coverStr, configs)
         # addTests(bpredtests, defaultsim) # This is currently broken in regression due to something related to the new wsim script.
     # testfloat tests
     if (args.testfloat or args.nightly): # for nightly, run testfloat along with others
-        buildTests(periph=False, deriv=True, testfloat=True)
+        buildTests(periph=False, deriv=True, testfloat=True, act=False, coverfloat=True)
         testfloatconfigs = ["fdqh_rv64gc", "fdq_rv64gc", "fdh_rv64gc", "fd_rv64gc", "fh_rv64gc", "f_rv64gc", "fdqh_rv32gc", "f_rv32gc"]
         for config in testfloatconfigs + testfloatdivconfigs:
             tests = ["div", "sqrt", "cvtint", "cvtfp"]
             if config in testfloatconfigs:
-                tests.extend(["add", "sub", "mul", "fma", "cmp"])
+                tests.extend(["add", "sub", "mul", "fma", "cmp", "round"])
             if "f_" in config:
                 tests.remove("cvtfp")
             for test in tests:
-                sim_log = f"{regressionDir}/{testfloatsim}/logs/{config}_{test}.log"
+                # The fma vectors are most of the suite, so each precision of fma runs as its own simulation
+                # (+TEST_SIZE) to spread it over more processors.  The configuration name lists the precisions.
+                sizes = [size for letter, size in (("q", "QP"), ("d", "DP"), ("f", "SP"), ("h", "HP"))
+                         if letter in config.split("_")[0]] if test == "fma" else [None]
+                for size in sizes:
+                    name = f"{test}_{size}" if size else test
+                    sim_log = f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log"
+                    tc = TestCase(
+                            name=name,
+                            variant=config,
+                            cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
+                                 *(["--args", f"+TEST_SIZE={size}"] if size else [])],
+                            log=sim_log,
+                            grepstr="All Tests completed with          0 errors")
+                    configs.append(tc)
+            # The cover-float vectors (make coverfloat), converted to TestFloat's file layout, run through the
+            # same testbench: every operation on the standard configurations, division and square root on the
+            # divider variants
+            for test in ["all"] if config in testfloatconfigs else ["div", "sqrt"]:
+                name = f"coverfloat_{test}"
                 tc = TestCase(
-                        name=test,
+                        name=name,
                         variant=config,
-                        cmd=["wsim", "--tb", "testbench_fp", "--sim", testfloatsim, config, test],
-                        log=sim_log,
+                        cmd=["wsim", "--tb", "testbench_fp", "--sim", defaultsim, config, test,
+                             "--args", f"+VECTORS={WALLY}/tests/fp/coverfloat/vectors/"],
+                        log=f"{regressionDir}/{defaultsim}/logs/{config}_{name}.log",
                         grepstr="All Tests completed with          0 errors")
                 configs.append(tc)
 
@@ -991,9 +1030,10 @@ def main(args):
             print(f"{bcolors.OKCYAN}Removed {len(stale)} coverage databases that no selected test writes{bcolors.ENDC}")
     # Scale the number of concurrent processes to the number of test cases, but
     # max out at a limited number of concurrent processes to not overwhelm the system
-    # lockstep tests (nightly, ccov, fcov) each hold an ImperasDV license
-    ImperasDVLicenseCount = 16 if (args.nightly or args.ccov or args.fcov) else 10000
-    with Pool(processes=min(len(configs),multiprocessing.cpu_count(), ImperasDVLicenseCount)) as pool:
+    # lockstep tests (nightly, ccov, fcov, lockstep) each hold an ImperasDV license.  The CPUs this process may
+    # run on (os.sched_getaffinity) honor taskset, unlike multiprocessing.cpu_count().
+    ImperasDVLicenseCount = 16 if (args.nightly or args.ccov or args.fcov or args.lockstep) else 10000
+    with Pool(processes=min(len(configs), len(os.sched_getaffinity(0)), ImperasDVLicenseCount)) as pool:
         num_fail = 0
         # Start the simulations of the most ELFs first, so that the longest ones do not start last; runs
         # that are not lists of ELFs (lint, buildroot, testfloat) keep their place at the front

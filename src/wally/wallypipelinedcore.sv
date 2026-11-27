@@ -100,6 +100,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          ITLBWriteF;
   logic                          ITLBMissOrUpdateAF;
   logic [P.XLEN-1:0]             SATP_REGW;
+  logic                          VirtModeW;                       // current V: SATP_REGW is vsatp when 1
   logic                          STATUS_MXR, STATUS_SUM, STATUS_MPRV;
   logic [1:0]                    STATUS_MPP, STATUS_FS;
   logic [1:0]                    PrivilegeModeW;
@@ -185,7 +186,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     // Faults out
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
     // mmu management
-    .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
+    .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .VirtModeW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
     .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .sfencevmaAllM, .ITLBMissOrUpdateAF,
     .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .HPTWInstrAccessFaultHeldF, .HPTWInstrPageFaultHeldF,
     // pmp/pma (inside mmu) signals.
@@ -232,6 +233,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PMPADDR_ARRAY_REGW,          // connects to csr
     // hptw keep i/o
     .SATP_REGW,                   // from csr
+    .VirtModeW,                   // from privilege
     .STATUS_MXR,                  // from csr
     .STATUS_SUM,                  // from csr
     .STATUS_MPRV,                 // from csr
@@ -303,14 +305,14 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
       .MTIME_CLINT, .HGEIPIn, .IEUAdrxTvalM, .TinstAddrOffsetM, .HPTWDataAccessFaultM, .SetFflagsM,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF(HPTWInstrAccessFaultHeldF), .HPTWInstrPageFaultF(HPTWInstrPageFaultHeldF), .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
-      .PrivilegeModeW, .SATP_REGW,
+      .PrivilegeModeW, .SATP_REGW, .VirtModeW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS,
       .HSTATUS_SPVP, .HLVHSVLegalM,
       .PMPCFG_ARRAY_REGW, .PMPADDR_ARRAY_REGW,
       .FRM_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .WaitM, .BigEndianM);
   end else begin
     assign {CSRReadValW, PrivilegeModeW,
-            SATP_REGW, STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_MPP, STATUS_FS, FRM_REGW,
+            SATP_REGW, VirtModeW, STATUS_MXR, STATUS_SUM, STATUS_MPRV, STATUS_MPP, STATUS_FS, FRM_REGW,
             // PMPCFG_ARRAY_REGW, PMPADDR_ARRAY_REGW,
             ENVCFG_CBE, ENVCFG_PBMTE, ENVCFG_ADUE,
             EPCM, TrapVectorM, RetM, TrapM,

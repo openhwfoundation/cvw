@@ -71,11 +71,11 @@ The run commands and limits for each core are in the table at the top of `run_al
   minver; the floating-point benchmarks therefore use software floating point.
 - RV32 builds use riscv64-unknown-elf-gcc 15.2.0. RV64 builds use a toolchain whose newlib is built with
   `-mcmodel=medany` (GCC 16.1.0; set `RV64_TOOLCHAIN`), because these cores' RAM starts at 0x8000_0000, beyond
-  the reach of the default medlow newlib. Sargantana, which has no C, is built for RV64IM (the medany toolchain has
-  no non-compressed RV64IMA library; Embench does not use atomics).
+  the reach of the default medlow newlib.
 - `boardsupport.c` reads `mcycle` (or `rdcycle` with `-DUSE_RDCYCLE`, or the counter at `-DMTIME_ADDR`) in
   `start_trigger` and `stop_trigger` and prints the cycles. `score.sh` computes the score as Embench's
-  `benchmark_speed.py` does at 1 MHz: the geometric mean over the 22 benchmarks of baseline time / (cycles / 1000).
+  `benchmark_speed.py` does at 1 MHz: the geometric mean over the benchmarks of baseline time / (cycles / 1000). It reports
+  Embench 1.0's score, over its 19 benchmarks.
 - `run_all.sh` uses `ACT_CONFIGS` and `CI_TOOLS` as above. In `CI_TOOLS` it also expects simulators rebuilt with
   higher cycle limits, because some Embench benchmarks run longer than the ACT builds allow:
   `veer-eh1-longrun` and `veer-el2-longrun` (VeeR built as ACT's install scripts do, plus `-GMAX_CYCLES=2000000000`),

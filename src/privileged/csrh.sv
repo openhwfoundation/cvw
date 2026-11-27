@@ -174,7 +174,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   logic WriteVSATPM;
   logic WriteVSTIMECMPM, WriteVSTIMECMPHM;
   logic AllowVSTimecmpAccessM;
-  logic SretFromHSM, SretFromVSM;
+  logic SretV0M, SretV1M;
   logic [31:0]       NextMtinstM, MTINST_INT;
   logic [31:0]       NextHtinstM, HTINST_INT;
   logic [P.XLEN-1:0] NextMtval2M;
@@ -236,10 +236,11 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
   assign ValidVSWriteM = CSRSWriteM & LegalVSAccessM;
 
   // SRET context meanings for H support:
-  // SretFromHSM: SRET executed in HS context (returns using hstatus.SPV).
-  // SretFromVSM: SRET executed in VS context.
-  assign SretFromHSM = sretM & (PrivilegeModeW == P.S_MODE) & ~VirtModeW;
-  assign SretFromVSM = sretM & (PrivilegeModeW == P.S_MODE) &  VirtModeW;
+  // SretV0M: SRET executed in HS or M context (returns using hstatus.SPV).
+  // SretV1M: SRET executed in VS context.
+  // sretM already checks priv mode
+  assign SretV0M = sretM & ~VirtModeW;
+  assign SretV1M = sretM &  VirtModeW;
 
   // mtinst/htinst: on a load, store, AMO, HLV/HLVX, HSV or CBO fault, the transformed instruction: rs1 replaced by the
   // address offset (0 for a CBO), the immediate of a load or store zeroed, and bit 1 cleared for a compressed
@@ -353,8 +354,8 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
       if (VirtModeW)
         HSTATUS_SPVP <= PrivilegeModeW[0];
       HSTATUS_GVA <= TrapGVAM;
-    end else if (SretFromHSM) begin
-      // SRET in HS-mode (V=0) must clear hstatus.SPV.
+    end else if (SretV0M) begin
+      // SRET in HS-mode or M-mode (V=0) must clear hstatus.SPV.
       HSTATUS_SPV <= 1'b0;
     end else if (WriteHSTATUSM) begin
       HSTATUS_VSBE  <= P.BIGENDIAN_SUPPORTED & CSRWriteValM[5];
@@ -420,7 +421,7 @@ module csrh import cvw::*;  #(parameter cvw_t P) (
       VSSTATUS_SPIE <= VSSTATUS_SIE;
       VSSTATUS_SIE  <= 1'b0;
       VSSTATUS_SPP  <= PrivilegeModeW[0];
-    end else if (SretFromVSM) begin
+    end else if (SretV1M) begin
       VSSTATUS_SIE  <= VSSTATUS_SPIE;
       VSSTATUS_SPIE <= 1'b1;
       VSSTATUS_SPP  <= 1'b0;

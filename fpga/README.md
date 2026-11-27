@@ -23,7 +23,7 @@ make vcu108
 Insert the flash card into the reader and `ls /dev/sd*` or `/dev/mmc*` again.  The new device is the one you want to use.  Make sure you select the root device (i.e. `/dev/sdb`) not the partition (i.e. `/dev/sdb1`).
 
 ```bash
-cd $WALLY/linux/sd-card
+cd $WALLY/linux/sdcard
 ```
 
 This following script requires root.
