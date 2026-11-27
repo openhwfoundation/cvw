@@ -71,11 +71,14 @@ module icpred import cvw::*; #(parameter cvw_t P,
 
     assign BPBranchF = NCBranchF | (P.ZCA_SUPPORTED & CBranchF);
     assign BPJumpF = NCJumpF | (P.ZCA_SUPPORTED & (CJumpF));
-    assign BPReturnF = (PostSpillInstrRawF[6:0] == OP_JALR & (PostSpillInstrRawF[19:15] & 5'h1B) == 5'h01 & PostSpillInstrRawF[11:7] == 5'b0) | // return is a jalr to ra or x5
-        (P.ZCA_SUPPORTED & cjr & ((PostSpillInstrRawF[11:7] & 5'h1B) == 5'h01));
+    // Call and return follow the same rules as CallD and ReturnD below.  Bits [11:7] of c.jr and c.jalr are rs1:
+    // c.jr links to x0, and c.jal and c.jalr link to ra, so c.jalr is always a call and is also a return when rs1 is x5.
+    assign BPReturnF = (PostSpillInstrRawF[6:0] == OP_JALR & (PostSpillInstrRawF[19:15] & 5'h1B) == 5'h01 &
+                        PostSpillInstrRawF[19:15] != PostSpillInstrRawF[11:7]) | // return is a jalr to ra or x5 that does not link to the same register
+        (P.ZCA_SUPPORTED & ((cjr & (PostSpillInstrRawF[11:7] & 5'h1B) == 5'h01) | (cjalr & PostSpillInstrRawF[11:7] == 5'h05)));
 
     assign BPCallF = (NCJumpF & (PostSpillInstrRawF[11:07] & 5'h1B) == 5'h01) | // call(r) must link to ra or x5
-        (P.ZCA_SUPPORTED & (cjal | (cjalr & (PostSpillInstrRawF[11:7] & 5'h1b) == 5'h01)));
+        (P.ZCA_SUPPORTED & (cjal | cjalr));
 
   end else begin
     // This section connects the BTB's instruction class prediction.
