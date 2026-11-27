@@ -17,7 +17,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 module trap import cvw::*; #(parameter cvw_t P) (
-  input  logic                 reset,
   input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM,
   input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
   input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM,
@@ -93,8 +92,7 @@ module trap import cvw::*; #(parameter cvw_t P) (
   ///////////////////////////////////////////
 
   always_comb
-    if      (reset)                                           CauseM = 5'd0; // hard reset 3.3
-    else if (ValidIntsM[11])                                  CauseM = 5'd11; // Machine External Int
+    if      (ValidIntsM[11])                                  CauseM = 5'd11; // Machine External Int
     else if (ValidIntsM[3])                                   CauseM = 5'd3;  // Machine Sw Int
     else if (ValidIntsM[7])                                   CauseM = 5'd7;  // Machine Timer Int
     // if any of the interrupts are delegated to S mode they would be moved to lower priority than the undelegated ones
