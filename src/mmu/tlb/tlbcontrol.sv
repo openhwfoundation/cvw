@@ -85,23 +85,23 @@ module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
     assign PreUpdateDA = ~PTE_A;
     assign InvalidAccess = ~PTE_X | ReservedRW;
   end else begin : dtlb // Data TLB fault checking
+    logic NeedsRead, NeedsWrite;
     logic InvalidRead, InvalidWrite;
-    logic InvalidCBOM, InvalidCBOZ;
 
     // User mode may only load/store from user mode pages, and supervisor mode
-    // may only access user mode pages when STATUS_SUM is low.
+    // may only access user mode pages when STATUS_SUM is high.
     assign ImproperPrivilege = ((EffectivePrivilegeModeW == P.U_MODE) & ~PTE_U) |
       ((EffectivePrivilegeModeW == P.S_MODE) & PTE_U & ~STATUS_SUM);
+    // cbo.inval/clean/flush (CMOpM[2:0]) need read permission like a load; cbo.zero needs write permission like a store
+    assign NeedsRead  = ReadAccess  | (|CMOpM[2:0]);
+    assign NeedsWrite = WriteAccess | CMOpM[CMO_ZERO];
     // Check for read error. Reads are invalid when the page is not readable,
     // unless STATUS_MXR is set and the page is executable.
-    assign InvalidRead = ReadAccess & ~PTE_R & (~STATUS_MXR | ~PTE_X);
+    assign InvalidRead = NeedsRead & ~PTE_R & (~STATUS_MXR | ~PTE_X);
     // Check for write error. Writes are invalid when the page's write bit is 0.
-    assign InvalidWrite = WriteAccess & ~PTE_W;
-    // cbo.inval/clean/flush (CMOpM[2:0]) need read permission; cbo.zero needs write permission
-    assign InvalidCBOM = (|CMOpM[2:0]) & (~PTE_R & (~STATUS_MXR | ~PTE_X));
-    assign InvalidCBOZ = CMOpM[CMO_ZERO] & ~PTE_W;
-    assign InvalidAccess = InvalidRead | InvalidWrite | InvalidCBOM | InvalidCBOZ | ReservedRW;
-    assign PreUpdateDA = ~PTE_A | (WriteAccess | CMOpM[CMO_ZERO]) & ~PTE_D; // set A on any access; also set D on a write or cbo.zero
+    assign InvalidWrite = NeedsWrite & ~PTE_W;
+    assign InvalidAccess = InvalidRead | InvalidWrite | ReservedRW;
+    assign PreUpdateDA = ~PTE_A | NeedsWrite & ~PTE_D; // set A on any access; also set D on a write or cbo.zero
   end
 
   // Determine whether to update DA bits.  With SVADU, it is done in hardware
