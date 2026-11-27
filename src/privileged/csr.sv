@@ -149,7 +149,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [31:0]             HCOUNTEREN_REGW;
   logic [11:0]             HVIP_REGW;
   logic [15:0]             HIP_MIP_REGW;
-  logic [63:0]             HTIMEDELTA_REGW;
+  logic [63:0]             TimeVirt, TimeM;   // mtime + htimedelta from csrh; time CSR value for the current V
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
   logic                    WriteHIEM, WriteVSIEM;
@@ -367,7 +367,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
       .HSTATUS_SPVP, .HSTATUS_HU,
       .HSTATUS_VSBE, .VSSTATUS_SPP, .VSSTATUS_SIE, .VSSTATUS_SUM, .VSSTATUS_MXR, .VSSTATUS_UBE, .VSSTATUS_FS,
-      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HGEIE_REGW, .HCOUNTEREN_REGW, .HVIP_REGW, .HIP_MIP_REGW, .HTIMEDELTA_REGW, .HENVCFG_REGW,
+      .HEDELEG_REGW, .HIDELEG_REGW, .WriteHIEM, .WriteVSIEM, .HGEIE_REGW, .HCOUNTEREN_REGW, .HVIP_REGW, .HIP_MIP_REGW, .TimeVirt, .HENVCFG_REGW,
       .VSTVEC_REGW, .VSEPC_REGW, .VSATP_REGW, .HGATP_REGW);
   end else begin: no_csrh
     assign CSRHReadValM = '0;
@@ -393,13 +393,16 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign HCOUNTEREN_REGW = '0;
     assign HVIP_REGW = '0;
     assign HIP_MIP_REGW = '0;
-    assign HTIMEDELTA_REGW = '0;
+    assign TimeVirt = '0;
     assign HENVCFG_REGW = '0;
     assign VSTVEC_REGW = '0;
     assign VSEPC_REGW = '0;
     assign VSATP_REGW = '0;
     assign HGATP_REGW = '0;
   end
+
+  // time CSR: VS/VU read mtime + htimedelta (one adder, shared with the vstimecmp compare in csrh)
+  assign TimeM = (P.H_SUPPORTED & VirtModeW) ? TimeVirt : MTIME_CLINT;
 
   // SATP Mux
   if (P.H_SUPPORTED) begin: satp_mux
@@ -468,7 +471,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     .InterruptM, .TrapM, .InvalidateICacheM, .ICacheStallF, .DCacheStallM, .DivBusyE, .FDivBusyE,
     .CSRAdrM, .PrivilegeModeW, .VirtModeW, .CSRWriteValM,
     .MCOUNTINHIBIT_REGW, .MCOUNTEREN_REGW, .SCOUNTEREN_REGW, .HCOUNTEREN_REGW,
-    .MTIME_CLINT, .HTIMEDELTA_REGW, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
+    .TimeM, .CSRCReadValM, .IllegalCSRCAccessM, .VirtualCSRCAccessM);
 
   csrenv #(P) csrenv(.InstrM, .PrivilegeModeW, .VirtModeW, .MENVCFG_REGW, .HENVCFG_REGW,
     .SENVCFG_REGW, .ENVCFG_CBE, .ENVCFG_PBMTE, .ENVCFG_ADUE, .VirtualCMOInstrM);
