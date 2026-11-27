@@ -42,6 +42,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic                     clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
+  input  logic                     VirtModeW,        // Current V: entries are tagged with the V they were written under
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
   input  logic [1:0]               STATUS_MPP,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
@@ -111,7 +112,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   tlblru #(TLB_ENTRIES) lru(.clk, .reset, .TLBWrite, .Matches, .TLBHit, .WriteEnables);
   tlbcam #(P, TLB_ENTRIES, P.VPN_BITS + P.ASID_BITS, P.VPN_SEGMENT_BITS)
     tlbcam(.clk, .reset, .VPN, .PageTypeWriteVal, .SV39Mode, .SV48Mode, .TLBFlush, .TLBFlushAll, .WriteEnables, .PTE_Gs, .PTE_NAPOTs,
-           .SATP_ASID, .TLBWrite, .WritePTE_G(PTE[5]), .WritePTE_NAPOT, .Matches, .HitPageType, .CAMHit);
+           .SATP_ASID, .VirtModeW, .TLBWrite, .WritePTE_G(PTE[5]), .WritePTE_NAPOT, .Matches, .HitPageType, .CAMHit);
   tlbram #(P, TLB_ENTRIES) tlbram(.clk, .reset, .PTE, .Matches, .WriteEnables, .PPN, .PTEAccessBits, .PTE_Gs, .PTE_NAPOTs);
 
   // Replace segments of the virtual page number with segments of the physical
