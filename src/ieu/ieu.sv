@@ -45,7 +45,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   output logic [1:0]        AtomicM,                          // Atomic control goes to LSU
   output logic [P.XLEN-1:0] WriteDataM,                       // Write data to LSU
   output logic [2:0]        Funct3M,                          // Funct3 (size and signedness) to LSU
-  output logic [P.XLEN-1:0] SrcAM,                            // ALU SrcA to Privileged unit and FPU
+  output logic [P.XLEN-1:0] SrcAM,                            // ALU SrcA to Privileged unit for CSR writes
   output logic [4:0]        RdM,                              // Destination register
   input  logic [P.XLEN-1:0] FIntResM,                         // Integer result from FPU (fmv, fclass, fcmp)
   output logic              InvalidateICacheM, FlushDCacheM,  // Invalidate I$, flush D$
