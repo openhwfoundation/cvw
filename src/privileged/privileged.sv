@@ -115,7 +115,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     sretM, mretM;                                   // supervisor / machine return instruction
   logic                     IllegalCSRAccessM;                              // Illegal access to CSR
   logic                     VirtualCSRAccessM;                              // CSR access that raises virtual-instruction
-  logic                     VirtualCMOInstrM;                               // CBO instruction that raises virtual-instruction
+  logic                     VirtualCMOInstrM;                               // cbo.* at V=1 that menvcfg allows; virtual instruction if also illegal
   logic                     IllegalIEUFPUInstrM;                            // Illegal IEU or FPU instruction, delayed to Mem stage
   logic                     InstrPageFaultM;                                // Instruction page fault, delayed to Mem stage
   logic                     InstrAccessFaultM;                              // Instruction access fault, delayed to Mem stage

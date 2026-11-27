@@ -24,7 +24,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
   input  logic         VirtualCSRAccessM,                   // CSR access that should trap as virtual instruction
-  input  logic         VirtualCMOInstrM,                    // CBO instruction that should trap as virtual instruction
+  input  logic         VirtualCMOInstrM,                    // cbo.* at V=1 that menvcfg allows; virtual instruction if also illegal
   input  logic         HLVHSVInstrM,                        // Valid HLV/HLVX/HSV system-instruction encoding
   input  logic         HLVHSVBareM,                         // VS-stage and G-stage translation are both Bare for HLV/HSV
   input  logic [1:0]   PrivilegeModeW,                      // current privilege level
