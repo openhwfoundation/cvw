@@ -95,7 +95,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0]        CSRReadValW,               // value read from CSR
   output logic                     IllegalCSRAccessM,         // Illegal CSR access: CSR doesn't exist or is inaccessible at this privilege level
   output logic                     VirtualCSRAccessM,         // CSR access that raises a virtual-instruction exception
-  output logic                     VirtualCMOInstrM,          // CBO instruction that raises a virtual-instruction exception
+  output logic                     VirtualCMOInstrM,          // cbo.* at V=1 that menvcfg allows; virtual instruction if also illegal
   output logic                     HLVHSVBareM,               // VS-stage and G-stage translation are both Bare for HLV/HSV
   output logic                     BigEndianM                 // memory access is big-endian based on privilege mode and STATUS register endian fields
 );
