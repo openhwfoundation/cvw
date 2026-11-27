@@ -42,8 +42,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   input  logic                     clk, reset,
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,        // Current address translation mode
   input  logic [P.ASID_BITS-1:0]   SATP_ASID,
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
-  input  logic [1:0]               STATUS_MPP,
+  input  logic                     STATUS_MXR, STATUS_SUM,
   input  logic                     ENVCFG_PBMTE,     // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,      // HPTW A/D Update enable
   input  logic [1:0]               EffectivePrivilegeModeW,   // Current privilege level of the processor, accounting for mstatus.MPRV
@@ -101,7 +100,7 @@ module tlb import cvw::*; #(parameter cvw_t P,
   assign VPN = VAdr[P.VPN_BITS+11:12];
   assign NAPOT4 = (PPN[3:0] == 4'b1000) & (HitPageType == KILOPAGE); // 64 KiB contiguous region with pte.napot_bits = 4; N=1 is reserved on superpages
 
-  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+  tlbcontrol #(P, ITLB) tlbcontrol(.SATP_MODE, .VAdr, .STATUS_MXR, .STATUS_SUM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
     .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM, .DisableTranslation,
     .PTEAccessBits, .CAMHit, .Misaligned, .NAPOT4,
     .TLBMiss, .TLBHit, .TLBPageFault,

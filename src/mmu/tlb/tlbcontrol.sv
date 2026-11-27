@@ -19,8 +19,7 @@
 module tlbcontrol import cvw::*; #(parameter cvw_t P, ITLB = 0) (
   input  logic [P.SVMODE_BITS-1:0] SATP_MODE,
   input  logic [P.XLEN-1:0]        VAdr,
-  input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,
-  input  logic [1:0]               STATUS_MPP,
+  input  logic                     STATUS_MXR, STATUS_SUM,
   input  logic                     ENVCFG_PBMTE,       // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,        // HPTW A/D Update enable
   input  logic [1:0]               EffectivePrivilegeModeW, // Current privilege level of the processor, accounting for mstatus.MPRV
