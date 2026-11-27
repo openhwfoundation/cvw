@@ -20,6 +20,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
                             parameter TLB_ENTRIES = 8, IMMU = 0) (
   input  logic                     clk, reset,
   input  logic [P.XLEN-1:0]        SATP_REGW,          // Current value of satp CSR (from privileged unit)
+  input  logic                     VirtModeW,          // Current V: SATP_REGW is vsatp when 1
   input  logic                     STATUS_MXR,         // Status CSR: make executable page readable
   input  logic                     STATUS_SUM,         // Status CSR: Supervisor access to user memory
   input  logic                     STATUS_MPRV,        // Status CSR: modify machine privilege
@@ -93,7 +94,7 @@ module mmu import cvw::*; #(parameter cvw_t P,
     tlb #(.P(P), .TLB_ENTRIES(TLB_ENTRIES), .ITLB(IMMU)) tlb(
           .clk, .reset,
           .SATP_MODE(SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS]),
-          .SATP_ASID(SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE]),
+          .SATP_ASID(SATP_REGW[P.ASID_BASE+P.ASID_BITS-1:P.ASID_BASE]), .VirtModeW,
           .VAdr(VAdr[P.XLEN-1:0]), .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
           .EffectivePrivilegeModeW, .ReadAccess, .WriteAccess, .CMOpM,
           .DisableTranslation, .PTE, .PageTypeWriteVal,

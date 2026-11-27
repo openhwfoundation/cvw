@@ -141,7 +141,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
   logic                    TrapGVAM;
-  logic                    TrapWritesVAToTvalM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
   logic [1:0]              VSSTATUS_FS;
   logic                    HSTATUS_VSBE;
@@ -154,6 +153,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]       CSRHReadValM;
   logic                    IllegalCSRHAccessM;
   logic                    WriteHIEM, WriteVSIEM;
+  logic                    DataVirtM; // current Load/store is to guest address
 
   // only valid unflushed instructions can access CSRs
   assign InstrValidNotFlushedM = InstrValidM & ~StallW & ~FlushW;
@@ -172,20 +172,20 @@ module csr import cvw::*; #(parameter cvw_t P) (
       default:                NextFaultXtvalM = '0; // Ecall, interrupts
     endcase
 
-  if (P.H_SUPPORTED) begin: trapwritesva
-    // Identify traps that write a virtual address to tval.
-    // Cause 3 (breakpoint) is included because this implementation writes PC
-    // for [C.]EBREAK (also permitted by spec) and address breakpoints write VA.
-    // Guest-page-fault causes are included for future two-stage support.
+  if (P.H_SUPPORTED) begin: gva
+    // Explicit loads/stores are guest accesses when V=1, for HLV/HSV, and in M-mode with MPRV=1 and MPV=1
+    assign DataVirtM = VirtModeW | HLVHSVLegalM | (STATUS_MPRV & MSTATUS_MPV & (STATUS_MPP != P.M_MODE));
+    // GVA (mstatus/hstatus): the trap writes a guest virtual address to tval
     always_comb
-      case (CauseM)
-        5'd0, 5'd1, 5'd3, 5'd4, 5'd5, 5'd6, 5'd7, 5'd12, 5'd13, 5'd15, 5'd20, 5'd21, 5'd23:
-          TrapWritesVAToTvalM = 1'b1;
-        default:
-          TrapWritesVAToTvalM = 1'b0;
+      if (InterruptM) TrapGVAM = 1'b0; // interrupts write no address to tval
+      else case (CauseM)
+        5'd0, 5'd1, 5'd3, 5'd12, 5'd20:                    TrapGVAM = VirtModeW; // fetch address or PC (guest address if V = 1)
+        5'd4, 5'd5, 5'd6, 5'd7, 5'd13, 5'd15, 5'd21, 5'd23: TrapGVAM = DataVirtM; // load/store address
+        default:                                            TrapGVAM = 1'b0;
       endcase
-  end else begin: no_trapwritesva
-    assign TrapWritesVAToTvalM = 1'b0;
+  end else begin: gva
+    assign DataVirtM = 1'b0;
+    assign TrapGVAM  = 1'b0;
   end
 
   // H spec translates delegated VS interrupt causes 10/6/2 into 9/5/1 for VS trap state and vectoring.
@@ -253,13 +253,12 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   assign CSRAdrM_In = InstrM[31:20];
   if (P.H_SUPPORTED) begin: csradr_h
-    csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM, .TrapM, .ExceptionM,
+    csrhvirt #(P) csrhvirt(.CSRAdrM_In, .CSRReadM, .CSRWriteM,
       .VirtModeW, .PrivilegeModeW, .MCOUNTEREN_REGW, .HCOUNTEREN_REGW, .HENVCFG_REGW,
-      .VirtualCSRCAccessM, .TrapWritesVAToTvalM, .HLVHSVLegalM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM, .TrapGVAM);
+      .VirtualCSRCAccessM, .MENVCFG_STCE(MENVCFG_REGW[63]), .CSRAdrM, .VirtualCSRAccessM);
   end else begin: csradr_noh
     assign CSRAdrM = CSRAdrM_In;
     assign VirtualCSRAccessM = 1'b0;
-    assign TrapGVAM = 1'b0;
   end
   assign UnalignedNextEPCM = TrapM ? PCM : CSRWriteValM;
   assign NextEPCM = P.ZCA_SUPPORTED ? {UnalignedNextEPCM[P.XLEN-1:1], 1'b0} : {UnalignedNextEPCM[P.XLEN-1:2], 2'b00}; // 3.1.15 alignment
@@ -336,7 +335,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       .MENVCFG_STCE(MENVCFG_REGW[63]), .MENVCFG_PBMTE(MENVCFG_REGW[62]), .MENVCFG_ADUE(MENVCFG_REGW[61]),
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
-      .sretM(sretM & ~StallW), .InstrM, .InstrOrigM,
+      .sretM(sretM & ~StallW & ~TrapM), .InstrM, .InstrOrigM,
       .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
