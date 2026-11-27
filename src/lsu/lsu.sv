@@ -346,9 +346,11 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       if (P.ZAAMO_SUPPORTED) assign BusAtomic = LSUAtomicM[1] & ~CacheableM; // the HPTW clears LSUAtomicM for its PTE accesses
       else                   assign BusAtomic = 1'b0;
       assign BusRW = (~CacheableM & ~SelDTIM & ~HoldAccessM) ? LSURWM : '0;
-      assign CacheableOrFlushCacheM = CacheableM | FlushDCacheM | (|CacheCMOpM[2:0]); // the D$ writes back on the bus for a CMO
       assign CacheRWM = (CacheableM & ~SelDTIM & ~HoldAccessM) ? LSURWM : '0;
-      assign FlushDCache = FlushDCacheM & ~SelHPTW;
+      assign FlushDCache = FlushDCacheM & ~SelHPTW; // a page table walk during fence.i goes first; the flush restarts afterward
+      // the D$ also drives the bus to write back lines for a flush or CMO, but not while the HPTW has the LSU:
+      // a walk accepted in the first cycle of fence.i must still read an uncacheable PTE from the bus
+      assign CacheableOrFlushCacheM = CacheableM | FlushDCache | (|CacheCMOpM[2:0]);
 
       localparam                     LINEBYTELEN = P.DCACHE_LINELENINBITS/8;              // Line length in bytes
       localparam                     OFFSETLEN = $clog2(LINEBYTELEN);                     // Number of bits in offset field
