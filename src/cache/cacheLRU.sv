@@ -59,16 +59,6 @@ module cacheLRU
   assign AllValid = &ValidWay;
 
   ///// Update replacement bits.
-  // coverage off
-  // Excluded from coverage b/c it is untestable without varying NUMWAYS.
-  function integer log2 (integer value);
-    int val;
-    val = value;
-    for (log2 = 0; val > 0; log2 = log2 + 1)
-      val = val >> 1;
-    return log2;
-  endfunction // log2
-  // coverage on
 
   // On a miss we need to ignore HitWay and derive the new replacement bits with the VictimWay.
   mux2 #(LOGNUMWAYS) WayMuxEnc(HitWayEncoded, VictimWayEnc, SetValid, Way);
@@ -86,7 +76,7 @@ module cacheLRU
   assign LRUUpdate[NUMWAYS-2] = '1;
   for (node = NUMWAYS-2; node >= NUMWAYS/2; node--) begin : enables
     localparam ctr = NUMWAYS - node - 1;
-    localparam ctr_depth = log2(ctr);
+    localparam ctr_depth = $clog2(ctr+1); // number of bits to represent ctr: depth of this node in the tree
     localparam lchild = node - ctr;
     localparam rchild = lchild - 1;
     localparam r = LOGNUMWAYS - ctr_depth;
