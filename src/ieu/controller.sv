@@ -48,7 +48,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   output logic        SubArithE,               // Subtraction or arithmetic shift
   output logic        JumpE,                   // jump instruction
   output logic        BranchE,                 // Branch instruction
-  output logic        BranchSignedE,           // Branch comparison operands are signed (if it's a branch)
+  output logic        BranchSignedE,           // Branch comparison operands are signed (only meaningful for a branch)
   output logic [3:0]  BSelectE,                // BMU result select (binary encoded; see bitmanipalu)
   output logic [3:0]  ZBBSelectE,              // ZBB mux select signal in Execute stage
   output logic [2:0]  BALUControlE,            // ALU Control signals for B instructions in Execute Stage
@@ -88,7 +88,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
 
   `define CTRLW 24
   // ResultSrc encodings, in resultmuxW input order in datapath: 000 IEU/FPU, 001 memory, 010 CSR, 011 MDU, 100 SC
-  localparam logic [2:0] RESULTSRC_MDU = 3'b011;
   localparam logic [2:0] RESULTSRC_SC  = 3'b100;
 
   // pipelined control signals
@@ -110,7 +109,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic        CMOD;                           // Cache management instruction
   logic        InvalidateICacheD, FlushDCacheD; // Invalidate I$, flush D$
   logic        MemReadE, CSRReadE;             // Instruction reads memory, reads a CSR (needed for Hazard unit)
-  logic        MDUE;                           // MDU (multiply/divide) operation
   logic        SCE;                            // Store Conditional instruction
   logic        CSRWriteD, CSRWriteE;           // CSR write
   logic        PrivilegedD, PrivilegedE;       // Privileged instruction
@@ -307,7 +305,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign SFenceInvalIrD = P.SVINVAL_SUPPORTED & PrivilegedD & (InstrD[31:20] == 12'b000110000001);
   assign FenceD = SFenceVmaD | SFenceInvalIrD | FenceXD; // possible sfence.vma, sfence.inval.ir, or fence.i
 
-  // ALU Decoding is lazy, only using func7[5] to distinguish add/sub and srl/sra
+  // ALU Decoding is lazy, only using func7[5] to distinguish add/sub and srl/sra.  ALUOpD is only set for
+  // base instructions, so bit manipulation instructions that share these Funct3 codes are not affected.
+  assign sltD = (Funct3D == 3'b010);
   assign sltuD = (Funct3D == 3'b011);
   assign subD = (Funct3D == 3'b000 & Funct7D[5] & OpD[5]);  // OpD[5] needed to distinguish sub from addi
   assign sraD = (Funct3D == 3'b101 & Funct7D[5]);
@@ -326,10 +326,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
     bmuctrl #(P) bmuctrl(.clk, .reset, .InstrD, .ALUOpD,
       .BRegWriteD, .BALUSrcBD, .BW64D, .BUW64D, .BSubArithD, .IllegalBitmanipInstrD, .StallE, .FlushE,
       .ALUSelectD(PreALUSelectD), .BSelectE, .ZBBSelectE, .BALUControlE, .BMUActiveE);
-    if (P.ZBA_SUPPORTED) begin
-      // ALU Decoding is more comprehensive when ZBA is supported. slt and slti conflicts with sh1add, sh1add.uw
-      assign sltD = (Funct3D == 3'b010 & (~(Funct7D[4]) | ~OpD[5]));
-    end else assign sltD = (Funct3D == 3'b010);
 
     // Combine base and bit manipulation signals
     // coverage off: IllegalERegAdr can't occur in rv64gc; only applicable to E mode
@@ -342,7 +338,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
 
   end else begin : bitmanipi
     assign PreALUSelectD = ALUOpD ? Funct3D : 3'b000; // add for address generation when not doing ALU operation
-    assign sltD = (Funct3D == 3'b010);
     assign IllegalBaseInstrD = ControlsD[0] | IllegalERegAdrD;
     assign RegWriteD = BaseRegWriteD;
     assign W64D = BaseW64D;
@@ -419,7 +414,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Execute stage pipeline control register and logic
   flopenrc #(45) controlregE(clk, reset, FlushE, ~StallE,
                              {ALUSelectD, RegWriteD, ResultSrcD, MemRWD, JumpD, BranchD, ALUSrcAD, ALUSrcBD, ALUResultSrcD, CSRReadD, CSRWriteD, PrivilegedD, Funct3D, Funct7D, W64D, BUW64D, SubArithD, MDUD, AtomicD, InvalidateICacheD, FlushDCacheD, FenceD, CMOpD, IFUPrefetchD, LSUPrefetchD, CZeroD, InstrValidD},
-                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, InstrValidE});
+                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUActiveE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, InstrValidE});
   flopenrc #(5)  Rs1EReg(clk, reset, FlushE, ~StallE, Rs1D, Rs1E);
   flopenrc #(5)  Rs2EReg(clk, reset, FlushE, ~StallE, Rs2D, Rs2E);
   flopenrc #(5)  RdEReg(clk, reset, FlushE, ~StallE, RdD, RdE);
@@ -427,7 +422,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Branch Logic
   //  The comparator handles both signed and unsigned branches using BranchSignedE
   //  Hence, only eq and lt flags are needed
-  assign BranchSignedE = (~(Funct3E[2:1] == 2'b11) & BranchE); // bltu/bgeu (Funct3 = 11x) are unsigned
+  assign BranchSignedE = ~(Funct3E[2:1] == 2'b11); // bltu/bgeu (Funct3 = 11x) are unsigned; the flags only matter for a branch
   assign {eqE, ltE} = FlagsE;
   mux2 #(1) branchflagmux(eqE, ltE, Funct3E[2], BranchFlagE); // Funct3[2]: 0 for beq/bne, 1 for blt/bge/bltu/bgeu
   assign BranchTakenE = BranchFlagE ^ Funct3E[0];              // Funct3[0] inverts the flag for bne/bge/bgeu
@@ -436,9 +431,8 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Other execute stage controller signals
   assign MemReadE = MemRWE[1];
   assign SCE = (ResultSrcE == RESULTSRC_SC);
-  assign MDUActiveE = (ResultSrcE == RESULTSRC_MDU);
   assign RegWriteE = IEURegWriteE | FWriteIntE; // IRF register writes could come from IEU or FPU controllers
-  assign IntDivE = MDUE & Funct3E[2]; // Integer division operation
+  assign IntDivE = MDUActiveE & Funct3E[2]; // Integer division operation
 
   // Memory stage pipeline control register
   flopenrc #(25) controlregM(clk, reset, FlushM, ~StallM,
@@ -474,7 +468,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign LoadStallD = (MemReadE | SCE) & MatchDE;
   assign StoreStallD = MemRWD[1] & MemRWE[0];   // Store or AMO followed by load or AMO
   assign CSRRdStallD = CSRReadE & MatchDE;
-  assign MDUStallD = MDUE & MatchDE; // Int mult/div is at least two cycle latency, even when coming from the FDIV
+  assign MDUStallD = MDUActiveE & MatchDE; // Int mult/div is at least two cycle latency, even when coming from the FDIV
   assign FCvtIntStallD = FCvtIntE & MatchDE; // FPU to Integer transfers have single-cycle latency except fcvt
   assign StructuralStallD = LoadStallD | StoreStallD | CSRRdStallD | MDUStallD | FCvtIntStallD;
 endmodule
