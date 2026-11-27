@@ -22,45 +22,12 @@ module endianswap #(parameter LEN) (
   output logic [LEN-1:0]  y
 );
 
-  if (LEN == 128) begin
-    always_comb
-      if (BigEndianM) begin // swap endianness
-        y[127:120] = a[7:0];
-        y[119:112] = a[15:8];
-        y[111:104] = a[23:16];
-        y[103:96]  = a[31:24];
-        y[95:88]   = a[39:32];
-        y[87:80]   = a[47:40];
-        y[79:72]   = a[55:48];
-        y[71:64]   = a[63:56];
-        y[63:56]   = a[71:64];
-        y[55:48]   = a[79:72];
-        y[47:40]   = a[87:80];
-        y[39:32]   = a[95:88];
-        y[31:24]   = a[103:96];
-        y[23:16]   = a[111:104];
-        y[15:8]    = a[119:112];
-        y[7:0]     = a[127:120];
-      end else y = a;
-  end else if (LEN == 64) begin
-    always_comb
-      if (BigEndianM) begin // swap endianness
-        y[63:56] = a[7:0];
-        y[55:48] = a[15:8];
-        y[47:40] = a[23:16];
-        y[39:32] = a[31:24];
-        y[31:24] = a[39:32];
-        y[23:16] = a[47:40];
-        y[15:8]  = a[55:48];
-        y[7:0]   = a[63:56];
-      end else y = a;
-  end else begin
-    always_comb
-      if (BigEndianM) begin
-        y[31:24] = a[7:0];
-        y[23:16] = a[15:8];
-        y[15:8]  = a[23:16];
-        y[7:0]   = a[31:24];
-      end else y = a;
+  logic [LEN-1:0] Swapped; // a with its bytes in reverse order
+
+  genvar i;
+  for (i = 0; i < LEN/8; i++) begin : byteswap
+    assign Swapped[8*i +: 8] = a[LEN-8-8*i +: 8];
   end
+
+  assign y = BigEndianM ? Swapped : a;
 endmodule
