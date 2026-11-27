@@ -252,8 +252,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF), .IROMInstrF);
   end else assign IROMInstrF = '0;
   if (P.BUS_SUPPORTED) begin : bus
-    localparam   BEATSPERLINE = P.ICACHE_SUPPORTED ? P.ICACHE_LINELENINBITS/P.AHBW : 1;
-    localparam   AHBWLOGBWPL = P.ICACHE_SUPPORTED ? $clog2(BEATSPERLINE) : 1;
     localparam   AHBWBYTES = $clog2(P.AHBW/8);
     // An uncached fetch reads the whole bus word containing PCPF; UncachedShiftInstrMux selects the instruction.
     // HADDR must be aligned to HSIZE, and a word at PCPF is misaligned whenever PCPF[1] = 1 with compressed instructions.
@@ -262,6 +260,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PCPFBusWord = {PCPF[P.PA_BITS-1:AHBWBYTES], {AHBWBYTES{1'b0}}};
 
     if (P.ICACHE_SUPPORTED) begin : icache
+      localparam            BEATSPERLINE = P.ICACHE_LINELENINBITS/P.AHBW;       // Number of AHBW words (beats) in cacheline
+      localparam            AHBWLOGBWPL = $clog2(BEATSPERLINE);                  // Log2 of ^
       localparam            LLENPOVERAHBW = P.LLEN / P.AHBW; // Number of AHB beats in a LLEN word. AHBW cannot be larger than LLEN. (implementation limitation)
       localparam            LINEBYTELEN = P.ICACHE_LINELENINBITS/8;              // Line length in bytes
       localparam            OFFSETLEN = $clog2(LINEBYTELEN);                     // Number of bits in offset field
