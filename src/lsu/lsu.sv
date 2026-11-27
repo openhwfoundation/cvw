@@ -71,6 +71,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN/8-1:0]      LSUHWSTRB,                            // Bus byte write enables from LSU to EBU
   // page table walker
   input  logic [P.XLEN-1:0]        SATP_REGW,                            // SATP (supervisor address translation and protection) CSR
+  input  logic                     VirtModeW,                            // Current V: SATP_REGW is vsatp when 1
   input  logic                     STATUS_MXR, STATUS_SUM, STATUS_MPRV,  // STATUS CSR bits: make executable readable, supervisor user memory, machine privilege
   input  logic [1:0]               STATUS_MPP,                           // Machine previous privilege mode
   input  logic                     HSTATUS_SPVP,                         // HLV/HLVX/HSV effective privilege: 0=VU, 1=VS
@@ -266,7 +267,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     end
     assign WriteAccessM = PreLSURWM[0];
     mmu #(.P(P), .TLB_ENTRIES(P.DTLB_ENTRIES), .IMMU(0))
-    dmmu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVInstrM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    dmmu(.clk, .reset, .SATP_REGW, .VirtModeW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .HSTATUS_SPVP, .HLVHSVInstrM, .ENVCFG_PBMTE, .ENVCFG_ADUE,
       .PrivilegeModeW, .DisableTranslation, .VAdr(IHAdrM), .Size(LSUSizeM),
       .PTE, .PageTypeWriteVal(PageType), .TLBWrite(DTLBWriteM), .TLBFlush(sfencevmaM), .TLBFlushAll(sfencevmaAllM),
       .PhysicalAddress(PAdrM), .TLBMiss(DTLBMissM), .Cacheable(CacheableM), .Idempotent(), .SelTIM(SelDTIM),
