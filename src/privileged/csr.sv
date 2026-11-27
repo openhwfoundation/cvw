@@ -122,7 +122,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic                    UngatedCSRMWriteM;
   logic                    WriteFRMM, SetOrWriteFFLAGSM;
   logic [P.XLEN-1:0]       UnalignedNextEPCM, NextEPCM, NextXtvalM;
-  logic [P.XLEN-1:0]       NextHtvalM; // Value for htval on trap
+  logic [P.XLEN-1:0]       NextFaultHtvalM; // Value for htval on trap
   logic [5:0]              NextCauseM;
   logic [11:0]             CSRAdrM_In, CSRAdrM;
   logic                    IllegalCSRCAccessM, IllegalCSRMAccessM, IllegalCSRSAccessM, IllegalCSRUAccessM;
@@ -142,6 +142,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   logic [63:0]             HENVCFG_REGW;
   logic [P.XLEN-1:0]       SENVCFG_REGW;
   logic [P.XLEN-1:0]       SATP_REGW_INT, VSATP_REGW, HGATP_REGW; // Internal SATP and Hypervisor ATPs
+  logic                    LegalAtpModeM;                         // CSR write value has a supported satp/vsatp/hgatp MODE
   logic                    TrapGVAM;
   logic                    VSSTATUS_SUM, VSSTATUS_MXR, VSSTATUS_UBE;
   logic [1:0]              VSSTATUS_FS;
@@ -299,6 +300,17 @@ module csr import cvw::*; #(parameter cvw_t P) (
     assign STrapM = TrapM & ~StallW & (NextPrivilegeModeM == P.S_MODE) & P.S_SUPPORTED;
   end
 
+  // Supported satp/vsatp/hgatp MODE (hgatp's x4 modes share the encodings; RV32 Bare and Sv32 are always supported).
+  // An unsupported MODE write leaves satp/vsatp unchanged and makes hgatp Bare.
+  if (P.XLEN == 64) begin: atpmode64
+    assign LegalAtpModeM = (CSRWriteValM[63:60] == 4'h0) |
+                           (P.SV39_SUPPORTED & CSRWriteValM[63:60] == P.SV39) |
+                           (P.SV48_SUPPORTED & CSRWriteValM[63:60] == P.SV48) |
+                           (P.SV57_SUPPORTED & CSRWriteValM[63:60] == P.SV57);
+  end else begin: atpmode32
+    assign LegalAtpModeM = 1'b1;
+  end
+
   ///////////////////////////////////////////
   // CSRs
   ///////////////////////////////////////////
@@ -334,7 +346,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
     csrs #(P) csrs(.clk, .reset,
       .CSRSWriteM, .STrapM, .CSRAdrM,
       .NextEPCM, .NextCauseM, .NextXtvalM, .SSTATUS_REGW,
-      .STATUS_TVM,
+      .STATUS_TVM, .LegalAtpModeM,
       .CSRWriteValM, .PrivilegeModeW,
       .CSRSReadValM, .STVEC_REGW, .SEPC_REGW,
       .SCOUNTEREN_REGW,
@@ -354,7 +366,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
 
   if (P.H_SUPPORTED) begin:csrh
     csrh #(P) csrh(.clk, .reset,
-      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM,
+      .CSRMWriteM, .CSRSWriteM, .CSRWriteM, .CSRAdrM, .CSRWriteValM, .LegalAtpModeM,
       .PrivilegeModeW, .VirtModeW, .FRegWriteM, .WriteFRMM, .SetOrWriteFFLAGSM,
       .TrapGVAM, .MTIME_CLINT, .HGEIPIn,
       .STATUS_TVM, .MCOUNTEREN_TM(MCOUNTEREN_REGW[1]),
@@ -362,7 +374,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
       // update the H trap CSRs, hstatus and vsstatus only when the trap or sret is taken, like mstatus
       .TrapToM(TrapToM & ~StallW), .TrapToHSM(TrapToHSM & ~StallW), .TrapToVSM(TrapToVSM & ~StallW),
       .sretM(sretM & ~StallW & ~TrapM), .InstrM, .InstrOrigM,
-      .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextHtvalM, .HIE_REGW,
+      .NextEPCM, .NextCauseM, .NextTvalM(NextXtvalM), .NextFaultHtvalM, .HIE_REGW,
       .CSRHReadValM, .IllegalCSRHAccessM,
       .HSTATUS_SPV, .HSTATUS_VTSR, .HSTATUS_VTW, .HSTATUS_VTVM,
       .HSTATUS_SPVP, .HSTATUS_HU,
@@ -409,7 +421,7 @@ module csr import cvw::*; #(parameter cvw_t P) (
   end
 
   // Until two-stage translation is integrated, htval trap writes stay zero.
-  assign NextHtvalM = '0;
+  assign NextFaultHtvalM = '0;
 
   if (P.H_SUPPORTED & P.VIRTMEM_SUPPORTED) begin: hlsv_bare
     if (P.XLEN == 64) begin: hlsv_bare64
