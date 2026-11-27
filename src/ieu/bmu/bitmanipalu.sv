@@ -29,7 +29,6 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   input  logic [2:0]        BALUControl,            // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActive,              // Bit manipulation instruction being executed
   input  logic [P.XLEN-1:0] PreALUResult,           // ALU result after RV64 W-type sign extension
-  input  logic [P.XLEN-1:0] FullResult,             // ALU result before RV64 W-type sign extension
   output logic [P.XLEN-1:0] CondMaskB,              // B is conditionally masked for ZBS instructions
   output logic [P.XLEN-1:0] CondShiftA,             // A is conditionally shifted for ShAdd instructions
   output logic [P.XLEN-1:0] ALUResult);             // Result
@@ -116,10 +115,10 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   // Result Select Mux
   always_comb
     case (BSelect)
-      // 0000: ALU, 0001: ZBA/ZBS, 0010: ZBB, 0011: ZBC/ZBKC, 0100: ZBKB, 0110: ZBKX
-      // 0111: ZKND/ZKNE, 1000: ZKNH
+      // 0000: ALU (including ZBA, ZBS, rotates, and/or/xor with inverted operand), 0010: ZBB, 0011: ZBC/ZBKC,
+      // 0100: ZBKB, 0110: ZBKX, 0111: ZKND/ZKNE, 1000: ZKNH
+      // ZBA/ZBS results are not sign-extended from 32 bits; PreALUResult is right for them because none of them sets W64
       4'b0000: ALUResult = PreALUResult;
-      4'b0001: ALUResult = FullResult;  // ZBA/ZBS results are not sign-extended from 32 bits, so use FullResult rather than PreALUResult
       4'b0010: ALUResult = ZBBResult;
       4'b0011: ALUResult = ZBCResult;
       4'b0100: ALUResult = ZBKBResult;
