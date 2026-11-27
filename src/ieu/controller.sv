@@ -142,6 +142,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [2:0]  ALUSelectD;                     // ALU Output selection mux control
   logic        IWValidFunct3D;                 // Detects if Funct3 is valid for IW instructions
   logic [3:0]  CMOpD, CMOpE;                   // which CMO instruction 1: cbo.inval; 2: cbo.clean; 4: cbo.flush; 8: cbo.zero
+  logic [3:0]  CMOpEnD;                        // CMOp named by the immediate, if supported and enabled by xenvcfg (ignores the other fields)
   logic        IFUPrefetchD;                   // instruction prefetch
   logic        LSUPrefetchD, LSUPrefetchE;     // data prefetch
   logic        MatchDE;                        // Match between a source register in Decode stage and destination register in Execute stage
@@ -182,12 +183,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
     assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
                               (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
-    // cbo.zero (imm 4) needs xenvcfg.CBZE (ENVCFG_CBE[3]); cbo.inval (imm 0) needs CBIE (ENVCFG_CBE[1:0]) = 01 or 11;
-    // cbo.clean (imm 1) and cbo.flush (imm 2) need CBCFE (ENVCFG_CBE[2])
-    assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) &
-                              ((P.ZICBOZ_SUPPORTED & (InstrD[31:20] == 12'd4) & ENVCFG_CBE[3]) |
-                               (P.ZICBOM_SUPPORTED & (((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01 | ENVCFG_CBE[1:0] == 2'b11)) |
-                                                      ((InstrD[31:20] == 12'd1 | InstrD[31:20] == 12'd2) & ENVCFG_CBE[2]))));
+    assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) & (|CMOpEnD); // a supported and enabled cbo.*
     assign AFunctD          = (Funct3D == 3'b010) | (P.XLEN == 64 & Funct3D == 3'b011);
     // funct5 of amoswap, amoadd, amoxor, amoand, amoor, amomin, amomax, amominu, amomaxu
     assign AMOFunctD        = (InstrD[31:27] == 5'b00001) |
@@ -246,7 +242,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
                     else
                       ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_0_0_00_0_0; // fence treated as nop
                   end else if (CMOFunctD) begin // exclusion-tag: cmo-decode
-                      ControlsD = `CTRLW'b0_101_01_00_000_0_0_0_0_0_0_0_0_0_00_1_0; // CMO Instruction
+                      ControlsD = `CTRLW'b0_101_01_00_000_0_0_0_0_0_0_0_0_0_00_1_0; // CMO Instruction // exclusion-tag: cmo-controls
                   end
       7'b0010011: if (IFunctD)
                       ControlsD = `CTRLW'b1_000_01_00_000_0_1_0_0_0_0_0_0_0_00_0_0; // I-type ALU
@@ -370,18 +366,15 @@ module controller import cvw::*; #(parameter cvw_t P) (
     assign FenceID = 1'b0;
 
   // Cache Management instructions
-  always_comb begin
-    CMOpD = 4'b0000; // default: not a cbo instruction
-    if ((P.ZICBOZ_SUPPORTED) & CMOD) begin
-      CMOpD[3] = (InstrD[31:20] == 12'd4); // cbo.zero
-    end
-    if ((P.ZICBOM_SUPPORTED) & CMOD) begin
-      // A flush is a clean followed by an invalidate, so cbo.inval downgraded by xenvcfg.CBIE = 01 takes the flush path
-      CMOpD[2] = (InstrD[31:20] == 12'd2) | ((InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
-      CMOpD[1] = (InstrD[31:20] == 12'd1); // cbo.clean
-      CMOpD[0] = (InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b11); // cbo.inval
-    end
-  end
+  // cbo.zero (imm 4) needs xenvcfg.CBZE (ENVCFG_CBE[3]); cbo.clean (imm 1) and cbo.flush (imm 2) need CBCFE (ENVCFG_CBE[2]);
+  // cbo.inval (imm 0) needs CBIE (ENVCFG_CBE[1:0]) = 11, or 01 to be performed as a flush instead
+  // (a flush is a clean followed by an invalidate)
+  assign CMOpEnD[3] = P.ZICBOZ_SUPPORTED & (InstrD[31:20] == 12'd4) & ENVCFG_CBE[3];             // cbo.zero
+  assign CMOpEnD[2] = P.ZICBOM_SUPPORTED & ((InstrD[31:20] == 12'd2) & ENVCFG_CBE[2] |
+                                            (InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b01)); // cbo.flush
+  assign CMOpEnD[1] = P.ZICBOM_SUPPORTED & (InstrD[31:20] == 12'd1) & ENVCFG_CBE[2];             // cbo.clean
+  assign CMOpEnD[0] = P.ZICBOM_SUPPORTED & (InstrD[31:20] == 12'd0) & (ENVCFG_CBE[1:0] == 2'b11); // cbo.inval
+  assign CMOpD = CMOD ? CMOpEnD : 4'b0000; // CMOD: the instruction is a legal cbo.* // exclusion-tag: cmo-op
 
   // Prefetch Hints
   always_comb begin
