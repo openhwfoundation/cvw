@@ -40,7 +40,6 @@ module btb import cvw::*; #(parameter cvw_t P,
   logic [P.XLEN+3:0]       ForwardBTBPredF;
   logic [P.XLEN+3:0]       TableBTBPredF;
   logic [P.XLEN-1:0]       IEUAdrW;
-  logic [P.XLEN-1:0]       PCW;
   logic [P.XLEN-1:0]       BPBTAD, BPBTAE;
   logic                    BPBTAWrongE;
   logic                    BTBWrongM;
@@ -53,7 +52,6 @@ module btb import cvw::*; #(parameter cvw_t P,
   assign PCDIndex = {PCD[Depth+1] ^ PCD[1], PCD[Depth:2]};
   assign PCEIndex = {PCE[Depth+1] ^ PCE[1], PCE[Depth:2]};
   assign PCMIndex = {PCM[Depth+1] ^ PCM[1], PCM[Depth:2]};
-  assign PCWIndex = {PCW[Depth+1] ^ PCW[1], PCW[Depth:2]};
 
   assign PCNextFIndex = {PCNextF[Depth+1] ^ PCNextF[1], PCNextF[Depth:2]};
 
@@ -87,7 +85,7 @@ module btb import cvw::*; #(parameter cvw_t P,
   flopenrc #(1) BPBTAWrongMReg(clk, reset, FlushM, ~StallM, BPBTAWrongE, BPBTAWrongM);
   assign BTBWrongM = BPBTAWrongM | IClassWrongM;
 
-  flopenr #(P.XLEN) PCWReg(clk, reset, ~StallW, PCM, PCW);
+  flopenr #(Depth)  PCWIndexReg(clk, reset, ~StallW, PCMIndex, PCWIndex);
   flopenr #(P.XLEN) IEUAdrWReg(clk, reset, ~StallW, IEUAdrM, IEUAdrW);
 
 endmodule
