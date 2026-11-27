@@ -76,11 +76,12 @@ module csri import cvw::*; #(parameter cvw_t P) (
   // mie holds all enable state; mie, sie, hie and vsie writes change only the bits their masks allow.
   assign HIE_WRITE_MASK  = P.H_SUPPORTED ? (16'h0444 | ((P.GEILEN > 0) ? 16'h1000 : 16'h0000)) : 16'h0000;
   assign VSIE_WRITE_MASK = HIDELEG_REGW; // vsie.{SEIE,STIE,SSIE} alias mie.{VSEIE,VSTIE,VSSIE} (bits 10/6/2) when delegated
-  // The write enables decode distinct addresses, so at most one is set
+  // The write enables decode distinct addresses, so at most one is set.  The hie/vsie enables are ANDed with
+  // P.H_SUPPORTED where they are used, so without H they fold away and leave no unreachable coverage rows.
   assign MIEWriteMaskM = ({16{WriteMIEM}}  & MIE_WRITE_MASK) | ({16{WriteSIEM}}  & SIE_WRITE_MASK) |
                          ({16{WriteHIEM}}  & HIE_WRITE_MASK) | ({16{WriteVSIEM}} & VSIE_WRITE_MASK);
-  assign MIEWriteValM = WriteVSIEM ? {CSRWriteValM[14:0], 1'b0} : CSRWriteValM[15:0];
-  flopenr #(16) MIEreg(clk, reset, WriteMIEM | WriteSIEM | WriteHIEM | WriteVSIEM, // exclusion-tag: csri-write-sie
+  assign MIEWriteValM = (P.H_SUPPORTED & WriteVSIEM) ? {CSRWriteValM[14:0], 1'b0} : CSRWriteValM[15:0];
+  flopenr #(16) MIEreg(clk, reset, WriteMIEM | WriteSIEM | P.H_SUPPORTED & (WriteHIEM | WriteVSIEM), // exclusion-tag: csri-write-sie
                        (MIE_REGW & ~MIEWriteMaskM) | (MIEWriteValM & MIEWriteMaskM), MIE_REGW);
 
   assign HIE_REGW = MIE_REGW & HIE_WRITE_MASK;
