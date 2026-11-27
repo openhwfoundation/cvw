@@ -156,7 +156,8 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   assign WriteMCOUNTERENM    = CSRMWriteM & (CSRAdrM == MCOUNTEREN);
   assign WriteMCOUNTINHIBITM = CSRMWriteM & (CSRAdrM == MCOUNTINHIBIT);
 
-  assign IllegalCSRMWriteReadonlyM = UngatedCSRMWriteM & (CSRAdrM == MVENDORID | CSRAdrM == MARCHID | CSRAdrM == MIMPID | CSRAdrM == MHARTID | CSRAdrM == MCONFIGPTR);
+  // CSR addresses with csr[11:10] = 11 are read-only (mvendorid, marchid, mimpid, mhartid, mconfigptr), and writing one is illegal
+  assign IllegalCSRMWriteReadonlyM = UngatedCSRMWriteM & (CSRAdrM[11:10] == 2'b11);
 
   // CSRs
   // MODE is WARL; a hart that does not vector must not read back Vectored, so only accept MODE=1 when vectoring is supported
