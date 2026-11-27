@@ -243,16 +243,14 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // to restore a partially executed operation.  CommittedF delays the interrupt until the IFU is in a clean state.
   assign CommittedF = CacheCommittedF | BusCommittedF;
 
+  assign IFURWF = 2'b10;
+
   // The IROM uses untranslated addresses, so it is not compatible with virtual memory.
   if (P.IROM_SUPPORTED) begin : irom
     logic IROMce;
     assign IROMce = ~GatedStallD | reset; // exclusion-tag: ifu-irom-ce
-    assign IFURWF = 2'b10;
-    irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF[P.XLEN-1:0]), .IROMInstrF);
-  end else begin
-    assign IFURWF = 2'b10;
-    assign IROMInstrF = '0;
-  end
+    irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF), .IROMInstrF);
+  end else assign IROMInstrF = '0;
   if (P.BUS_SUPPORTED) begin : bus
     localparam   BEATSPERLINE = P.ICACHE_SUPPORTED ? P.ICACHE_LINELENINBITS/P.AHBW : 1;
     localparam   AHBWLOGBWPL = P.ICACHE_SUPPORTED ? $clog2(BEATSPERLINE) : 1;
