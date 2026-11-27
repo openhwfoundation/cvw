@@ -38,7 +38,7 @@ module spill import cvw::*; #(parameter cvw_t P) (
   output logic              CompressedF);      // The fetched instruction is compressed
 
   // Spill threshold occurs when all the cache offset PC bits are 1 (except [0]).  Without a cache this is just PCF[1]
-  typedef enum logic [1:0] {STATE_READY, STATE_SPILL} statetype;
+  typedef enum logic {STATE_READY, STATE_SPILL} statetype;
 
   statetype          CurrState, NextState;
   logic [P.XLEN-1:0] PCPlus2NextF, PCPlus2F;
@@ -90,7 +90,6 @@ module spill import cvw::*; #(parameter cvw_t P) (
                    else                           NextState = STATE_READY;
       STATE_SPILL: if (StallF)                    NextState = STATE_SPILL;
                    else                           NextState = STATE_READY;
-      default:                                    NextState = STATE_READY;
     endcase
   end
 
