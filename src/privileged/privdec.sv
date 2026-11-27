@@ -162,7 +162,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   assign IllegalPrivilegedInstrM = PrivilegedM & ~(sretM | mretM | ecallM | ebreakM | wfiM | sfencevmaM);
 
   // Virtual Instruction Exception Detection
-  // V=1: what HS can execute (mstatus.TSR/TVM/TW=0) but this mode can't is virtual (norm:H_cause_virtual_instruction).
+  // V=1: what HS can execute (mstatus.TSR/TVM=0) but this mode can't is virtual (norm:H_cause_virtual_instruction).
   if (P.H_SUPPORTED) begin: virtinstr
     logic VirtualPrivM, VirtualWfiM, CMOFault;
     logic SatpCSRM;
