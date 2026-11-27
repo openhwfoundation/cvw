@@ -165,7 +165,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_MPIE     <= 1'b1;
         STATUS_MPP      <= P.U_SUPPORTED ? P.U_MODE : P.M_MODE; // set MPP to lowest supported privilege level
         STATUS_MPRV_INT <= STATUS_MPRV_INT & (STATUS_MPP == P.M_MODE); // page 21 of privileged spec.
-      end else if (sretM & ~VirtModeW) begin
+      end else if (sretM & ~VirtModeW) begin // sretM already accounts for P.S_SUPPORTED (privdec.sv)
         STATUS_SIE      <= STATUS_SPIE; // restore global interrupt enable
         STATUS_SPIE     <= P.S_SUPPORTED;
         STATUS_SPP      <= 1'b0; // set SPP to lowest supported privilege level to catch bugs

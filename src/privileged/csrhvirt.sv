@@ -28,21 +28,14 @@
 module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   input  logic [11:0]       CSRAdrM_In,
   input  logic              CSRReadM, CSRWriteM,
-  input  logic              TrapM, ExceptionM,
   input  logic              VirtModeW,
   input  logic [1:0]        PrivilegeModeW,
   input  logic [31:0]       MCOUNTEREN_REGW, HCOUNTEREN_REGW,
   input  logic [63:0]       HENVCFG_REGW,
   input  logic              VirtualCSRCAccessM,
-  input  logic              TrapWritesVAToTvalM,
-  input  logic              HLVHSVLegalM,
   input  logic              MENVCFG_STCE,
-  input  logic              TrapLoadStoreM,
-  input  logic              STATUS_MPRV, MSTATUS_MPV,
-  input  logic [1:0]        STATUS_MPP,
   output logic [11:0]       CSRAdrM,
-  output logic              VirtualCSRAccessM,
-  output logic              TrapGVAM
+  output logic              VirtualCSRAccessM
 );
 
   localparam SSTATUS    = 12'h100;
@@ -89,7 +82,7 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
 
   logic HasVSCSR, HSQualifiedSCSRAccessM, HSQualifiedHCSRAccessM, HSQualifiedVSCSRAccessM;
   logic VirtualSCSRAccessM, VirtualHCSRAccessM, VirtualVSCSRAccessM, VirtualVSTimecmpAccessM;
-  logic MapVSCSR, MPRVVirtM;
+  logic MapVSCSR;
 
   // H spec norm:H_vscsrs_sub substitutes only S CSRs with matching VS CSRs.
   // norm:H_scsrs_nomatch leaves S CSRs such as senvcfg/scounteren on their S addresses when V=1.
@@ -170,10 +163,4 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   assign VirtualCSRAccessM = CSRReadM & (VirtualSCSRAccessM | VirtualHCSRAccessM | VirtualVSCSRAccessM |
                                          VirtualVSTimecmpAccessM | VirtualCSRCAccessM);
 
-  // GVA gets set when traps from virtualized execution write a VA to tval.
-  // H spec hstatus.GVA note: HLV/HLVX/HSV address faults write guest virtual
-  // addresses even though V=0 for the executing hypervisor instruction.
-  // Covers when M mode acts as VS/VU access for load/store with MPRV
-  assign MPRVVirtM = ((PrivilegeModeW == P.M_MODE) & STATUS_MPRV & MSTATUS_MPV & (STATUS_MPP != P.M_MODE)) & TrapLoadStoreM;
-  assign TrapGVAM = TrapM & ExceptionM & (VirtModeW | HLVHSVLegalM | MPRVVirtM) & TrapWritesVAToTvalM;
 endmodule
