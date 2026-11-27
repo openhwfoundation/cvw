@@ -79,7 +79,8 @@ module ahbcacheinterface import cvw::*; #(
 
   assign PAdrZero = BusCMOZero ? {PAdr[P.PA_BITS-1:$clog2(LINELEN/8)], {$clog2(LINELEN/8){1'b0}}} : PAdr;
   mux2 #(P.PA_BITS) localadrmux(PAdrZero, CacheBusAdr, Cacheable, LocalHADDR);
-  assign HADDR = ({{P.PA_BITS-AHBWLOGBWPL{1'b0}}, BeatCount} << $clog2(P.AHBW/8)) + LocalHADDR;
+  // A burst starts at a line-aligned address, so the beat count is ORed into the zero offset bits; no adder is needed
+  assign HADDR = LocalHADDR | ({{P.PA_BITS-AHBWLOGBWPL{1'b0}}, BeatCount} << $clog2(P.AHBW/8));
 
   mux2 #(3) sizemux(.d0(Size), .d1(P.AHBW == 32 ? 3'b010 : 3'b011), .s(Cacheable | BusCMOZero), .y(HSIZE));
 
