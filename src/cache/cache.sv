@@ -169,7 +169,7 @@ module cache import cvw::*; #(parameter cvw_t P,
       mux2 #(8) WriteDataMux(.d0(WriteData[(8*index)%WORDLEN+7:(8*index)%WORDLEN]),
         .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[CMO_ZERO]), .y(LineWriteData[8*index+7:8*index]));
     end
-    assign LineByteMask = SetDirty ? DemuxedByteMask : '1;
+    assign LineByteMask = DemuxedByteMask; // cacheway enables every byte when it fills a whole line
   end else begin : WriteSelLogic
     // No need for this mux if the cache does not handle writes.
     assign LineWriteData = FetchBuffer;

@@ -85,7 +85,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
   assign SetValidEN = SetValidWay & ~FlushStage;                           // exclusion-tag: cache SetValidEN
   assign ClearValidEN = ClearValidWay & ~FlushStage;                       // exclusion-tag: cache ClearValidEN
 
-  // If writing the whole line set all write enables to 1, else only set the correct word.
+  // If writing the whole line (fill) set all write enables to 1, else (store hit) only enable the bytes stored.
   assign FinalByteMask = SetValidWay ? '1 : LineByteMask; // OR
 
   /////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +139,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
     if (CacheEn) begin
       ValidWay <= ValidBits[CacheSetTag];
       if (InvalidateCache & ~InvalidateFlushStage) ValidBits <= '0; // exclusion-tag: dcache invalidateway
-      else if (SetValidEN) ValidBits[CacheSetData] <= SetValidWay;
+      else if (SetValidEN) ValidBits[CacheSetData] <= 1'b1;
       else if (ClearValidEN) ValidBits[CacheSetData] <= '0; // exclusion-tag: icache ClearValidBits
     end
   end
@@ -157,8 +157,7 @@ module cacheway import cvw::*; #(parameter cvw_t P,
         Dirty <= DirtyBits[CacheSetTag];
         if ((SetDirtyWay | ClearDirtyWay) & ~FlushStage) begin
           DirtyBits[CacheSetData] <= SetDirtyWay; // exclusion-tag: cache UpdateDirty
-          if (CacheSetData == CacheSetTag) Dirty <= SetDirtyWay;
-          else Dirty <= DirtyBits[CacheSetTag];
+          if (CacheSetData == CacheSetTag) Dirty <= SetDirtyWay; // forward the new dirty bit to a read of the same set
         end
       end
     end
