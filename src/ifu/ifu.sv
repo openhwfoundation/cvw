@@ -398,7 +398,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic ReturnD, ReturnE, ReturnM, ReturnW;
     assign BPWrongE = PCSrcE;
     assign BPRedirectD = 1'b0;
-    icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
+    icpred #(P, 0) icpred(.clk, .reset, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
       .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
       .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),

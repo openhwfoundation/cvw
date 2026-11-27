@@ -18,7 +18,7 @@ module icpred import cvw::*; #(parameter cvw_t P,
                                parameter INSTR_CLASS_PRED = 1) (
   input  logic             clk, reset,
   input  logic             StallD, StallE, StallM, StallW,
-  input  logic             FlushD, FlushE, FlushM,
+  input  logic             FlushD, FlushE, FlushM, FlushW,
   input  logic [31:0]      PostSpillInstrRawF, InstrD,        // Instruction
   input  logic             BranchD, BranchE,
   input  logic             JumpD, JumpE,
@@ -93,7 +93,7 @@ module icpred import cvw::*; #(parameter cvw_t P,
 
   flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
   flopenrc #(4) InstrClassRegM(clk, reset, FlushM, ~StallM, {CallE, ReturnE, JumpE, BranchE}, {CallM, ReturnM, JumpM, BranchM});
-  flopenrc #(4) InstrClassRegW(clk, reset, FlushM, ~StallW, {CallM, ReturnM, JumpM, BranchM}, {CallW, ReturnW, JumpW, BranchW});
+  flopenrc #(4) InstrClassRegW(clk, reset, FlushW, ~StallW, {CallM, ReturnM, JumpM, BranchM}, {CallW, ReturnW, JumpW, BranchW});
 
   // branch predictor
   flopenrc #(1) BPClassWrongRegM(clk, reset, FlushM, ~StallM, IClassWrongE, IClassWrongM);

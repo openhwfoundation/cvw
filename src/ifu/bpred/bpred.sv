@@ -205,7 +205,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
 
   // Instruction class prediction (with a BTB) or decode (without one)
   icpred #(P, P.INSTR_CLASS_PRED & P.BPRED_TYPE != BP_STATIC) icpred(.clk, .reset,
-    .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM,
+    .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
     .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
     .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW, .BTBCallF, .BTBReturnF, .BTBJumpF,
     .BTBBranchF, .BPCallF, .BPReturnF, .BPJumpF, .BPBranchF, .IClassWrongM, .BPReturnWrongD, .BPReturnD, .BPCallD);
