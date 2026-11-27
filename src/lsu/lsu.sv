@@ -95,7 +95,6 @@ module lsu import cvw::*; #(parameter cvw_t P) (
   logic [1:0]            LSURWM;                                 // IEU or HPTW Read/Write signal gated by LR/SC
   logic [2:0]            LSUFunct3M;                             // IEU or HPTW memory operation size
   logic [2:0]            LSUSizeM;                               // Memory operation size as an AHB HSIZE
-  logic [6:0]            LSUFunct7M;                             // AMO function gated by HPTW
   logic [1:0]            LSUAtomicM;                             // AMO signal gated by HPTW
   logic [3:0]            LSUCMOpM;                               // CMOpM gated by HPTW
 
@@ -194,7 +193,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
       .FlushW, .CommittedF, .DCacheBusStallM, .MemAccessInFlightM, .MemAccessDoneM, .SATP_REGW, .PCSpillF,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_ADUE, .ENVCFG_PBMTE, .PrivilegeModeW,
       .ReadDataM(ReadDataM[P.XLEN-1:0]), // ReadDataM is LLEN, but HPTW only needs XLEN
-      .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M, .Funct7M, .LSUFunct7M,
+      .WriteDataM(WriteDataZM), .Funct3M, .LSUFunct3M,
       .IEUAdrExtM, .PTE, .IHWriteDataM, .PageType, .PreLSURWM, .LSUAtomicM,
       .IHAdrM, .CMOpM, .LSUCMOpM, .FpLoadStoreM, .LSUFpLoadStoreM, .HPTWStall, .SelHPTW,
       .HPTWFlushW, .LSULoadAccessFaultM, .LSUStoreAmoAccessFaultM,
@@ -217,7 +216,6 @@ module lsu import cvw::*; #(parameter cvw_t P) (
     assign PreLSURWM = MemRWM;
     assign IHAdrM = IEUAdrExtM;
     assign LSUFunct3M = Funct3M;
-    assign LSUFunct7M = Funct7M;
     assign LSUAtomicM = AtomicM;
     assign LSUCMOpM = CMOpM;
     assign LSUFpLoadStoreM = FpLoadStoreM;
@@ -415,7 +413,7 @@ module lsu import cvw::*; #(parameter cvw_t P) (
 
   if (P.ZAAMO_SUPPORTED | P.ZALRSC_SUPPORTED) begin : atomic
     atomic #(P) atomic(.clk, .reset, .StallW, .ReadDataWordM(LittleEndianReadDataWordM), .BigEndianM, .IHWriteDataM, .PAdrM,
-      .LSUFunct7M, .LSUFunct3M, .LSUAtomicM, .PreLSURWM, .LSUFlushW,
+      .LSUFunct7M(Funct7M), .LSUFunct3M, .LSUAtomicM, .PreLSURWM, .LSUFlushW, // the AMO result is used only when LSUAtomicM[1], which the HPTW clears
       .IMAWriteDataM, .SquashSCW, .LSURWM);
   end else begin : lrsc
     assign SquashSCW = 1'b0;

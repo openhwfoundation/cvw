@@ -45,7 +45,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              MemAccessInFlightM,     // LSU has started (or performed and is holding) the M-stage memory access; do not pre-empt it
   input  logic              MemAccessDoneM,         // LSU has performed and captured the M-stage memory access; it will not be re-issued
   input  logic [2:0]        Funct3M,
-  input  logic [6:0]        Funct7M,
   input  logic              ITLBMissOrUpdateAF,
   input  logic              DTLBMissOrUpdateDAM,
   input  logic              FlushW,
@@ -59,7 +58,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] IHWriteDataM,
   output logic [1:0]        LSUAtomicM,
   output logic [2:0]        LSUFunct3M,
-  output logic [6:0]        LSUFunct7M,
   output logic [3:0]        LSUCMOpM,
   output logic              LSUFpLoadStoreM,        // FpLoadStoreM, cleared for the walker's PTE accesses
   output logic              HPTWFlushW,
@@ -402,7 +400,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   else              assign HPTWAdrExt = HPTWAdr;
   mux2 #(2) rwmux(MemRWM, HPTWRW, SelHPTW, PreLSURWM);
   mux2 #(3) sizemux(Funct3M, HPTWSize, SelHPTW, LSUFunct3M);
-  mux2 #(7) funct7mux(Funct7M, 7'b0, SelHPTW, LSUFunct7M);
   mux2 #(2) atomicmux(AtomicM, 2'b00, SelHPTW, LSUAtomicM);
   mux2 #(4) cmomux(CMOpM, 4'b0, SelHPTW, LSUCMOpM);
   mux2 #(1) fpmux(FpLoadStoreM, 1'b0, SelHPTW, LSUFpLoadStoreM);
