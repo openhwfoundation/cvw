@@ -181,6 +181,9 @@ coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -f
 
 # I$ AHBBuscachefsm HREADY1: ADR_PHASE->CACHE_WRITEBACK on BusWrite -- read-only cache never writes back.
 coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY1"] -item bs 1
+# The same line as a condition, (HREADY & BusWrite): all three of its unhit rows (HREADY_0, HREADY_1, BusWrite_1)
+# need BusWrite = 1, and the read-only I$ never requests a bus write.
+coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY1"] 1 2 4
 
 # I$ AHBBuscachefsm FetchWait: CACHE_FETCH->CACHE_FETCH back-to-back read -- the I$ never pipelines a second line fetch.
 coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm FetchWait"] -item bs 1
@@ -545,10 +548,6 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # coincident with an in-flight beat never happens for the D$ (no D$ bus transaction is active at power-on reset).
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "BeatCountReg\\("] 1
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "BeatCountDelayedReg\\("] 1
-
-# D$ AHBBuscachefsm BeatCntEn (NextState==ADR_PHASE)_0: a pending cached request with HREADY forces
-# NextState to a cache state (priority-masked).
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign BeatCntEn"] 9
 
 # D$ AHBBuscachefsm HTRANS pipelined-request term CacheAccess_0 (row 15): FinalBeatCount outside a cache burst
 # needs a BeatCount left stale by a flush at the final beat.  The bus is then in ADR_PHASE, where the first HTRANS

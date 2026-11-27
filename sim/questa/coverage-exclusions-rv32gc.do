@@ -242,6 +242,9 @@ coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/bus
 coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"] -item b 2
 coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"] -item s 1
 coverage exclude -scope $ICBUS/AHBBuscachefsm -linerange [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY1"] -item bs 1
+# The same line as a condition, (HREADY & BusWrite): its unhit rows all need BusWrite = 1, and the read-only I$
+# never requests a bus write.
+ExcludeRows $ICBUS/AHBBuscachefsm c {HREADY_0 HREADY_1 BusWrite_1} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY1"]
 ExcludeRows $ICBUS/AHBBuscachefsm c {HREADY_* |BusRW_1} [TagLine ${SRC}/ebu/buscachefsm.sv "buscachefsm HREADY0"]
 ExcludeTermRows $ICBUS/AHBBuscachefsm e {{(CurrState == DATA_PHASE)_1} {(CurrState == ATOMIC_PHASE)_1}
   {(CurrState == ATOMIC_READ_DATA_PHASE)_1} {(CurrState == CACHE_WRITEBACK)_1} {(NextState == CACHE_WRITEBACK)_1}}
@@ -269,14 +272,11 @@ coverage exclude -scope $DCBUS/AHBBuscachefsm -ftrans CurrState CACHE_FETCH->CAC
 # squashed before it reaches the bus, lsu.sv SelfFaultM), and an uncached cbo.zero never reaches the bus (see the LSU
 # below).  So CacheAccess = 0 never comes with FinalBeatCount or |BeatCount.  HREADY is low only while the other
 # requester owns the bus, and a burst owner keeps it with no wait states (RAM_LATENCY = 0), so HREADY_0 is never
-# seen at the final beat.  BeatCntEn's
-# (NextState == ADR_PHASE)_0 row needs a pending request with HREADY that goes to neither a cache state (the first
-# term) nor ADR_PHASE: that is DATA_PHASE, which the I$ never enters and the D$ enters only without a cache request.
+# seen at the final beat.
 foreach fsm [list $ICBUS/AHBBuscachefsm $DCBUS/AHBBuscachefsm] {
   ExcludeRows $fsm c {CacheAccess_0 {+(CurrState == ATOMIC_READ_DATA_PHASE)*}}
   ExcludeRows $fsm c {CacheAccess_0} [TagLine ${SRC}/ebu/buscachefsm.sv buscachefsm-htrans-burst]
   ExcludeRows $fsm e {CacheAccess_0 HREADY_0 +FinalBeatCount_*}
-  ExcludeRows $fsm e {{(NextState == ADR_PHASE)_0} +|CacheBusRW_*}
 }
 ExcludeRows $ICBUS/AHBBuscachefsm c {CacheAccess_* |BeatCount_1 +Flush_*}
 ExcludeRows $DCBUS/AHBBuscachefsm c {CacheAccess_0 +|BeatCount_* +Flush_*}
