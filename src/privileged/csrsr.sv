@@ -42,7 +42,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
   logic       STATUS_MPV, STATUS_GVA;
   logic [1:0] STATUS_SXL, STATUS_UXL, STATUS_XS, STATUS_FS_INT, STATUS_MPP_NEXT;
   logic       STATUS_MPIE, STATUS_SPIE, STATUS_UBE, STATUS_SBE, STATUS_MBE;
-  logic       nextMBE, nextSBE;
+  logic       nextMBE, nextSBE, nextMPV, nextGVA;
 
   // STATUS REGISTER FIELD
   // See Privileged Spec Section 3.1.6
@@ -76,9 +76,13 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
   if (P.XLEN == 64) begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & CSRWriteValM[37];
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[36];
+    assign nextMPV = P.H_SUPPORTED & CSRWriteValM[39];
+    assign nextGVA = P.H_SUPPORTED & CSRWriteValM[38];
   end else begin : upperstatus
     assign nextMBE = P.BIGENDIAN_SUPPORTED & STATUS_MBE;
     assign nextSBE = P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & STATUS_SBE;
+    assign nextMPV = P.H_SUPPORTED & STATUS_MPV;
+    assign nextGVA = P.H_SUPPORTED & STATUS_GVA;
   end
 
   // hardwired STATUS bits
@@ -149,6 +153,8 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
       STATUS_MBE      <= 1'b0;
       STATUS_SBE      <= 1'b0;
       STATUS_UBE      <= 1'b0;
+      STATUS_MPV      <= 1'b0;
+      STATUS_GVA      <= 1'b0;
     end else if (~StallW) begin
       // Trap entry updates depend on the resolved target:
       // M traps update mstatus, while HS traps update HS sstatus.
@@ -156,6 +162,8 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_MPIE <= STATUS_MIE;
         STATUS_MIE  <= 1'b0;
         STATUS_MPP  <= PrivilegeModeW;
+        STATUS_MPV  <= P.H_SUPPORTED & VirtModeW;
+        STATUS_GVA  <= P.H_SUPPORTED & TrapGVAM;
       end else if (P.S_SUPPORTED & TrapToHSM) begin // supervisor mode // exclusion-tag: csrsr-trap-to-s
         STATUS_SPIE <= STATUS_SIE;
         STATUS_SIE  <= 1'b0;
@@ -164,6 +172,7 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_MIE      <= STATUS_MPIE; // restore global interrupt enable
         STATUS_MPIE     <= 1'b1;
         STATUS_MPP      <= P.U_SUPPORTED ? P.U_MODE : P.M_MODE; // set MPP to lowest supported privilege level
+        STATUS_MPV      <= 1'b0;
         STATUS_MPRV_INT <= STATUS_MPRV_INT & (STATUS_MPP == P.M_MODE); // page 21 of privileged spec.
       end else if (sretM & ~VirtModeW) begin // sretM already accounts for P.S_SUPPORTED (privdec.sv)
         STATUS_SIE      <= STATUS_SPIE; // restore global interrupt enable
@@ -187,10 +196,14 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
         STATUS_UBE      <= P.U_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[6];
         STATUS_MBE      <= nextMBE;
         STATUS_SBE      <= nextSBE;
+        STATUS_MPV      <= nextMPV;
+        STATUS_GVA      <= nextGVA;
       // MSTATUSH only exists in 32-bit configurations; coverage-exclusions-rv64gc.do excludes it on rv64gc
       end else if ((P.XLEN == 32) & WriteMSTATUSHM) begin
         STATUS_MBE      <= P.BIGENDIAN_SUPPORTED & CSRWriteValM[5];
         STATUS_SBE      <= P.S_SUPPORTED & P.BIGENDIAN_SUPPORTED & CSRWriteValM[4];
+        STATUS_MPV      <= P.H_SUPPORTED & CSRWriteValM[7];
+        STATUS_GVA      <= P.H_SUPPORTED & CSRWriteValM[6];
       end else if (P.S_SUPPORTED & WriteSSTATUSM) begin // write a subset of the STATUS bits
         STATUS_MXR_INT  <= P.S_SUPPORTED & CSRWriteValM[19];
         STATUS_SUM_INT  <= P.VIRTMEM_SUPPORTED & CSRWriteValM[18];
@@ -202,42 +215,4 @@ module csrsr import cvw::*; #(parameter cvw_t P) (
       end else if (FRegWriteM | WriteFRMM | SetOrWriteFFLAGSM) STATUS_FS_INT <= 2'b11; // exclusion-tag: csrsr-fs-dirty
     end
 
-  if (P.H_SUPPORTED) begin: mpv_gva
-    if (P.XLEN == 64) begin: mpv_gva64
-      always_ff @(posedge clk)
-        if (reset) begin
-          STATUS_MPV <= 1'b0;
-          STATUS_GVA <= 1'b0;
-        end else if (~StallW) begin
-          if (TrapToM) begin
-            STATUS_MPV <= VirtModeW;
-            STATUS_GVA <= TrapGVAM;
-          end else if (mretM) begin
-            STATUS_MPV <= 1'b0;
-          end else if (WriteMSTATUSM) begin
-            STATUS_MPV <= CSRWriteValM[39];
-            STATUS_GVA <= CSRWriteValM[38];
-          end
-        end
-    end else begin: mpv_gva32
-      always_ff @(posedge clk)
-        if (reset) begin
-          STATUS_MPV <= 1'b0;
-          STATUS_GVA <= 1'b0;
-        end else if (~StallW) begin
-          if (TrapToM) begin
-            STATUS_MPV <= VirtModeW;
-            STATUS_GVA <= TrapGVAM;
-          end else if (mretM) begin
-            STATUS_MPV <= 1'b0;
-          end else if (WriteMSTATUSHM) begin
-            STATUS_MPV <= CSRWriteValM[7];
-            STATUS_GVA <= CSRWriteValM[6];
-          end
-        end
-    end
-  end else begin: no_mpv_gva
-    assign STATUS_MPV = 1'b0;
-    assign STATUS_GVA = 1'b0;
-  end
 endmodule
