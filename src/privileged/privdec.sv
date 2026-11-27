@@ -19,7 +19,7 @@
 module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         clk, reset,
   input  logic         StallM,                              // Memory stage stalled: the wfi stays in M
-  input  logic [31:7]  InstrM,                              // privileged instruction function field
+  input  logic [31:15] InstrM,                              // privileged instruction function and rs1 fields; PrivilegedM implies rd = 0
   input  logic         PrivilegedM,                         // is this a privileged instruction (from IEU controller)
   input  logic         IllegalIEUFPUInstrM,                 // Not a legal IEU instruction
   input  logic         IllegalCSRAccessM,                   // Not a legal CSR access
@@ -35,7 +35,7 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   output logic         sfencevmaAllM                        // sfence.vma with rs2=x0: flush all TLB entries including global
 );
 
-  logic                rs1zeroM, rdzeroM;                   // rs1 / rd field = 0
+  logic                rs1zeroM;                            // rs1 field = 0
   logic                IllegalPrivilegedInstrM;             // privileged instruction isn't a legal one or in legal mode
   logic                wfiM;                                // wfi instruction
   logic                TWTimeoutM;                          // mstatus.TW time limit reached: illegal instruction
@@ -52,14 +52,13 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   ///////////////////////////////////////////
 
   assign rs1zeroM =    InstrM[19:15] == 5'b0;
-  assign rdzeroM  =    InstrM[11:7]  == 5'b0;
 
   // svinval instructions
   // any svinval instruction is treated as sfence.vma on Wally
-  assign sinvalvmaM     = (InstrM[31:25] ==  7'b0001011)                 & rdzeroM;
-  assign sfencewinvalM  = (InstrM[31:20] == 12'b000110000000) & rs1zeroM & rdzeroM;
-  assign sfenceinvalirM = (InstrM[31:20] == 12'b000110000001) & rs1zeroM & rdzeroM;
-  assign presfencevmaM  = (InstrM[31:25] ==  7'b0001001)                 & rdzeroM;
+  assign sinvalvmaM     = (InstrM[31:25] ==  7'b0001011);
+  assign sfencewinvalM  = (InstrM[31:20] == 12'b000110000000) & rs1zeroM;
+  assign sfenceinvalirM = (InstrM[31:20] == 12'b000110000001) & rs1zeroM;
+  assign presfencevmaM  = (InstrM[31:25] ==  7'b0001001);
   assign vmaM           =  presfencevmaM | (sinvalvmaM & P.SVINVAL_SUPPORTED);      // sfence.vma or sinval.vma
   assign fenceinvalM    = (sfencewinvalM | sfenceinvalirM) & P.SVINVAL_SUPPORTED;   // sfence.w.inval or sfence.inval.ir
 
