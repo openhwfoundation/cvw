@@ -20,7 +20,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   input  logic [P.XLEN-1:0] A, B,                   // Operands
   input  logic              W64, UW64,              // W64/.uw-type instruction
   input  logic [3:0]        BSelect,                // BMU result select (binary encoded; see result mux)
-  input  logic [3:0]        ZBBSelect,              // ZBB mux select signal
+  input  logic [3:0]        ZBBSelect,              // Select within the unit chosen by BSelect (ZBB, ZBKB, ZBKX, ZKND/ZKNE, ZKNH)
   input  logic [2:0]        Funct3,                 // Funct3 field of opcode indicates operation to perform
   input  logic [6:0]        Funct7,                 // Funct7 field for ZKND and ZKNE operations
   input  logic [4:0]        Rs2E,                   // Register source2 for RNUM of ZKNE/ZKND
@@ -29,7 +29,6 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   input  logic [2:0]        BALUControl,            // ALU Control signals for B instructions in Execute Stage
   input  logic              BMUActive,              // Bit manipulation instruction being executed
   input  logic [P.XLEN-1:0] PreALUResult,           // ALU result after RV64 W-type sign extension
-  input  logic [P.XLEN-1:0] FullResult,             // ALU result before RV64 W-type sign extension
   output logic [P.XLEN-1:0] CondMaskB,              // B is conditionally masked for ZBS instructions
   output logic [P.XLEN-1:0] CondShiftA,             // A is conditionally shifted for ShAdd instructions
   output logic [P.XLEN-1:0] ALUResult);             // Result
@@ -69,10 +68,7 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
     // sh1add/sh2add/sh3add have Funct3 = 010/100/110, so Funct3[2:1] is the shift amount
     assign PreShiftAmt = Funct3[2:1] & {2{PreShift}};
     assign CondShiftA = CondZextA << (PreShiftAmt);
-  end else begin
-    assign PreShiftAmt = 2'b0;
-    assign CondShiftA = A;
-  end
+  end else assign CondShiftA = A;
 
   // Bit reverse needed for some ZBB, ZBC instructions
   if (P.ZBC_SUPPORTED | P.ZBKC_SUPPORTED | P.ZBB_SUPPORTED) begin : bitreverse
@@ -116,10 +112,10 @@ module bitmanipalu import cvw::*; #(parameter cvw_t P) (
   // Result Select Mux
   always_comb
     case (BSelect)
-      // 0000: ALU, 0001: ZBA/ZBS, 0010: ZBB, 0011: ZBC/ZBKC, 0100: ZBKB, 0110: ZBKX
-      // 0111: ZKND/ZKNE, 1000: ZKNH
+      // 0000: ALU (including ZBA, ZBS, rotates, and/or/xor with inverted operand), 0010: ZBB, 0011: ZBC/ZBKC,
+      // 0100: ZBKB, 0110: ZBKX, 0111: ZKND/ZKNE, 1000: ZKNH
+      // ZBA/ZBS results are not sign-extended from 32 bits; PreALUResult is right for them because none of them sets W64
       4'b0000: ALUResult = PreALUResult;
-      4'b0001: ALUResult = FullResult;  // ZBA/ZBS results are not sign-extended from 32 bits, so use FullResult rather than PreALUResult
       4'b0010: ALUResult = ZBBResult;
       4'b0011: ALUResult = ZBCResult;
       4'b0100: ALUResult = ZBKBResult;

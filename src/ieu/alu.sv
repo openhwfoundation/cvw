@@ -101,7 +101,7 @@ module alu import cvw::*; #(parameter cvw_t P) (
       P.ZKND_SUPPORTED | P.ZKNE_SUPPORTED | P.ZKNH_SUPPORTED) begin : bitmanipalu
     bitmanipalu #(P) balu(
       .A, .B, .W64, .UW64, .BSelect, .ZBBSelect, .BMUActive,
-      .Funct3, .Funct7, .Rs2E, .LT, .LTU, .BALUControl, .PreALUResult, .FullResult,
+      .Funct3, .Funct7, .Rs2E, .LT, .LTU, .BALUControl, .PreALUResult,
       .CondMaskB, .CondShiftA, .ALUResult);
   end else begin
     assign ALUResult = PreALUResult;

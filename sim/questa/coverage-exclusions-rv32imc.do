@@ -134,8 +134,12 @@ coverage exclude -scope /core/ieu/dp/ext -linerange [TagLine ${SRC}/ieu/extend.s
 # NOCMO: no cache management operations (ZICBOM_SUPPORTED = ZICBOZ_SUPPORTED = ZICBOP_SUPPORTED = 0)
 ######################################################################################################
 
-# CMOFunctD is constant 0, so no CMO is decoded and CMOpM = 0.  (The ExecuteAccessF_1 row in the first
-# DMMU expression is the DMMU tie-off below.)
+# CMOpEnD is constant 0, so CMOFunctD and CMOD are 0: no CMO is decoded and CMOpM = 0.  That leaves unreachable the
+# CMO arm of the MISC-MEM decode and its statement, every CMOFunctD row that needs |CMOpEnD = 1, and the CMOD arm of
+# CMOpD.  (The ExecuteAccessF_1 row in the first DMMU expression is the DMMU tie-off below.)
+coverage exclude -scope /core/ieu/c -linerange [TagLine ${SRC}/ieu/controller.sv cmo-controls] -item s 1
+ExcludeRows /core/ieu/c e [list "(Funct3D == 2)_*" "(RdD == 0)_*" "|CMOpEnD_1"]
+coverage exclude -scope /core/ieu/c -linerange [TagLine ${SRC}/ieu/controller.sv cmo-op] -item b 1
 coverage exclude -scope /core/ieu/c -linerange [TagLine ${SRC}/ieu/controller.sv cmo-decode] -item b 1
 ExcludeRows $DMMU/pmachecker e {ExecuteAccessF_1 |CMOpM_1}
 ExcludeRows $DMMU/pmachecker e {|CMOpM_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-store-fault]

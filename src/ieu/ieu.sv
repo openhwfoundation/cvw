@@ -20,7 +20,6 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   // Decode stage signals
   input  logic [31:0]       InstrD,                           // Instruction
-  input  logic [1:0]        STATUS_FS,                        // is FPU enabled?
   input  logic [3:0]        ENVCFG_CBE,                       // Cache block operation enables
   input  logic              IllegalIEUFPUInstrD,              // Illegal instruction
   output logic              IllegalBaseInstrD,                // Illegal base integer instruction, or illegal RV32E access to upper 16 registers
@@ -45,7 +44,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   output logic [1:0]        AtomicM,                          // Atomic control goes to LSU
   output logic [P.XLEN-1:0] WriteDataM,                       // Write data to LSU
   output logic [2:0]        Funct3M,                          // Funct3 (size and signedness) to LSU
-  output logic [P.XLEN-1:0] SrcAM,                            // ALU SrcA to Privileged unit and FPU
+  output logic [P.XLEN-1:0] SrcAM,                            // ALU SrcA to Privileged unit for CSR writes
   output logic [4:0]        RdM,                              // Destination register
   input  logic [P.XLEN-1:0] FIntResM,                         // Integer result from FPU (fmv, fclass, fcmp)
   output logic              InvalidateICacheM, FlushDCacheM,  // Invalidate I$, flush D$
@@ -96,7 +95,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   logic [1:0] CZeroE;                                         // {czero.nez, czero.eqz} instructions active
 
   controller #(P) c(
-    .clk, .reset, .StallD, .FlushD, .InstrD, .STATUS_FS, .ENVCFG_CBE, .ImmSrcD,
+    .clk, .reset, .StallD, .FlushD, .InstrD, .ENVCFG_CBE, .ImmSrcD,
     .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D, .Rs2E,
     .StallE, .FlushE, .FlagsE, .FWriteIntE,
