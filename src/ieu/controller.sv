@@ -107,12 +107,11 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [1:0]  AtomicD;                        // Atomic (AMO) instruction
   logic        FenceXD;                        // Fence instruction
   logic        CMOD;                           // Cache management instruction
-  logic        InvalidateICacheD, FlushDCacheD; // Invalidate I$, flush D$
+  logic        FenceID, FenceIE, FenceIM;      // fence.i instruction that invalidates the I$ and flushes the D$
   logic        MemReadE, CSRReadE;             // Instruction reads memory, reads a CSR (needed for Hazard unit)
   logic        SCE;                            // Store Conditional instruction
   logic        CSRWriteD, CSRWriteE;           // CSR write
   logic        PrivilegedD, PrivilegedE;       // Privileged instruction
-  logic        InvalidateICacheE, FlushDCacheE; // Invalidate I$, flush D$
   logic [`CTRLW-1:0] ControlsD;                // Main Instruction Decoder control signals
   logic        SubArithD;                      // TRUE for R-type subtracts and sra, slt, sltu or BMU bclr, andn, orn, xnor, min/max
   logic        subD, sraD, sltD, sltuD;        // Indicates if is one of these instructions
@@ -365,15 +364,10 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Fences
   // Ordinary fence is presently a nop
   // fence.i flushes the D$ and invalidates the I$ if Zifencei is supported and a cache is implemented
-  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED)) begin : fencei
-    logic FenceID;
+  if (P.ZIFENCEI_SUPPORTED & (P.ICACHE_SUPPORTED | P.DCACHE_SUPPORTED))
     assign FenceID = FenceXD & (Funct3D == 3'b001); // is it a FENCE.I instruction?
-    assign InvalidateICacheD = FenceID;
-    assign FlushDCacheD = FenceID;
-  end else begin : fencei
-    assign InvalidateICacheD = 1'b0;
-    assign FlushDCacheD = 1'b0;
-  end
+  else
+    assign FenceID = 1'b0;
 
   // Cache Management instructions
   always_comb begin
@@ -412,9 +406,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   flopenrc #(1)  controlregD(clk, reset, FlushD, ~StallD, 1'b1, InstrValidD);
 
   // Execute stage pipeline control register and logic
-  flopenrc #(45) controlregE(clk, reset, FlushE, ~StallE,
-                             {ALUSelectD, RegWriteD, ResultSrcD, MemRWD, JumpD, BranchD, ALUSrcAD, ALUSrcBD, ALUResultSrcD, CSRReadD, CSRWriteD, PrivilegedD, Funct3D, Funct7D, W64D, BUW64D, SubArithD, MDUD, AtomicD, InvalidateICacheD, FlushDCacheD, FenceD, CMOpD, IFUPrefetchD, LSUPrefetchD, CZeroD, InstrValidD},
-                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUActiveE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, InstrValidE});
+  flopenrc #(44) controlregE(clk, reset, FlushE, ~StallE,
+                             {ALUSelectD, RegWriteD, ResultSrcD, MemRWD, JumpD, BranchD, ALUSrcAD, ALUSrcBD, ALUResultSrcD, CSRReadD, CSRWriteD, PrivilegedD, Funct3D, Funct7D, W64D, BUW64D, SubArithD, MDUD, AtomicD, FenceID, FenceD, CMOpD, IFUPrefetchD, LSUPrefetchD, CZeroD, InstrValidD},
+                             {ALUSelectE, IEURegWriteE, ResultSrcE, MemRWE, JumpE, BranchE, ALUSrcAE, ALUSrcBE, ALUResultSrcE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, Funct7E, W64E, UW64E, SubArithE, MDUActiveE, AtomicE, FenceIE, FenceE, CMOpE, IFUPrefetchE, LSUPrefetchE, CZeroE, InstrValidE});
   flopenrc #(5)  Rs1EReg(clk, reset, FlushE, ~StallE, Rs1D, Rs1E);
   flopenrc #(5)  Rs2EReg(clk, reset, FlushE, ~StallE, Rs2D, Rs2E);
   flopenrc #(5)  RdEReg(clk, reset, FlushE, ~StallE, RdD, RdE);
@@ -435,9 +429,9 @@ module controller import cvw::*; #(parameter cvw_t P) (
   assign IntDivE = MDUActiveE & Funct3E[2]; // Integer division operation
 
   // Memory stage pipeline control register
-  flopenrc #(25) controlregM(clk, reset, FlushM, ~StallM,
-                             {RegWriteE, ResultSrcE, MemRWE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, FWriteIntE, AtomicE, InvalidateICacheE, FlushDCacheE, FenceE, InstrValidE, IntDivE, CMOpE, LSUPrefetchE},
-                             {RegWriteM, ResultSrcM, MemRWM, CSRReadM, CSRWriteM, PrivilegedM, Funct3M, FWriteIntM, AtomicM, InvalidateICacheM, FlushDCacheM, FenceM, InstrValidM, IntDivM, CMOpM, LSUPrefetchM});
+  flopenrc #(24) controlregM(clk, reset, FlushM, ~StallM,
+                             {RegWriteE, ResultSrcE, MemRWE, CSRReadE, CSRWriteE, PrivilegedE, Funct3E, FWriteIntE, AtomicE, FenceIE, FenceE, InstrValidE, IntDivE, CMOpE, LSUPrefetchE},
+                             {RegWriteM, ResultSrcM, MemRWM, CSRReadM, CSRWriteM, PrivilegedM, Funct3M, FWriteIntM, AtomicM, FenceIM, FenceM, InstrValidM, IntDivM, CMOpM, LSUPrefetchM});
   flopenrc #(5)  RdMReg(clk, reset, FlushM, ~StallM, RdE, RdM);
 
   // Writeback stage pipeline control register
@@ -445,6 +439,10 @@ module controller import cvw::*; #(parameter cvw_t P) (
                             {RegWriteM, ResultSrcM, IntDivM},
                             {RegWriteW, ResultSrcW, IntDivW});
   flopenrc #(5) RdWReg(clk, reset, FlushW, ~StallW, RdM, RdW);
+
+  // fence.i invalidates the I$ and flushes the D$
+  assign InvalidateICacheM = FenceIM;
+  assign FlushDCacheM = FenceIM;
 
   // Flush F, D, and E stages on a CSR write or Fence.I or SFence.VMA
   assign CSRWriteFenceM = CSRWriteM | FenceM;
