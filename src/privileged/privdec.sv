@@ -26,12 +26,10 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   input  logic         VirtualCSRAccessM,                   // CSR access that should trap as virtual instruction
   input  logic         VirtualCMOInstrM,                    // CBO instruction that should trap as virtual instruction
   input  logic         HLVHSVInstrM,                        // Valid HLV/HLVX/HSV system-instruction encoding
-  input  logic         HLVHSVBareM,                         // VS-stage and G-stage translation are both Bare for HLV/HSV
   input  logic [1:0]   PrivilegeModeW,                      // current privilege level
   input  logic         VirtModeW,                           // current V
   input  logic         STATUS_TSR, STATUS_TVM, STATUS_TW,   // status bits (HS)
   input  logic         HSTATUS_VTSR, HSTATUS_VTVM, HSTATUS_VTW, // status bits (VS)
-  input  logic         HSTATUS_HU,
   input  logic         IntPendingM,                         // a locally enabled interrupt is pending: ends any wait
   output logic         IllegalInstrFaultM,                  // Illegal instruction
   output logic         VirtualInstrFaultM,                  // Virtual instruction exception
@@ -58,7 +56,6 @@ module privdec import cvw::*; #(parameter cvw_t P) (
   logic                hvvmaM, hgvmaM;                      // HFENCE/HINVAL operations
   logic                fenceinvalM;                         // sfence.w.inval or sfence.inval.ir
   logic                TSRM, TVMM;
-  logic                HLVHSVIllegalM;                      // HLV/HLVX/HSV illegal-instruction cases
 
   ///////////////////////////////////////////
   // Decode privileged instructions
@@ -175,11 +172,6 @@ module privdec import cvw::*; #(parameter cvw_t P) (
     assign VSTSRFault = PrivilegedM & is_sret & VirtModeW & HSTATUS_VTSR;
     assign HVFenceFault = PrivilegedM & VirtModeW & (hvvmaM | hgvmaM);
     assign HLVHSVFault = HLVHSVInstrM & VirtModeW; // norm:hlsv_virtinst: V=1 -> virtual instruction
-    // norm:hlsv_mode/norm:hlsv_illegalinst: HLV/HLVX/HSV are valid in M/HS
-    // and in U only when hstatus.HU=1. norm:hlsv_trans requires two-stage
-    // translation; until that is integrated, only Bare/Bare execution is legal.
-    assign HLVHSVIllegalM = HLVHSVInstrM & ~VirtModeW &
-                            (((PrivilegeModeW == P.U_MODE) & ~HSTATUS_HU) | ~HLVHSVBareM);
     // A wfi that reaches the time limit at V=1 with mstatus.TW=0 is a virtual instruction exception
     assign WFIShouldTrapVirtM = TWTimeoutM & ~STATUS_TW;
     assign VUWfiFault = WFIShouldTrapVirtM & VirtModeW & (PrivilegeModeW == P.U_MODE);
@@ -197,10 +189,9 @@ module privdec import cvw::*; #(parameter cvw_t P) (
                                 HLVHSVFault | VUWfiFault | VSWfiFault | VUSupFault;
   end else begin: novirtinstr
     assign VirtualInstrFaultM = 1'b0;
-    assign HLVHSVIllegalM = 1'b0;
   end
 
   // Prevent double-reporting. If it's Virtual, it's not Illegal.
   assign IllegalInstrFaultM = (IllegalIEUFPUInstrM | IllegalPrivilegedInstrM | IllegalCSRAccessM |
-                               HLVHSVIllegalM | TWTimeoutM) & ~VirtualInstrFaultM;
+                               TWTimeoutM) & ~VirtualInstrFaultM;
 endmodule

@@ -196,7 +196,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     // TODO: Full VS/VU instruction fetch needs separate two-stage VSATP/HGATP translation plumbing.
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
     immu(.clk, .reset, .SATP_REGW, .VirtModeW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP,
-         .HSTATUS_SPVP(1'b0), .HLVHSVLegalM(1'b0), .ENVCFG_PBMTE, .ENVCFG_ADUE,
+         .HSTATUS_SPVP(1'b0), .HLVHSVInstrM(1'b0), .ENVCFG_PBMTE, .ENVCFG_ADUE,
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(3'b010),
