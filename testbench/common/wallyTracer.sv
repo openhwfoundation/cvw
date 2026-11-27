@@ -255,7 +255,7 @@ module wallyTracer import cvw::*; #(parameter cvw_t P) (rvviTrace rvvi);
       `CONNECT_CSR_CHG(HIP, 12'h644, {{(P.XLEN-16){1'b0}}, testbench.dut.core.priv.priv.csr.csrh.csrh.HIP_PENDING});
       `CONNECT_CSR_CHG(HVIP, 12'h645, testbench.dut.core.priv.priv.csr.csrh.csrh.HVIP_REGW);
       `CONNECT_CSR_CHG(HTINST, 12'h64A, testbench.dut.core.priv.priv.csr.csrh.csrh.HTINST_REGW);
-      `CONNECT_CSR_CHG(HGATP, 12'h680, testbench.dut.core.priv.priv.csr.csrh.csrh.HGATPReadVal);
+      `CONNECT_CSR_CHG(HGATP, 12'h680, testbench.dut.core.priv.priv.csr.csrh.csrh.HGATP_REGW);
       `CONNECT_CSR_CHG(HGEIP, 12'hE12, testbench.dut.core.priv.priv.csr.csrh.csrh.HGEIP_REGW);
       `CONNECT_CSR_CHG(VSTVEC, 12'h205, testbench.dut.core.priv.priv.csr.csrh.csrh.VSTVEC_REGW);
       `CONNECT_CSR_CHG(VSSCRATCH, 12'h240, testbench.dut.core.priv.priv.csr.csrh.csrh.VSSCRATCH_REGW);
