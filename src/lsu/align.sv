@@ -65,7 +65,8 @@ module align import cvw::*; #(parameter cvw_t P) (
   logic [$clog2(LLENINBYTES)-1:0]              AccessByteOffsetM;
   logic [$clog2(LLENINBYTES)+2:0]              ShiftAmount;
   logic                                        PotentialSpillM;
-  logic [P.LLEN*3-1:0]                         LSUWriteDataShiftedExtM;
+  logic [P.LLEN*2-1:0]                         LSUWriteDataShiftedExtM;
+  logic [P.LLEN-1:0]                           LSUWriteDataRotM;
 
   /* verilator lint_off WIDTHEXPAND */
   assign IEUAdrIncrementM = IEUAdrM + LLENINBYTES;
@@ -94,8 +95,7 @@ module align import cvw::*; #(parameter cvw_t P) (
               else              AccessByteOffsetM = '0;                                    // shouldn't happen
       // coverage off
       // RV64GC doesn't support Q
-      3'b100: if (P.LLEN == 128) AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0]; // quad access
-              else               AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0];
+      3'b100: AccessByteOffsetM = IEUAdrM[OFFSET_LEN-1:0]; // quad access
       // coverage on
       default: AccessByteOffsetM = '0;                                        // shouldn't happen
     endcase
@@ -155,10 +155,12 @@ module align import cvw::*; #(parameter cvw_t P) (
   assign DCacheReadDataWordSpillM = ReadDataWordSpillShiftedM[P.LLEN-1:0];
 
   // write path.
-  // 3*LLEN to 2*LLEN funnel shifter to perform left rotation.
-  // Vivado correctly optimizes as 2*LLEN log2(LLEN):1 muxes
-  assign LSUWriteDataShiftedExtM = {LSUWriteDataM, LSUWriteDataM, LSUWriteDataM} << ShiftAmount;
-  assign LSUWriteDataSpillM = LSUWriteDataShiftedExtM[P.LLEN*3-1:P.LLEN];
+  // Rotate the write data left by the misalignment (2*LLEN to LLEN funnel shifter) so each byte is in its byte lane.
+  // Both words of the cache's 2*LLEN write data, and both halves of a spill, get the same rotated data;
+  // the byte mask selects which bytes are written.
+  assign LSUWriteDataShiftedExtM = {LSUWriteDataM, LSUWriteDataM} << ShiftAmount;
+  assign LSUWriteDataRotM = LSUWriteDataShiftedExtM[P.LLEN*2-1:P.LLEN];
+  assign LSUWriteDataSpillM = {LSUWriteDataRotM, LSUWriteDataRotM};
 
   mux3 #(2*P.LLEN/8) bytemaskspillmux({ByteMaskExtendedM, ByteMaskM}, // no spill
                                       {{{P.LLEN/8}{1'b0}}, ByteMaskM}, // spill, first half
