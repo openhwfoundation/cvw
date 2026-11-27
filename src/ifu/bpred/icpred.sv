@@ -82,7 +82,10 @@ module icpred import cvw::*; #(parameter cvw_t P,
     assign {BPCallF, BPReturnF, BPJumpF, BPBranchF} = {BTBCallF, BTBReturnF, BTBJumpF, BTBBranchF};
   end
 
-  assign ReturnD = JumpD & ~InstrD[3] & (InstrD[19:15] & 5'h1B) == 5'h01; // return is a jalr (not jal, whose [19:15] are offset bits) to ra or x5
+  // RAS hints of a jalr (unprivileged spec, RV32I chapter, table "Return-address stack prediction hints encoded in the
+  // register operands of a JALR instruction"): push when rd is ra or x5; pop when rs1 is ra or x5, unless rd is the
+  // same register, which only pushes.  ~InstrD[3] excludes jal, whose [19:15] are offset bits.
+  assign ReturnD = JumpD & ~InstrD[3] & (InstrD[19:15] & 5'h1B) == 5'h01 & InstrD[19:15] != InstrD[11:7];
   assign CallD = JumpD & (InstrD[11:7] & 5'h1B) == 5'h01; // call(r) must link to ra or x5
 
   flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
