@@ -73,10 +73,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic [2:0]               PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
   input  logic                     ITLBWriteF,                               // Writes PTE and PageType to ITLB
   input  logic [P.XLEN-1:0]        SATP_REGW,                                // Location of the root page table and page table configuration
-  input  logic                     STATUS_MXR,                               // Status CSR: make executable page readable
-  input  logic                     STATUS_SUM,                               // Status CSR: Supervisor access to user memory
-  input  logic                     STATUS_MPRV,                              // Status CSR: modify machine privilege
-  input  logic [1:0]               STATUS_MPP,                               // Status CSR: previous machine privilege level
   input  logic                     ENVCFG_PBMTE,                             // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,                              // HPTW A/D Update enable
   input  logic                     sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
@@ -137,7 +133,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        IFUFaultF;                                // Fetch failed the PMA or PMP check, so it must not access the cache or bus
   logic                        ITLBMissOrUpdateRawF;                     // ITLB miss or A update needed, before masking by a held walk fault
   logic                        ITLBWalkFaultF;                           // The walk for the current fetch faulted (held or this cycle)
-  logic                        InstrPageFaultRawF, InstrAccessFaultRawF; // Faults on the half of the fetch currently being translated
 
   assign PCFExt = {2'b00, PCSpillF};
 
@@ -150,13 +145,11 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
       .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
-      .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
+      .InstrPageFaultF, .InstrAccessFaultF, // faults on the half of the fetch currently being translated
       .IFUCacheBusStallF, .ITLBMissOrUpdateRawF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
       .PostSpillInstrRawF, .CompressedF);
     // A spill is taken only when the first half fetches cleanly, so a fault during a spill belongs to the
     // second half and is reported at PCM+2.
-    assign InstrPageFaultF = InstrPageFaultRawF;
-    assign InstrAccessFaultF = InstrAccessFaultRawF;
     flopenr #(1) SpillDReg(clk, reset, ~StallD, SelSpillF, SelSpillD);
     flopenr #(1) SpillEReg(clk, reset, ~StallE, SelSpillD, SelSpillE);
     flopenr #(1) SpillMReg(clk, reset, ~StallM, SelSpillE, SelSpillM);
@@ -169,8 +162,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PostSpillInstrRawF = InstrRawF;
     assign {SelSpillNextF, CompressedF} = '0;
     assign PCSpillM = PCM;
-    assign InstrPageFaultF = InstrPageFaultRawF;
-    assign InstrAccessFaultF = InstrAccessFaultRawF;
   end
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +183,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign TLBFlushAll = sfencevmaAllM & ~StallMQ;
 
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
-    immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    immu(.clk, .reset, .SATP_REGW, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+         .STATUS_MXR(1'b0), .STATUS_SUM(1'b0), .STATUS_MPRV(1'b0), .STATUS_MPP(2'b0), // MXR, SUM, and MPRV affect only data accesses
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(3'b010),
@@ -203,8 +195,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .PhysicalAddress(PCPF),
          .TLBMiss(ITLBMissF),
          .Cacheable(CacheableF), .Idempotent(), .SelTIM(SelIROM),
-         .InstrAccessFaultF(InstrAccessFaultRawF), .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
-         .InstrPageFaultF(InstrPageFaultRawF), .LoadPageFaultM(), .StoreAmoPageFaultM(),
+         .InstrAccessFaultF, .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
+         .InstrPageFaultF, .LoadPageFaultM(), .StoreAmoPageFaultM(),
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
@@ -226,7 +218,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign ITLBWalkFaultF = HPTWInstrAccessFaultHeldF | HPTWInstrPageFaultHeldF;
     assign ITLBMissOrUpdateAF = ITLBMissOrUpdateRawF & ~ITLBWalkFaultF;
   end else begin
-    assign {ITLBMissF, InstrAccessFaultRawF, InstrPageFaultRawF, InstrUpdateAF} = '0;
+    assign {ITLBMissF, InstrAccessFaultF, InstrPageFaultF, InstrUpdateAF} = '0;
     assign PCPF = PCFExt[P.PA_BITS-1:0];
     assign CacheableF = 1'b1;
     assign SelIROM = '0;
@@ -248,19 +240,15 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   // to restore a partially executed operation.  CommittedF delays the interrupt until the IFU is in a clean state.
   assign CommittedF = CacheCommittedF | BusCommittedF;
 
+  assign IFURWF = 2'b10;
+
   // The IROM uses untranslated addresses, so it is not compatible with virtual memory.
   if (P.IROM_SUPPORTED) begin : irom
     logic IROMce;
     assign IROMce = ~GatedStallD | reset; // exclusion-tag: ifu-irom-ce
-    assign IFURWF = 2'b10;
-    irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF[P.XLEN-1:0]), .IROMInstrF);
-  end else begin
-    assign IFURWF = 2'b10;
-    assign IROMInstrF = '0;
-  end
+    irom #(P) irom(.clk, .ce(IROMce), .Adr(PCSpillNextF), .IROMInstrF);
+  end else assign IROMInstrF = '0;
   if (P.BUS_SUPPORTED) begin : bus
-    localparam   BEATSPERLINE = P.ICACHE_SUPPORTED ? P.ICACHE_LINELENINBITS/P.AHBW : 1;
-    localparam   AHBWLOGBWPL = P.ICACHE_SUPPORTED ? $clog2(BEATSPERLINE) : 1;
     localparam   AHBWBYTES = $clog2(P.AHBW/8);
     // An uncached fetch reads the whole bus word containing PCPF; UncachedShiftInstrMux selects the instruction.
     // HADDR must be aligned to HSIZE, and a word at PCPF is misaligned whenever PCPF[1] = 1 with compressed instructions.
@@ -269,6 +257,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PCPFBusWord = {PCPF[P.PA_BITS-1:AHBWBYTES], {AHBWBYTES{1'b0}}};
 
     if (P.ICACHE_SUPPORTED) begin : icache
+      localparam            BEATSPERLINE = P.ICACHE_LINELENINBITS/P.AHBW;       // Number of AHBW words (beats) in cacheline
+      localparam            AHBWLOGBWPL = $clog2(BEATSPERLINE);                  // Log2 of ^
       localparam            LLENPOVERAHBW = P.LLEN / P.AHBW; // Number of AHB beats in a LLEN word. AHBW cannot be larger than LLEN. (implementation limitation)
       localparam            LINEBYTELEN = P.ICACHE_LINELENINBITS/8;              // Line length in bytes
       localparam            OFFSETLEN = $clog2(LINEBYTELEN);                     // Number of bits in offset field
@@ -402,7 +392,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
       .PostSpillInstrRawF, .InstrD, .BranchD, .BranchE, .JumpD, .JumpE, .BranchM, .BranchW, .JumpM, .JumpW,
       .CallD, .CallE, .CallM, .CallW, .ReturnD, .ReturnE, .ReturnM, .ReturnW,
       .BTBCallF(1'b0), .BTBReturnF(1'b0), .BTBJumpF(1'b0),
-      .BTBBranchF(1'b0), .BPCallF(), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
+      .BTBBranchF(1'b0), .BPReturnF(), .BPJumpF(), .BPBranchF(), .IClassWrongM,
       .BPReturnWrongD(), .BPReturnD(), .BPCallD());
     flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, BPWrongM);
     assign RASPredPCWrongM = 1'b0;

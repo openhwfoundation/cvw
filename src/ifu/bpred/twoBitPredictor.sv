@@ -14,13 +14,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module twoBitPredictor import cvw::*; #(parameter cvw_t P, parameter XLEN,
+module twoBitPredictor import cvw::*; #(parameter cvw_t P,
                                         parameter k = 10) (
   input  logic             clk,
   input  logic             reset,
   input  logic             StallF, StallD, StallE, StallM, StallW,
   input  logic             FlushD, FlushE, FlushM, FlushW,
-  input  logic [XLEN-1:0]  PCNextF, PCM,
+  input  logic [P.XLEN-1:0] PCNextF, PCM,
   output logic [1:0]       BPDirF,
   output logic             BPDirWrongE,
   input  logic             BranchE, BranchM,
