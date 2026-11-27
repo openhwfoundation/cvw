@@ -21,6 +21,7 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
   input  logic                   clk, reset,
   input  logic [P.VPN_BITS-1:0]  VPN,          // The requested page number to compare against the key
   input  logic [P.ASID_BITS-1:0] SATP_ASID,
+  input  logic                   VirtModeW,    // Current V: the line matches only lookups under the V it was written with
   input  logic                   SV39Mode,
   input  logic                   SV48Mode,
   input  logic                   WriteEnable,  // Write a new entry to this line
@@ -48,7 +49,14 @@ module tlbcamline import cvw::*; #(parameter cvw_t P,
   logic MatchASID, Match0Upper, MatchNAPOT, Match0, Match1, Match2, Match3, Match4;
 
   assign Key_ASID = Key[KEY_BITS-1:KEY_BITS-P.ASID_BITS];
-  assign MatchASID = (SATP_ASID == Key_ASID) | PTE_G;
+  if (P.H_SUPPORTED) begin: vtag
+    // HS-level and VS-level translations are separate regimes, so even a global entry matches only its own V
+    logic Key_V;
+    flopenr #(1) keyvflop(clk, reset, WriteEnable, VirtModeW, Key_V);
+    assign MatchASID = ((SATP_ASID == Key_ASID) | PTE_G) & (Key_V == VirtModeW);
+  end else begin: novtag
+    assign MatchASID = (SATP_ASID == Key_ASID) | PTE_G;
+  end
 
   // Calculate a match against a segment of the key based on the input vpn and the page type.
   // For example, a petapage in SV57 only cares about VPN[4], so VPN[0], VPN[1], VPN[2], and VPN[3]

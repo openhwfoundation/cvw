@@ -28,18 +28,14 @@
 module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   input  logic [11:0]       CSRAdrM_In,
   input  logic              CSRReadM, CSRWriteM,
-  input  logic              TrapM, ExceptionM,
   input  logic              VirtModeW,
   input  logic [1:0]        PrivilegeModeW,
   input  logic [31:0]       MCOUNTEREN_REGW, HCOUNTEREN_REGW,
   input  logic [63:0]       HENVCFG_REGW,
   input  logic              VirtualCSRCAccessM,
-  input  logic              TrapWritesVAToTvalM,
-  input  logic              HLVHSVLegalM,
   input  logic              MENVCFG_STCE,
   output logic [11:0]       CSRAdrM,
-  output logic              VirtualCSRAccessM,
-  output logic              TrapGVAM
+  output logic              VirtualCSRAccessM
 );
 
   localparam SSTATUS    = 12'h100;
@@ -163,8 +159,4 @@ module csrhvirt import cvw::*;  #(parameter cvw_t P) (
   assign VirtualCSRAccessM = CSRReadM & (VirtualSCSRAccessM | VirtualHCSRAccessM | VirtualVSCSRAccessM |
                                          VirtualVSTimecmpAccessM | VirtualCSRCAccessM);
 
-  // GVA gets set when traps from virtualized execution write a VA to tval.
-  // H spec hstatus.GVA note: HLV/HLVX/HSV address faults write guest virtual
-  // addresses even though V=0 for the executing hypervisor instruction.
-  assign TrapGVAM = TrapM & ExceptionM & (VirtModeW | HLVHSVLegalM) & TrapWritesVAToTvalM;
 endmodule
