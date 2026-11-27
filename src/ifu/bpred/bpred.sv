@@ -86,7 +86,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     logic [P.XLEN-1:0]       PCCorrectE;
 
     logic                    BPBTAWrongM;
-    logic                    PCSrcM;
 
     // Part 1 branch direction prediction
     if (P.BPRED_TYPE == BP_TWOBIT) begin : Predictor
@@ -114,8 +113,6 @@ module bpred import cvw::*; #(parameter cvw_t P) (
         .PCNextF, .PCM, .BPDirF, .BPDirWrongE,
         .BranchE, .BranchM, .PCSrcE);
     end
-
-    flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
 
     // Part 2 Branch target address prediction
     // BTB contains target address for all CFI
@@ -167,6 +164,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
     if (P.ZIHPM_SUPPORTED) begin
       logic [P.XLEN-1:0]       RASPCD, RASPCE;
       logic                    RASPredPCWrongE;
+      logic                    PCSrcM;
       // performance counters
       // 1. class         (class wrong / minstret) (IClassWrongM / csr)                    // Correct now
       // 2. target btb    (btb target wrong / class[0,1,3])  (btb target wrong / (br + j + jal)
@@ -185,6 +183,7 @@ module bpred import cvw::*; #(parameter cvw_t P) (
         {BPDirWrongE, RASPredPCWrongE},
         {BPDirWrongM, RASPredPCWrongM});
 
+      flopenrc #(1) PCSrcMReg(clk, reset, FlushM, ~StallM, PCSrcE, PCSrcM);
       assign BTAWrongM = BPBTAWrongM & PCSrcM;
 
     end else begin
