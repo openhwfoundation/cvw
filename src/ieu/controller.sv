@@ -21,7 +21,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
   // Decode stage control signals
   input  logic        StallD, FlushD,          // Stall, flush Decode stage
   input  logic [31:0] InstrD,                  // Instruction in Decode stage
-  input  logic [1:0]  STATUS_FS,               // is FPU enabled?
   input  logic [3:0]  ENVCFG_CBE,              // Cache block operation enables
   output logic [2:0]  ImmSrcD,                 // Type of immediate extension
   input  logic        IllegalIEUFPUInstrD,     // Illegal IEU and FPU instruction
@@ -130,7 +129,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
   logic [1:0]  CZeroD;
   logic        IFunctD, RFunctD, MFunctD;      // Detect I, R, and M-type RV32IM/RV64IM instructions
   logic        LFunctD, SFunctD, BFunctD;      // Detect load, store, branch instructions
-  logic        FLSFunctD;                      // Detect floating-point loads and stores
   logic        JRFunctD;                       // detect jalr instruction
   logic        FenceFunctD;                    // Detect fence instruction
   logic        CMOFunctD;                      // Detect CMO instruction
@@ -180,8 +178,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
     assign MFunctD          = (Funct7D == 7'b0000001) & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
     assign LFunctD          = Funct3D == 3'b000 | Funct3D == 3'b001 | Funct3D == 3'b010 | Funct3D == 3'b100 | Funct3D == 3'b101 |
                               ((P.XLEN == 64) & (Funct3D == 3'b011 | Funct3D == 3'b110));
-    assign FLSFunctD        = (STATUS_FS != 2'b00) & ((Funct3D == 3'b010 & P.F_SUPPORTED) | (Funct3D == 3'b011 & P.D_SUPPORTED) |
-                              (Funct3D == 3'b100 & P.Q_SUPPORTED) | (Funct3D == 3'b001 & P.ZFH_SUPPORTED));
     assign FenceFunctD      = (Funct3D == 3'b000) | (P.ZIFENCEI_SUPPORTED & Funct3D == 3'b001);
     assign CMOFunctD        = (Funct3D == 3'b010 & RdD == 5'b0) & (|CMOpEnD); // a supported and enabled cbo.*
     assign AFunctD          = (Funct3D == 3'b010) | (P.XLEN == 64 & Funct3D == 3'b011);
@@ -211,7 +207,6 @@ module controller import cvw::*; #(parameter cvw_t P) (
     assign RFunctD = ~Funct7D[0]; // Not a multiply
     assign MFunctD = Funct7D[0] & (P.M_SUPPORTED | (P.ZMMUL_SUPPORTED & ~Funct3D[2])); // muldiv
     assign LFunctD = 1'b1; // don't bother to check Funct3 for loads
-    assign FLSFunctD = 1'b1; // don't bother to check Funct3 for floating-point loads/stores
     assign FenceFunctD = 1'b1; // don't bother to check fields for fences
     assign CMOFunctD = 1'b1; // don't bother to check fields for CMO instructions
     assign AFunctD = 1'b1; // don't bother to check fields for atomics
@@ -234,8 +229,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
     // RegWrite_ImmSrc_ALUSrc(A_B)_MemRW_ResultSrc_Branch_ALUOp_Jump_ALUResultSrc_BaseW64_CSRRead_Privileged_Fence_MDU_Atomic_CMO_Illegal
       7'b0000011: if (LFunctD)
                       ControlsD = `CTRLW'b1_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_0; // loads
-      7'b0000111: if (FLSFunctD)
-                      ControlsD = `CTRLW'b0_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_1; // flw - only legal if FP supported
+      7'b0000111:     ControlsD = `CTRLW'b0_000_01_10_001_0_0_0_0_0_0_0_0_0_00_0_1; // flw - legal only if the FPU decoder (fctrl) accepts it
       7'b0001111: if (FenceFunctD) begin
                     if (P.ZIFENCEI_SUPPORTED)
                       ControlsD = `CTRLW'b0_000_00_00_000_0_0_0_0_0_0_0_1_0_00_0_0; // fence
@@ -251,8 +245,7 @@ module controller import cvw::*; #(parameter cvw_t P) (
                       ControlsD = `CTRLW'b1_000_01_00_000_0_1_0_0_1_0_0_0_0_00_0_0; // IW-type ALU for RV64i
       7'b0100011: if (SFunctD)
                       ControlsD = `CTRLW'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_0; // stores
-      7'b0100111: if (FLSFunctD)
-                      ControlsD = `CTRLW'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_1; // fsw - only legal if FP supported
+      7'b0100111:     ControlsD = `CTRLW'b0_001_01_01_000_0_0_0_0_0_0_0_0_0_00_0_1; // fsw - legal only if the FPU decoder (fctrl) accepts it
       7'b0101111: if (AFunctD) begin
                     if (P.ZALRSC_SUPPORTED & InstrD[31:27] == 5'b00010 & Rs2D == 5'b0)
                       ControlsD = `CTRLW'b1_000_00_10_001_0_0_0_0_0_0_0_0_0_01_0_0; // lr

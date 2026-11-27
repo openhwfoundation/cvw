@@ -20,7 +20,6 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   input  logic              clk, reset,
   // Decode stage signals
   input  logic [31:0]       InstrD,                           // Instruction
-  input  logic [1:0]        STATUS_FS,                        // is FPU enabled?
   input  logic [3:0]        ENVCFG_CBE,                       // Cache block operation enables
   input  logic              IllegalIEUFPUInstrD,              // Illegal instruction
   output logic              IllegalBaseInstrD,                // Illegal base integer instruction, or illegal RV32E access to upper 16 registers
@@ -96,7 +95,7 @@ module ieu import cvw::*; #(parameter cvw_t P) (
   logic [1:0] CZeroE;                                         // {czero.nez, czero.eqz} instructions active
 
   controller #(P) c(
-    .clk, .reset, .StallD, .FlushD, .InstrD, .STATUS_FS, .ENVCFG_CBE, .ImmSrcD,
+    .clk, .reset, .StallD, .FlushD, .InstrD, .ENVCFG_CBE, .ImmSrcD,
     .IllegalIEUFPUInstrD, .IllegalBaseInstrD,
     .StructuralStallD, .LoadStallD, .StoreStallD, .Rs1D, .Rs2D, .Rs2E,
     .StallE, .FlushE, .FlagsE, .FWriteIntE,
