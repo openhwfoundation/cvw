@@ -128,7 +128,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .STATUS_MPP, .STATUS_SPP, .NextPrivilegeModeM, .PrivilegeModeW);
 
   // decode privileged instructions
-  privdec #(P) pmd(.clk, .reset, .StallM, .InstrM(InstrM[31:7]),
+  privdec #(P) pmd(.clk, .reset, .StallM, .InstrM(InstrM[31:15]),
     .PrivilegedM, .IllegalIEUFPUInstrM, .IllegalCSRAccessM,
     .PrivilegeModeW, .STATUS_TSR, .STATUS_TVM, .STATUS_TW, .IntPendingM, .IllegalInstrFaultM,
     .EcallFaultM, .BreakpointFaultM, .sretM, .mretM, .RetM, .WaitM, .WaitedM, .sfencevmaM, .sfencevmaAllM);
@@ -157,7 +157,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
     .InstrPageFaultM, .InstrAccessFaultM, .HPTWInstrAccessFaultM, .HPTWInstrPageFaultM, .IllegalIEUFPUInstrM);
 
   // trap logic
-  trap #(P) trap(.reset,
+  trap #(P) trap(
     .InstrMisalignedFaultM, .InstrAccessFaultM, .HPTWInstrAccessFaultM, .HPTWInstrPageFaultM, .IllegalInstrFaultM,
     .BreakpointFaultM, .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
     .LoadAccessFaultM, .StoreAmoAccessFaultM, .EcallFaultM, .InstrPageFaultM,

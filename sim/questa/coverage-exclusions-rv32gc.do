@@ -135,18 +135,8 @@ ExcludeRows /core/priv/priv/csr/csrs/csrs e {STCE_0 {+(CSRAdrM == 349)*}}
 ExcludeRows /core/priv/priv/csr/csru/csru e {{(STATUS_FS != 0)_0} {+(CSRAdrM == 2)*}}
 ExcludeRows /core/priv/priv/csr/csru/csru e {{(STATUS_FS != 0)_0} {+(CSRAdrM == 1)*}}
 
-# Counter 1 has no CSR: 0xB01/0xB81 would be mtime/mtimeh, which Wally maps in the CLINT, not in the CSR space.
-# csrc treats them as nonexistent, so an access is illegal and traps and CSRMWriteM is never 1 for them; the
-# counter's write enables and its write mux branches cannot be reached.
-ExcludeGenRows $CNT {cntr[1]} e {CSRMWriteM_1 {(CSRAdrM == (2816 + 1))_1}}
-ExcludeGenRows $CNT {cntr[1]} e {CSRMWriteM_1 {(CSRAdrM == (2944 + 1))_1}}
-coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounter] -item b 1
-coverage exclude -scope "$CNT/cntr\[1\]" -linerange [TagLine ${SRC}/privileged/csrc.sv next-hpmcounterh] -item b 1
-
-# CounterEvent[0] (mcycle) is tied to 1 and CounterEvent[1] (no counter 1) to 0, so CounterEvent[0]_0 and
-# CounterEvent[1]_1, and the MCOUNTINHIBIT[1] rows that need CounterEvent[1] = 1, cannot be reached.
+# CounterEvent[0] (mcycle) is tied to 1, so CounterEvent[0]_0 cannot be reached.  (Counter 1, time, has no logic.)
 ExcludeGenRows $CNT {cntr[0]} e {{CounterEvent\[0\]_0}}
-ExcludeGenRows $CNT {cntr[1]} e {{CounterEvent\[1\]_1} {MCOUNTINHIBIT_REGW\[1\]_*}}
 
 # CounterEvent[31:25] is tied to 0 (no event sources yet), so counters 25-31 never increment: every row but
 # CounterEvent_0 needs CounterEvent = 1.

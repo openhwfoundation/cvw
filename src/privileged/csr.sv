@@ -83,7 +83,6 @@ module csr import cvw::*; #(parameter cvw_t P) (
 );
 
   localparam MIP = 12'h344;
-  localparam SIP = 12'h144;
 
   logic [P.XLEN-1:0]       CSRMReadValM, CSRSReadValM, CSRUReadValM, CSRCReadValM;
   logic [P.XLEN-1:0]       CSRReadValM;
@@ -166,9 +165,10 @@ module csr import cvw::*; #(parameter cvw_t P) (
     // Choose either rs1 or uimm[4:0] as source; funct3[2] = InstrM[14] is 1 for csrrwi/csrrsi/csrrci
     CSRSrcM = InstrM[14] ? {{(P.XLEN-5){1'b0}}, InstrM[19:15]} : SrcAM;
 
-    // CSR set and clear for MIP/SIP should only touch internal state, not interrupt inputs
-    if (CSRAdrM == MIP | CSRAdrM == SIP) CSRReadVal2M = {{(P.XLEN-12){1'b0}}, MIP_REGW_writeable};
-    else                                 CSRReadVal2M = CSRReadValM;
+    // mip.SEIP reads as the OR of the external interrupt and a software-writable bit, but CSR set and clear
+    // modify only the software-writable bit.  Every other writable bit of mip and sip reads back its own flop.
+    CSRReadVal2M = CSRReadValM;
+    if (CSRAdrM == MIP) CSRReadVal2M[9] = MIP_REGW_writeable[9];
 
     // Compute AND/OR modification
     CSRRWM = CSRSrcM;

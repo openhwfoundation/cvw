@@ -124,24 +124,31 @@ module csrc import cvw::*; #(parameter cvw_t P) (
 
   // Counter update and write logic
   for (i = 0; i < P.COUNTERS; i = i + 1) begin : cntr
-    assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i); // coverage tag: MTIME traps
-    assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0]; // exclusion-tag: next-hpmcounter
-    if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
-    else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
-    always_ff @(posedge clk)
-      if (reset) HPMCOUNTER_REGW[i][P.XLEN-1:0] <= '0;
-      else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
-
-    if (P.XLEN == 32) begin // write high and low separately
-      assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
-      assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
-      assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32]; // exclusion-tag: next-hpmcounterh
+    if (i == 1) begin // counter 1 would be mtime, which is memory mapped in the CLINT: mhpmcounter1(h) are not CSRs and have no register
+      assign {WriteHPMCOUNTERM[i], CounterInc[i]} = '0;
+      assign {NextHPMCOUNTERM[i], HPMCOUNTER_REGW[i], HPMCOUNTERH_REGW[i]} = '0;
+      assign HPMCOUNTERPlusM[i] = '0;
+      if (P.XLEN == 32) assign {WriteHPMCOUNTERHM[i], NextHPMCOUNTERHM[i]} = '0;
+    end else begin
+      assign WriteHPMCOUNTERM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERBASE + i);
+      assign NextHPMCOUNTERM[i][P.XLEN-1:0] = WriteHPMCOUNTERM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][P.XLEN-1:0]; // exclusion-tag: next-hpmcounter
+      if (i < 3) assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i]; // MCYCLE, CYCLE, and MINSTRET are always incremented if not inhibited
+      else       assign CounterInc[i] = CounterEvent[i] & ~MCOUNTINHIBIT_REGW[i] & (MHPMEVENT_REGW[i] != 0); // user-defined counters are incremented only if the event is enabled
       always_ff @(posedge clk)
-        if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
-        else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
-    end else begin // XLEN=64; write entire register
-      assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]};
-      assign HPMCOUNTERH_REGW[i] = '0; // disregard for RV64
+        if (reset) HPMCOUNTER_REGW[i][P.XLEN-1:0] <= '0;
+        else       HPMCOUNTER_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERM[i];
+
+      if (P.XLEN == 32) begin // write high and low separately
+        assign HPMCOUNTERPlusM[i] = {HPMCOUNTERH_REGW[i], HPMCOUNTER_REGW[i]} + {63'b0, CounterInc[i]};
+        assign WriteHPMCOUNTERHM[i] = CSRMWriteM & (CSRAdrM == MHPMCOUNTERHBASE + i);
+        assign NextHPMCOUNTERHM[i] = WriteHPMCOUNTERHM[i] ? CSRWriteValM : HPMCOUNTERPlusM[i][63:32]; // exclusion-tag: next-hpmcounterh
+        always_ff @(posedge clk)
+          if (reset) HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= '0;
+          else       HPMCOUNTERH_REGW[i][P.XLEN-1:0] <= NextHPMCOUNTERHM[i];
+      end else begin // XLEN=64; write entire register
+        assign HPMCOUNTERPlusM[i] = HPMCOUNTER_REGW[i] + {63'b0, CounterInc[i]};
+        assign HPMCOUNTERH_REGW[i] = '0; // disregard for RV64
+      end
     end
   end
 
