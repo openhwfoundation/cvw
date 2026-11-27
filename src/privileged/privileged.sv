@@ -81,6 +81,7 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] CSRReadValW,                                    // Value read from CSR
   output logic [1:0]        PrivilegeModeW,                                 // current privilege mode
   output logic [P.XLEN-1:0] SATP_REGW,                                      // supervisor address translation register
+  output logic              VirtModeW,                                      // current V: SATP_REGW is vsatp when 1
   output logic              STATUS_MXR, STATUS_SUM, STATUS_MPRV,            // status register bits
   output logic [1:0]        STATUS_MPP, STATUS_FS,                          // status register bits
   output logic              HSTATUS_SPVP,                                   // HLV/HLVX/HSV effective privilege
@@ -134,7 +135,6 @@ module privileged import cvw::*; #(parameter cvw_t P) (
   logic                     WaitedM;                                        // wfi in M has waited
 
     // --- Hypervisor ---
-  logic                     VirtModeW;       // current V (from privmode)
   logic                     MSTATUS_MPV;     // from CSR (prev V for MRET)
   logic                     HSTATUS_SPV;     // from CSR (prev V for SRET in HS)
   logic                     HSTATUS_VTSR, HSTATUS_VTW, HSTATUS_VTVM, HSTATUS_HU;
