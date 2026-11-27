@@ -29,7 +29,6 @@ module pmpchecker import cvw::*; #(parameter cvw_t P) (
   input  var logic [7:0]           PMPCFG_ARRAY_REGW[P.PMP_ENTRIES-1:0],
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],
   input  logic                     ExecuteAccessF, WriteAccessM, ReadAccessM,
-  input  logic [1:0]               Size,
   input  logic [3:0]               CMOpM,
   output logic                     PMPInstrAccessFaultF,
   output logic                     PMPLoadAccessFaultM,
@@ -48,10 +47,8 @@ module pmpchecker import cvw::*; #(parameter cvw_t P) (
   if (P.PMP_ENTRIES > 0) begin : pmp // prevent complaints about array of no elements when PMP_ENTRIES = 0
     pmpadrdec #(P) pmpadrdecs[P.PMP_ENTRIES-1:0](
       .PhysicalAddress,
-      .Size,
       .PMPCfg(PMPCFG_ARRAY_REGW),
       .PMPAdr(PMPADDR_ARRAY_REGW),
-      .FirstMatch,
       .PAgePMPAdrIn({PAgePMPAdr[P.PMP_ENTRIES-2:0], 1'b1}),
       .PAgePMPAdrOut(PAgePMPAdr),
       .Match, .L, .X, .W, .R);

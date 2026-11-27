@@ -76,7 +76,7 @@ module buscachefsm #(
   always_comb begin
     case (CurrState)
       ADR_PHASE: if (HREADY & |BusRW)                                NextState = DATA_PHASE;             // exclusion-tag: buscachefsm HREADY0
-                 else if (HREADY & BusWrite & ~READ_ONLY_CACHE)      NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm HREADY1
+                 else if (HREADY & BusWrite)                         NextState = CACHE_WRITEBACK;        // exclusion-tag: buscachefsm HREADY1
                  else if (HREADY & CacheBusRW[1])                    NextState = CACHE_FETCH;            // exclusion-tag: buscachefsm HREADYread
                  else                                                NextState = ADR_PHASE;
       DATA_PHASE:  if (HREADY & BusAtomic & ~READ_ONLY_CACHE)        NextState = ATOMIC_READ_DATA_PHASE; // exclusion-tag: buscachefsm HREADY2
@@ -108,9 +108,8 @@ module buscachefsm #(
   assign NextBeatCount = BeatCount + 1'b1;
 
   assign FinalBeatCount = BeatCountDelayed == BeatCountThreshold[AHBWLOGBWPL-1:0];
-  assign BeatCntEn = (((NextState == CACHE_WRITEBACK | NextState == CACHE_FETCH) & HREADY & ~Flush) |
-                     (NextState == ADR_PHASE & |CacheBusRW & HREADY)) & ~Flush;
-  assign BeatCntReset = NextState == ADR_PHASE;
+  assign BeatCntEn = (NextState == CACHE_WRITEBACK | NextState == CACHE_FETCH) & HREADY & ~Flush;
+  assign BeatCntReset = NextState == ADR_PHASE; // reset has priority over BeatCntEn
 
   assign CaptureEn = (CurrState == DATA_PHASE & BusRW[1] & ~Flush) | (CurrState == CACHE_FETCH & HREADY);
   assign CacheAccess = CurrState == CACHE_FETCH | CurrState == CACHE_WRITEBACK;

@@ -45,7 +45,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   input  logic              MemAccessInFlightM,     // LSU has started (or performed and is holding) the M-stage memory access; do not pre-empt it
   input  logic              MemAccessDoneM,         // LSU has performed and captured the M-stage memory access; it will not be re-issued
   input  logic [2:0]        Funct3M,
-  input  logic [6:0]        Funct7M,
   input  logic              ITLBMissOrUpdateAF,
   input  logic              DTLBMissOrUpdateDAM,
   input  logic              FlushW,
@@ -59,7 +58,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   output logic [P.XLEN-1:0] IHWriteDataM,
   output logic [1:0]        LSUAtomicM,
   output logic [2:0]        LSUFunct3M,
-  output logic [6:0]        LSUFunct7M,
   output logic [3:0]        LSUCMOpM,
   output logic              LSUFpLoadStoreM,        // FpLoadStoreM, cleared for the walker's PTE accesses
   output logic              HPTWFlushW,
@@ -83,12 +81,12 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   logic                     DTLBWalkPending, ITLBWalkPending; // requests recorded when the walker left IDLE, cleared as each completes
   logic                     DTLBReq, ITLBReq, AcceptReq;
   logic                     WalkDone;
+  logic                     TLBWriteNow; // last cycle of a walk that writes the TLB
   logic [P.PPN_BITS-1:0]    BasePageTablePPN;
   logic [P.PPN_BITS-1:0]    CurrentPPN;
   logic                     Executable, Writable, Readable, Valid, PTE_U;
   logic                     Misaligned, MegapageMisaligned;
   logic                     ValidPTE, LeafPTE, ValidLeafPTE, ValidNonLeafPTE;
-  logic                     StartWalk;
   logic                     PRegEn;
   logic [2:0]               NextPageType;
   logic [P.SVMODE_BITS-1:0] SvMode;
@@ -108,7 +106,6 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   logic                     HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay;
   logic                     HPTWLoadPageFault, HPTWStoreAmoPageFault, HPTWInstrPageFault;
   logic                     HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay;
-  logic                     TakeHPTWFault;
   logic                     NonLeafReservedFaultM;
   logic                     DAUFaultM;
   logic                     InvalidPTEFaultM;
@@ -135,15 +132,13 @@ module hptw import cvw::*; #(parameter cvw_t P) (
                                   {HPTWLoadAccessFaultDelay, HPTWStoreAmoAccessFaultDelay, HPTWInstrAccessFaultDelay,
                                    HPTWLoadPageFaultDelay, HPTWStoreAmoPageFaultDelay, HPTWInstrPageFaultDelay});
 
-  assign TakeHPTWFault = WalkerState != IDLE;
-
   // Improve timing by taking HPTW faults off critical path because these are multicycle operations anyway
-  assign LoadAccessFaultM      = TakeHPTWFault ? HPTWLoadAccessFaultDelay : LSULoadAccessFaultM;
-  assign StoreAmoAccessFaultM  = TakeHPTWFault ? HPTWStoreAmoAccessFaultDelay : LSUStoreAmoAccessFaultM;
-  assign HPTWInstrAccessFaultF = TakeHPTWFault ? HPTWInstrAccessFaultDelay : 1'b0;
-  assign LoadPageFaultM        = TakeHPTWFault ? HPTWLoadPageFaultDelay : LSULoadPageFaultM;
-  assign StoreAmoPageFaultM    = TakeHPTWFault ? HPTWStoreAmoPageFaultDelay : LSUStoreAmoPageFaultM;
-  assign HPTWInstrPageFaultF   = TakeHPTWFault ? HPTWInstrPageFaultDelay : 1'b0;
+  assign LoadAccessFaultM      = SelHPTW ? HPTWLoadAccessFaultDelay : LSULoadAccessFaultM;
+  assign StoreAmoAccessFaultM  = SelHPTW ? HPTWStoreAmoAccessFaultDelay : LSUStoreAmoAccessFaultM;
+  assign HPTWInstrAccessFaultF = SelHPTW ? HPTWInstrAccessFaultDelay : 1'b0;
+  assign LoadPageFaultM        = SelHPTW ? HPTWLoadPageFaultDelay : LSULoadPageFaultM;
+  assign StoreAmoPageFaultM    = SelHPTW ? HPTWStoreAmoPageFaultDelay : LSUStoreAmoPageFaultM;
+  assign HPTWInstrPageFaultF   = SelHPTW ? HPTWInstrPageFaultDelay : 1'b0;
 
   // Extract bits from CSRs and inputs
   assign SvMode = SATP_REGW[P.XLEN-1:P.XLEN-P.SVMODE_BITS];
@@ -171,10 +166,10 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   // Pending-request registers: both requests are captured when the walk starts; each is cleared when its
   // walk completes (final LEAF or FAULT).  A DTLB-walk fault traps, so the ITLB request is dropped too.
   // FlushW (trap) clears both.
-  assign WalkDone = ((WalkerState == LEAF) & ~UpdatePTE & ~InvalidPTEFaultM) | (WalkerState == FAULT);
+  assign WalkDone = TLBWriteNow | (WalkerState == FAULT);
   always_ff @(posedge clk)
     if (reset | FlushW)       {DTLBWalkPending, ITLBWalkPending} <= 2'b00;
-    else if (StartWalk)       {DTLBWalkPending, ITLBWalkPending} <= {DTLBReq, ITLBReq};
+    else if (AcceptReq)       {DTLBWalkPending, ITLBWalkPending} <= {DTLBReq, ITLBReq};
     else if (WalkDone)
       if (DTLBWalkPending) begin
         DTLBWalkPending <= 1'b0;
@@ -243,7 +238,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
                         (PTE[62:61] == 2'b11) | ((PTE[62:61] != 2'b00) & ~(P.SVPBMT_SUPPORTED & ENVCFG_PBMTE)) |
                         (PTE[63] & (~P.SVNAPOT_SUPPORTED | (PTE[13:10] != 4'b1000) | (PageType != 3'b000)));
     else              assign LeafReservedFault = 1'b0;
-    assign OtherPageFault = ImproperPrivilege | InvalidOp | Misaligned | LeafReservedFault | ~Valid;
+    assign OtherPageFault = ImproperPrivilege | InvalidOp | Misaligned | LeafReservedFault;
 
     // hptw needs to know if there is a Dirty or Access fault occurring on this
     // memory access.  If there is the PTE needs to be updated setting Access
@@ -263,13 +258,13 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   end
 
   // Enable and select signals based on states
-  assign StartWalk  = AcceptReq;
   assign HPTWRW[1]  = (WalkerState == L4_RD & P.SV57_SUPPORTED) |
                       (WalkerState == L3_RD & P.SV48_SUPPORTED) |
                       (WalkerState == L2_RD & P.SV39_SUPPORTED) |
                       (WalkerState == L1_RD) | (WalkerState == L0_RD);
-  assign DTLBWriteM = (WalkerState == LEAF & ~HPTWUpdateDA & ~InvalidPTEFaultM) & DTLBWalk;
-  assign ITLBWriteF = (WalkerState == LEAF & ~HPTWUpdateDA & ~InvalidPTEFaultM) & ~DTLBWalk;
+  assign TLBWriteNow = (WalkerState == LEAF) & ~HPTWUpdateDA & ~InvalidPTEFaultM;
+  assign DTLBWriteM = TLBWriteNow & DTLBWalk;
+  assign ITLBWriteF = TLBWriteNow & ~DTLBWalk;
 
   // FSM to track PageType based on the levels of the page table traversed
   flopr #(3) PageTypeReg(clk, reset, NextPageType, PageType);
@@ -365,7 +360,7 @@ module hptw import cvw::*; #(parameter cvw_t P) (
                   else if (DCacheBusStallM)                                NextWalkerState = L0_RD;
                   else                                                     NextWalkerState = LEAF;
       LEAF:       if (InvalidPTEFaultM)                                    NextWalkerState = FAULT;
-                  else if (P.SVADU_SUPPORTED & HPTWUpdateDA)               NextWalkerState = UPDATE_PTE;
+                  else if (HPTWUpdateDA)                                   NextWalkerState = UPDATE_PTE;
                   else if (DTLBWalk & ITLBWalkPending)                     NextWalkerState = InitialWalkerState; // DTLB walk done; chain directly to the pending ITLB walk
                   else                                                     NextWalkerState = IDLE;
       UPDATE_PTE: if (HPTWFaultM)                                          NextWalkerState = FAULT;
@@ -395,14 +390,13 @@ module hptw import cvw::*; #(parameter cvw_t P) (
   // In the last cycle of a walk (TLB write or FAULT) switch back to the original data virtual address so the
   // data cache reads the tag/data/valid/dirty/LRU state of the M-stage access's set (the set index lies within
   // the page offset) and the access resumes at IDLE with a valid hit/miss decision.
-  assign SelHPTWAdr = SelHPTW & ~(DTLBWriteM | ITLBWriteF | (WalkerState == FAULT));
+  assign SelHPTWAdr = SelHPTW & ~WalkDone;
 
   // multiplex the outputs to LSU
   if (P.XLEN == 64) assign HPTWAdrExt = {{(P.XLEN+2-P.PA_BITS){1'b0}}, HPTWAdr}; // Extend to 66 bits
   else              assign HPTWAdrExt = HPTWAdr;
   mux2 #(2) rwmux(MemRWM, HPTWRW, SelHPTW, PreLSURWM);
   mux2 #(3) sizemux(Funct3M, HPTWSize, SelHPTW, LSUFunct3M);
-  mux2 #(7) funct7mux(Funct7M, 7'b0, SelHPTW, LSUFunct7M);
   mux2 #(2) atomicmux(AtomicM, 2'b00, SelHPTW, LSUAtomicM);
   mux2 #(4) cmomux(CMOpM, 4'b0, SelHPTW, LSUCMOpM);
   mux2 #(1) fpmux(FpLoadStoreM, 1'b0, SelHPTW, LSUFpLoadStoreM);

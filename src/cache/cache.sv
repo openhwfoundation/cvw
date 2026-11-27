@@ -68,9 +68,8 @@ module cache import cvw::*; #(parameter cvw_t P,
   logic [NUMWAYS-1:0]            VictimWay, DirtyWay, HitDirtyWay;
   logic                          LineDirty, HitLineDirty;
   logic [TAGLEN-1:0]             TagWay [NUMWAYS-1:0];
-  logic [TAGLEN-1:0]             Tag;
   logic [SETLEN-1:0]             FlushAdr;
-  logic                          FlushAdrCntEn, FlushCntRst;
+  logic                          FlushAdrCntEn;
   logic                          FlushAdrFlag, FlushWayFlag;
   logic [NUMWAYS-1:0]            FlushWay, NextFlushWay;
   logic                          FlushWayCntEn;
@@ -125,7 +124,6 @@ module cache import cvw::*; #(parameter cvw_t P,
   // Need to OR together each way in a bitwise manner.
   // Final part of the AO Mux.  First is the AND in the cacheway.
   or_rows #(NUMWAYS, LINELEN) ReadDataAOMux(.a(ReadDataLineWay), .y(ReadDataLineCache));
-  or_rows #(NUMWAYS, TAGLEN) TagAOMux(.a(TagWay), .y(Tag));
 
   // Data cache needs to choose word offset from PAdr or BeatCount to writeback dirty lines
   if (!READ_ONLY_CACHE)
@@ -143,10 +141,16 @@ module cache import cvw::*; #(parameter cvw_t P,
     .PAdr(WordOffsetAddr), .ReadDataLine, .ReadDataWord);
 
   // Bus address for fetch, writeback, or flush writeback
-  mux3 #(PA_BITS) CacheBusAdrMux(.d0({PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
-    .d1({Tag, PAdr[SETTOP-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
-    .d2({Tag, FlushAdr, {OFFSETLEN{1'b0}}}),
-    .s({FlushCache, SelWriteback}), .y(CacheBusAdr));
+  if (!READ_ONLY_CACHE) begin : busadr
+    logic [TAGLEN-1:0] Tag; // tag of the victim or flushed line to write back
+    or_rows #(NUMWAYS, TAGLEN) TagAOMux(.a(TagWay), .y(Tag));
+    mux3 #(PA_BITS) CacheBusAdrMux(.d0({PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
+      .d1({Tag, PAdr[SETTOP-1:OFFSETLEN], {OFFSETLEN{1'b0}}}),
+      .d2({Tag, FlushAdr, {OFFSETLEN{1'b0}}}),
+      .s({FlushCache, SelWriteback}), .y(CacheBusAdr));
+  end else begin : busadr // I$ never writes back, so it only fetches the line at PAdr
+    assign CacheBusAdr = {PAdr[PA_BITS-1:OFFSETLEN], {OFFSETLEN{1'b0}}};
+  end
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Write Path
@@ -169,7 +173,7 @@ module cache import cvw::*; #(parameter cvw_t P,
       mux2 #(8) WriteDataMux(.d0(WriteData[(8*index)%WORDLEN+7:(8*index)%WORDLEN]),
         .d1(FetchBuffer[8*index+7:8*index]), .s(FetchBufferByteSel[index] & ~CMOpM[CMO_ZERO]), .y(LineWriteData[8*index+7:8*index]));
     end
-    assign LineByteMask = SetDirty ? DemuxedByteMask : '1;
+    assign LineByteMask = DemuxedByteMask; // cacheway enables every byte when it fills a whole line
   end else begin : WriteSelLogic
     // No need for this mux if the cache does not handle writes.
     assign LineWriteData = FetchBuffer;
@@ -181,18 +185,16 @@ module cache import cvw::*; #(parameter cvw_t P,
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if (!READ_ONLY_CACHE) begin : flushlogic // D$ can be flushed
-    logic                          ResetOrFlushCntRst;
     logic [SETLEN-1:0]             NextFlushAdr, FlushAdrP1;
 
-    // Flush address (line number)
-    assign ResetOrFlushCntRst = reset | FlushCntRst;
-    flopenr #(SETLEN) FlushAdrReg(clk, ResetOrFlushCntRst, FlushAdrCntEn, FlushAdrP1, NextFlushAdr);
+    // Flush address (line number).  Wraps to 0 after the last set (NUMSETS is a power of 2).
+    flopenr #(SETLEN) FlushAdrReg(clk, reset, FlushAdrCntEn, FlushAdrP1, NextFlushAdr);
     mux2    #(SETLEN) FlushAdrMux(NextFlushAdr, FlushAdrP1, FlushAdrCntEn, FlushAdr);
     assign FlushAdrP1 = NextFlushAdr + 1'b1;
     assign FlushAdrFlag = (NextFlushAdr == FLUSHADRTHRESHOLD[SETLEN-1:0]);
 
-    // Flush way
-    flopenl #(NUMWAYS) FlushWayReg(clk, FlushWayCntEn, ResetOrFlushCntRst, {{NUMWAYS-1{1'b0}}, 1'b1}, NextFlushWay, FlushWay);
+    // Flush way: one-hot ring counter, back at way 0 after the last way
+    flopenl #(NUMWAYS) FlushWayReg(.clk, .load(reset), .en(FlushWayCntEn), .d(NextFlushWay), .val({{NUMWAYS-1{1'b0}}, 1'b1}), .q(FlushWay));
     if (NUMWAYS > 1) assign NextFlushWay = {FlushWay[NUMWAYS-2:0], FlushWay[NUMWAYS-1]};
     else             assign NextFlushWay = FlushWay[NUMWAYS-1];
     assign FlushWayFlag = FlushWay[NUMWAYS-1];
@@ -212,7 +214,7 @@ module cache import cvw::*; #(parameter cvw_t P,
     .Hit, .LineDirty, .HitLineDirty, .CacheStall, .CacheCommitted,
     .CacheMiss, .CacheAccess, .SelAdrData, .SelAdrTag, .SelVictim,
     .ClearDirty, .SetDirty, .SetValid, .ClearValid, .SelWriteback,
-    .FlushAdrCntEn, .FlushWayCntEn, .FlushCntRst,
+    .FlushAdrCntEn, .FlushWayCntEn,
     .FlushAdrFlag, .FlushWayFlag, .FlushCache, .SelFetchBuffer,
     .InvalidateCache, .CMOpM, .CacheEn, .LRUWriteEn);
 endmodule

@@ -192,8 +192,8 @@ ExcludeRows /core/ifu e {ITLBMissOrUpdateAF_1}
 ExcludeRows $IMMU e {TLBMiss_1} [TagLine ${SRC}/mmu/mmu.sv mmu-instr-fault]
 ExcludeRows $DMMU e {TLBMiss_1} [TagLine ${SRC}/mmu/mmu.sv mmu-load-fault]
 ExcludeRows $DMMU e {TLBMiss_1} [TagLine ${SRC}/mmu/mmu.sv mmu-store-fault]
-ExcludeRows /core/lsu e {LoadPageFaultM_1 StoreAmoPageFaultM_1}
-ExcludeRows /core/lsu e {SelHPTW_1 LSULoadPageFaultM_1 LSUStoreAmoPageFaultM_1}
+ExcludeRows /core/lsu e {LSULoadPageFaultM_1 LSUStoreAmoPageFaultM_1}
+ExcludeRows /core/lsu e {SelHPTW_1 +DataFaultM_*}
 ExcludeRows /core/lsu e {HPTWStall_1}
 ExcludeRows /core/lsu e {HPTWFlushW_1}
 ExcludeRows /core/lsu e {SelHPTW_1} [TagLine ${SRC}/lsu/lsu.sv lsu-gated-stall]

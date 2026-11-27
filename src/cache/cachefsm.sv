@@ -54,7 +54,6 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
   output logic       SelVictim,         // Overrides HitWay Tag matching.  Selects the victim tag/data regardless of hit
   output logic       FlushAdrCntEn,     // Enable the counter for Flush Adr
   output logic       FlushWayCntEn,     // Enable the way counter during a flush
-  output logic       FlushCntRst,       // Reset both flush counters
   output logic       SelFetchBuffer,    // Bypass the SRAM for a load hit by directly using the read data from the ahbcacheinterface's FetchBuffer
   output logic       CacheEn            // Enable the cache memory arrays.  Disable hold read data constant
 );
@@ -162,14 +161,11 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
                      (CurrState == STATE_WRITE_LINE);
   assign SelWriteback = (CurrState == STATE_WRITEBACK & (CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH] | ~CacheBusAck)) | // exclusion-tag: cachefsm-sel-writeback
                         (CurrState == STATE_ACCESS & AnyMiss & LineDirty);
-  // coverage off -item e 1 -fecexprrow 1
-  // (state is always FLUSH_WRITEBACK when FlushWayFlag & CacheBusAck)
-  assign FlushAdrCntEn = (CurrState == STATE_FLUSH_WRITEBACK & FlushWayFlag & CacheBusAck) |
-                         (CurrState == STATE_FLUSH & FlushWayFlag & ~LineDirty);
+  // Advance to the next way when this one is clean or its writeback finishes; advance the set after the last way.
+  // Both counters wrap to their starting values after the last way of the last set, ready for the next flush.
   assign FlushWayCntEn = (CurrState == STATE_FLUSH & ~LineDirty) |
                          (CurrState == STATE_FLUSH_WRITEBACK & CacheBusAck);
-  assign FlushCntRst = (CurrState == STATE_FLUSH & FlushFlag & ~LineDirty) |
-                       (CurrState == STATE_FLUSH_WRITEBACK & FlushFlag & CacheBusAck);
+  assign FlushAdrCntEn = FlushWayCntEn & FlushWayFlag;
   // exclusion-tag-end: icache flushdirtycontrols
   // Bus interface controls
   assign CacheBusRW[1] = (CurrState == STATE_ACCESS & AnyMiss & ~LineDirty) | // exclusion-tag: icache CacheBusRCauses
@@ -181,8 +177,7 @@ module cachefsm import cvw::*; #(parameter READ_ONLY_CACHE = 0) (
 
   assign CacheBusRW[0] = (CurrState == STATE_ACCESS & LoadMiss & LineDirty) | // exclusion-tag: icache CacheBusW
                          (CurrState == STATE_WRITEBACK & ~CacheBusAck) |
-                         (CurrState == STATE_FLUSH_WRITEBACK & ~CacheBusAck) |
-                         (CurrState == STATE_WRITEBACK & (CMOpM[CMO_CLEAN] | CMOpM[CMO_FLUSH]) & ~CacheBusAck);
+                         (CurrState == STATE_FLUSH_WRITEBACK & ~CacheBusAck);
 
   assign SelAdrData = (CurrState == STATE_ACCESS & (CacheRW[0] | AnyMiss | (|CMOpM))) | // exclusion-tag: icache SelAdrCauses // changes if store delay hazard removed
                       (CurrState == STATE_FETCH) |

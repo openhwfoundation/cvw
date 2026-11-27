@@ -127,10 +127,9 @@ coverage exclude -scope /core/ifu/bus/icache/icache/cachefsm -fecexprrow [GetLin
 # because the D$ is stalled out of reset; the I$ Stall is 0 at reset.)
 coverage exclude -scope /core/ifu/bus/icache/icache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "exclusion-tag: dcache CacheEn"] 8
 
-# cache.sv AdrSelMuxData and AdrSelMuxTag and CacheBusAdrMux, excluding unhit Flush branch
+# cache.sv AdrSelMuxData and AdrSelMuxTag, excluding unhit Flush branch (the I$ has no CacheBusAdrMux)
 coverage exclude -scope /core/ifu/bus/icache/icache/AdrSelMuxData -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
 coverage exclude -scope /core/ifu/bus/icache/icache/AdrSelMuxTag -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1
-coverage exclude -scope /core/ifu/bus/icache/icache/CacheBusAdrMux -linerange [GetLineNum ${SRC}/generic/mux.sv "exclusion-tag: mux3"] -item b 1 3
 # CacheWay Dirty logic. -scope does not accept wildcards.
 set numcacheways 4
 for {set i 0} {$i < $numcacheways} {incr i} {
@@ -181,6 +180,9 @@ coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -f
 
 # I$ AHBBuscachefsm HREADY1: ADR_PHASE->CACHE_WRITEBACK on BusWrite -- read-only cache never writes back.
 coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY1"] -item bs 1
+# The same line as a condition, (HREADY & BusWrite): all three of its unhit rows (HREADY_0, HREADY_1, BusWrite_1)
+# need BusWrite = 1, and the read-only I$ never requests a bus write.
+coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -feccondrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm HREADY1"] 1 2 4
 
 # I$ AHBBuscachefsm FetchWait: CACHE_FETCH->CACHE_FETCH back-to-back read -- the I$ never pipelines a second line fetch.
 coverage exclude -scope /core/ifu/bus/icache/ahbcacheinterface/AHBBuscachefsm -linerange [GetLineNum ${SRC}/ebu/buscachefsm.sv "exclusion-tag: buscachefsm FetchWait"] -item bs 1
@@ -235,11 +237,6 @@ coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -feccondrow [GetLin
 # D$ InvalidateCache is tied 1'b0 in lsu.sv, so InvalidateCache can never be 1.  (The "cache AnyMiss"
 # exclusion above resolves via GetLineNum to L95/AnyMiss; this anchor catches the L193 LoadMiss copy.)
 coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "assign LoadMiss"] 4
-
-# D$ cachefsm L195 CacheBusRW[0] CacheCMOpM[1]/[2] terms (FEC rows 13-16): the writeback-CMO term
-# (STATE_WRITEBACK & (CMOpM[1]|CMOpM[2]) & ~CacheBusAck) is logically subsumed by the earlier OR term
-# (STATE_WRITEBACK & ~CacheBusAck), so CacheCMOpM[1]/[2] never independently drive CacheBusRW[0].
-coverage exclude -scope /core/lsu/bus/dcache/dcache/cachefsm -fecexprrow [GetLineNum ${SRC}/cache/cachefsm.sv "icache CacheBusW"] 13 14 15 16
 
 # D$ InvalidateCache is tied to 1'b0 in lsu.sv (the data cache has no invalidate-all), so the
 # InvalidateCache & ~InvalidateFlushStage invalidate paths can never be exercised in the D$: the rows that need
@@ -550,10 +547,6 @@ coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -f
 # coincident with an in-flight beat never happens for the D$ (no D$ bus transaction is active at power-on reset).
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "BeatCountReg\\("] 1
 coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "BeatCountDelayedReg\\("] 1
-
-# D$ AHBBuscachefsm BeatCntEn (NextState==ADR_PHASE)_0: a pending cached request with HREADY forces
-# NextState to a cache state (priority-masked).
-coverage exclude -scope /core/lsu/bus/dcache/ahbcacheinterface/AHBBuscachefsm -fecexprrow [GetLineNum ${SRC}/ebu/buscachefsm.sv "assign BeatCntEn"] 9
 
 # D$ AHBBuscachefsm HTRANS pipelined-request term CacheAccess_0 (row 15): FinalBeatCount outside a cache burst
 # needs a BeatCount left stale by a flush at the final beat.  The bus is then in ADR_PHASE, where the first HTRANS
