@@ -73,10 +73,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   input  logic [2:0]               PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
   input  logic                     ITLBWriteF,                               // Writes PTE and PageType to ITLB
   input  logic [P.XLEN-1:0]        SATP_REGW,                                // Location of the root page table and page table configuration
-  input  logic                     STATUS_MXR,                               // Status CSR: make executable page readable
-  input  logic                     STATUS_SUM,                               // Status CSR: Supervisor access to user memory
-  input  logic                     STATUS_MPRV,                              // Status CSR: modify machine privilege
-  input  logic [1:0]               STATUS_MPP,                               // Status CSR: previous machine privilege level
   input  logic                     ENVCFG_PBMTE,                             // Page-based memory types enabled
   input  logic                     ENVCFG_ADUE,                              // HPTW A/D Update enable
   input  logic                     sfencevmaM,                               // Virtual memory address fence, invalidate TLB entries
@@ -187,7 +183,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign TLBFlushAll = sfencevmaAllM & ~StallMQ;
 
     mmu #(.P(P), .TLB_ENTRIES(P.ITLB_ENTRIES), .IMMU(1))
-    immu(.clk, .reset, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+    immu(.clk, .reset, .SATP_REGW, .ENVCFG_PBMTE, .ENVCFG_ADUE,
+         .STATUS_MXR(1'b0), .STATUS_SUM(1'b0), .STATUS_MPRV(1'b0), .STATUS_MPP(2'b0), // MXR, SUM, and MPRV affect only data accesses
          .PrivilegeModeW, .DisableTranslation(1'b0),
          .VAdr(PCFExt),
          .Size(3'b010),
