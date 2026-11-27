@@ -137,7 +137,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
   logic                        IFUFaultF;                                // Fetch failed the PMA or PMP check, so it must not access the cache or bus
   logic                        ITLBMissOrUpdateRawF;                     // ITLB miss or A update needed, before masking by a held walk fault
   logic                        ITLBWalkFaultF;                           // The walk for the current fetch faulted (held or this cycle)
-  logic                        InstrPageFaultRawF, InstrAccessFaultRawF; // Faults on the half of the fetch currently being translated
 
   assign PCFExt = {2'b00, PCSpillF};
 
@@ -150,13 +149,11 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF, .CacheableF,
       .SelIROMF(SelIROM | ~P.BUS_SUPPORTED), // without a bus, every fetch is from the IROM
-      .InstrPageFaultF(InstrPageFaultRawF), .InstrAccessFaultF(InstrAccessFaultRawF),
+      .InstrPageFaultF, .InstrAccessFaultF, // faults on the half of the fetch currently being translated
       .IFUCacheBusStallF, .ITLBMissOrUpdateRawF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF,
       .PostSpillInstrRawF, .CompressedF);
     // A spill is taken only when the first half fetches cleanly, so a fault during a spill belongs to the
     // second half and is reported at PCM+2.
-    assign InstrPageFaultF = InstrPageFaultRawF;
-    assign InstrAccessFaultF = InstrAccessFaultRawF;
     flopenr #(1) SpillDReg(clk, reset, ~StallD, SelSpillF, SelSpillD);
     flopenr #(1) SpillEReg(clk, reset, ~StallE, SelSpillD, SelSpillE);
     flopenr #(1) SpillMReg(clk, reset, ~StallM, SelSpillE, SelSpillM);
@@ -169,8 +166,6 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign PostSpillInstrRawF = InstrRawF;
     assign {SelSpillNextF, CompressedF} = '0;
     assign PCSpillM = PCM;
-    assign InstrPageFaultF = InstrPageFaultRawF;
-    assign InstrAccessFaultF = InstrAccessFaultRawF;
   end
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -203,8 +198,8 @@ module ifu import cvw::*; #(parameter cvw_t P) (
          .PhysicalAddress(PCPF),
          .TLBMiss(ITLBMissF),
          .Cacheable(CacheableF), .Idempotent(), .SelTIM(SelIROM),
-         .InstrAccessFaultF(InstrAccessFaultRawF), .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
-         .InstrPageFaultF(InstrPageFaultRawF), .LoadPageFaultM(), .StoreAmoPageFaultM(),
+         .InstrAccessFaultF, .LoadAccessFaultM(), .StoreAmoAccessFaultM(),
+         .InstrPageFaultF, .LoadPageFaultM(), .StoreAmoPageFaultM(),
          .LoadMisalignedFaultM(), .StoreAmoMisalignedFaultM(),
          .UpdateDA(InstrUpdateAF), .CMOpM(4'b0),
          .AtomicAccessM(1'b0), .ExecuteAccessF(1'b1), .WriteAccessM(1'b0), .ReadAccessM(1'b0),
@@ -226,7 +221,7 @@ module ifu import cvw::*; #(parameter cvw_t P) (
     assign ITLBWalkFaultF = HPTWInstrAccessFaultHeldF | HPTWInstrPageFaultHeldF;
     assign ITLBMissOrUpdateAF = ITLBMissOrUpdateRawF & ~ITLBWalkFaultF;
   end else begin
-    assign {ITLBMissF, InstrAccessFaultRawF, InstrPageFaultRawF, InstrUpdateAF} = '0;
+    assign {ITLBMissF, InstrAccessFaultF, InstrPageFaultF, InstrUpdateAF} = '0;
     assign PCPF = PCFExt[P.PA_BITS-1:0];
     assign CacheableF = 1'b1;
     assign SelIROM = '0;
