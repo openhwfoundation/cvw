@@ -168,12 +168,12 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   flopenr #(P.XLEN) MTVECreg(clk, reset, WriteMTVECM, TVECWriteValM, MTVEC_REGW);
   if (P.S_SUPPORTED) begin:deleg // DELEG registers should exist
     // Every delegable cause is below 32, so only medeleg[31:0] is stored; RV32 medelegh reads as zero
-    logic [31:0] MEDELEGLoM;
-    logic [15:0] MIDELEGWritableM;
-    flopenr #(32) MEDELEGreg(clk, reset, WriteMEDELEGM, CSRWriteValM[31:0] & MEDELEG_MASK[31:0], MEDELEGLoM);
-    assign MEDELEG_REGW = {32'b0, MEDELEGLoM};
-    flopenr #(16) MIDELEGreg(clk, reset, WriteMIDELEGM, CSRWriteValM[15:0] & MIDELEG_MASK, MIDELEGWritableM);
-    assign MIDELEG_REGW = MIDELEGWritableM | MIDELEG_RO1;
+    logic [31:0] MEDELEG_REGW_INT;
+    logic [15:0] MIDELEG_REGW_INT;
+    flopenr #(32) MEDELEGreg(clk, reset, WriteMEDELEGM, CSRWriteValM[31:0] & MEDELEG_MASK[31:0], MEDELEG_REGW_INT);
+    assign MEDELEG_REGW = {32'b0, MEDELEG_REGW_INT};
+    flopenr #(16) MIDELEGreg(clk, reset, WriteMIDELEGM, CSRWriteValM[15:0] & MIDELEG_MASK, MIDELEG_REGW_INT);
+    assign MIDELEG_REGW = MIDELEG_REGW_INT | MIDELEG_RO1;
   end else begin
     assign MEDELEG_REGW = '0;
     assign MIDELEG_REGW = '0;
