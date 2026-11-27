@@ -32,8 +32,9 @@ module csri import cvw::*; #(parameter cvw_t P) (
   output logic [15:0]       MIP_REGW_writeable // only SEIP, STIP, SSIP are actually writeable; the rest are hardwired to 0
 );
 
-  logic [15:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK, SIE_WRITE_MASK, HIE_WRITE_MASK, NextMIE_REGW;
-  logic                     WriteMIPM, WriteMIEM, WriteSIPM, WriteSIEM, WriteMIEMasked;
+  logic [15:0]              MIP_WRITE_MASK, SIP_WRITE_MASK, MIE_WRITE_MASK, SIE_WRITE_MASK, HIE_WRITE_MASK, VSIE_WRITE_MASK;
+  logic [15:0]              MIEWriteMaskM, MIEWriteValM;
+  logic                     WriteMIPM, WriteMIEM, WriteSIPM, WriteSIEM;
   logic                     STIP;
   localparam MIE = 12'h304;
   localparam MIP = 12'h344;
@@ -72,51 +73,23 @@ module csri import cvw::*; #(parameter cvw_t P) (
     else if (WriteMIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & MIP_WRITE_MASK);
     else if (WriteSIPM) MIP_REGW_writeable <= (CSRWriteValM[15:0] & SIP_WRITE_MASK) | (MIP_REGW_writeable & ~SIP_WRITE_MASK); // exclusion-tag: csri-write-sip
 
-  // mie owns all implemented enable state.  hie and vsie are aliases that
-  // update/view the H-added bits in mie, matching the existing sie aliasing.
-  if (P.H_SUPPORTED) begin : mie_h
-    assign HIE_WRITE_MASK = 16'h0444 | ((P.GEILEN > 0) ? 16'h1000 : 16'h0000);
-    assign WriteMIEMasked = WriteMIEM | WriteSIEM | WriteHIEM | WriteVSIEM;
-    always_comb begin
-      NextMIE_REGW = MIE_REGW;
-      if (WriteMIEM)
-        NextMIE_REGW = CSRWriteValM[15:0] & MIE_WRITE_MASK;
-      else if (WriteSIEM)
-        NextMIE_REGW = (MIE_REGW & ~SIE_WRITE_MASK) | (CSRWriteValM[15:0] & SIE_WRITE_MASK);
-      else if (WriteHIEM)
-        NextMIE_REGW = (MIE_REGW & ~HIE_WRITE_MASK) | (CSRWriteValM[15:0] & HIE_WRITE_MASK);
-      else if (WriteVSIEM) begin
-        if (HIDELEG_REGW[2])  NextMIE_REGW[2]  = CSRWriteValM[1]; // SSIE -> VSSIE
-        if (HIDELEG_REGW[6])  NextMIE_REGW[6]  = CSRWriteValM[5]; // STIE -> VSTIE
-        if (HIDELEG_REGW[10]) NextMIE_REGW[10] = CSRWriteValM[9]; // SEIE -> VSEIE
-      end
-    end
-  end else begin : mie_noh
-    assign HIE_WRITE_MASK = 16'h0000;
-    assign WriteMIEMasked = WriteMIEM | WriteSIEM;
-    always_comb begin
-      NextMIE_REGW = MIE_REGW;
-      if (WriteMIEM) NextMIE_REGW = CSRWriteValM[15:0] & MIE_WRITE_MASK; // MIE controls M and S fields
-      else if (WriteSIEM) NextMIE_REGW = (MIE_REGW & ~SIE_WRITE_MASK) | (CSRWriteValM[15:0] & SIE_WRITE_MASK); // only S fields // exclusion-tag: csri-write-sie
-    end
-  end
-  always_ff @(posedge clk)
-    if (reset) MIE_REGW <= 16'b0;
-    else if (WriteMIEMasked) MIE_REGW <= NextMIE_REGW;
+  // mie holds all enable state; mie, sie, hie and vsie writes change only the bits their masks allow.
+  assign HIE_WRITE_MASK  = P.H_SUPPORTED ? (16'h0444 | ((P.GEILEN > 0) ? 16'h1000 : 16'h0000)) : 16'h0000;
+  assign VSIE_WRITE_MASK = HIDELEG_REGW; // vsie.{SEIE,STIE,SSIE} alias mie.{VSEIE,VSTIE,VSSIE} (bits 10/6/2) when delegated
+  // The write enables decode distinct addresses, so at most one is set.  The hie/vsie enables are ANDed with
+  // P.H_SUPPORTED where they are used, so without H they fold away and leave no unreachable coverage rows.
+  assign MIEWriteMaskM = ({16{WriteMIEM}}  & MIE_WRITE_MASK) | ({16{WriteSIEM}}  & SIE_WRITE_MASK) |
+                         ({16{WriteHIEM}}  & HIE_WRITE_MASK) | ({16{WriteVSIEM}} & VSIE_WRITE_MASK);
+  assign MIEWriteValM = (P.H_SUPPORTED & WriteVSIEM) ? {CSRWriteValM[14:0], 1'b0} : CSRWriteValM[15:0];
+  flopenr #(16) MIEreg(clk, reset, WriteMIEM | WriteSIEM | P.H_SUPPORTED & (WriteHIEM | WriteVSIEM), // exclusion-tag: csri-write-sie
+                       (MIE_REGW & ~MIEWriteMaskM) | (MIEWriteValM & MIEWriteMaskM), MIE_REGW);
 
   assign HIE_REGW = MIE_REGW & HIE_WRITE_MASK;
 
-  // Bit 12 aliases SGEIP when guest external interrupts are implemented.
+  // H adds SGEIP (bit 12) and VSEIP/VSTIP/VSSIP (10/6/2) from csrh; HIP_MIP_REGW is zero without H.
   // Bit 13 is present for future LCOFI support and remains zero.
-  if (P.H_SUPPORTED) begin : mip_h
-    assign MIP_REGW = {3'b0,      HIP_MIP_REGW[12],
-                       MExtInt,   HIP_MIP_REGW[10], SExtInt | MIP_REGW_writeable[9], 1'b0,
-                       MTimerInt, HIP_MIP_REGW[6],  STIP,                            1'b0,
-                       MSwInt,    HIP_MIP_REGW[2],  MIP_REGW_writeable[1],           1'b0};
-  end else begin : mip_noh
-    assign MIP_REGW = {4'b0,
-                       MExtInt,   1'b0, SExtInt | MIP_REGW_writeable[9], 1'b0,
-                       MTimerInt, 1'b0, STIP,                            1'b0,
-                       MSwInt,    1'b0, MIP_REGW_writeable[1],           1'b0};
-  end
+  assign MIP_REGW = {3'b0,      HIP_MIP_REGW[12],
+                     MExtInt,   HIP_MIP_REGW[10], SExtInt | MIP_REGW_writeable[9], 1'b0,
+                     MTimerInt, HIP_MIP_REGW[6],  STIP,                            1'b0,
+                     MSwInt,    HIP_MIP_REGW[2],  MIP_REGW_writeable[1],           1'b0};
 endmodule

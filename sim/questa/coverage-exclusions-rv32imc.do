@@ -149,7 +149,7 @@ ExcludeRows $DMMU/pmachecker e {|CMOpM_1} [TagLine ${SRC}/mmu/pmachecker.sv pma-
 ExcludeRows /core/priv/priv/csr/csri e [list CSRSWriteM_1 "(CSRAdrM == 324)_1"]
 ExcludeRows /core/priv/priv/csr/csri e [list CSRSWriteM_1 "(CSRAdrM == 260)_1"]
 coverage exclude -scope /core/priv/priv/csr/csri -linerange [TagLine ${SRC}/privileged/csri.sv csri-write-sip] -item bs 1
-coverage exclude -scope /core/priv/priv/csr/csri -linerange [TagLine ${SRC}/privileged/csri.sv csri-write-sie] -item bs 1
+ExcludeRows /core/priv/priv/csr/csri e {WriteSIEM_1} [TagLine ${SRC}/privileged/csri.sv csri-write-sie]
 ExcludeRows /core/priv/priv/csr/csrm e [list CSRMWriteM_1 "(CSRAdrM == 770)_1"]
 ExcludeRows /core/priv/priv/csr/csrm e [list CSRMWriteM_1 "(CSRAdrM == 771)_1"]
 
