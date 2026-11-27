@@ -44,11 +44,9 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]               MSCRATCH_REGW, MTVAL_REGW, MCAUSE_REGW;
   logic [P.XLEN-1:0]               MENVCFGH_REGW;
   logic [P.XLEN-1:0]               TVECWriteValM;
-  logic                            WriteMTVECM, WriteMEDELEGM, WriteMEDELEGHM, WriteMIDELEGM;
+  logic                            WriteMTVECM, WriteMEDELEGM, WriteMIDELEGM;
   logic                            WriteMSCRATCHM, WriteMEPCM, WriteMCAUSEM, WriteMTVALM;
   logic                            WriteMCOUNTERENM, WriteMCOUNTINHIBITM;
-  logic [63:0]                     NextMEDELEGM;
-  logic [15:0]                     NextMIDELEGM;
 
   // Machine CSRs
   localparam MVENDORID     = 12'hF11;
@@ -154,7 +152,6 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   assign WriteMSTATUSHM      = CSRMWriteM & (CSRAdrM == MSTATUSH) & (P.XLEN == 32);
   assign WriteMTVECM         = CSRMWriteM & (CSRAdrM == MTVEC);
   assign WriteMEDELEGM       = CSRMWriteM & (CSRAdrM == MEDELEG);
-  assign WriteMEDELEGHM      = CSRMWriteM & (CSRAdrM == MEDELEGH) & (P.XLEN == 32) & P.H_SUPPORTED;
   assign WriteMIDELEGM       = CSRMWriteM & (CSRAdrM == MIDELEG);
   assign WriteMSCRATCHM      = CSRMWriteM & (CSRAdrM == MSCRATCH);
   assign WriteMEPCM          = MTrapM | (CSRMWriteM & (CSRAdrM == MEPC));
@@ -170,19 +167,13 @@ module csrm import cvw::*; #(parameter cvw_t P) (
   assign TVECWriteValM = (CSRWriteValM[0] & P.VECTORED_INTERRUPTS_SUPPORTED) ? {CSRWriteValM[P.XLEN-1:6], 6'b000001} : {CSRWriteValM[P.XLEN-1:2], 2'b00};
   flopenr #(P.XLEN) MTVECreg(clk, reset, WriteMTVECM, TVECWriteValM, MTVEC_REGW);
   if (P.S_SUPPORTED) begin:deleg // DELEG registers should exist
-    if (P.XLEN == 64) begin: medelegrv64
-      assign NextMEDELEGM = WriteMEDELEGM ? (CSRWriteValM & MEDELEG_MASK) : MEDELEG_REGW;
-    end else begin: medelegrv32
-      always_comb begin
-        NextMEDELEGM = MEDELEG_REGW;
-        if (WriteMEDELEGM)  NextMEDELEGM[31:0]  = CSRWriteValM[31:0] & MEDELEG_MASK[31:0];
-        if (WriteMEDELEGHM) NextMEDELEGM[63:32] = CSRWriteValM[31:0] & MEDELEG_MASK[63:32];
-      end
-    end
-    flopenr #(64) MEDELEGreg(clk, reset, (WriteMEDELEGM | WriteMEDELEGHM), NextMEDELEGM, MEDELEG_REGW);
-
-    assign NextMIDELEGM = (CSRWriteValM[15:0] & MIDELEG_MASK) | MIDELEG_RO1;
-    flopenl #(16) MIDELEGreg(clk, reset, WriteMIDELEGM, NextMIDELEGM, MIDELEG_RO1, MIDELEG_REGW);
+    // Every delegable cause is below 32, so only medeleg[31:0] is stored; RV32 medelegh reads as zero
+    logic [31:0] MEDELEG_REGW_INT;
+    logic [15:0] MIDELEG_REGW_INT;
+    flopenr #(32) MEDELEGreg(clk, reset, WriteMEDELEGM, CSRWriteValM[31:0] & MEDELEG_MASK[31:0], MEDELEG_REGW_INT);
+    assign MEDELEG_REGW = {32'b0, MEDELEG_REGW_INT};
+    flopenr #(16) MIDELEGreg(clk, reset, WriteMIDELEGM, CSRWriteValM[15:0] & MIDELEG_MASK, MIDELEG_REGW_INT);
+    assign MIDELEG_REGW = MIDELEG_REGW_INT | MIDELEG_RO1;
   end else begin
     assign MEDELEG_REGW = '0;
     assign MIDELEG_REGW = '0;
