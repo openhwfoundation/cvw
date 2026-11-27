@@ -128,19 +128,12 @@ module trap import cvw::*; #(parameter cvw_t P) (
   assign BothInstrPageFaultM = InstrPageFaultM | HPTWInstrPageFaultM;
   // coverage off -item e 1 -fecexprrow 2
   // excludes InstrMisalignedFaultM from coverage of this line, since misaligned instructions cannot occur in rv64gc.
-  if (P.H_SUPPORTED) begin: exception_h
-    assign ExceptionM = InstrMisalignedFaultM | BothInstrAccessFaultM | IllegalInstrFaultM |
-                        LoadMisalignedFaultM | StoreAmoMisalignedFaultM |
-                        BothInstrPageFaultM | LoadPageFaultM | StoreAmoPageFaultM |
-                        BreakpointFaultM | EcallFaultM | VirtualInstrFaultM |
-                        LoadAccessFaultM | StoreAmoAccessFaultM;
-  end else begin: exception_noh
-    assign ExceptionM = InstrMisalignedFaultM | BothInstrAccessFaultM | IllegalInstrFaultM |
-                        LoadMisalignedFaultM | StoreAmoMisalignedFaultM |
-                        BothInstrPageFaultM | LoadPageFaultM | StoreAmoPageFaultM |
-                        BreakpointFaultM | EcallFaultM |
-                        LoadAccessFaultM | StoreAmoAccessFaultM;
-  end
+  // privdec ties VirtualInstrFaultM to 0 without H.
+  assign ExceptionM = InstrMisalignedFaultM | BothInstrAccessFaultM | IllegalInstrFaultM |
+                      LoadMisalignedFaultM | StoreAmoMisalignedFaultM |
+                      BothInstrPageFaultM | LoadPageFaultM | StoreAmoPageFaultM |
+                      BreakpointFaultM | EcallFaultM | VirtualInstrFaultM |
+                      LoadAccessFaultM | StoreAmoAccessFaultM;
   // coverage on
   // An exception waits, like an interrupt, while the IFU has a committed I$ fill or bus fetch (CommittedF):
   // trapping would flush the fetch partway through its AHB transaction (issues #412, #845).  Only the LSU
