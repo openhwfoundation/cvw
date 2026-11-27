@@ -37,20 +37,18 @@ module pmpadrdec import cvw::*; #(parameter cvw_t P) (
   assign AdrMode = PMPCfg[4:3];
 
   // Top-of-range (TOR)
-  // Append two implicit trailing 0's to PMPAdr value
-  assign PAltPMPAdr = {1'b0, PhysicalAddress} < {1'b0, PMPAdr, 2'b00}; // unsigned comparison
+  // PMPAdr holds address bits PA_BITS-1:2, so the two lsbs of PhysicalAddress cannot change the comparison
+  assign PAltPMPAdr = PhysicalAddress[P.PA_BITS-1:2] < PMPAdr; // unsigned comparison
   assign PAgePMPAdrOut = ~PAltPMPAdr;
   assign TORMatch = PAgePMPAdrIn & PAltPMPAdr; // exclusion-tag: PAgePMPAdrIn
 
   // Naturally aligned regions
-  logic [P.PA_BITS-1:0] NAMask, NABase;
+  logic [P.PA_BITS-3:0] NAMask;
 
-  assign NAMask[1:0] = {2'b11};
-  assign NAMask[P.PA_BITS-1:2] = (PMPAdr + {{(P.PA_BITS-3){1'b0}}, (AdrMode == NAPOT)}) ^ PMPAdr;
-  // form a mask where the bottom k bits are 1, corresponding to a size of 2^k bytes for this memory region.
-  // This assumes we're using at least an NA4 region, but works for any size NAPOT region.
-  assign NABase = {(PMPAdr & ~NAMask[P.PA_BITS-1:2]), 2'b00}; // base physical address of the pmp region
-  assign NAMatch = &((NABase ~^ PhysicalAddress) | NAMask); // check if upper bits of base address match, ignore lower bits corresponding to inside the memory range
+  // form a mask of the address bits (above the two lsbs) that lie inside the region: the trailing 1s of PMPAdr
+  // and the 0 above them for NAPOT, none for NA4.  The region is 2^(k+2) bytes when the mask has k 1s.
+  assign NAMask = (PMPAdr + {{(P.PA_BITS-3){1'b0}}, (AdrMode == NAPOT)}) ^ PMPAdr;
+  assign NAMatch = &((PMPAdr ~^ PhysicalAddress[P.PA_BITS-1:2]) | NAMask); // check if upper bits of address match, ignore lower bits corresponding to inside the memory range
 
   // finally pick the appropriate match for the access type
   assign Match = (AdrMode == TOR) ? TORMatch :
